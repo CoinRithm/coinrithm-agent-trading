@@ -322,6 +322,35 @@ paths:
         "404":
           description: Coin not found
 
+  /api/agent/performance:
+    get:
+      operationId: getPerformance
+      tags: [reads]
+      summary: The calling key's realized performance
+      description: |
+        Realized PnL + win/loss for the calling API key's OWN trades (closed
+        records only), total and per venue. winRate is null until there are
+        decided (win or loss) trades. Requires scope `read`.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  apiKeyId: { type: integer }
+                  totals: { $ref: "#/components/schemas/AgentVenuePerf" }
+                  byVenue:
+                    type: object
+                    properties:
+                      spot: { $ref: "#/components/schemas/AgentVenuePerf" }
+                      futures: { $ref: "#/components/schemas/AgentVenuePerf" }
+                      pm: { $ref: "#/components/schemas/AgentVenuePerf" }
+                  asOf: { type: string, format: date-time }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
   /api/agent/orders/open:
     get:
       operationId: listOpenOrders
@@ -690,6 +719,16 @@ components:
       properties:
         error: { type: string }
       required: [error]
+
+    AgentVenuePerf:
+      type: object
+      properties:
+        realizedPnlMusd: { type: number }
+        tradeCount: { type: integer }
+        winCount: { type: integer }
+        lossCount: { type: integer }
+        neutralCount: { type: integer }
+        winRate: { type: number, nullable: true }
 
     # ---- spot ----
     SpotOrderRequest:

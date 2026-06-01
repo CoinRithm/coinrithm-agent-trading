@@ -239,6 +239,21 @@ export function registerTools(server: McpServer, client: CoinRithmClient): void 
       present(await client.getMarketContext(coinId, requestKey(extra))),
   );
 
+  server.registerTool(
+    "get_performance",
+    {
+      title: "Get my performance",
+      description:
+        "The calling key's own realized performance: total + per-venue realized " +
+        "PnL (mUSD), trade count, win/loss/neutral counts, and win rate (null " +
+        "until there are decided trades). Closed trades only — the scorecard for " +
+        "this agent. " + PAPER_NOTE,
+      inputSchema: {},
+    },
+    async (_args, extra) =>
+      present(await client.getPerformance(requestKey(extra))),
+  );
+
   // ---------------- quotes (read scope, read-only) ----------------
   server.registerTool(
     "futures_quote",

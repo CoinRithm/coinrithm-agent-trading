@@ -16,10 +16,12 @@ trade:pm.
   for ChatGPT Actions and Gemini function calling).
 
 ## For MCP clients (Claude, etc.)
-- [MCP server](../packages/mcp-trading): stdio + Streamable HTTP; tools whoami,
-  get_portfolio, get_wallet, list_open_orders, get_positions, futures_quote,
-  pm_quote, place_spot_order, cancel_spot_order, open_futures_position,
-  close_futures_position, open_pm_position.
+- [MCP server](../packages/mcp-trading): stdio + Streamable HTTP; 17 tools —
+  reads: whoami, get_portfolio, get_wallet, resolve_symbol, get_equity_curve,
+  get_my_trades, get_market_context, get_performance, list_open_orders,
+  get_positions; quotes: futures_quote, pm_quote; writes: place_spot_order,
+  cancel_spot_order, open_futures_position, close_futures_position,
+  open_pm_position.
 - [Claude skill](../skills/coinrithm-trader/SKILL.md): trading playbook + hard
   risk rules.
 

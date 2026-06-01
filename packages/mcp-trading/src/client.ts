@@ -191,6 +191,9 @@ export class CoinRithmClient {
       { apiKey },
     );
   }
+  getPerformance(apiKey?: string) {
+    return this.request("GET", "/api/agent/performance", { apiKey });
+  }
   listOpenOrders(query: { coinId: string; limit?: number }, apiKey?: string) {
     return this.request("GET", "/api/agent/orders/open", { query, apiKey });
   }
