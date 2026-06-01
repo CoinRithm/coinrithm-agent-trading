@@ -53,6 +53,8 @@ key upstream. See [`DEPLOY.md`](./DEPLOY.md).
 | `whoami` | any | `GET /api/agent/me` |
 | `get_portfolio` | read | `GET /api/agent/portfolio` |
 | `get_wallet` | read | `GET /api/agent/wallet` |
+| `resolve_symbol` | read | `GET /api/agent/resolve` |
+| `get_equity_curve` | read | `GET /api/agent/equity-curve` |
 | `list_open_orders` | read | `GET /api/agent/orders/open` |
 | `get_positions` (venue) | read | `GET /api/agent/positions/{futures,pm}` |
 | `futures_quote` | read | `POST /api/agent/futures/quote` |

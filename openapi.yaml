@@ -110,6 +110,93 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/WalletNotFound" }
 
+  /api/agent/resolve:
+    get:
+      operationId: resolveSymbol
+      tags: [reads]
+      summary: Resolve a symbol/slug/name to a coinId
+      description: |
+        Resolve a human symbol, slug, or name (e.g. "BTC", "ethereum") to a
+        CoinRithm `coinId` (UCID) plus disambiguating alternatives. Use this to
+        get the `coinId` the wallet/quote/order endpoints require — symbols are
+        not unique. Requires scope `read`.
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 1 }
+          description: Symbol, slug, or name. (`symbol` is accepted as an alias.)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  query: { type: string }
+                  match:
+                    nullable: true
+                    type: object
+                    properties:
+                      coinId: { type: string }
+                      slug: { type: string }
+                      symbol: { type: string }
+                      name: { type: string }
+                      marketCapRank: { type: integer, nullable: true }
+                  alternatives:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        coinId: { type: string }
+                        slug: { type: string }
+                        symbol: { type: string }
+                        name: { type: string }
+                        marketCapRank: { type: integer, nullable: true }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/agent/equity-curve:
+    get:
+      operationId: getEquityCurve
+      tags: [reads]
+      summary: Daily wallet equity time series
+      description: |
+        Daily equity snapshots ({date, usdValue}) for the paper wallet — the
+        basis for a PnL chart / performance review. Empty (not 404) when no
+        snapshots exist yet. Requires scope `read`.
+      parameters:
+        - name: days
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 365, default: 30 }
+          description: Look-back window in days.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  walletId: { type: integer, nullable: true }
+                  window:
+                    type: object
+                    properties:
+                      days: { type: integer }
+                      from: { type: string, format: date-time }
+                  points:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        date: { type: string, example: "2026-05-01" }
+                        usdValue: { type: number }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
   /api/agent/orders/open:
     get:
       operationId: listOpenOrders

@@ -175,6 +175,12 @@ export class CoinRithmClient {
   getWallet(query?: { coinId?: string }, apiKey?: string) {
     return this.request("GET", "/api/agent/wallet", { query, apiKey });
   }
+  resolveSymbol(query: { q: string }, apiKey?: string) {
+    return this.request("GET", "/api/agent/resolve", { query, apiKey });
+  }
+  getEquityCurve(query?: { days?: number }, apiKey?: string) {
+    return this.request("GET", "/api/agent/equity-curve", { query, apiKey });
+  }
   listOpenOrders(query: { coinId: string; limit?: number }, apiKey?: string) {
     return this.request("GET", "/api/agent/orders/open", { query, apiKey });
   }

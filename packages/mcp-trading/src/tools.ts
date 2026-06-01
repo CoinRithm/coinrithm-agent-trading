@@ -148,6 +148,48 @@ export function registerTools(server: McpServer, client: CoinRithmClient): void 
       ),
   );
 
+  server.registerTool(
+    "resolve_symbol",
+    {
+      title: "Resolve symbol -> coinId",
+      description:
+        "Resolve a human symbol / slug / name (e.g. 'BTC', 'ethereum') to a " +
+        "CoinRithm coinId (UCID) plus disambiguating alternatives. Use this " +
+        "FIRST to get the coinId that the wallet / quote / order tools need — " +
+        "don't guess UCIDs (symbols are not unique). " + PAPER_NOTE,
+      inputSchema: {
+        q: z
+          .string()
+          .min(1)
+          .describe("Symbol, slug, or name (e.g. BTC, bitcoin, Ethereum)."),
+      },
+    },
+    async ({ q }, extra) =>
+      present(await client.resolveSymbol({ q }, requestKey(extra))),
+  );
+
+  server.registerTool(
+    "get_equity_curve",
+    {
+      title: "Get equity curve",
+      description:
+        "Daily wallet equity time series ({date, usdValue}) for the paper " +
+        "account — the basis for reviewing performance over time and narrating " +
+        "results. days = look-back window (1-365, default 30). " + PAPER_NOTE,
+      inputSchema: {
+        days: z
+          .number()
+          .int()
+          .min(1)
+          .max(365)
+          .optional()
+          .describe("Look-back window in days (1-365, default 30)."),
+      },
+    },
+    async ({ days }, extra) =>
+      present(await client.getEquityCurve({ days }, requestKey(extra))),
+  );
+
   // ---------------- quotes (read scope, read-only) ----------------
   server.registerTool(
     "futures_quote",
