@@ -10,9 +10,11 @@ FROM node:20-slim
 WORKDIR /app
 
 # Install deps first for layer caching. We need devDependencies (typescript)
-# to compile, so do NOT pass --omit=dev here.
+# to compile, so do NOT pass --omit=dev here. --ignore-scripts skips the package
+# "prepare" hook (which runs `npm run build`); src/ and tsconfig.json are not
+# present yet at this layer, so we build explicitly below once they are copied.
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --ignore-scripts
 
 # Build TypeScript -> dist/
 COPY tsconfig.json ./
