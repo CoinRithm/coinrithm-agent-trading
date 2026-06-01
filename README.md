@@ -27,7 +27,8 @@ CoinRithm → **Profile → API Keys → Generate**. Give it a label (e.g.
 ### 2. Choose scopes — read-only first (recommended)
 
 Pick the **least** you need. For your first connection, choose **`read` only**.
-You can add trade scopes later (or mint a separate key for them).
+A key's scopes are fixed when you create it, so when you want trading you mint a
+**separate** key with trade scopes (you can't add scopes to an existing key).
 
 - `read` — portfolio, wallet, positions, quotes. *Start here.*
 - `trade:spot` / `trade:futures` / `trade:pm` — add only when you actually want
@@ -71,10 +72,11 @@ read. Nothing it can call moves funds.
 
 ### 5. Enable trade scopes only when ready
 
-Comfortable with what it reads? *Now* grant trade. Either mint a new key with
-`trade:spot` (and/or `trade:futures` / `trade:pm`) or add scopes to the key.
-Re-point your agent at the new key. A good agent **quotes first, then asks you
-before placing anything**:
+Comfortable with what it reads? *Now* grant trade. Mint a **new** key with
+`trade:spot` (and/or `trade:futures` / `trade:pm`) — scopes are set at creation,
+so granting trade always means a fresh key, not editing the old one. Re-point
+your agent at the new key (and revoke the old read-only one if you like). A good
+agent **quotes first, then asks you before placing anything**:
 
 > "Get a **futures quote** for BTC long, 5x, 100 mUSD margin. Show me the numbers
 > and ask me before opening."

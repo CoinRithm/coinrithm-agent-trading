@@ -32,8 +32,9 @@ When you generate the key, pick the **least** you need:
 - `trade:futures` — open/close mock futures.
 - `trade:pm` — open mock prediction-market positions.
 
-A read-only key can't move funds no matter what an agent asks. Add trade scopes
-later (step 5), ideally on a separate key.
+A read-only key can't move funds no matter what an agent asks. When you want
+trading, mint a **separate** key with trade scopes (step 5) — scopes are set at
+creation and can't be added to an existing key.
 
 ---
 
@@ -90,8 +91,9 @@ If you get `401 Missing or malformed API key`, the key is wrong or truncated. If
 
 Happy with what it reads? Now allow trading:
 
-1. Mint a new key with `trade:spot` (and/or `trade:futures` / `trade:pm`), or add
-   scopes to the existing one.
+1. Mint a new key with `trade:spot` (and/or `trade:futures` / `trade:pm`). Scopes
+   are fixed at creation, so granting trade means a fresh key — you can't add
+   scopes to an existing one. (Revoke the old read-only key afterward if you like.)
 2. Re-point your agent at that key (new header value, or new `COINRITHM_API_KEY`).
 3. Ask it to **quote first and confirm before placing**:
 
