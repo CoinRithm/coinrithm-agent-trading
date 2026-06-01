@@ -250,6 +250,78 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
 
+  /api/agent/market/{coinId}:
+    get:
+      operationId: getMarketContext
+      tags: [reads]
+      summary: Compact factual market context for one coin
+      description: |
+        Price + 1h/24h/7d change + market cap, per-coin sentiment (with
+        totalVotes; bullishPct is null when there are no votes), the global Fear
+        & Greed value + band label, and up to 3 directly-related OPEN prediction
+        markets with their leading outcome + probability (0-1). All from
+        CoinRithm's own data — no external fetch, no generated thesis. Requires
+        scope `read`.
+      parameters:
+        - name: coinId
+          in: path
+          required: true
+          schema: { type: string }
+          description: Coin UCID (e.g. "1" = BTC). Use /api/agent/resolve to find it.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  coin:
+                    type: object
+                    properties:
+                      coinId: { type: string }
+                      symbol: { type: string }
+                      name: { type: string }
+                      marketCapRank: { type: integer, nullable: true }
+                  price:
+                    nullable: true
+                    type: object
+                    properties:
+                      usd: { type: number }
+                      change1h: { type: number, nullable: true }
+                      change24h: { type: number, nullable: true }
+                      change7d: { type: number, nullable: true }
+                      marketCapUsd: { type: number, nullable: true }
+                  sentiment:
+                    type: object
+                    properties:
+                      bullishVotes: { type: integer }
+                      bearishVotes: { type: integer }
+                      totalVotes: { type: integer }
+                      bullishPct: { type: integer, nullable: true }
+                  fearGreed:
+                    nullable: true
+                    type: object
+                    properties:
+                      value: { type: integer }
+                      label: { type: string }
+                  relatedMarkets:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        source: { type: string }
+                        title: { type: string }
+                        outcome: { type: string, nullable: true }
+                        probability: { type: number, nullable: true }
+                        slug: { type: string }
+                  asOf: { type: string, format: date-time }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: Coin not found
+
   /api/agent/orders/open:
     get:
       operationId: listOpenOrders

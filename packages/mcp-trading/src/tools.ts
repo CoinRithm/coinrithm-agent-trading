@@ -217,6 +217,28 @@ export function registerTools(server: McpServer, client: CoinRithmClient): void 
       present(await client.getMyTrades({ venue, limit }, requestKey(extra))),
   );
 
+  server.registerTool(
+    "get_market_context",
+    {
+      title: "Get market context",
+      description:
+        "Compact factual context for ONE coin to form a thesis: price + " +
+        "1h/24h/7d change + market cap, per-coin sentiment votes, the global " +
+        "Fear & Greed value, and up to 3 directly-related OPEN prediction " +
+        "markets (with their leading outcome + probability). Facts only — no " +
+        "generated thesis. Call resolve_symbol first to get the coinId. " +
+        PAPER_NOTE,
+      inputSchema: {
+        coinId: z
+          .string()
+          .min(1)
+          .describe('Coin UCID (e.g. "1" = BTC). Use resolve_symbol to find it.'),
+      },
+    },
+    async ({ coinId }, extra) =>
+      present(await client.getMarketContext(coinId, requestKey(extra))),
+  );
+
   // ---------------- quotes (read scope, read-only) ----------------
   server.registerTool(
     "futures_quote",

@@ -184,6 +184,13 @@ export class CoinRithmClient {
   getMyTrades(query?: { venue?: string; limit?: number }, apiKey?: string) {
     return this.request("GET", "/api/agent/trades", { query, apiKey });
   }
+  getMarketContext(coinId: string, apiKey?: string) {
+    return this.request(
+      "GET",
+      `/api/agent/market/${encodeURIComponent(coinId)}`,
+      { apiKey },
+    );
+  }
   listOpenOrders(query: { coinId: string; limit?: number }, apiKey?: string) {
     return this.request("GET", "/api/agent/orders/open", { query, apiKey });
   }
