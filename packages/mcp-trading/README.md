@@ -55,6 +55,7 @@ key upstream. See [`DEPLOY.md`](./DEPLOY.md).
 | `get_wallet` | read | `GET /api/agent/wallet` |
 | `resolve_symbol` | read | `GET /api/agent/resolve` |
 | `get_equity_curve` | read | `GET /api/agent/equity-curve` |
+| `get_my_trades` (venue) | read | `GET /api/agent/trades` |
 | `list_open_orders` | read | `GET /api/agent/orders/open` |
 | `get_positions` (venue) | read | `GET /api/agent/positions/{futures,pm}` |
 | `futures_quote` | read | `POST /api/agent/futures/quote` |

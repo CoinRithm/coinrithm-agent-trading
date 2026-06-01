@@ -181,6 +181,9 @@ export class CoinRithmClient {
   getEquityCurve(query?: { days?: number }, apiKey?: string) {
     return this.request("GET", "/api/agent/equity-curve", { query, apiKey });
   }
+  getMyTrades(query?: { venue?: string; limit?: number }, apiKey?: string) {
+    return this.request("GET", "/api/agent/trades", { query, apiKey });
+  }
   listOpenOrders(query: { coinId: string; limit?: number }, apiKey?: string) {
     return this.request("GET", "/api/agent/orders/open", { query, apiKey });
   }

@@ -190,6 +190,33 @@ export function registerTools(server: McpServer, client: CoinRithmClient): void 
       present(await client.getEquityCurve({ days }, requestKey(extra))),
   );
 
+  server.registerTool(
+    "get_my_trades",
+    {
+      title: "Get my trades",
+      description:
+        "Unified realized-PnL log of CLOSED trades across venues (spot fills, " +
+        "closed/liquidated futures, settled prediction-markets), most-recent " +
+        "first — the agent's memory of what it did and what won/lost. Use it to " +
+        "review performance before deciding the next move. " + PAPER_NOTE,
+      inputSchema: {
+        venue: z
+          .enum(["all", "spot", "futures", "pm"])
+          .optional()
+          .describe("Filter by venue (default all)."),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(100)
+          .optional()
+          .describe("Max rows (1-100, default 25)."),
+      },
+    },
+    async ({ venue, limit }, extra) =>
+      present(await client.getMyTrades({ venue, limit }, requestKey(extra))),
+  );
+
   // ---------------- quotes (read scope, read-only) ----------------
   server.registerTool(
     "futures_quote",

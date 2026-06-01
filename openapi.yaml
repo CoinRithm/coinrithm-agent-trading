@@ -197,6 +197,59 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
 
+  /api/agent/trades:
+    get:
+      operationId: getMyTrades
+      tags: [reads]
+      summary: Unified realized-PnL trade log
+      description: |
+        CLOSED trades across all venues (spot fills, closed/liquidated futures,
+        settled prediction-markets) merged into one realized-PnL log, most-recent
+        first. The agent's memory of what it did and what won/lost. Requires
+        scope `read`.
+      parameters:
+        - name: venue
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [all, spot, futures, pm]
+            default: all
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  walletId: { type: integer, nullable: true }
+                  venue: { type: string }
+                  count: { type: integer }
+                  trades:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        venue:
+                          type: string
+                          enum: [spot, futures, pm]
+                        id: { type: integer }
+                        closedAt: { type: string, format: date-time, nullable: true }
+                        side: { type: string }
+                        realizedPnlMusd: { type: number, nullable: true }
+                        coinId: { type: string, nullable: true }
+                        symbol: { type: string, nullable: true }
+                        market: { type: string, nullable: true }
+                        outcome: { type: string, nullable: true }
+                        detail: { type: object, additionalProperties: true }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
   /api/agent/orders/open:
     get:
       operationId: listOpenOrders
