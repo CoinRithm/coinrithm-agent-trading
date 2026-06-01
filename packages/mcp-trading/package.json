@@ -1,0 +1,43 @@
+{
+  "name": "@coinrithm/mcp-trading",
+  "version": "0.1.0",
+  "description": "MCP server for paper-trading on CoinRithm (spot, futures, prediction markets) with a user-minted API key.",
+  "type": "module",
+  "bin": {
+    "coinrithm-mcp": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "start:http": "node dist/http.js",
+    "prepare": "npm run build"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "coinrithm",
+    "paper-trading",
+    "agent",
+    "crypto",
+    "prediction-markets"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "express": "^4.21.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.0"
+  }
+}

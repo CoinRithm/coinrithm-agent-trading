@@ -1,0 +1,822 @@
+openapi: 3.1.0
+info:
+  title: CoinRithm Agent Trading API
+  version: "1.0.0"
+  description: |
+    Programmatic **paper-trading** surface for AI agents on CoinRithm.
+
+    All trading here is simulated: a 50,000 virtual-mUSD paper account, cash coin
+    `USDT` (coinId `825`). Nothing touches real money or a real exchange. **Not
+    financial advice.**
+
+    Authenticate every request with a personal API key (`crk_live_…`) minted in
+    your CoinRithm profile, presented as `Authorization: Bearer crk_live_…`
+    (or the `X-API-Key` header). Scope gates restrict actions:
+      - `read`           — reads + quotes
+      - `trade:spot`     — place/cancel spot orders
+      - `trade:futures`  — open/close mock futures
+      - `trade:pm`       — open mock prediction-market positions
+
+    NOTE: `POST /futures/open` and `POST /pm/open` are additionally server-flag
+    gated and currently return 403 ("… not enabled") even with the right scope.
+servers:
+  - url: https://api.coinrithm.com
+    description: Production (live)
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: identity
+  - name: reads
+  - name: spot
+  - name: futures
+  - name: prediction-markets
+
+paths:
+  /api/agent/me:
+    get:
+      operationId: whoami
+      tags: [identity]
+      summary: Identity & scopes for the current key
+      description: Works on any valid key regardless of scope.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  userId: { type: string }
+                  keyId: { type: integer }
+                  scopes:
+                    type: array
+                    items:
+                      type: string
+                      enum: [read, "trade:spot", "trade:futures", "trade:pm"]
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/agent/portfolio:
+    get:
+      operationId: getPortfolio
+      tags: [reads]
+      summary: Dashboard — equity, PnL, balances, open orders, history
+      description: |
+        Rich dashboard payload (reuses the human dashboard). Equity is
+        `wallet.totalUsd`; period PnL under `wallet.pnl`. Percentages are
+        fractions in 0..1 (multiply by 100 for %). Requires scope `read`.
+      parameters:
+        - name: fiat
+          in: query
+          required: false
+          schema: { type: string, default: USD }
+          description: Display fiat code (e.g. USD, EUR). Equity is still USD-denominated.
+        - name: locale
+          in: query
+          required: false
+          schema: { type: string, default: en }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Dashboard" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/WalletNotFound" }
+
+  /api/agent/wallet:
+    get:
+      operationId: getWallet
+      tags: [reads]
+      summary: Raw wallet balances incl. frozen partitions
+      description: |
+        USDT cash with its three frozen partitions (spot orders, PM, futures),
+        plus one optional coin asset if `coinId` is given. Requires scope `read`.
+      parameters:
+        - name: coinId
+          in: query
+          required: false
+          schema: { type: string }
+          description: A coin UCID (e.g. "1" = BTC) to also return that asset.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Wallet" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/WalletNotFound" }
+
+  /api/agent/orders/open:
+    get:
+      operationId: listOpenOrders
+      tags: [reads]
+      summary: Open spot orders for one coin
+      description: |
+        Open (resting) spot orders for a SINGLE coin. `coinId` is REQUIRED.
+        Requires scope `read`.
+      parameters:
+        - name: coinId
+          in: query
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 64 }
+          description: Coin UCID to list open orders for.
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 200, default: 100 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  coinId: { type: string }
+                  rows:
+                    type: array
+                    items: { $ref: "#/components/schemas/OpenOrder" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/WalletNotFound" }
+
+  /api/agent/positions/futures:
+    get:
+      operationId: getFuturesPositions
+      tags: [reads]
+      summary: Mock futures positions + unrealized PnL + liquidation distance
+      description: Up to 200 positions (open and historical). Requires scope `read`.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  positions:
+                    type: array
+                    items: { $ref: "#/components/schemas/FuturesPosition" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/agent/positions/pm:
+    get:
+      operationId: getPmPositions
+      tags: [reads]
+      summary: Mock prediction-market positions + unrealized mark
+      description: Up to 200 positions (open and historical). Requires scope `read`.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  positions:
+                    type: array
+                    items: { $ref: "#/components/schemas/PmPosition" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/agent/futures/quote:
+    post:
+      operationId: futuresQuote
+      tags: [futures]
+      summary: Read-only futures quote (price, liq estimate, eligibility)
+      description: |
+        Never mutates state. Use it before `futures/open` to see entry price,
+        notional, liquidation price, and whether entry is eligible. Requires
+        scope `read`. Leverage must be 1..20; margin >= 10 mUSD.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FuturesQuoteRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FuturesQuoteResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: Coin not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/agent/pm/quote:
+    post:
+      operationId: pmQuote
+      tags: [prediction-markets]
+      summary: Read-only prediction-market quote (price, eligibility, freshness)
+      description: |
+        Never mutates state. Returns entry probability, share estimate, max
+        payout, eligibility, and freshness for a binary market outcome. Requires
+        scope `read`. `stakeMusd` must be > 0 (min to OPEN is 10).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PmQuoteRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PmQuoteResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: Event not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/agent/spot/order:
+    post:
+      operationId: placeSpotOrder
+      tags: [spot]
+      summary: Place a spot order (market / limit / stop)
+      description: |
+        Paper spot order on your mock wallet. `coinId` is the coin UCID (NOT a
+        ticker symbol). `limitPrice` is required for limit/stop; `stopPrice` is
+        required for stop. Requires scope `trade:spot`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SpotOrderRequest" }
+      responses:
+        "200":
+          description: |
+            Order accepted. For `market`, returns an execution summary; for
+            `limit`/`stop`, returns the resting-order summary.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SpotOrderResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /api/agent/spot/order/{id}/cancel:
+    post:
+      operationId: cancelSpotOrder
+      tags: [spot]
+      summary: Cancel an open spot order
+      description: Cancels a resting spot order by id and releases frozen funds. Requires scope `trade:spot`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+          description: The open order id (from `/orders/open` or `/portfolio`).
+      responses:
+        "200":
+          description: Cancelled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean, const: true }
+        "400":
+          description: Bad request or order not open/found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/WalletNotFound" }
+
+  /api/agent/futures/open:
+    post:
+      operationId: openFuturesPosition
+      tags: [futures]
+      summary: Open (or add to) a mock futures position
+      description: |
+        Requires scope `trade:futures`. **Server-flag gated — currently returns
+        403 "Futures mock trading is not enabled".** `idempotencyKey` is REQUIRED
+        and must be unique per intent (reusing it replays the original result).
+        One net position per coin: a second open on the same coin/side ADDS to it
+        (same leverage required; opposite side rejected).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FuturesOpenRequest" }
+      responses:
+        "200":
+          description: Added to existing position, or idempotent replay
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FuturesPositionEnvelope" }
+        "201":
+          description: New position opened
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FuturesPositionEnvelope" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403":
+          description: Missing scope OR futures opening disabled (server flag)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404": { $ref: "#/components/responses/WalletNotFound" }
+        "409":
+          description: idempotencyKey already used (by a different intent/user)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422": { $ref: "#/components/responses/EntryBlocked" }
+        "503":
+          description: Could not open due to contention; retry
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/agent/futures/close:
+    post:
+      operationId: closeFuturesPosition
+      tags: [futures]
+      summary: Close (or partially reduce) a mock futures position
+      description: |
+        Requires scope `trade:futures`. `idempotencyKey` is REQUIRED. `fraction`
+        in (0,1] reduces partially; omit (or 1) for a full close. If the mark has
+        crossed liquidation, the whole position settles as a liquidation
+        regardless of `fraction`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FuturesCloseRequest" }
+      responses:
+        "200":
+          description: Closed / reduced / liquidated (or idempotent replay)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FuturesPositionEnvelope" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: Position not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Position is not open, or idempotencyKey already used
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422":
+          description: No live mark / wallet asset / frozen shortfall
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/agent/pm/open:
+    post:
+      operationId: openPmPosition
+      tags: [prediction-markets]
+      summary: Open a mock prediction-market position
+      description: |
+        Requires scope `trade:pm`. **Server-flag gated — currently returns 403
+        "PM mock trading is not enabled".** Binary outcomes only. `idempotencyKey`
+        is REQUIRED. `stakeMusd` must be >= 10.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PmOpenRequest" }
+      responses:
+        "200":
+          description: Idempotent replay of a prior open
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PmPositionEnvelope" }
+        "201":
+          description: Position opened
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PmPositionEnvelope" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403":
+          description: Missing scope OR PM opening disabled (server flag)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "404": { $ref: "#/components/responses/WalletNotFound" }
+        "409":
+          description: idempotencyKey already used (by a different intent/user)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422": { $ref: "#/components/responses/EntryBlocked" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Personal CoinRithm API key, format `crk_live_…`.
+
+  responses:
+    Unauthorized:
+      description: Missing/malformed or invalid/revoked API key
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Forbidden:
+      description: API key missing the required scope
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    BadRequest:
+      description: Invalid or missing parameters
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    WalletNotFound:
+      description: No active mock_spot wallet for this user
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    ServerError:
+      description: Server error
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    EntryBlocked:
+      description: Entry blocked by the eligibility/risk gate
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string, examples: ["futures_entry_blocked", "mock_entry_blocked"] }
+              blockReasons:
+                type: array
+                items: { type: string }
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+      required: [error]
+
+    # ---- spot ----
+    SpotOrderRequest:
+      type: object
+      required: [coinId, side, orderType, quantity]
+      properties:
+        coinId:
+          type: string
+          description: Coin UCID (e.g. "1" = BTC). NOT a ticker symbol.
+        side:
+          type: string
+          enum: [buy, sell]
+        orderType:
+          type: string
+          enum: [market, limit, stop]
+        quantity:
+          type: number
+          description: Amount of the base coin (must be > 0).
+        limitPrice:
+          type: number
+          description: Required for limit/stop orders (USD per coin).
+        stopPrice:
+          type: number
+          description: Required for stop orders (USD trigger price).
+    SpotOrderResponse:
+      type: object
+      description: |
+        For a market order, `summary` carries execution details; for limit/stop,
+        it carries the resting-order terms.
+      properties:
+        message: { type: string }
+        summary:
+          type: object
+          properties:
+            side: { type: string }
+            quantity: { type: number }
+            executionPrice: { type: number, description: "market only" }
+            totalCost: { type: number, description: "market only" }
+            pnl: { type: number, description: "market only; realized PnL in USD" }
+            limitPrice: { type: number, description: "limit/stop only" }
+            orderType: { type: string, description: "limit/stop only" }
+    OpenOrder:
+      type: object
+      properties:
+        id: { type: integer }
+        side: { type: string, enum: [buy, sell] }
+        orderType: { type: string, enum: [market, limit, stop] }
+        coinId: { type: string }
+        limitPrice: { type: number, nullable: true }
+        stopPrice: { type: number, nullable: true }
+        quantity: { type: number }
+        quantityFilled: { type: number, nullable: true }
+        triggered: { type: boolean, nullable: true }
+        createdAt: { type: string, format: date-time }
+
+    # ---- wallet / dashboard ----
+    Wallet:
+      type: object
+      properties:
+        walletId: { type: integer }
+        usdt:
+          type: object
+          description: Cash (coinId 825). Frozen partitions are mutually exclusive buckets.
+          properties:
+            coinId: { type: string, const: "825" }
+            available: { type: number, description: "spendable cash" }
+            frozen: { type: number, description: "reserved by open spot orders" }
+            frozenPm: { type: number, description: "reserved by open PM positions" }
+            frozenFutures: { type: number, description: "reserved as futures margin" }
+            avgCostUsd: { type: number }
+        coin:
+          type: object
+          nullable: true
+          description: Present only when ?coinId was supplied.
+          properties:
+            coinId: { type: string }
+            available: { type: number }
+            frozen: { type: number }
+            avgCostUsd: { type: number }
+    Dashboard:
+      type: object
+      description: |
+        Large dashboard payload. Key fields for an agent: `wallet.totalUsd`
+        (equity), `wallet.pnl` (period PnL, *Usd absolute + *Pct as 0..1 fraction),
+        `wallet.assets[]`, `openOrders[]`, `orderHistory[]`. Other blocks
+        (userCard, tasks, achievements, watchlistPreview, portfolioSummary) are
+        gamification/UI context. Verify field-by-field against a live response if
+        you depend on a specific nested key.
+      properties:
+        wallet:
+          type: object
+          properties:
+            id: { type: integer }
+            totalUsd: { type: number, description: "current paper equity in USD" }
+            todaysPnlUsd: { type: number }
+            todaysPnlPct: { type: number, description: "0..1 fraction" }
+            pnl:
+              type: object
+              properties:
+                "24hUsd": { type: number }
+                "7dUsd": { type: number }
+                "30dUsd": { type: number }
+                allTimeUsd: { type: number }
+                "24hPct": { type: number, description: "0..1 fraction" }
+                "7dPct": { type: number }
+                "30dPct": { type: number }
+                allTimePct: { type: number }
+            assets:
+              type: array
+              items:
+                type: object
+                properties:
+                  coinId: { type: string }
+                  symbol: { type: string }
+                  name: { type: string }
+                  available: { type: number }
+                  frozen: { type: number }
+                  frozenPm: { type: number }
+                  frozenFutures: { type: number }
+                  quantityTotal: { type: number }
+                  avgCostUsd: { type: number }
+                  priceUsd: { type: number }
+                  valueUsd: { type: number }
+        openOrders:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              side: { type: string }
+              orderType: { type: string }
+              coinId: { type: string }
+              symbol: { type: string }
+              price:
+                description: '"Market" string for market orders, else numeric limit price.'
+                oneOf: [{ type: number }, { type: string }]
+              quantity: { type: number }
+              quantityFilled: { type: number }
+              status: { type: string }
+              currentPriceUsd: { type: number }
+        orderHistory:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              side: { type: string }
+              orderType: { type: string }
+              coinId: { type: string }
+              symbol: { type: string }
+              quantity: { type: number }
+              pnlUsd: { type: number }
+              status: { type: string }
+              closedAt: { type: string, format: date-time, nullable: true }
+
+    # ---- futures ----
+    FuturesQuoteRequest:
+      type: object
+      required: [coinId, side, leverage, marginMusd]
+      properties:
+        coinId: { type: string, description: "Coin UCID" }
+        side: { type: string, enum: [long, short] }
+        leverage: { type: number, minimum: 1, maximum: 20 }
+        marginMusd: { type: number, minimum: 10, description: "Isolated margin in mUSD" }
+    FuturesQuoteResponse:
+      type: object
+      properties:
+        eligible: { type: boolean }
+        blockReasons: { type: array, items: { type: string } }
+        coin:
+          type: object
+          properties: { ucid: { type: string }, symbol: { type: string }, name: { type: string } }
+        side: { type: string, nullable: true }
+        leverage: { type: number, nullable: true }
+        marginMusd: { type: number, nullable: true }
+        minMargin: { type: number, examples: [10] }
+        maxLeverage: { type: number, examples: [20] }
+        entryPrice: { type: number, nullable: true }
+        notionalMusd: { type: number, nullable: true }
+        sizeCoin: { type: number, nullable: true }
+        liquidationPrice: { type: number, nullable: true }
+        maintenanceMarginRate: { type: number, nullable: true }
+        freshness: { $ref: "#/components/schemas/Freshness" }
+    FuturesOpenRequest:
+      type: object
+      required: [coinId, side, leverage, marginMusd, idempotencyKey]
+      properties:
+        coinId: { type: string }
+        side: { type: string, enum: [long, short] }
+        leverage: { type: number, minimum: 1, maximum: 20 }
+        marginMusd: { type: number, minimum: 10 }
+        idempotencyKey:
+          type: string
+          description: Unique per intent. Reusing it replays the original result.
+    FuturesCloseRequest:
+      type: object
+      required: [positionId, idempotencyKey]
+      properties:
+        positionId: { type: integer }
+        fraction:
+          type: number
+          minimum: 0
+          exclusiveMinimum: true
+          maximum: 1
+          description: "(0,1] portion to close. Omit or 1 = full close."
+        idempotencyKey: { type: string }
+    FuturesPositionEnvelope:
+      type: object
+      properties:
+        position: { $ref: "#/components/schemas/FuturesPosition" }
+        idempotentReplay: { type: boolean, description: "present (true) on a replay" }
+    FuturesPosition:
+      type: object
+      description: |
+        Mock futures position. Live-mark fields (markPrice, unrealizedPnlMusd,
+        liquidationDistancePct, atLiquidation) are added only on OPEN positions in
+        the list endpoint; they may be null when no live mark is available.
+      properties:
+        id: { type: integer }
+        status: { type: string, enum: [open, closed, liquidated] }
+        coin:
+          type: object
+          properties: { ucid: { type: string }, symbol: { type: string }, name: { type: string } }
+        side: { type: string, enum: [long, short] }
+        leverage: { type: number }
+        entryPrice: { type: number }
+        marginMusd: { type: number }
+        notionalMusd: { type: number }
+        sizeCoin: { type: number }
+        maintenanceMarginRate: { type: number }
+        liquidationPrice: { type: number }
+        freshnessAtEntry: { $ref: "#/components/schemas/Freshness" }
+        exitPrice: { type: number, nullable: true }
+        exitReason: { type: string, nullable: true, description: "user_close | liquidation" }
+        realizedPnlMusd: { type: number, nullable: true }
+        openedAt: { type: string, format: date-time, nullable: true }
+        closedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        markPrice: { type: number, nullable: true, description: "list endpoint, open positions only" }
+        unrealizedPnlMusd: { type: number, nullable: true }
+        liquidationDistancePct: { type: number, nullable: true }
+        atLiquidation: { type: boolean, nullable: true }
+
+    # ---- prediction markets ----
+    PmQuoteRequest:
+      type: object
+      required: [source, slug, outcomeExternalMarketId, stakeMusd]
+      properties:
+        source: { type: string, description: "Source slug, e.g. kalshi / polymarket (lowercased)" }
+        slug: { type: string, description: "Event slug (lowercased)" }
+        outcomeExternalMarketId: { type: string, description: "Case-sensitive outcome/market id" }
+        stakeMusd: { type: number, exclusiveMinimum: 0, description: "mUSD to stake (> 0; min to open is 10)" }
+    PmQuoteResponse:
+      type: object
+      properties:
+        eligible: { type: boolean }
+        blockReasons: { type: array, items: { type: string } }
+        fillBasis: { type: string, examples: ["outcome_probability"] }
+        entryProbability: { type: number, nullable: true, description: "0..100" }
+        sharesEstimate: { type: number, nullable: true }
+        maxPayout: { type: number, nullable: true }
+        stakeMusd: { type: number }
+        minStake: { type: number, examples: [10] }
+        frozenEntrySnapshot: { type: object, additionalProperties: true }
+        freshness: { $ref: "#/components/schemas/Freshness" }
+        eligibility:
+          type: object
+          properties:
+            settlementState: { type: string }
+            shape: { type: string }
+            entryEligible: { type: boolean }
+            alertEligible: { type: boolean }
+            settlementEligible: { type: boolean }
+            limbo: {}
+        event:
+          type: object
+          properties:
+            source: { type: string }
+            slug: { type: string }
+            title: { type: string }
+            status: { type: string }
+    PmOpenRequest:
+      type: object
+      required: [source, slug, outcomeExternalMarketId, stakeMusd, idempotencyKey]
+      properties:
+        source: { type: string }
+        slug: { type: string }
+        outcomeExternalMarketId: { type: string }
+        stakeMusd: { type: number, minimum: 10 }
+        idempotencyKey: { type: string }
+    PmPositionEnvelope:
+      type: object
+      properties:
+        position: { $ref: "#/components/schemas/PmPosition" }
+        idempotentReplay: { type: boolean }
+    PmPosition:
+      type: object
+      description: |
+        Mock PM position. Live-mark fields (currentProbability, unrealizedMark,
+        unrealizedPnl) are added only on OPEN positions in the list endpoint and
+        may be null.
+      properties:
+        id: { type: integer }
+        status: { type: string }
+        source: { type: string }
+        eventSlug: { type: string }
+        eventTitle: { type: string }
+        outcome:
+          type: object
+          properties:
+            externalMarketId: { type: string }
+            label: { type: string }
+            tokenId: { type: string, nullable: true }
+        fillBasis: { type: string }
+        entryProbability: { type: number }
+        entryProbSum: { type: number }
+        stakeMusd: { type: number }
+        sharesMusd: { type: number }
+        maxPayout: { type: number, description: "equals sharesMusd" }
+        shape: { type: string }
+        marketsCount: { type: integer, nullable: true }
+        freshnessAtEntry: { $ref: "#/components/schemas/Freshness" }
+        settlementState: { type: string, nullable: true }
+        payoutMusd: { type: number, nullable: true }
+        pnlMusd: { type: number, nullable: true }
+        openedAt: { type: string, format: date-time, nullable: true }
+        settledAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        currentProbability: { type: number, nullable: true, description: "list endpoint, open only; 0..100" }
+        unrealizedMark: { type: number, nullable: true }
+        unrealizedPnl: { type: number, nullable: true }
+
+    Freshness:
+      type: object
+      description: |
+        Data-freshness descriptor. Futures uses ageSeconds; PM uses ageMinutes.
+        `status` is a freshness label (verify exact enum against live data).
+      properties:
+        asOf: { type: string, format: date-time, nullable: true }
+        ageSeconds: { type: number, nullable: true, description: "futures" }
+        ageMinutes: { type: number, nullable: true, description: "PM" }
+        status: { type: string, nullable: true }

@@ -1,0 +1,13 @@
+{
+  "$comment": "Claude Desktop config. Merge the mcpServers block into your existing claude_desktop_config.json (do not overwrite other servers). Replace the API key with the crk_live_... key you minted in CoinRithm -> Profile -> API Keys. Then fully quit and reopen Claude Desktop. Config file location: macOS ~/Library/Application Support/Claude/claude_desktop_config.json ; Windows %APPDATA%\\Claude\\claude_desktop_config.json",
+  "mcpServers": {
+    "coinrithm-trading": {
+      "command": "node",
+      "args": ["/ABSOLUTE/PATH/TO/coinrithm-agent-trading/packages/mcp-trading/dist/index.js"],
+      "env": {
+        "COINRITHM_API_KEY": "crk_live_REPLACE_ME",
+        "COINRITHM_API_URL": "https://api.coinrithm.com"
+      }
+    }
+  }
+}

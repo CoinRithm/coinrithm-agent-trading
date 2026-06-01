@@ -1,0 +1,31 @@
+# CoinRithm Agent Trading
+
+> Let AI agents (Claude, ChatGPT/Codex, Gemini) PAPER-trade on CoinRithm using a
+> user-minted API key. Simulated funds only (50,000 virtual mUSD, cash coin
+> USDT). Not financial advice. Not real money, not a real exchange.
+
+CoinRithm exposes an agent surface at `/api/agent/*`, authenticated with a
+personal API key (format `crk_live_…`) minted in the user's profile and sent as
+`Authorization: Bearer crk_live_…`. Scopes: read, trade:spot, trade:futures,
+trade:pm.
+
+## Start here
+- [README](../README.md): pitch, scopes, security, auth.
+- [Quickstart](../QUICKSTART.md): mint a key → wire your client → ask it to trade.
+- [OpenAPI spec](../openapi.yaml): every `/api/agent/*` endpoint (source of truth
+  for ChatGPT Actions and Gemini function calling).
+
+## For MCP clients (Claude, etc.)
+- [MCP server](../packages/mcp-trading): stdio + Streamable HTTP; tools whoami,
+  get_portfolio, get_wallet, list_open_orders, get_positions, futures_quote,
+  pm_quote, place_spot_order, cancel_spot_order, open_futures_position,
+  close_futures_position, open_pm_position.
+- [Claude skill](../skills/coinrithm-trader/SKILL.md): trading playbook + hard
+  risk rules.
+
+## Notes for agents
+- Base URL: https://api.coinrithm.com (verify before relying on it).
+- `coinId` is a CoinRithm UCID, not a ticker (BTC = "1", USDT cash = "825").
+- Quote before opening; confirm with the user before any write.
+- Futures-open and PM-open are currently server-disabled (HTTP 403 "… not
+  enabled"); reads, quotes, spot orders, and futures-close are live.
