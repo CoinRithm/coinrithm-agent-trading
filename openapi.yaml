@@ -18,7 +18,8 @@ info:
       - `trade:pm`       — open mock prediction-market positions
 
     NOTE: `POST /futures/open` and `POST /pm/open` are additionally server-flag
-    gated and currently return 403 ("… not enabled") even with the right scope.
+    gated; they are enabled now and return 403 ("… not enabled") only if
+    CoinRithm later disables them.
 servers:
   - url: https://api.coinrithm.com
     description: Production (live)
@@ -551,8 +552,9 @@ paths:
       tags: [futures]
       summary: Open (or add to) a mock futures position
       description: |
-        Requires scope `trade:futures`. **Server-flag gated — currently returns
-        403 "Futures mock trading is not enabled".** `idempotencyKey` is REQUIRED
+        Requires scope `trade:futures`. Enabled now (server-flag gated — returns
+        403 "Futures mock trading is not enabled" only if later disabled).
+        `idempotencyKey` is REQUIRED
         and must be unique per intent (reusing it replays the original result).
         One net position per coin: a second open on the same coin/side ADDS to it
         (same leverage required; opposite side rejected).
@@ -638,9 +640,9 @@ paths:
       tags: [prediction-markets]
       summary: Open a mock prediction-market position
       description: |
-        Requires scope `trade:pm`. **Server-flag gated — currently returns 403
-        "PM mock trading is not enabled".** Binary outcomes only. `idempotencyKey`
-        is REQUIRED. `stakeMusd` must be >= 10.
+        Requires scope `trade:pm`. Enabled now (server-flag gated — returns 403
+        "PM mock trading is not enabled" only if later disabled). Binary outcomes
+        only. `idempotencyKey` is REQUIRED. `stakeMusd` must be >= 10.
       requestBody:
         required: true
         content:

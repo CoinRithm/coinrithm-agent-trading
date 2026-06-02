@@ -68,7 +68,7 @@ key upstream. See [`DEPLOY.md`](./DEPLOY.md).
 | `close_futures_position` | trade:futures | `POST /api/agent/futures/close` |
 | `open_pm_position` | trade:pm | `POST /api/agent/pm/open` ¹ |
 
-¹ Server-flag gated — returns `403 … not enabled` until CoinRithm enables it.
+¹ Server-flag gated; live now. Returns `403 … not enabled` only if CoinRithm later disables it.
 
 Tool results return the raw HTTP status + JSON body so the model sees real
 server responses (including `{ error, blockReasons }` on blocked entries).

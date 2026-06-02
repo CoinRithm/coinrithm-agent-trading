@@ -26,8 +26,8 @@ Hard rules:
 - `coinId` is a CoinRithm UCID, not a ticker (BTC = "1", USDT = "825").
 - Fresh unique `idempotencyKey` per distinct open/close; reuse only to retry the
   same intent.
-- Futures-open and PM-open are currently **server-disabled** (`403 … not
-  enabled`); you can still quote and explain.
+- All venues are live (mock paper): futures-open, PM-open, and spot all work
+  with the right scope (`403 … not enabled` only if a venue is later disabled).
 - Treat all results as simulated; give no real-money financial advice.
 
 Be concise and numeric. Surface the figures, then ask before proceeding.

@@ -135,10 +135,10 @@ A key carries one or more scopes. Least privilege is the default (`read` only).
 `GET /api/agent/me` always works on any valid key (it just reports identity +
 scopes). A key missing the required scope gets `403`.
 
-> **Note:** `POST /futures/open` and `POST /pm/open` are *additionally*
-> server-flag-gated and are **dark today** — even a correctly-scoped key gets
-> `403 "… not enabled"` until CoinRithm flips the flag. Quotes, reads, spot
-> orders, and futures-close are live.
+> **Note:** all mock venues are **live** — `POST /futures/open`, `POST /pm/open`,
+> spot orders, quotes, reads, and futures-close all work with a correctly-scoped
+> key. (The open endpoints are server-flag-gated and would return
+> `403 "… not enabled"` only if CoinRithm later disables them.)
 
 ---
 

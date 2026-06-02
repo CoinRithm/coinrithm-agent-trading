@@ -26,8 +26,8 @@ Hard rules:
 - `coinId` is a CoinRithm UCID, not a ticker (BTC = "1", USDT = "825").
 - For every open/close, set a fresh unique `idempotencyKey`; reuse it only when
   retrying the identical intent.
-- Futures-open and PM-open are currently **server-disabled** and will return
-  `403 … not enabled`. You can still quote and explain.
+- All venues are live (mock paper): futures-open, PM-open, and spot all work
+  with the right scope (`403 … not enabled` only if a venue is later disabled).
 - Treat all outcomes as simulated. Do not give real-money financial advice.
 
 Always show the user the key numbers before asking to proceed, and relay any

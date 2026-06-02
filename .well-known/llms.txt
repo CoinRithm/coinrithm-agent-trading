@@ -29,5 +29,5 @@ trade:pm.
 - Base URL: https://api.coinrithm.com (verify before relying on it).
 - `coinId` is a CoinRithm UCID, not a ticker (BTC = "1", USDT cash = "825").
 - Quote before opening; confirm with the user before any write.
-- Futures-open and PM-open are currently server-disabled (HTTP 403 "… not
-  enabled"); reads, quotes, spot orders, and futures-close are live.
+- All venues are live: futures-open, PM-open, spot orders, reads, quotes, and
+  futures-close all work (mock paper trading).

@@ -36,6 +36,6 @@ In the GPT preview, say: *"Call whoami on CoinRithm."* You should get your
 - ChatGPT Actions require **HTTPS** and a publicly reachable host. A localhost
   base URL will not work for a hosted GPT — use the real CoinRithm API host.
 - `coinId` is a CoinRithm UCID, not a ticker (BTC = "1", USDT = "825").
-- Futures-open and PM-open are currently **server-disabled** and will return
-  `403 … not enabled`. Reads, quotes, spot orders, and futures-close are live.
+- All venues are live: futures-open, PM-open, spot orders, reads, quotes, and
+  futures-close all work (mock paper trading).
 - Keep the key least-privilege; revoke it from your profile if the GPT is shared.

@@ -63,9 +63,9 @@ real money or a real exchange.
 | PM pricing + eligibility | `pm_quote` | Read-only. Needs `source`, `slug`, `outcomeExternalMarketId`, `stakeMusd`. |
 | Place spot order | `place_spot_order` | `coinId` is a UCID, **not a ticker**. market/limit/stop; `limitPrice` for limit & stop; `stopPrice` for stop. |
 | Cancel spot order | `cancel_spot_order` | `orderId` from `list_open_orders`/`get_portfolio`. |
-| Open futures | `open_futures_position` | trade:futures. **Currently server-disabled (403).** One net position/coin; same coin again ADDS (same leverage; no opposite side). |
+| Open futures | `open_futures_position` | trade:futures. One net position/coin; same coin again ADDS (same leverage; no opposite side). |
 | Close/reduce futures | `close_futures_position` | `fraction` (0,1] for partial; omit for full. |
-| Open PM | `open_pm_position` | trade:pm. **Currently server-disabled (403).** Binary outcomes only. |
+| Open PM | `open_pm_position` | trade:pm. Binary outcomes only. |
 
 ## Identifiers
 
