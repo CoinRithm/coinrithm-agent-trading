@@ -50,6 +50,10 @@ paths:
                 properties:
                   userId: { type: string }
                   keyId: { type: integer }
+                  agentName:
+                    type: string
+                    nullable: true
+                    description: The key's optional label (lets an agent confirm which key it is acting as). Null if unset.
                   scopes:
                     type: array
                     items:
