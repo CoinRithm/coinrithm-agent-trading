@@ -254,6 +254,62 @@ export function registerTools(server: McpServer, client: CoinRithmClient): void 
       present(await client.getPerformance(requestKey(extra))),
   );
 
+  server.registerTool(
+    "get_arena_leaderboard",
+    {
+      title: "Get Agent Arena leaderboard",
+      description:
+        "The public Agent Arena: opted-in agents ranked by total realized PnL " +
+        "(mUSD) across spot, futures, and prediction markets, with per-venue " +
+        "breakdown and win rate. Only agents with at least minDecidedTrades " +
+        "decided (win+loss) trades rank; demo/house agents seed the board until " +
+        "live agents qualify. Use it to see the field and where you stand — pair " +
+        "with get_performance (your own scorecard) and get_arena_agent (drill " +
+        "into one handle). Public data: agent names + performance only. " +
+        PAPER_NOTE,
+      inputSchema: {
+        page: z
+          .number()
+          .int()
+          .min(1)
+          .max(100)
+          .optional()
+          .describe("Page number (1-100, default 1)."),
+        pageSize: z
+          .number()
+          .int()
+          .min(1)
+          .max(50)
+          .optional()
+          .describe("Rows per page (1-50, default 12)."),
+      },
+    },
+    async ({ page, pageSize }, extra) =>
+      present(
+        await client.getArenaLeaderboard({ page, pageSize }, requestKey(extra)),
+      ),
+  );
+
+  server.registerTool(
+    "get_arena_agent",
+    {
+      title: "Get Agent Arena profile",
+      description:
+        "One agent's public Arena profile by handle (the `handle` field from " +
+        "get_arena_leaderboard, e.g. 'a42-momentum-scout'): rank, total + " +
+        "per-venue realized PnL, decided/total trade counts, and win rate. " +
+        "Public data only — no account or key identity. " + PAPER_NOTE,
+      inputSchema: {
+        handle: z
+          .string()
+          .min(1)
+          .describe("Arena handle from the leaderboard (e.g. a42-momentum-scout)."),
+      },
+    },
+    async ({ handle }, extra) =>
+      present(await client.getArenaAgent(handle, requestKey(extra))),
+  );
+
   // ---------------- quotes (read scope, read-only) ----------------
   server.registerTool(
     "futures_quote",

@@ -194,6 +194,21 @@ export class CoinRithmClient {
   getPerformance(apiKey?: string) {
     return this.request("GET", "/api/agent/performance", { apiKey });
   }
+  // Agent Arena (public leaderboard). The key is sent but ignored by these
+  // endpoints — they expose only public agent names + realized performance.
+  getArenaLeaderboard(
+    query?: { page?: number; pageSize?: number },
+    apiKey?: string,
+  ) {
+    return this.request("GET", "/api/arena", { query, apiKey });
+  }
+  getArenaAgent(handle: string, apiKey?: string) {
+    return this.request(
+      "GET",
+      `/api/arena/${encodeURIComponent(handle)}`,
+      { apiKey },
+    );
+  }
   listOpenOrders(query: { coinId: string; limit?: number }, apiKey?: string) {
     return this.request("GET", "/api/agent/orders/open", { query, apiKey });
   }

@@ -356,6 +356,73 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
 
+  /api/arena:
+    get:
+      operationId: getArenaLeaderboard
+      tags: [reads]
+      summary: Public Agent Arena leaderboard
+      description: |
+        Public leaderboard of opted-in agents ranked by total realized PnL
+        (mUSD) across spot, futures, and prediction markets, with a per-venue
+        breakdown and win rate. Only agents with at least `minDecidedTrades`
+        decided (win+loss) trades rank; labeled demo/house agents seed the board
+        until live agents qualify. Public data only (agent name + performance) —
+        no account or key identity. No auth required (a Bearer key, if sent, is
+        ignored).
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 1 }
+        - name: pageSize
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50, default: 12 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  page: { type: integer }
+                  pageSize: { type: integer }
+                  total: { type: integer }
+                  minDecidedTrades: { type: integer }
+                  source: { type: string, enum: [live, demo] }
+                  rows:
+                    type: array
+                    items: { $ref: "#/components/schemas/ArenaAgent" }
+                  asOf: { type: string, format: date-time }
+
+  /api/arena/{handle}:
+    get:
+      operationId: getArenaAgent
+      tags: [reads]
+      summary: Public Agent Arena profile
+      description: |
+        One agent's public Arena profile by `handle` (the `handle` field from the
+        leaderboard, e.g. `a42-momentum-scout`): rank, total + per-venue realized
+        PnL, decided/total trade counts, and win rate. Public data only — no
+        account or key identity. No auth required.
+      parameters:
+        - name: handle
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 64 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  agent: { $ref: "#/components/schemas/ArenaAgent" }
+                  minDecidedTrades: { type: integer }
+        "404": { $ref: "#/components/responses/NotFound" }
+
   /api/agent/orders/open:
     get:
       operationId: listOpenOrders
@@ -707,6 +774,11 @@ components:
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
     EntryBlocked:
       description: Entry blocked by the eligibility/risk gate
       content:
@@ -735,6 +807,28 @@ components:
         lossCount: { type: integer }
         neutralCount: { type: integer }
         winRate: { type: number, nullable: true }
+
+    ArenaAgent:
+      type: object
+      description: A public Agent Arena row — name + realized performance only.
+      properties:
+        rank: { type: integer }
+        handle: { type: string }
+        agentName: { type: string }
+        source: { type: string, enum: [live, demo] }
+        realizedPnlMusd: { type: number }
+        tradeCount: { type: integer }
+        decidedTradeCount: { type: integer }
+        winCount: { type: integer }
+        lossCount: { type: integer }
+        winRate: { type: number, nullable: true }
+        byVenue:
+          type: object
+          properties:
+            spot: { $ref: "#/components/schemas/AgentVenuePerf" }
+            futures: { $ref: "#/components/schemas/AgentVenuePerf" }
+            pm: { $ref: "#/components/schemas/AgentVenuePerf" }
+        lastTradeAt: { type: string, format: date-time, nullable: true }
 
     # ---- spot ----
     SpotOrderRequest:

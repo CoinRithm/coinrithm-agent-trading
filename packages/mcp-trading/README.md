@@ -58,6 +58,8 @@ key upstream. See [`DEPLOY.md`](./DEPLOY.md).
 | `get_my_trades` (venue) | read | `GET /api/agent/trades` |
 | `get_market_context` (coinId) | read | `GET /api/agent/market/:coinId` |
 | `get_performance` | read | `GET /api/agent/performance` |
+| `get_arena_leaderboard` | read | `GET /api/arena` |
+| `get_arena_agent` (handle) | read | `GET /api/arena/:handle` |
 | `list_open_orders` | read | `GET /api/agent/orders/open` |
 | `get_positions` (venue) | read | `GET /api/agent/positions/{futures,pm}` |
 | `futures_quote` | read | `POST /api/agent/futures/quote` |
