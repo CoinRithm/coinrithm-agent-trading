@@ -7,7 +7,10 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.js";
-import type { ServerNotification, ServerRequest } from "@modelcontextprotocol/sdk/types.js";
+import type {
+  ServerNotification,
+  ServerRequest,
+} from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { CoinRithmClient, bearerFromHeader, type ApiResult } from "./client.js";
 
@@ -30,7 +33,9 @@ type ToolExtra = RequestHandlerExtra<ServerRequest, ServerNotification>;
 // COINRITHM_API_KEY it was constructed with. `authInfo.token` is also honoured
 // in case a future auth middleware populates it.
 function requestKey(extra: ToolExtra): string | undefined {
-  const fromHeader = bearerFromHeader(extra.requestInfo?.headers?.authorization);
+  const fromHeader = bearerFromHeader(
+    extra.requestInfo?.headers?.authorization,
+  );
   if (fromHeader) return fromHeader;
   const token = extra.authInfo?.token?.trim();
   return token || undefined;
@@ -43,12 +48,17 @@ function present(result: ApiResult) {
     body: result.data,
   };
   return {
-    content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }],
+    content: [
+      { type: "text" as const, text: JSON.stringify(payload, null, 2) },
+    ],
     isError: !result.ok,
   };
 }
 
-export function registerTools(server: McpServer, client: CoinRithmClient): void {
+export function registerTools(
+  server: McpServer,
+  client: CoinRithmClient,
+): void {
   // ---------------- identity ----------------
   server.registerTool(
     "whoami",
@@ -76,7 +86,9 @@ export function registerTools(server: McpServer, client: CoinRithmClient): void 
         fiat: z
           .string()
           .optional()
-          .describe("Display fiat code (default USD). Equity stays USD-denominated."),
+          .describe(
+            "Display fiat code (default USD). Equity stays USD-denominated.",
+          ),
         locale: z.string().optional().describe("Locale (default en)."),
       },
     },
@@ -91,7 +103,8 @@ export function registerTools(server: McpServer, client: CoinRithmClient): void 
       description:
         "Get raw cash balances: USDT available plus the three frozen partitions " +
         "(frozen = spot orders, frozenPm = PM, frozenFutures = futures margin). " +
-        "Optionally include one coin asset. " + PAPER_NOTE,
+        "Optionally include one coin asset. " +
+        PAPER_NOTE,
       inputSchema: {
         coinId: z
           .string()
@@ -111,7 +124,10 @@ export function registerTools(server: McpServer, client: CoinRithmClient): void 
         "List open (resting) spot orders for ONE coin. coinId is required. " +
         PAPER_NOTE,
       inputSchema: {
-        coinId: z.string().min(1).describe("Coin UCID to list open orders for."),
+        coinId: z
+          .string()
+          .min(1)
+          .describe("Coin UCID to list open orders for."),
         limit: z
           .number()
           .int()
@@ -122,7 +138,9 @@ export function registerTools(server: McpServer, client: CoinRithmClient): void 
       },
     },
     async ({ coinId, limit }, extra) =>
-      present(await client.listOpenOrders({ coinId, limit }, requestKey(extra))),
+      present(
+        await client.listOpenOrders({ coinId, limit }, requestKey(extra)),
+      ),
   );
 
   server.registerTool(
@@ -133,7 +151,8 @@ export function registerTools(server: McpServer, client: CoinRithmClient): void 
         "List open + historical positions for a venue. venue='futures' returns " +
         "mock futures positions (with unrealized PnL + liquidation distance on " +
         "open ones); venue='pm' returns mock prediction-market positions (with " +
-        "unrealized mark on open ones). " + PAPER_NOTE,
+        "unrealized mark on open ones). " +
+        PAPER_NOTE,
       inputSchema: {
         venue: z
           .enum(["futures", "pm"])
@@ -156,7 +175,8 @@ export function registerTools(server: McpServer, client: CoinRithmClient): void 
         "Resolve a human symbol / slug / name (e.g. 'BTC', 'ethereum') to a " +
         "CoinRithm coinId (UCID) plus disambiguating alternatives. Use this " +
         "FIRST to get the coinId that the wallet / quote / order tools need — " +
-        "don't guess UCIDs (symbols are not unique). " + PAPER_NOTE,
+        "don't guess UCIDs (symbols are not unique). " +
+        PAPER_NOTE,
       inputSchema: {
         q: z
           .string()
@@ -175,7 +195,8 @@ export function registerTools(server: McpServer, client: CoinRithmClient): void 
       description:
         "Daily wallet equity time series ({date, usdValue}) for the paper " +
         "account — the basis for reviewing performance over time and narrating " +
-        "results. days = look-back window (1-365, default 30). " + PAPER_NOTE,
+        "results. days = look-back window (1-365, default 30). " +
+        PAPER_NOTE,
       inputSchema: {
         days: z
           .number()
@@ -198,7 +219,8 @@ export function registerTools(server: McpServer, client: CoinRithmClient): void 
         "Unified realized-PnL log of CLOSED trades across venues (spot fills, " +
         "closed/liquidated futures, settled prediction-markets), most-recent " +
         "first — the agent's memory of what it did and what won/lost. Use it to " +
-        "review performance before deciding the next move. " + PAPER_NOTE,
+        "review performance before deciding the next move. " +
+        PAPER_NOTE,
       inputSchema: {
         venue: z
           .enum(["all", "spot", "futures", "pm"])
@@ -225,14 +247,18 @@ export function registerTools(server: McpServer, client: CoinRithmClient): void 
         "Compact factual context for ONE coin to form a thesis: price + " +
         "1h/24h/7d change + market cap, per-coin sentiment votes, the global " +
         "Fear & Greed value, and up to 3 directly-related OPEN prediction " +
-        "markets (with their leading outcome + probability). Facts only — no " +
-        "generated thesis. Call resolve_symbol first to get the coinId. " +
+        "markets — each with its leading outcome + probability, 24h volume, " +
+        "liquidity, and decisionSupport (quality/liquidity/volume/spread tiers " +
+        "+ flags) so you can gauge a market's depth/tradability. Facts only — " +
+        "no generated thesis. Call resolve_symbol first to get the coinId. " +
         PAPER_NOTE,
       inputSchema: {
         coinId: z
           .string()
           .min(1)
-          .describe('Coin UCID (e.g. "1" = BTC). Use resolve_symbol to find it.'),
+          .describe(
+            'Coin UCID (e.g. "1" = BTC). Use resolve_symbol to find it.',
+          ),
       },
     },
     async ({ coinId }, extra) =>
@@ -247,7 +273,8 @@ export function registerTools(server: McpServer, client: CoinRithmClient): void 
         "The calling key's own realized performance: total + per-venue realized " +
         "PnL (mUSD), trade count, win/loss/neutral counts, and win rate (null " +
         "until there are decided trades). Closed trades only — the scorecard for " +
-        "this agent. " + PAPER_NOTE,
+        "this agent. " +
+        PAPER_NOTE,
       inputSchema: {},
     },
     async (_args, extra) =>
@@ -298,12 +325,15 @@ export function registerTools(server: McpServer, client: CoinRithmClient): void 
         "One agent's public Arena profile by handle (the `handle` field from " +
         "get_arena_leaderboard, e.g. 'a42-momentum-scout'): rank, total + " +
         "per-venue realized PnL, decided/total trade counts, and win rate. " +
-        "Public data only — no account or key identity. " + PAPER_NOTE,
+        "Public data only — no account or key identity. " +
+        PAPER_NOTE,
       inputSchema: {
         handle: z
           .string()
           .min(1)
-          .describe("Arena handle from the leaderboard (e.g. a42-momentum-scout)."),
+          .describe(
+            "Arena handle from the leaderboard (e.g. a42-momentum-scout).",
+          ),
       },
     },
     async ({ handle }, extra) =>
@@ -318,12 +348,16 @@ export function registerTools(server: McpServer, client: CoinRithmClient): void 
       description:
         "Read-only futures quote: entry price, notional, size, liquidation price, " +
         "and eligibility. Never mutates state — always quote before opening. " +
-        "leverage 1-20, marginMusd >= 10. " + PAPER_NOTE,
+        "leverage 1-20, marginMusd >= 10. " +
+        PAPER_NOTE,
       inputSchema: {
         coinId: z.string().describe("Coin UCID."),
         side: z.enum(["long", "short"]),
         leverage: z.number().min(1).max(20).describe("1-20x."),
-        marginMusd: z.number().min(10).describe("Isolated margin in mUSD (>= 10)."),
+        marginMusd: z
+          .number()
+          .min(10)
+          .describe("Isolated margin in mUSD (>= 10)."),
       },
     },
     async ({ coinId, side, leverage, marginMusd }, extra) =>
@@ -342,7 +376,8 @@ export function registerTools(server: McpServer, client: CoinRithmClient): void 
       description:
         "Read-only PM quote for a binary outcome: entry probability, share " +
         "estimate, max payout, eligibility, and freshness. Never mutates state. " +
-        "stakeMusd must be > 0 (min to open is 10). " + PAPER_NOTE,
+        "stakeMusd must be > 0 (min to open is 10). " +
+        PAPER_NOTE,
       inputSchema: {
         source: z.string().describe("Source slug (e.g. kalshi, polymarket)."),
         slug: z.string().describe("Event slug."),
@@ -370,7 +405,8 @@ export function registerTools(server: McpServer, client: CoinRithmClient): void 
         "Place a paper spot order. coinId is a coin UCID, NOT a ticker. " +
         "orderType market/limit/stop. limitPrice required for limit & stop; " +
         "stopPrice required for stop. Requires the trade:spot scope. CONFIRM with " +
-        "the user before calling. " + PAPER_NOTE,
+        "the user before calling. " +
+        PAPER_NOTE,
       inputSchema: {
         coinId: z.string().describe('Coin UCID (e.g. "1" = BTC).'),
         side: z.enum(["buy", "sell"]),
@@ -388,7 +424,10 @@ export function registerTools(server: McpServer, client: CoinRithmClient): void 
           .describe("USD trigger — required for stop."),
       },
     },
-    async ({ coinId, side, orderType, quantity, limitPrice, stopPrice }, extra) =>
+    async (
+      { coinId, side, orderType, quantity, limitPrice, stopPrice },
+      extra,
+    ) =>
       present(
         await client.placeSpotOrder(
           {
@@ -410,7 +449,8 @@ export function registerTools(server: McpServer, client: CoinRithmClient): void 
       title: "Cancel spot order",
       description:
         "Cancel an open spot order by id (releases frozen funds). Requires the " +
-        "trade:spot scope. " + PAPER_NOTE,
+        "trade:spot scope. " +
+        PAPER_NOTE,
       inputSchema: {
         orderId: z.number().int().positive().describe("Open order id."),
       },
@@ -427,7 +467,8 @@ export function registerTools(server: McpServer, client: CoinRithmClient): void 
         "Open (or add to) a mock futures position. Requires the trade:futures " +
         "scope AND is server-flag gated (currently returns 403 'not enabled'). " +
         "idempotencyKey is REQUIRED and must be unique per intent. leverage 1-20, " +
-        "marginMusd >= 10. Quote first and CONFIRM with the user. " + PAPER_NOTE,
+        "marginMusd >= 10. Quote first and CONFIRM with the user. " +
+        PAPER_NOTE,
       inputSchema: {
         coinId: z.string(),
         side: z.enum(["long", "short"]),
@@ -461,7 +502,8 @@ export function registerTools(server: McpServer, client: CoinRithmClient): void 
       description:
         "Close or partially reduce a mock futures position. fraction in (0,1] " +
         "reduces partially; omit (or 1) for a full close. idempotencyKey is " +
-        "REQUIRED. Requires the trade:futures scope. " + PAPER_NOTE,
+        "REQUIRED. Requires the trade:futures scope. " +
+        PAPER_NOTE,
       inputSchema: {
         positionId: z.number().int().positive(),
         fraction: z
@@ -490,7 +532,8 @@ export function registerTools(server: McpServer, client: CoinRithmClient): void 
         "Open a mock prediction-market position (binary outcomes only). Requires " +
         "the trade:pm scope AND is server-flag gated (currently returns 403 'not " +
         "enabled'). idempotencyKey is REQUIRED. stakeMusd >= 10. Quote first and " +
-        "CONFIRM with the user. " + PAPER_NOTE,
+        "CONFIRM with the user. " +
+        PAPER_NOTE,
       inputSchema: {
         source: z.string(),
         slug: z.string(),
