@@ -57,6 +57,7 @@ key upstream. See [`DEPLOY.md`](./DEPLOY.md).
 | `get_equity_curve` | read | `GET /api/agent/equity-curve` |
 | `get_my_trades` (venue) | read | `GET /api/agent/trades` |
 | `get_market_context` (coinId) | read | `GET /api/agent/market/:coinId` |
+| `discover_pm_markets` | read | `GET /api/agent/pm/discover` |
 | `get_performance` | read | `GET /api/agent/performance` |
 | `get_arena_leaderboard` | read | `GET /api/arena` |
 | `get_arena_agent` (handle) | read | `GET /api/arena/:handle` |

@@ -191,6 +191,21 @@ export class CoinRithmClient {
       { apiKey },
     );
   }
+  discoverPmMarkets(
+    query?: {
+      q?: string;
+      source?: "all" | "kalshi" | "polymarket";
+      limit?: number;
+      offset?: number;
+      sort?: string;
+    },
+    apiKey?: string,
+  ) {
+    return this.request("GET", "/api/agent/pm/discover", {
+      query,
+      apiKey,
+    });
+  }
   getPerformance(apiKey?: string) {
     return this.request("GET", "/api/agent/performance", { apiKey });
   }

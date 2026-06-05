@@ -269,6 +269,64 @@ export function registerTools(
   );
 
   server.registerTool(
+    "discover_pm_markets",
+    {
+      title: "Discover prediction markets",
+      description:
+        "Find active-open, quote-ready-first prediction markets on the mock-PM " +
+        "sources (Kalshi + Polymarket by default). Returns source, slug, " +
+        "quoteable outcome externalMarketIds, freshness, volume/liquidity/spread, " +
+        "and decisionSupport. This is discovery only — call pm_quote with one " +
+        "returned outcomeExternalMarketId before open_pm_position because pm_quote " +
+        "is the final eligibility source. " +
+        PAPER_NOTE,
+      inputSchema: {
+        q: z
+          .string()
+          .optional()
+          .describe(
+            "Optional search text (title, outcome, topic, or related coin).",
+          ),
+        source: z
+          .enum(["all", "kalshi", "polymarket"])
+          .optional()
+          .describe("Source filter (default all = Kalshi + Polymarket)."),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(50)
+          .optional()
+          .describe("Max rows (1-50, default 20)."),
+        offset: z
+          .number()
+          .int()
+          .min(0)
+          .optional()
+          .describe("Pagination offset (default 0)."),
+        sort: z
+          .enum([
+            "best",
+            "volume24h_desc",
+            "priceChange24h_desc",
+            "priceChange24h_asc",
+            "endDate_desc",
+            "trending",
+          ])
+          .optional()
+          .describe("Prediction-market sort (default best)."),
+      },
+    },
+    async ({ q, source, limit, offset, sort }, extra) =>
+      present(
+        await client.discoverPmMarkets(
+          { q, source, limit, offset, sort },
+          requestKey(extra),
+        ),
+      ),
+  );
+
+  server.registerTool(
     "get_performance",
     {
       title: "Get my performance",

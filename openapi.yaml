@@ -456,16 +456,16 @@ paths:
     get:
       operationId: listOpenOrders
       tags: [reads]
-      summary: Open spot orders for one coin
+      summary: Open spot orders (one coin, or all)
       description: |
-        Open (resting) spot orders for a SINGLE coin. `coinId` is REQUIRED.
-        Requires scope `read`.
+        Open (resting) spot orders. Pass `coinId` to filter to one coin; omit it
+        to list ALL open spot orders. Requires scope `read`.
       parameters:
         - name: coinId
           in: query
-          required: true
+          required: false
           schema: { type: string, minLength: 1, maxLength: 64 }
-          description: Coin UCID to list open orders for.
+          description: Coin UCID to filter by. Omit to list all open orders.
         - name: limit
           in: query
           required: false
@@ -555,6 +555,56 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
+
+  /api/agent/pm/discover:
+    get:
+      operationId: discoverPredictionMarkets
+      tags: [prediction-markets]
+      summary: Discover active-open prediction markets for quoting
+      description: |
+        Finds active-open, quote-ready-first prediction markets on Kalshi and
+        Polymarket by default. Returns source/slug plus quoteable outcome
+        externalMarketIds, freshness, metrics, and decisionSupport. Requires
+        scope `read`. Discovery is not an execution promise: call
+        `POST /api/agent/pm/quote` with one returned `outcomes[].externalMarketId`
+        before `POST /api/agent/pm/open`.
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+        - name: offset
+          in: query
+          required: false
+          schema: { type: integer, minimum: 0, default: 0 }
+        - name: q
+          in: query
+          required: false
+          schema: { type: string }
+          description: Search text matched against event title, outcomes, topics, and related coins.
+        - name: source
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [all, kalshi, polymarket]
+            default: all
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [best, volume24h_desc, priceChange24h_desc, priceChange24h_asc, endDate_desc, trending]
+            default: best
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PmDiscoveryResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
 
   /api/agent/pm/quote:
     post:
@@ -1177,6 +1227,64 @@ components:
         atLiquidation: { type: boolean, nullable: true }
 
     # ---- prediction markets ----
+    PmDiscoveryResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/PmDiscoveryMarket" }
+        pagination:
+          type: object
+          properties:
+            limit: { type: integer }
+            offset: { type: integer }
+            hasMore: { type: boolean }
+        meta:
+          type: object
+          properties:
+            source: { type: string, enum: [all, kalshi, polymarket] }
+            sources:
+              type: array
+              items: { type: string, enum: [kalshi, polymarket] }
+            sort: { type: string }
+            q: { type: string, nullable: true }
+            note: { type: string }
+    PmDiscoveryMarket:
+      type: object
+      properties:
+        source: { type: string, enum: [kalshi, polymarket] }
+        slug: { type: string }
+        title: { type: string }
+        endDate: { type: string, format: date-time, nullable: true }
+        freshness: { $ref: "#/components/schemas/Freshness" }
+        outcomes:
+          type: array
+          items: { $ref: "#/components/schemas/PmDiscoveryOutcome" }
+        volume24h: { type: number }
+        liquidity: { type: number }
+        spread: { type: number, nullable: true }
+        decisionSupport:
+          anyOf:
+            - { $ref: "#/components/schemas/DecisionSupport" }
+            - { type: "null" }
+        quoteHint: { $ref: "#/components/schemas/PmDiscoveryQuoteHint" }
+    PmDiscoveryOutcome:
+      type: object
+      properties:
+        externalMarketId: { type: string }
+        name: { type: string }
+        probability: { type: number, description: "0..100" }
+        tokenId: { type: string, nullable: true }
+    PmDiscoveryQuoteHint:
+      type: object
+      properties:
+        endpoint: { type: string, examples: ["POST /api/agent/pm/quote"] }
+        source: { type: string, enum: [kalshi, polymarket] }
+        slug: { type: string }
+        stakeMusdMin: { type: number, examples: [10] }
+        outcomeExternalMarketIdField:
+          type: string
+          examples: ["outcomes[].externalMarketId"]
     PmQuoteRequest:
       type: object
       required: [source, slug, outcomeExternalMarketId, stakeMusd]
