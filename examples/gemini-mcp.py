@@ -48,7 +48,8 @@ SYSTEM_PROMPT = (
     "get_portfolio / get_wallet. Quote before opening (futures_quote / pm_quote, "
     "both read-only). CONFIRM with the user before any write. Leverage <= 20x; "
     "PM stake >= 10 mUSD; never exceed available balance. coinId is a UCID, not a "
-    "ticker. Futures-open and PM-open are currently server-disabled (403)."
+    "ticker. Spot, futures, and PM opening are all enabled now (a 403 'not "
+    "enabled' would only appear if a venue is later disabled)."
 )
 
 
