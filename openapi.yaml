@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: CoinRithm Agent Trading API
-  version: "1.0.0"
+  version: "1.1.0"
   description: |
     Programmatic **paper-trading** surface for AI agents on CoinRithm.
 
@@ -149,6 +149,10 @@ paths:
                       symbol: { type: string }
                       name: { type: string }
                       marketCapRank: { type: integer, nullable: true }
+                      categories:
+                        type: array
+                        items: { type: string }
+                        description: CoinGecko sector tags (canonical English names).
                   alternatives:
                     type: array
                     items:
@@ -159,6 +163,9 @@ paths:
                         symbol: { type: string }
                         name: { type: string }
                         marketCapRank: { type: integer, nullable: true }
+                        categories:
+                          type: array
+                          items: { type: string }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
@@ -288,6 +295,10 @@ paths:
                       symbol: { type: string }
                       name: { type: string }
                       marketCapRank: { type: integer, nullable: true }
+                      categories:
+                        type: array
+                        items: { type: string }
+                        description: CoinGecko sector tags (canonical English names).
                   price:
                     nullable: true
                     type: object
@@ -320,6 +331,24 @@ paths:
                         outcome: { type: string, nullable: true }
                         probability: { type: number, nullable: true }
                         slug: { type: string }
+                        volume24h: { type: number }
+                        liquidity: { type: number }
+                        decisionSupport: { $ref: "#/components/schemas/DecisionSupport" }
+                  similarCoins:
+                    type: array
+                    description: |
+                      Peer coins by shared CoinGecko category (then market-cap
+                      neighbours), each with a live price. Call /api/agent/market
+                      on one to drill in.
+                    items:
+                      type: object
+                      properties:
+                        coinId: { type: string }
+                        slug: { type: string }
+                        symbol: { type: string }
+                        name: { type: string }
+                        marketCapRank: { type: integer, nullable: true }
+                        sharedCategoryCount: { type: integer }
                   asOf: { type: string, format: date-time }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
@@ -552,6 +581,38 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404":
           description: Event not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/agent/spot/quote:
+    post:
+      operationId: spotQuote
+      tags: [spot]
+      summary: Read-only spot market quote (price, cost, affordability)
+      description: |
+        Never mutates state. Returns the live execution price, estimated cost
+        (= price × quantity), your relevant available balance, and whether the
+        fill is `eligible` — so you can quote BEFORE `spot/order` instead of
+        placing a market order blind. Price age is reported as informational
+        `freshness` (a market order fills regardless of age). Requires scope
+        `read`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SpotQuoteRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SpotQuoteResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: Coin not found
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -870,6 +931,49 @@ components:
             pnl: { type: number, description: "market only; realized PnL in USD" }
             limitPrice: { type: number, description: "limit/stop only" }
             orderType: { type: string, description: "limit/stop only" }
+    SpotQuoteRequest:
+      type: object
+      required: [coinId, side, quantity]
+      properties:
+        coinId:
+          type: string
+          description: Coin UCID (e.g. "1" = BTC). NOT a ticker symbol.
+        side: { type: string, enum: [buy, sell] }
+        quantity:
+          type: number
+          exclusiveMinimum: 0
+          description: Amount of the base coin (> 0).
+    SpotQuoteResponse:
+      type: object
+      properties:
+        eligible: { type: boolean }
+        blockReasons:
+          type: array
+          items: { type: string }
+          description: |
+            e.g. price_unavailable, insufficient_usdt_balance,
+            insufficient_coin_balance, wallet_not_found.
+        coin:
+          type: object
+          properties: { ucid: { type: string }, symbol: { type: string }, name: { type: string } }
+        side: { type: string, enum: [buy, sell] }
+        quantity: { type: number }
+        orderType: { type: string, const: market }
+        executionPrice:
+          type: number
+          nullable: true
+          description: Live USD price per coin; null when unavailable.
+        estimatedCostMusd:
+          type: number
+          nullable: true
+          description: Gross notional (price × quantity). BUY = cash debited; SELL = proceeds.
+        available:
+          type: object
+          properties:
+            usdtAvailableMusd: { type: number, description: "spendable cash for a BUY" }
+            coinAvailable: { type: number, description: "coin units held for a SELL" }
+        freshness: { $ref: "#/components/schemas/Freshness" }
+        asOf: { type: string, format: date-time }
     OpenOrder:
       type: object
       properties:
@@ -1094,6 +1198,7 @@ components:
         minStake: { type: number, examples: [10] }
         frozenEntrySnapshot: { type: object, additionalProperties: true }
         freshness: { $ref: "#/components/schemas/Freshness" }
+        decisionSupport: { $ref: "#/components/schemas/DecisionSupport" }
         eligibility:
           type: object
           properties:
@@ -1164,10 +1269,33 @@ components:
     Freshness:
       type: object
       description: |
-        Data-freshness descriptor. Futures uses ageSeconds; PM uses ageMinutes.
-        `status` is a freshness label (verify exact enum against live data).
+        Data-freshness descriptor. Futures + spot use ageSeconds; PM uses
+        ageMinutes. `status` is a freshness label (verify exact enum against live
+        data).
       properties:
         asOf: { type: string, format: date-time, nullable: true }
-        ageSeconds: { type: number, nullable: true, description: "futures" }
+        ageSeconds: { type: number, nullable: true, description: "futures / spot" }
         ageMinutes: { type: number, nullable: true, description: "PM" }
         status: { type: string, nullable: true }
+
+    DecisionSupport:
+      type: object
+      description: |
+        Pre-computed market-quality grade for a prediction market (the same
+        builder the web event/hub cards use): a quality score + tiered
+        liquidity/volume/spread + risk flags. Lets an agent gauge tradability
+        without running its own analysis. Returned by get_market_context's
+        relatedMarkets and by pm/quote.
+      properties:
+        qualityScore: { type: number }
+        qualityTier: { type: string, enum: [high, medium, low] }
+        spreadTier: { type: string, enum: [tight, moderate, wide, unknown] }
+        liquidityTier: { type: string, enum: [high, medium, low, unknown] }
+        volumeTier: { type: string, enum: [high, medium, low, unknown] }
+        flags:
+          type: object
+          properties:
+            thinMarket: { type: boolean }
+            inactiveMarket: { type: boolean }
+            highAmbiguity: { type: boolean }
+            nearResolution: { type: boolean }

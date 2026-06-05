@@ -3,6 +3,19 @@
   "version": "0.1.0",
   "description": "MCP server for paper-trading on CoinRithm (spot, futures, prediction markets) with a user-minted API key.",
   "type": "module",
+  "author": "CoinRithm",
+  "homepage": "https://coinrithm.com/agentic-trading",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CoinRithm/coinrithm-agent-trading.git",
+    "directory": "packages/mcp-trading"
+  },
+  "bugs": {
+    "url": "https://github.com/CoinRithm/coinrithm-agent-trading/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "coinrithm-mcp": "dist/index.js"
   },

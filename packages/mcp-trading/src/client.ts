@@ -240,6 +240,16 @@ export class CoinRithmClient {
   ) {
     return this.request("POST", "/api/agent/pm/quote", { body, apiKey });
   }
+  spotQuote(
+    body: {
+      coinId: string;
+      side: string;
+      quantity: number;
+    },
+    apiKey?: string,
+  ) {
+    return this.request("POST", "/api/agent/spot/quote", { body, apiKey });
+  }
 
   // ---- writes (scope: trade:<venue>) ----
   placeSpotOrder(

@@ -173,9 +173,10 @@ export function registerTools(
       title: "Resolve symbol -> coinId",
       description:
         "Resolve a human symbol / slug / name (e.g. 'BTC', 'ethereum') to a " +
-        "CoinRithm coinId (UCID) plus disambiguating alternatives. Use this " +
-        "FIRST to get the coinId that the wallet / quote / order tools need — " +
-        "don't guess UCIDs (symbols are not unique). " +
+        "CoinRithm coinId (UCID) plus disambiguating alternatives, each with its " +
+        "CoinGecko category tags. Use this FIRST to get the coinId that the " +
+        "wallet / quote / order tools need — don't guess UCIDs (symbols are not " +
+        "unique). " +
         PAPER_NOTE,
       inputSchema: {
         q: z
@@ -245,12 +246,14 @@ export function registerTools(
       title: "Get market context",
       description:
         "Compact factual context for ONE coin to form a thesis: price + " +
-        "1h/24h/7d change + market cap, per-coin sentiment votes, the global " +
-        "Fear & Greed value, and up to 3 directly-related OPEN prediction " +
-        "markets — each with its leading outcome + probability, 24h volume, " +
-        "liquidity, and decisionSupport (quality/liquidity/volume/spread tiers " +
-        "+ flags) so you can gauge a market's depth/tradability. Facts only — " +
-        "no generated thesis. Call resolve_symbol first to get the coinId. " +
+        "1h/24h/7d change + market cap, the coin's CoinGecko category tags, " +
+        "per-coin sentiment votes, the global Fear & Greed value, up to 3 " +
+        "directly-related OPEN prediction markets — each with its leading " +
+        "outcome + probability, 24h volume, liquidity, and decisionSupport " +
+        "(quality/liquidity/volume/spread tiers + flags) so you can gauge a " +
+        "market's depth/tradability — and up to 6 similar coins (shared category " +
+        "/ market-cap peers). Facts only — no generated thesis. Call " +
+        "resolve_symbol first to get the coinId. " +
         PAPER_NOTE,
       inputSchema: {
         coinId: z
@@ -375,7 +378,9 @@ export function registerTools(
       title: "Prediction-market quote",
       description:
         "Read-only PM quote for a binary outcome: entry probability, share " +
-        "estimate, max payout, eligibility, and freshness. Never mutates state. " +
+        "estimate, max payout, eligibility, freshness, and decisionSupport " +
+        "(market quality/liquidity/volume/spread tiers + flags) so you can " +
+        "quote and gauge tradability in one call. Never mutates state. " +
         "stakeMusd must be > 0 (min to open is 10). " +
         PAPER_NOTE,
       inputSchema: {
@@ -393,6 +398,33 @@ export function registerTools(
           { source, slug, outcomeExternalMarketId, stakeMusd },
           requestKey(extra),
         ),
+      ),
+  );
+
+  server.registerTool(
+    "spot_quote",
+    {
+      title: "Spot quote",
+      description:
+        "Read-only spot MARKET quote: live execution price, estimated cost " +
+        "(price x quantity), your available balance for the side, and whether " +
+        "the fill is eligible (with blockReasons). Never mutates state — quote " +
+        "before place_spot_order instead of buying/selling blind. Price age is " +
+        "informational only (a market order fills regardless). coinId is a UCID, " +
+        "NOT a ticker — use resolve_symbol first. " +
+        PAPER_NOTE,
+      inputSchema: {
+        coinId: z.string().describe("Coin UCID (e.g. '1' = BTC)."),
+        side: z.enum(["buy", "sell"]),
+        quantity: z
+          .number()
+          .positive()
+          .describe("Amount of the base coin (> 0)."),
+      },
+    },
+    async ({ coinId, side, quantity }, extra) =>
+      present(
+        await client.spotQuote({ coinId, side, quantity }, requestKey(extra)),
       ),
   );
 
