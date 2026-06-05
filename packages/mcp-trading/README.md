@@ -78,20 +78,3 @@ Tool results return the raw HTTP status + JSON body so the model sees real
 server responses (including `{ error, blockReasons }` on blocked entries).
 
 stdout is the MCP JSON-RPC channel; this server logs only to stderr.
-
-## Publishing (maintainers)
-
-Published to npm as **`@coinrithm/mcp-trading`** (public scope) so users can run
-`npx -y @coinrithm/mcp-trading` without cloning.
-
-```bash
-cd packages/mcp-trading
-npm run build
-npm pack --dry-run     # verify the tarball: dist/*.js + README.md + package.json only
-npm publish --access public
-```
-
-`prepare` rebuilds on publish and `publishConfig.access` is `public`, so once you
-are authenticated (`npm login`) with publish rights on the `@coinrithm` org,
-`npm publish` is enough. The first publish requires the `@coinrithm` npm org/scope
-to exist and a one-time OTP if 2FA is enabled on the account.

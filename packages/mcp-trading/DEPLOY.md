@@ -110,3 +110,29 @@ the same endpoint each see only their own account.
 - Trust boundary: a user pasting their key into this hosted endpoint is trusting
   CoinRithm to forward it only to `/api/agent/*`. The hosted server does exactly
   that and nothing else.
+
+---
+
+## Publishing the npm package (`@coinrithm/mcp-trading`)
+
+The stdio path (`npx -y @coinrithm/mcp-trading`) is served from npm — published
+from this package (public scope) so local users don't have to clone. This is a
+**separate** release from the hosted deploy above.
+
+```bash
+cd packages/mcp-trading
+# 1. bump "version" in package.json — npm rejects re-publishing the same version
+npm run build
+npm pack --dry-run     # verify the tarball: dist/*.js + README.md + package.json only
+npm publish --access public
+```
+
+`prepare` rebuilds on publish and `publishConfig.access` is `public`, so once you
+are `npm login`'d with publish rights on the `@coinrithm` org, `npm publish` is
+enough (enter the one-time OTP if prompted). The npmjs.com **website** can lag the
+registry by a few minutes after publishing — `npm view @coinrithm/mcp-trading
+version` is authoritative.
+
+**A code change usually needs BOTH releases:** republish npm (above) for local
+users, AND let the hosted container redeploy (a kit `main` push auto-deploys it
+via Coolify) for `mcp.coinrithm.com` users.
