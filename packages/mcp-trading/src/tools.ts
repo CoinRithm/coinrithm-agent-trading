@@ -555,9 +555,10 @@ export function registerTools(
       title: "Open futures position",
       description:
         "Open (or add to) a mock futures position. Requires the trade:futures " +
-        "scope AND is server-flag gated (currently returns 403 'not enabled'). " +
-        "idempotencyKey is REQUIRED and must be unique per intent. leverage 1-20, " +
-        "marginMusd >= 10. Quote first and CONFIRM with the user. " +
+        "scope. Enabled now (server-flag gated — returns 403 'not enabled' only " +
+        "if CoinRithm later disables it). idempotencyKey is REQUIRED and must be " +
+        "unique per intent. leverage 1-20, marginMusd >= 10. Quote first and " +
+        "CONFIRM with the user. " +
         PAPER_NOTE,
       inputSchema: {
         coinId: z.string(),
@@ -620,9 +621,9 @@ export function registerTools(
       title: "Open prediction-market position",
       description:
         "Open a mock prediction-market position (binary outcomes only). Requires " +
-        "the trade:pm scope AND is server-flag gated (currently returns 403 'not " +
-        "enabled'). idempotencyKey is REQUIRED. stakeMusd >= 10. Quote first and " +
-        "CONFIRM with the user. " +
+        "the trade:pm scope. Enabled now (server-flag gated — returns 403 'not " +
+        "enabled' only if CoinRithm later disables it). idempotencyKey is " +
+        "REQUIRED. stakeMusd >= 10. Quote first and CONFIRM with the user. " +
         PAPER_NOTE,
       inputSchema: {
         source: z.string(),
