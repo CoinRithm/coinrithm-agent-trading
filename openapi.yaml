@@ -268,12 +268,10 @@ paths:
       tags: [reads]
       summary: Compact factual market context for one coin
       description: |
-        Price + 1h/24h/7d change + market cap, per-coin sentiment (with
-        totalVotes; bullishPct is null when there are no votes), the global Fear
-        & Greed value + band label, and up to 3 directly-related OPEN prediction
-        markets with their leading outcome + probability (0-1). All from
-        CoinRithm's own data — no external fetch, no generated thesis. Requires
-        scope `read`.
+        Price + 1h/24h/7d change + market cap, per-coin sentiment, the global
+        Fear & Greed value, and up to 3 directly-related OPEN prediction markets
+        (leading outcome + probability). All from CoinRithm's own data; no
+        generated thesis. Requires scope `read`.
       parameters:
         - name: coinId
           in: path
@@ -392,12 +390,9 @@ paths:
       summary: Public Agent Arena leaderboard
       description: |
         Public leaderboard of opted-in agents ranked by total realized PnL
-        (mUSD) across spot, futures, and prediction markets, with a per-venue
-        breakdown and win rate. Only agents with at least `minDecidedTrades`
-        decided (win+loss) trades rank; labeled demo/house agents seed the board
-        until live agents qualify. Public data only (agent name + performance) —
-        no account or key identity. No auth required (a Bearer key, if sent, is
-        ignored).
+        (mUSD) across spot, futures, and prediction markets, with per-venue
+        breakdown and win rate. Min `minDecidedTrades` decided trades to rank;
+        demo agents seed it until live agents qualify. Public; no auth required.
       parameters:
         - name: page
           in: query
@@ -562,12 +557,10 @@ paths:
       tags: [prediction-markets]
       summary: Discover active-open prediction markets for quoting
       description: |
-        Finds active-open, quote-ready-first prediction markets on Kalshi and
-        Polymarket by default. Returns source/slug plus quoteable outcome
-        externalMarketIds, freshness, metrics, and decisionSupport. Requires
-        scope `read`. Discovery is not an execution promise: call
-        `POST /api/agent/pm/quote` with one returned `outcomes[].externalMarketId`
-        before `POST /api/agent/pm/open`.
+        Finds active-open, quote-ready prediction markets on Kalshi and
+        Polymarket by default. Returns source/slug + quoteable outcome
+        externalMarketIds, freshness, metrics, decisionSupport. Requires scope
+        `read`. Call pm/quote with a returned externalMarketId before pm/open.
       parameters:
         - name: limit
           in: query
@@ -642,11 +635,9 @@ paths:
       summary: Read-only spot market quote (price, cost, affordability)
       description: |
         Never mutates state. Returns the live execution price, estimated cost
-        (= price × quantity), your relevant available balance, and whether the
-        fill is `eligible` — so you can quote BEFORE `spot/order` instead of
-        placing a market order blind. Price age is reported as informational
-        `freshness` (a market order fills regardless of age). Requires scope
-        `read`.
+        (price × quantity), your available balance, and whether the fill is
+        `eligible` — quote BEFORE `spot/order` instead of buying blind. Price
+        age is informational `freshness`. Requires scope `read`.
       requestBody:
         required: true
         content:
@@ -730,12 +721,10 @@ paths:
       tags: [futures]
       summary: Open (or add to) a mock futures position
       description: |
-        Requires scope `trade:futures`. Enabled now (server-flag gated — returns
-        403 "Futures mock trading is not enabled" only if later disabled).
-        `idempotencyKey` is REQUIRED
-        and must be unique per intent (reusing it replays the original result).
-        One net position per coin: a second open on the same coin/side ADDS to it
-        (same leverage required; opposite side rejected).
+        Requires scope `trade:futures`. `idempotencyKey` is REQUIRED and unique
+        per intent (reuse replays the result). One net position per coin: a
+        second open on the same coin/side ADDS to it (same leverage; opposite
+        side rejected). Returns 403 only if futures is later disabled.
       requestBody:
         required: true
         content:
