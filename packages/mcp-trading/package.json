@@ -1,6 +1,6 @@
 {
   "name": "@coinrithm/mcp-trading",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "MCP server for paper-trading on CoinRithm (spot, futures, prediction markets) with a user-minted API key.",
   "type": "module",
   "author": "CoinRithm",
