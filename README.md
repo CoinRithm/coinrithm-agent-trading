@@ -30,6 +30,9 @@ prediction markets, all on the same 50,000 virtual-mUSD paper account.
   `/positions/*` accept `updatedSince` and return `asOf`; pass `asOf` back as
   the next cursor to catch worker-fired stops, liquidations, and settlements.
   The full recipe (cursor, dedupe, backoff) is in [`docs/SYNC.md`](./docs/SYNC.md).
+- **Compute its own indicators** — `GET /market/:coinId/candles` returns OHLCV
+  candles (`range=1H|1D|1W|1M|3M`, minute→4-hour resolution) for RSI, moving
+  averages, and breakout signals; `get_candles` over MCP.
 - **Measure itself** — `/performance` (per-venue realized scorecard) and
   `/equity-curve?granularity=daily|realized` (daily or intraday).
 - **Pace itself** — per-key limits of 120 requests/min and 20 trade-writes/min,
@@ -163,7 +166,7 @@ A key carries one or more scopes. Least privilege is the default (`read` only).
 
 | Scope | Grants | Endpoints gated |
 | --- | --- | --- |
-| `read` | Read identity, portfolio, wallet, orders, positions, trades, performance, market context; discovery; price quotes | `GET /me`, `/portfolio`, `/wallet`, `/resolve`, `/equity-curve`, `/trades`, `/market/:coinId`, `/performance`, `/orders/open`, `/positions/*`, `/pm/discover`, `POST /spot/quote`, `/futures/quote`, `/pm/quote` |
+| `read` | Read identity, portfolio, wallet, orders, positions, trades, performance, market context, candles; discovery; price quotes | `GET /me`, `/portfolio`, `/wallet`, `/resolve`, `/equity-curve`, `/trades`, `/market/:coinId`, `/market/:coinId/candles`, `/performance`, `/orders/open`, `/positions/*`, `/pm/discover`, `POST /spot/quote`, `/futures/quote`, `/pm/quote` |
 | `trade:spot` | Place / cancel spot orders | `POST /spot/order`, `/spot/order/:id/cancel` |
 | `trade:futures` | Open / close mock futures; set/clear resting SL/TP | `POST /futures/open`, `/futures/sl-tp`, `/futures/close` |
 | `trade:pm` | Open mock prediction-market positions | `POST /pm/open` |

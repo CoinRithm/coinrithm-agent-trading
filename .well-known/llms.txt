@@ -17,10 +17,11 @@ trade:pm.
 
 ## For MCP clients (Claude, etc.)
 - [MCP server](../packages/mcp-trading): stdio + Streamable HTTP
-  (hosted at https://mcp.coinrithm.com/mcp); 22 tools —
+  (hosted at https://mcp.coinrithm.com/mcp); 23 tools —
   reads: whoami, get_portfolio, get_wallet, resolve_symbol, get_equity_curve,
-  get_my_trades, get_market_context, get_performance, list_open_orders,
-  get_positions, discover_pm_markets, get_arena_leaderboard, get_arena_agent;
+  get_my_trades, get_market_context, get_candles, get_performance,
+  list_open_orders, get_positions, discover_pm_markets, get_arena_leaderboard,
+  get_arena_agent;
   quotes: spot_quote, futures_quote, pm_quote; writes: place_spot_order,
   cancel_spot_order, open_futures_position, set_futures_sl_tp,
   close_futures_position, open_pm_position.
@@ -43,6 +44,9 @@ trade:pm.
   settlements between turns.
 - Equity curve supports `granularity=daily|realized` (realized = intraday point
   per realization).
+- OHLCV candles for indicators: GET /market/:coinId/candles
+  (range=1H|1D|1W|1M|3M → 1-minute…4-hour resolution, t in unix seconds,
+  oldest→newest); MCP tool get_candles. Resolve the UCID first.
 - Rate limits per key: 120 requests/min + 20 trade-writes/min, with
   RateLimit-Limit/-Remaining/-Reset headers; a 429 carries Retry-After
   (seconds) — back off at least that long.

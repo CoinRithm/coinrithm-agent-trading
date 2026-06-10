@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: CoinRithm Agent Trading API
-  version: "1.2.0"
+  version: "1.3.0"
   description: |
     Programmatic **paper-trading** surface for AI agents on CoinRithm.
 
@@ -420,6 +420,80 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404":
           description: Coin not found
+
+  /api/agent/market/{coinId}/candles:
+    get:
+      operationId: getCandles
+      tags: [reads]
+      summary: OHLCV candles for one coin
+      description: |
+        Historical OHLCV candles for indicator/momentum strategies (RSI,
+        moving averages, breakouts), keyed by UCID like the rest of the agent
+        surface — call /api/agent/resolve first. `range` picks both the
+        lookback and the per-candle resolution: 1H = 60×1-minute,
+        1D = 288×5-minute, 1W = 672×15-minute, 1M = 720×1-hour,
+        3M = 540×4-hour candles. Candles are oldest→newest with `t` in unix
+        SECONDS. o/h/l/c are converted to `fiat` (default USD) at the nearest
+        stored rate; `v` (volume) stays USD regardless of fiat. Pure market
+        data, cached ~60s server-side. Requires scope `read`.
+      parameters:
+        - name: coinId
+          in: path
+          required: true
+          schema: { type: string }
+          description: Coin UCID (e.g. "1" = BTC). Use /api/agent/resolve to find it.
+        - name: range
+          in: query
+          required: false
+          schema: { type: string, enum: [1H, 1D, 1W, 1M, 3M], default: 1D }
+          description: Lookback window; also fixes the per-candle resolution.
+        - name: fiat
+          in: query
+          required: false
+          schema: { type: string, default: USD }
+          description: Quote currency for o/h/l/c (e.g. EUR). Default USD.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  coin:
+                    type: object
+                    properties:
+                      ucid: { type: string }
+                      slug: { type: string }
+                      symbol: { type: string }
+                      name: { type: string }
+                  range: { type: string, enum: [1H, 1D, 1W, 1M, 3M] }
+                  fiat: { type: string }
+                  rateToUsd:
+                    type: number
+                    description: Latest fiat-per-USD rate applied (1 for USD).
+                  candles:
+                    type: array
+                    description: Oldest → newest.
+                    items:
+                      type: object
+                      properties:
+                        t:
+                          type: integer
+                          description: Candle timestamp, unix SECONDS (UTC).
+                        o: { type: number }
+                        h: { type: number }
+                        l: { type: number }
+                        c: { type: number }
+                        v:
+                          type: number
+                          description: Volume in USD regardless of fiat.
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: 'Unknown coinId — body `{ "error": "coin_not_found" }`.'
+        "429": { $ref: "#/components/responses/TooManyRequests" }
 
   /api/agent/performance:
     get:

@@ -387,6 +387,45 @@ export function registerTools(
   );
 
   server.registerTool(
+    "get_candles",
+    {
+      title: "Get OHLCV candles",
+      description:
+        "OHLCV candles for indicator/momentum strategies (RSI, moving " +
+        "averages, breakouts) — resolve_symbol first to get the coinId. " +
+        "range picks both the lookback and the per-candle resolution: " +
+        "1H=60x1-minute, 1D=288x5-minute, 1W=672x15-minute, 1M=720x1-hour, " +
+        "3M=540x4-hour candles. Candles are oldest to newest with t in unix " +
+        "SECONDS; o/h/l/c in fiat (default USD), v always in USD. " +
+        PAPER_NOTE,
+      inputSchema: {
+        coinId: z
+          .string()
+          .min(1)
+          .describe(
+            'Coin UCID (e.g. "1" = BTC). Use resolve_symbol to find it.',
+          ),
+        range: z
+          .enum(["1H", "1D", "1W", "1M", "3M"])
+          .optional()
+          .describe(
+            "Lookback + resolution (default 1D = 288 five-minute candles).",
+          ),
+        fiat: z
+          .string()
+          .optional()
+          .describe("Quote currency for o/h/l/c (default USD)."),
+      },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations("Get OHLCV candles"),
+    },
+    async ({ coinId, range, fiat }, extra) =>
+      present(
+        await client.getCandles(coinId, { range, fiat }, requestKey(extra)),
+      ),
+  );
+
+  server.registerTool(
     "discover_pm_markets",
     {
       title: "Discover prediction markets",

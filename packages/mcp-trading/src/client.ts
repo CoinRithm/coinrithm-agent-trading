@@ -209,6 +209,17 @@ export class CoinRithmClient {
       { apiKey },
     );
   }
+  getCandles(
+    coinId: string,
+    query?: { range?: "1H" | "1D" | "1W" | "1M" | "3M"; fiat?: string },
+    apiKey?: string,
+  ) {
+    return this.request(
+      "GET",
+      `/api/agent/market/${encodeURIComponent(coinId)}/candles`,
+      { query, apiKey },
+    );
+  }
   discoverPmMarkets(
     query?: {
       q?: string;
