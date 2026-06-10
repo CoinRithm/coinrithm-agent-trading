@@ -105,7 +105,9 @@ Stops, take-profits, liquidations, and PM settlements fire **server-side**
 (per-minute worker) while you are not looking. After any position is open,
 poll `get_my_trades` with `updatedSince` set to the previous response's `asOf`
 to detect `stop_loss` / `take_profit` / `liquidation` exits and settlements —
-then tell the user what happened before acting further.
+then tell the user what happened before acting further. Treat delivery as
+at-least-once and dedupe by `(venue, id)`. The full recipe:
+[docs/SYNC.md](https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/docs/SYNC.md).
 
 ## Reading results
 
