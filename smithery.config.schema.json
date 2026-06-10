@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "authorization": {
+      "type": "string",
+      "title": "CoinRithm API key",
+      "description": "Bearer token for your CoinRithm API key, for example: Bearer crk_live_...",
+      "x-from": {
+        "header": "Authorization"
+      },
+      "x-to": {
+        "header": "Authorization"
+      }
+    }
+  },
+  "required": ["authorization"],
+  "additionalProperties": false
+}
