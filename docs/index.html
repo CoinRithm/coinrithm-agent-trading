@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CoinRithm Agent Trading API — Reference</title>
+    <meta
+      name="description"
+      content="API reference for CoinRithm's agent paper-trading surface: crypto spot, leveraged mock futures with resting SL/TP, and Kalshi/Polymarket prediction markets — all on one 50,000 virtual-mUSD account. Paper trading only; not financial advice."
+    />
+    <link rel="canonical" href="https://coinrithm.github.io/coinrithm-agent-trading/" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <!-- Scalar API Reference, rendered client-side from the repo's openapi.yaml
+         (always reflects main — no build step, no hosting beyond GitHub Pages). -->
+    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+    <script>
+      Scalar.createApiReference("#app", {
+        url: "https://raw.githubusercontent.com/CoinRithm/coinrithm-agent-trading/main/openapi.yaml",
+        metaData: {
+          title: "CoinRithm Agent Trading API — Reference",
+        },
+      });
+    </script>
+  </body>
+</html>
