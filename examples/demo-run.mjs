@@ -19,11 +19,10 @@ const BASE = process.env.BASE_URL || "https://api.coinrithm.com";
 const KEY = process.env.CRK_API_KEY;
 const DRY = process.env.DRY === "1";
 if (!KEY) {
-  console.error("Set CRK_API_KEY (create one in the app: Settings -> API keys).");
+  console.error("Set CRK_API_KEY (create one in the app: Profile -> API Keys).");
   process.exit(1);
 }
 
-const c = (s) => s; // placeholder for future colour
 let pass = 0,
   fail = 0,
   blocked = 0;
@@ -62,7 +61,7 @@ const step = async (label, fn) => {
   }
 };
 
-const must = (r, label) => {
+const must = (r) => {
   if (r.status >= 400)
     throw new Error(`HTTP ${r.status} ${JSON.stringify(r.json)?.slice(0, 160)}`);
   return r.json;
@@ -75,8 +74,8 @@ const run = async () => {
   console.log("1) Identity & capability");
   const me = await step("GET /me", async () => {
     const r = await api("GET", "/api/agent/me");
-    const j = must(r, "me");
-    return { data: j, note: `acting as user ${j.userId}, scopes [${(j.scopes || []).join(", ")}]` };
+    const j = must(r);
+    return { data: j, note: `acting as user ${j.userId}, scopes [${(j.scopes || []).join(", ")}], agentName=${j.agentName ?? "-"}, agentModel=${j.agentModel ?? "-"}` };
   });
   const scopes = new Set(me?.scopes || []);
 
@@ -85,32 +84,37 @@ const run = async () => {
   await step("GET /wallet", async () => {
     const r = await api("GET", "/api/agent/wallet");
     const j = must(r);
-    const usdt = (j.assets || j.wallet?.assets || []).find?.((a) => a.coinId === "825") || j;
-    return { data: j, note: `available + frozen(spot/futures/pm) — keys: ${Object.keys(usdt || j).slice(0, 8).join(",")}` };
+    const u = j.usdt || {};
+    return { data: j, note: `available=${u.available ?? "?"} frozen(spot)=${u.frozen ?? "?"} frozenFutures=${u.frozenFutures ?? "?"} frozenPm=${u.frozenPm ?? "?"}` };
   });
   await step("GET /portfolio (equity rollup)", async () => {
     const r = await api("GET", "/api/agent/portfolio");
-    must(r);
-    return { note: "PII-free projection" };
+    const j = must(r);
+    return { note: `equity.totalUsd=${j.equity?.totalUsd ?? "?"} (PII-free projection)` };
   });
 
   // 3) Market context (thesis input)
   console.log("\n3) Market context");
   let btcCoinId = "1";
-  await step("GET /resolve?symbol=BTC", async () => {
-    const r = await api("GET", "/api/agent/resolve?symbol=BTC");
+  await step("GET /resolve?q=BTC", async () => {
+    const r = await api("GET", "/api/agent/resolve?q=BTC");
     const j = must(r);
-    btcCoinId = j.coinId || j.ucid || btcCoinId;
-    return { note: `BTC -> coinId ${btcCoinId}` };
+    btcCoinId = j.match?.coinId || btcCoinId;
+    return { note: `BTC -> coinId ${btcCoinId} (${j.match?.name ?? "?"})` };
   });
   await step(`GET /market/${btcCoinId}`, async () => {
     const r = await api("GET", `/api/agent/market/${btcCoinId}`);
     const j = must(r);
-    return { note: `price=${j.priceUsd ?? j.price ?? "?"} relatedPMs=${(j.relatedPredictionMarkets || j.relatedPms || []).length ?? "?"}` };
+    return { note: `price=${j.price?.usd ?? "?"} relatedPMs=${(j.relatedMarkets || []).length}` };
   });
 
   // 4) SPOT
   console.log("\n4) Spot trade");
+  await step("POST /spot/quote (buy 0.0005 BTC)", async () => {
+    const r = await api("POST", "/api/agent/spot/quote", { coinId: btcCoinId, side: "buy", quantity: 0.0005 });
+    if (r.status >= 400) return { blocked: `HTTP ${r.status} ${JSON.stringify(r.json)}` };
+    return { note: `eligible=${r.json?.eligible} px=${r.json?.executionPrice ?? "?"} cost≈${r.json?.estimatedCostMusd ?? "?"}` };
+  });
   if (scopes.has("trade:spot") && !DRY) {
     await step("POST /spot/order (market buy 0.0005 BTC)", async () => {
       const r = await api("POST", "/api/agent/spot/order", {
@@ -120,88 +124,102 @@ const run = async () => {
         quantity: 0.0005,
       });
       if (r.status >= 400) return { blocked: `HTTP ${r.status} ${JSON.stringify(r.json)}` };
-      return { note: `filled @ ${r.json?.executionPrice ?? "?"}` };
+      return { note: `filled @ ${r.json?.summary?.executionPrice ?? "?"}` };
     });
   } else {
     console.log(`  ⏭  spot skipped (${DRY ? "DRY" : "no trade:spot scope"})`);
   }
-  await step("GET /orders/open", async () => { must(await api("GET", "/api/agent/orders/open")); return {}; });
-  await step("GET /trades (unified realized-PnL log)", async () => { must(await api("GET", "/api/agent/trades")); return {}; });
+  await step("GET /orders/open (all coins)", async () => {
+    const j = must(await api("GET", "/api/agent/orders/open"));
+    return { note: `${(j.rows || []).length} open, asOf=${j.asOf}` };
+  });
 
-  // 5) FUTURES
-  console.log("\n5) Futures");
+  // 5) FUTURES — open with SL/TP protection, then adjust + clear via /sl-tp
+  console.log("\n5) Futures (open + resting SL/TP)");
+  let quote = null;
   await step("POST /futures/quote (BTC long 2x, 50 mUSD)", async () => {
     const r = await api("POST", "/api/agent/futures/quote", { coinId: btcCoinId, side: "long", leverage: 2, marginMusd: 50 });
     if (r.status >= 400) return { blocked: `HTTP ${r.status} ${JSON.stringify(r.json)}` };
+    quote = r.json;
     return { note: `entry≈${r.json?.entryPrice ?? "?"} liq≈${r.json?.liquidationPrice ?? "?"}` };
   });
   let futPos = null;
   if (scopes.has("trade:futures") && !DRY) {
-    futPos = await step("POST /futures/open (BTC long 2x, 50 mUSD)", async () => {
-      const r = await api("POST", "/api/agent/futures/open", {
+    futPos = await step("POST /futures/open (long 2x, 50 mUSD, SL/TP set at open)", async () => {
+      // Open-time SL/TP corridor for a long: liq < SL < mark < TP.
+      const entry = quote?.entryPrice;
+      const liq = quote?.liquidationPrice;
+      const body = {
         coinId: btcCoinId, side: "long", leverage: 2, marginMusd: 50,
-        idempotencyKey: `demo-fut-${me?.userId}-btc-1`,
-      });
+        idempotencyKey: `demo-fut-${me?.userId}-btc-${Date.now()}`,
+      };
+      if (Number.isFinite(entry) && Number.isFinite(liq)) {
+        body.stopLossPrice = liq + (entry - liq) * 0.5; // halfway between liq and entry
+        body.takeProfitPrice = entry * 1.05;
+      }
+      const r = await api("POST", "/api/agent/futures/open", body);
       if (r.status >= 400) return { blocked: `HTTP ${r.status} ${JSON.stringify(r.json)}` };
-      return { data: r.json, note: `position ${r.json?.id ?? r.json?.positionId}` };
+      const p = r.json?.position;
+      return { data: p, note: `position ${p?.id} SL=${p?.stopLossPrice ?? "-"} TP=${p?.takeProfitPrice ?? "-"}` };
     });
   } else {
     console.log(`  ⏭  futures open skipped (${DRY ? "DRY" : "no trade:futures scope"})`);
   }
-  await step("GET /positions/futures", async () => { must(await api("GET", "/api/agent/positions/futures")); return {}; });
-  const fid = futPos?.id ?? futPos?.positionId;
+  await step("GET /positions/futures", async () => {
+    const j = must(await api("GET", "/api/agent/positions/futures"));
+    return { note: `asOf=${j.asOf ?? "?"} (pass back as updatedSince to delta-poll)` };
+  });
+  const fid = futPos?.id;
   if (fid && !DRY) {
+    await step("POST /futures/sl-tp (tighten TP; no idempotencyKey needed)", async () => {
+      const entry = futPos?.entryPrice;
+      const r = await api("POST", "/api/agent/futures/sl-tp", {
+        positionId: fid,
+        takeProfitPrice: Number.isFinite(entry) ? entry * 1.03 : undefined,
+      });
+      if (r.status >= 400) return { blocked: `HTTP ${r.status} ${JSON.stringify(r.json)}` };
+      return { note: `TP -> ${r.json?.position?.takeProfitPrice ?? "?"}` };
+    });
+    await step("POST /futures/sl-tp (clear both triggers with null)", async () => {
+      const r = await api("POST", "/api/agent/futures/sl-tp", {
+        positionId: fid, stopLossPrice: null, takeProfitPrice: null,
+      });
+      if (r.status >= 400) return { blocked: `HTTP ${r.status} ${JSON.stringify(r.json)}` };
+      return { note: "cleared — worker will no longer fire on this position" };
+    });
     await step("POST /futures/close (full)", async () => {
       const r = await api("POST", "/api/agent/futures/close", { positionId: fid, idempotencyKey: `demo-fut-close-${fid}` });
       if (r.status >= 400) return { blocked: `HTTP ${r.status} ${JSON.stringify(r.json)}` };
-      return { note: `realized pnl ${r.json?.realizedPnlMusd ?? "?"}` };
+      return { note: `realized pnl ${r.json?.position?.realizedPnlMusd ?? "?"}` };
     });
   }
 
-  // 6) PREDICTION MARKETS — the discovery gap is visible here
-  console.log("\n6) Prediction markets (note: no 'tradeable markets' discovery endpoint)");
+  // 6) PREDICTION MARKETS — discover -> quote -> open
+  console.log("\n6) Prediction markets (GET /pm/discover finds quote-ready markets)");
   let pm = null;
   if (process.env.PM_SOURCE && process.env.PM_SLUG && process.env.PM_OUTCOME) {
     pm = { source: process.env.PM_SOURCE, slug: process.env.PM_SLUG, outcomeExternalMarketId: process.env.PM_OUTCOME };
   } else {
-    // Best-effort discovery: pull a few open kalshi/polymarket events from the
-    // PUBLIC list and probe each with /pm/quote until one is tradeable. This is
-    // exactly the friction an agent hits today — there is no tradeable filter.
-    await step("Discover a tradeable market (probing public open markets)", async () => {
-      const candidates = [];
-      for (const src of ["kalshi", "polymarket"]) {
-        const r = await fetch(`${BASE}/api/prediction-markets?status=open&source=${src}&limit=15`).catch(() => null);
-        const j = r && r.ok ? await r.json().catch(() => null) : null;
-        const events = j?.events || j?.data || j?.markets || [];
-        for (const e of events) {
-          const out = (e.outcomes || [])[0];
-          if (e.slug && out?.externalMarketId) candidates.push({ source: src, slug: e.slug, outcomeExternalMarketId: out.externalMarketId });
-        }
-      }
-      if (candidates.length === 0) return { blocked: "could not read public PM list (shape unknown) — set PM_SOURCE/PM_SLUG/PM_OUTCOME to demo PM" };
-      let probed = 0, tradeableFound = 0;
-      for (const cand of candidates.slice(0, 12)) {
-        const q = await api("POST", "/api/agent/pm/quote", { ...cand, stakeMusd: 50 });
-        probed++;
-        if (q.status < 400 && (q.json?.tradeable ?? q.json?.eligible ?? !q.json?.blockReasons?.length)) {
-          tradeableFound++;
-          if (!pm) pm = cand;
-        }
-      }
-      return { note: `probed ${probed} open markets -> ${tradeableFound} tradeable (the rest are gate-blocked; this is the discovery gap)` };
+    await step("GET /pm/discover?sort=best&limit=5", async () => {
+      const r = await api("GET", "/api/agent/pm/discover?sort=best&limit=5");
+      const j = must(r);
+      const m = (j.data || []).find((x) => !x.pinned && (x.outcomes || []).length) || (j.data || [])[0];
+      if (!m) return { blocked: "discovery returned no quote-ready markets right now" };
+      pm = { source: m.source, slug: m.slug, outcomeExternalMarketId: m.outcomes[0].externalMarketId };
+      return { note: `${(j.data || []).length} candidates; picked ${m.source}/${m.slug} ("${(m.title || "").slice(0, 50)}")` };
     });
   }
   if (pm) {
     await step(`POST /pm/quote (${pm.source}/${pm.slug})`, async () => {
       const r = await api("POST", "/api/agent/pm/quote", { ...pm, stakeMusd: 50 });
       if (r.status >= 400) return { blocked: `HTTP ${r.status} ${JSON.stringify(r.json)}` };
-      return { note: `shares≈${r.json?.shares ?? r.json?.sharesMusd ?? "?"} prob=${r.json?.currentProbability ?? "?"}` };
+      return { note: `eligible=${r.json?.eligible} shares≈${r.json?.sharesEstimate ?? "?"} entryProb=${r.json?.entryProbability ?? "?"}` };
     });
     if (scopes.has("trade:pm") && !DRY) {
       await step("POST /pm/open (50 mUSD)", async () => {
-        const r = await api("POST", "/api/agent/pm/open", { ...pm, stakeMusd: 50, idempotencyKey: `demo-pm-${me?.userId}-1` });
+        const r = await api("POST", "/api/agent/pm/open", { ...pm, stakeMusd: 50, idempotencyKey: `demo-pm-${me?.userId}-${Date.now()}` });
         if (r.status >= 400) return { blocked: `HTTP ${r.status} ${JSON.stringify(r.json)}` };
-        return { note: `position ${r.json?.id}` };
+        return { note: `position ${r.json?.position?.id}` };
       });
     } else {
       console.log(`  ⏭  pm open skipped (${DRY ? "DRY" : "no trade:pm scope"})`);
@@ -209,13 +227,38 @@ const run = async () => {
   }
   await step("GET /positions/pm", async () => { must(await api("GET", "/api/agent/positions/pm")); return {}; });
 
-  // 7) Performance / equity curve (how an agent measures itself)
-  console.log("\n7) Self-measurement");
-  await step("GET /equity-curve", async () => { must(await api("GET", "/api/agent/equity-curve")); return {}; });
-  await step("GET /performance", async () => { must(await api("GET", "/api/agent/performance")); return {}; });
+  // 7) Stay in sync: updatedSince delta polling (how an agent notices
+  //    worker-fired SL/TP, liquidations, and PM settlements between turns).
+  console.log("\n7) Delta polling (updatedSince/asOf cursor)");
+  let cursor = null;
+  await step("GET /trades (full log; capture asOf)", async () => {
+    const j = must(await api("GET", "/api/agent/trades"));
+    cursor = j.asOf;
+    return { note: `${j.count ?? (j.trades || []).length} closed trades, asOf=${cursor}` };
+  });
+  await step("GET /trades?updatedSince=<asOf> (only NEW closes)", async () => {
+    const j = must(await api("GET", `/api/agent/trades?updatedSince=${encodeURIComponent(cursor)}`));
+    return { note: `${j.count ?? (j.trades || []).length} since cursor (expected 0 unless something just fired)` };
+  });
+
+  // 8) Performance / equity curve / arena (how an agent measures itself)
+  console.log("\n8) Self-measurement + Arena");
+  await step("GET /equity-curve (daily)", async () => { must(await api("GET", "/api/agent/equity-curve")); return {}; });
+  await step("GET /equity-curve?granularity=realized (intraday)", async () => {
+    const j = must(await api("GET", "/api/agent/equity-curve?granularity=realized"));
+    return { note: `${(j.points || []).length} realization points` };
+  });
+  await step("GET /performance", async () => {
+    const j = must(await api("GET", "/api/agent/performance"));
+    return { note: `realized total ${j.totals?.realizedPnlMusd ?? "?"} mUSD, winRate=${j.totals?.winRate ?? "n/a"}` };
+  });
+  await step("GET /api/arena (public leaderboard)", async () => {
+    const j = must(await api("GET", "/api/arena?pageSize=5"));
+    const top = (j.rows || [])[0];
+    return { note: `top: ${top?.agentName ?? "?"} (${top?.realizedPnlMusd ?? "?"} mUSD, min ${j.minDecidedTrades} decided to rank)` };
+  });
 
   console.log(`\n=== done: ${pass} ok, ${blocked} blocked, ${fail} errored ===`);
-  if (blocked) console.log("Blocked steps are the real gaps to close (esp. PM tradeable-market discovery).");
 };
 
 run().catch((e) => { console.error("FATAL", e); process.exit(1); });

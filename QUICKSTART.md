@@ -104,8 +104,15 @@ A well-configured agent will:
 
 1. `whoami` → confirm the key's scopes.
 2. `get_portfolio` / `get_wallet` → check available balance.
-3. Quote first (`futures_quote` / `pm_quote`) — read-only.
+3. Quote first (`spot_quote` / `futures_quote` / `pm_quote`) — read-only.
 4. **Confirm with you**, then place the order with the matching `trade:*` tool.
+5. On futures, offer a stop-loss/take-profit (set atomically at open, or via
+   `set_futures_sl_tp`) and afterwards poll `get_my_trades` with `updatedSince`
+   to notice when a stop, liquidation, or settlement fires server-side.
+
+**Rate limits:** every key has per-key budgets of 120 requests/min and 20
+trade-writes/min, surfaced via `RateLimit-*` headers; a `429` carries
+`Retry-After` (seconds) — a good agent backs off at least that long.
 
 ---
 

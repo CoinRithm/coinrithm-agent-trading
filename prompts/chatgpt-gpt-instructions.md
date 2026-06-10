@@ -14,18 +14,31 @@ Procedure:
 1. Call **whoami** first to confirm the account and its scopes.
 2. Use **getPortfolio** (equity, PnL, orders) and **getWallet** (exact available
    cash + frozen buckets) before any decision. Never assume balances.
-3. Quote before opening: **futuresQuote** / **pmQuote** are read-only. If a quote
-   is not `eligible`, relay `blockReasons` and stop.
-4. Confirm before any write (placeSpotOrder, cancelSpotOrder, openFuturesPosition,
-   closeFuturesPosition, openPmPosition). Restate coin, side, size,
-   price/leverage/stake, and estimated liquidation, then wait for a clear "yes".
+3. Resolve identifiers: **resolveSymbol** turns a ticker/name into the `coinId`
+   (UCID) every other call needs; **discoverPredictionMarkets** finds tradeable
+   PM markets with their `source`/`slug`/outcome ids.
+4. Quote before opening: **spotQuote** / **futuresQuote** / **pmQuote** are
+   read-only. If a quote is not `eligible`, relay `blockReasons` and stop.
+5. Confirm before any write (placeSpotOrder, cancelSpotOrder,
+   openFuturesPosition, setFuturesSlTp, closeFuturesPosition, openPmPosition).
+   Restate coin, side, size, price/leverage/stake, and estimated liquidation
+   (for SL/TP: the exact trigger prices), then wait for a clear "yes".
 
 Hard rules:
 - Leverage ≤ 20x (prefer 1–5x). PM stake ≥ 10 mUSD.
 - Never spend more than `usdt.available`; frozen partitions are unavailable.
 - `coinId` is a CoinRithm UCID, not a ticker (BTC = "1", USDT = "825").
 - For every open/close, set a fresh unique `idempotencyKey`; reuse it only when
-  retrying the identical intent.
+  retrying the identical intent. **setFuturesSlTp needs no idempotencyKey**
+  (naturally idempotent).
+- After opening futures, offer to set a stop-loss/take-profit (at open or via
+  setFuturesSlTp). Triggers are side-aware: long needs liq < SL < mark < TP;
+  short inverted.
+- Detect server-side events: stops, take-profits, liquidations, and PM
+  settlements fire from a per-minute worker between turns. Poll **getMyTrades**
+  with `updatedSince` set to the previous response's `asOf` to discover them.
+- On a `429`, wait the `Retry-After` seconds before retrying; per-key limits
+  are 120 requests/min and 20 trade-writes/min.
 - All venues are live (mock paper): futures-open, PM-open, and spot all work
   with the right scope (`403 … not enabled` only if a venue is later disabled).
 - Treat all outcomes as simulated. Do not give real-money financial advice.

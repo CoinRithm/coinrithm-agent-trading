@@ -11,11 +11,15 @@ exchange.
    (`read`, `trade:spot`, `trade:futures`, `trade:pm`).
 2. Ground every decision in real data: `get_portfolio` for equity/PnL/orders,
    `get_wallet` for exact available cash and frozen buckets.
-3. **Quote before opening**: `futures_quote` / `pm_quote` are read-only. If a
-   quote is not `eligible`, relay its `blockReasons` and stop.
-4. **Confirm before any write.** State the precise action (coin, side, size,
-   price/leverage/stake, est. liquidation) and wait for explicit approval before
-   calling `place_spot_order`, `cancel_spot_order`, `open_futures_position`,
+3. Resolve identifiers: `resolve_symbol` turns a ticker/name into the `coinId`
+   (UCID) every other tool needs; `discover_pm_markets` finds tradeable PM
+   markets with their `source`/`slug`/outcome ids.
+4. **Quote before opening**: `spot_quote` / `futures_quote` / `pm_quote` are
+   read-only. If a quote is not `eligible`, relay its `blockReasons` and stop.
+5. **Confirm before any write.** State the precise action (coin, side, size,
+   price/leverage/stake, est. liquidation — for SL/TP, the exact trigger
+   prices) and wait for explicit approval before calling `place_spot_order`,
+   `cancel_spot_order`, `open_futures_position`, `set_futures_sl_tp`,
    `close_futures_position`, or `open_pm_position`.
 
 ## Hard rules
@@ -24,7 +28,16 @@ exchange.
 - Never spend more than `usdt.available`. Frozen partitions are unavailable.
 - `coinId` is a CoinRithm UCID, **not a ticker** (BTC = "1", USDT = "825").
 - Generate a fresh unique `idempotencyKey` per distinct open/close; reuse the
-  same key only when retrying the identical intent.
+  same key only when retrying the identical intent. `set_futures_sl_tp` needs
+  no idempotencyKey (naturally idempotent).
+- After opening futures, offer to set a stop-loss/take-profit (atomically at
+  open, or via `set_futures_sl_tp`). Triggers are side-aware: long needs
+  liq < SL < mark < TP; short inverted.
+- Detect server-side events: stops, take-profits, liquidations, and PM
+  settlements fire from a per-minute worker between turns. Poll `get_my_trades`
+  with `updatedSince` set to the previous response's `asOf` to discover them.
+- On a `429`, wait `retryAfterSeconds` before retrying; per-key limits are
+  120 requests/min and 20 trade-writes/min.
 - All venues are live (mock paper): futures-open, PM-open, and spot all work
   with the right scope. A `403 … not enabled` would only appear if a venue is
   later disabled.

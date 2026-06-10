@@ -23,7 +23,7 @@ OpenAPI tools) using `openapi.yaml`.
    - **API Key**: paste your `crk_live_…` value
    ChatGPT will send `Authorization: Bearer crk_live_…` on every call.
 7. Save. The Action exposes operations like `whoami`, `getPortfolio`,
-   `getWallet`, `futuresQuote`, `placeSpotOrder`, etc.
+   `getWallet`, `futuresQuote`, `placeSpotOrder`, `setFuturesSlTp`, etc.
 
 ## Test
 
@@ -38,4 +38,7 @@ In the GPT preview, say: *"Call whoami on CoinRithm."* You should get your
 - `coinId` is a CoinRithm UCID, not a ticker (BTC = "1", USDT = "825").
 - All venues are live: futures-open, PM-open, spot orders, reads, quotes, and
   futures-close all work (mock paper trading).
+- Per-key rate limits apply (120 requests/min, 20 trade-writes/min); a `429`
+  response carries `Retry-After` (seconds). Custom GPTs can retry failed calls
+  aggressively — the instructions file tells the model to back off.
 - Keep the key least-privilege; revoke it from your profile if the GPT is shared.

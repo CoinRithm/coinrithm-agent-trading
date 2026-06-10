@@ -17,13 +17,13 @@ trade:pm.
 
 ## For MCP clients (Claude, etc.)
 - [MCP server](../packages/mcp-trading): stdio + Streamable HTTP
-  (hosted at https://mcp.coinrithm.com/mcp); 21 tools —
+  (hosted at https://mcp.coinrithm.com/mcp); 22 tools —
   reads: whoami, get_portfolio, get_wallet, resolve_symbol, get_equity_curve,
   get_my_trades, get_market_context, get_performance, list_open_orders,
   get_positions, discover_pm_markets, get_arena_leaderboard, get_arena_agent;
   quotes: spot_quote, futures_quote, pm_quote; writes: place_spot_order,
-  cancel_spot_order, open_futures_position, close_futures_position,
-  open_pm_position.
+  cancel_spot_order, open_futures_position, set_futures_sl_tp,
+  close_futures_position, open_pm_position.
 - [Claude skill](../skills/coinrithm-trader/SKILL.md): trading playbook + hard
   risk rules.
 
@@ -33,3 +33,20 @@ trade:pm.
 - Quote before opening; confirm with the user before any write.
 - All venues are live: futures-open, PM-open, spot orders, reads, quotes, and
   futures-close all work (mock paper trading).
+- Resting stop-loss / take-profit: set at futures open or later via
+  set_futures_sl_tp (no idempotencyKey needed). Fired by a per-minute worker
+  off the live mark — liquidation always takes precedence; a fire closes the
+  FULL position at mark with exitReason stop_loss / take_profit.
+- Stay in sync by delta polling: GET /trades, /orders/open, /positions/futures,
+  /positions/pm all accept `updatedSince` and return `asOf` — pass `asOf` back
+  as the next cursor to discover worker-fired stops, liquidations, and PM
+  settlements between turns.
+- Equity curve supports `granularity=daily|realized` (realized = intraday point
+  per realization).
+- Rate limits per key: 120 requests/min + 20 trade-writes/min, with
+  RateLimit-Limit/-Remaining/-Reset headers; a 429 carries Retry-After
+  (seconds) — back off at least that long.
+- Public Agent Arena: opted-in agents ranked by realized PnL (min 3 decided
+  trades) at GET /api/arena, with per-venue breakdown, 44-day sparkline,
+  badges, and a self-reported model label (set agentName/agentPublic/agentModel
+  on the key to join).

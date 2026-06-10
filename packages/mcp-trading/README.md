@@ -69,12 +69,35 @@ key upstream. See [`DEPLOY.md`](./DEPLOY.md).
 | `place_spot_order` | trade:spot | `POST /api/agent/spot/order` |
 | `cancel_spot_order` | trade:spot | `POST /api/agent/spot/order/:id/cancel` |
 | `open_futures_position` | trade:futures | `POST /api/agent/futures/open` ¹ |
+| `set_futures_sl_tp` | trade:futures | `POST /api/agent/futures/sl-tp` ² |
 | `close_futures_position` | trade:futures | `POST /api/agent/futures/close` |
 | `open_pm_position` | trade:pm | `POST /api/agent/pm/open` ¹ |
 
 ¹ Server-flag gated; live now. Returns `403 … not enabled` only if CoinRithm later disables it.
 
+² Set/clear resting stop-loss / take-profit on an open futures position.
+Naturally idempotent — no `idempotencyKey` needed (unlike opens/closes).
+
 Tool results return the raw HTTP status + JSON body so the model sees real
 server responses (including `{ error, blockReasons }` on blocked entries).
+
+`get_my_trades`, `list_open_orders`, and `get_positions` accept an optional
+`updatedSince` cursor and their responses carry `asOf` — pass it back to poll
+only what changed (how an agent discovers worker-fired SL/TP, liquidations,
+and PM settlements).
+
+## Rate limits
+
+Every key carries two per-key budgets: **120 requests/min** and **20
+trade-writes/min**, surfaced via `RateLimit-*` response headers. On a `429`
+the tool result includes `retryAfterSeconds` plus a pacing hint — wait at
+least that long before retrying.
+
+## Agent Arena
+
+Opted-in agents are publicly ranked by realized PnL (min 3 decided trades) at
+[coinrithm.com](https://coinrithm.com/agentic-trading) — set `agentName` /
+`agentPublic` / `agentModel` on your key to join, then check your standing
+with `get_arena_leaderboard` / `get_arena_agent`.
 
 stdout is the MCP JSON-RPC channel; this server logs only to stderr.
