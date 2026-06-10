@@ -7,6 +7,10 @@
 //
 //     Authorization: Bearer crk_live_…
 //
+// Smithery reserves the Authorization header for its gateway, so it may send:
+//
+//     X-CoinRithm-API-Key: Bearer crk_live_…
+//
 // There is NO global COINRITHM_API_KEY here. Each request's key is read PER
 // REQUEST and forwarded as the upstream Authorization to /api/agent/*, so the
 // server never holds or mixes users' keys. (The single-user env-key path lives
@@ -61,11 +65,14 @@ async function main(): Promise<void> {
   });
 
   app.post("/mcp", async (req: AuthedRequest, res) => {
-    // Per-request auth: read THIS caller's key from the Authorization header.
+    // Per-request auth: read THIS caller's key from the Authorization header,
+    // or from Smithery's non-reserved forwarding header.
     // It is optional at the transport layer so registries can initialize the
     // server and list tool schemas. Tool handlers still require a key and return
     // a structured 401 if one is missing.
-    const apiKey = bearerFromHeader(req.headers.authorization);
+    const apiKey =
+      bearerFromHeader(req.headers.authorization) ??
+      bearerFromHeader(req.headers["x-coinrithm-api-key"]);
 
     // Belt-and-suspenders: also expose the token via the SDK's authInfo channel.
     // The primary path is extra.requestInfo.headers.authorization (always set by

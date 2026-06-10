@@ -26,7 +26,8 @@ type ToolExtra = RequestHandlerExtra<ServerRequest, ServerNotification>;
 // headers on `extra.requestInfo.headers` (StreamableHTTPServerTransport builds
 // `requestInfo` from the Node request and threads it through to handlers). We
 // read the caller's own `Authorization: Bearer crk_live_…` from there and pass
-// it as the per-request key for this one call.
+// it as the per-request key for this one call. Smithery cannot forward the
+// reserved Authorization header, so we also accept X-CoinRithm-API-Key.
 //
 // On the stdio transport there is no HTTP request, so `extra.requestInfo` is
 // undefined and this returns undefined — the client then falls back to the
@@ -37,6 +38,10 @@ function requestKey(extra: ToolExtra): string | undefined {
     extra.requestInfo?.headers?.authorization,
   );
   if (fromHeader) return fromHeader;
+  const fromSmitheryHeader = bearerFromHeader(
+    extra.requestInfo?.headers?.["x-coinrithm-api-key"],
+  );
+  if (fromSmitheryHeader) return fromSmitheryHeader;
   const token = extra.authInfo?.token?.trim();
   return token || undefined;
 }
