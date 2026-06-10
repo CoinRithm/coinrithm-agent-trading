@@ -1,9 +1,9 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.coinrithm/mcp-trading",
+  "name": "io.github.CoinRithm/mcp-trading",
   "title": "CoinRithm Agent Trading",
   "description": "Paper-trade crypto spot, futures, and prediction markets on CoinRithm with a user API key.",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "repository": {
     "url": "https://github.com/CoinRithm/coinrithm-agent-trading",
     "source": "github",
@@ -14,7 +14,7 @@
     {
       "registryType": "npm",
       "identifier": "@coinrithm/mcp-trading",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "runtimeHint": "npx",
       "transport": { "type": "stdio" },
       "environmentVariables": [
