@@ -3,7 +3,7 @@
 //
 // This is the entry behind https://mcp.coinrithm.com/mcp. It is multi-tenant:
 // many users point their MCP client at the SAME URL, each sending THEIR OWN
-// key in the request's Authorization header:
+// key in the request's Authorization header when they call tools:
 //
 //     Authorization: Bearer crk_live_…
 //
@@ -18,7 +18,10 @@
 //     (see tools.ts → requestKey()). That is the primary, SDK-native path.
 //   - We ALSO attach the parsed token to `req.auth` below, which the transport
 //     forwards as `extra.authInfo`, giving requestKey() a second source. Either
-//     way the caller's own key — and only that key — is used for their call.
+//     way the caller's own key — and only that key — is used for their tool call.
+//   - Unauthenticated MCP initialization and tool-list introspection are allowed
+//     so registries can verify the server. Actual tool calls without a key return
+//     a structured 401 from CoinRithmClient before any upstream request is made.
 //
 // Config (env):
 //   COINRITHM_API_URL  (optional)  upstream base URL (default production).
@@ -59,26 +62,17 @@ async function main(): Promise<void> {
 
   app.post("/mcp", async (req: AuthedRequest, res) => {
     // Per-request auth: read THIS caller's key from the Authorization header.
-    // Reject early (before touching the MCP machinery) if it is missing.
+    // It is optional at the transport layer so registries can initialize the
+    // server and list tool schemas. Tool handlers still require a key and return
+    // a structured 401 if one is missing.
     const apiKey = bearerFromHeader(req.headers.authorization);
-    if (!apiKey) {
-      res.status(401).json({
-        jsonrpc: "2.0",
-        error: {
-          code: -32001,
-          message:
-            "Missing Authorization header. Send 'Authorization: Bearer crk_live_…' " +
-            "with your own CoinRithm API key.",
-        },
-        id: null,
-      });
-      return;
-    }
 
     // Belt-and-suspenders: also expose the token via the SDK's authInfo channel.
     // The primary path is extra.requestInfo.headers.authorization (always set by
     // StreamableHTTPServerTransport); this gives requestKey() a second source.
-    req.auth = { token: apiKey, clientId: "coinrithm-key", scopes: [] };
+    if (apiKey) {
+      req.auth = { token: apiKey, clientId: "coinrithm-key", scopes: [] };
+    }
 
     const server = new McpServer({ name: "coinrithm-trading", version: "0.1.0" });
     registerTools(server, client);
