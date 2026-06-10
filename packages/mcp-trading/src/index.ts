@@ -15,6 +15,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CoinRithmClient, loadConfig, log } from "./client.js";
 import { registerTools } from "./tools.js";
+import { SERVER_VERSION } from "./version.js";
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -22,7 +23,7 @@ async function main(): Promise<void> {
 
   const server = new McpServer({
     name: "coinrithm-trading",
-    version: "0.1.0",
+    version: SERVER_VERSION,
   });
 
   registerTools(server, client);

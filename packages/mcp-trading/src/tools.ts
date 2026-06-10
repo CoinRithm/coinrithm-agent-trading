@@ -109,8 +109,11 @@ export function registerTools(
     {
       title: "Who am I (CoinRithm)",
       description:
-        "Return the identity behind the configured API key: userId, keyId, and " +
-        "granted scopes. Use this first to confirm what the key is allowed to do. " +
+        "Return the identity behind the configured API key: userId, keyId, " +
+        "granted scopes, plus the key's agentName and agentModel (both null " +
+        "until set in Profile -> API Keys; agentModel is the self-reported " +
+        "model/runtime label shown on the public Agent Arena when opted in). " +
+        "Use this first to confirm what the key is allowed to do. " +
         PAPER_NOTE,
       inputSchema: {},
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
@@ -125,8 +128,10 @@ export function registerTools(
     {
       title: "Get portfolio",
       description:
-        "Get the paper account dashboard: equity (wallet.totalUsd), period PnL " +
-        "(wallet.pnl), asset balances, open orders, and recent history. " +
+        "Get the lean, PII-free paper account summary: walletId, equity " +
+        "(equity.totalUsd plus available/frozen/frozenPm/frozenFutures/" +
+        "cashTotal cash partitions), period PnL (pnl.24hUsd … allTimePct), " +
+        "open spot orders, and a progression block (league/XP). " +
         PAPER_NOTE,
       inputSchema: {
         fiat: z
@@ -171,13 +176,17 @@ export function registerTools(
     {
       title: "List open spot orders",
       description:
-        "List open (resting) spot orders for ONE coin. coinId is required. " +
+        "List open (resting) spot orders. Omit coinId for ALL open orders " +
+        "across coins, or pass one to filter. Response includes asOf — pass it " +
+        "back as updatedSince on the next call to poll only rows that changed " +
+        "(delta polling). " +
         PAPER_NOTE,
       inputSchema: {
         coinId: z
           .string()
           .min(1)
-          .describe("Coin UCID to list open orders for."),
+          .optional()
+          .describe("Coin UCID filter. Omit to list ALL open orders."),
         limit: z
           .number()
           .int()
@@ -185,13 +194,23 @@ export function registerTools(
           .max(200)
           .optional()
           .describe("Max rows (1-200, default 100)."),
+        updatedSince: z
+          .string()
+          .optional()
+          .describe(
+            "ISO 8601 cursor: only orders whose row changed since this " +
+              "instant. Pass the previous response's asOf back here.",
+          ),
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: readOnlyAnnotations("List open spot orders"),
     },
-    async ({ coinId, limit }, extra) =>
+    async ({ coinId, limit, updatedSince }, extra) =>
       present(
-        await client.listOpenOrders({ coinId, limit }, requestKey(extra)),
+        await client.listOpenOrders(
+          { coinId, limit, updatedSince },
+          requestKey(extra),
+        ),
       ),
   );
 
@@ -203,21 +222,30 @@ export function registerTools(
         "List open + historical positions for a venue. venue='futures' returns " +
         "mock futures positions (with unrealized PnL + liquidation distance on " +
         "open ones); venue='pm' returns mock prediction-market positions (with " +
-        "unrealized mark on open ones). " +
+        "unrealized mark on open ones). Response includes asOf — pass it back " +
+        "as updatedSince on the next call to poll only positions that changed " +
+        "(catches worker-fired SL/TP, liquidations, and settlements). " +
         PAPER_NOTE,
       inputSchema: {
         venue: z
           .enum(["futures", "pm"])
           .describe("Which venue's positions to list."),
+        updatedSince: z
+          .string()
+          .optional()
+          .describe(
+            "ISO 8601 cursor: only positions whose row changed since this " +
+              "instant. Pass the previous response's asOf back here.",
+          ),
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: readOnlyAnnotations("Get positions"),
     },
-    async ({ venue }, extra) =>
+    async ({ venue, updatedSince }, extra) =>
       present(
         venue === "futures"
-          ? await client.getFuturesPositions(requestKey(extra))
-          : await client.getPmPositions(requestKey(extra)),
+          ? await client.getFuturesPositions({ updatedSince }, requestKey(extra))
+          : await client.getPmPositions({ updatedSince }, requestKey(extra)),
       ),
   );
 
@@ -250,9 +278,13 @@ export function registerTools(
     {
       title: "Get equity curve",
       description:
-        "Daily wallet equity time series ({date, usdValue}) for the paper " +
-        "account — the basis for reviewing performance over time and narrating " +
-        "results. days = look-back window (1-365, default 30). " +
+        "Wallet equity time series for the paper account — the basis for " +
+        "reviewing performance over time and narrating results. " +
+        "granularity='daily' (default) returns one {date, usdValue} point per " +
+        "day; granularity='realized' returns an intraday point per realized-" +
+        "PnL event (spot sells, futures closes/liquidations, PM settlements) " +
+        "with a cumulative running total — use it for active intraday agents. " +
+        "days = look-back window (1-365, default 30). " +
         PAPER_NOTE,
       inputSchema: {
         days: z
@@ -262,12 +294,21 @@ export function registerTools(
           .max(365)
           .optional()
           .describe("Look-back window in days (1-365, default 30)."),
+        granularity: z
+          .enum(["daily", "realized"])
+          .optional()
+          .describe(
+            "daily (default) = one point per day; realized = intraday point " +
+              "per realized-PnL event with cumulative total.",
+          ),
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: readOnlyAnnotations("Get equity curve"),
     },
-    async ({ days }, extra) =>
-      present(await client.getEquityCurve({ days }, requestKey(extra))),
+    async ({ days, granularity }, extra) =>
+      present(
+        await client.getEquityCurve({ days, granularity }, requestKey(extra)),
+      ),
   );
 
   server.registerTool(
@@ -278,7 +319,10 @@ export function registerTools(
         "Unified realized-PnL log of CLOSED trades across venues (spot fills, " +
         "closed/liquidated futures, settled prediction-markets), most-recent " +
         "first — the agent's memory of what it did and what won/lost. Use it to " +
-        "review performance before deciding the next move. " +
+        "review performance before deciding the next move. Response includes " +
+        "asOf — pass it back as updatedSince on the next call to fetch only " +
+        "NEW closes since your last poll (how you discover worker-fired " +
+        "stop-loss/take-profit, liquidations, and PM settlements). " +
         PAPER_NOTE,
       inputSchema: {
         venue: z
@@ -292,12 +336,24 @@ export function registerTools(
           .max(100)
           .optional()
           .describe("Max rows (1-100, default 25)."),
+        updatedSince: z
+          .string()
+          .optional()
+          .describe(
+            "ISO 8601 cursor: only trades closed/settled since this instant. " +
+              "Pass the previous response's asOf back here.",
+          ),
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: readOnlyAnnotations("Get my trades"),
     },
-    async ({ venue, limit }, extra) =>
-      present(await client.getMyTrades({ venue, limit }, requestKey(extra))),
+    async ({ venue, limit, updatedSince }, extra) =>
+      present(
+        await client.getMyTrades(
+          { venue, limit, updatedSince },
+          requestKey(extra),
+        ),
+      ),
   );
 
   server.registerTool(
@@ -416,8 +472,10 @@ export function registerTools(
         "The public Agent Arena: opted-in agents ranked by total realized PnL " +
         "(mUSD) across spot, futures, and prediction markets, with per-venue " +
         "breakdown and win rate. Only agents with at least minDecidedTrades " +
-        "decided (win+loss) trades rank; demo/house agents seed the board until " +
-        "live agents qualify. Use it to see the field and where you stand — pair " +
+        "decided (win+loss) trades rank (currently 3 — echoed in the " +
+        "response); demo/house agents seed the board until live agents " +
+        "qualify. Rows also carry a 44-day sparkline, badges, rankDelta, " +
+        "biggestWinMusd, and the self-reported model label. Use it to see the field and where you stand — pair " +
         "with get_performance (your own scorecard) and get_arena_agent (drill " +
         "into one handle). Public data: agent names + performance only. " +
         PAPER_NOTE,
@@ -649,8 +707,10 @@ export function registerTools(
         "Open (or add to) a mock futures position. Requires the trade:futures " +
         "scope. Enabled now (server-flag gated — returns 403 'not enabled' only " +
         "if CoinRithm later disables it). idempotencyKey is REQUIRED and must be " +
-        "unique per intent. leverage 1-20, marginMusd >= 10. Quote first and " +
-        "CONFIRM with the user. " +
+        "unique per intent. leverage 1-20, marginMusd >= 10. Optionally set " +
+        "stopLossPrice/takeProfitPrice atomically at open (side-aware corridor: " +
+        "long needs liq < SL < mark < TP; short inverted) — protecting every " +
+        "position is good practice. Quote first and CONFIRM with the user. " +
         PAPER_NOTE,
       inputSchema: {
         coinId: z
@@ -674,13 +734,40 @@ export function registerTools(
           .string()
           .min(1)
           .describe("Unique per intent; reuse replays the original result."),
+        stopLossPrice: z
+          .number()
+          .positive()
+          .optional()
+          .describe(
+            "Optional resting stop-loss set atomically at open (USD trigger; " +
+              "fired by the per-minute worker).",
+          ),
+        takeProfitPrice: z
+          .number()
+          .positive()
+          .optional()
+          .describe(
+            "Optional resting take-profit set atomically at open (USD " +
+              "trigger; fired by the per-minute worker).",
+          ),
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: mutatingAnnotations("Open futures position", {
         idempotent: true,
       }),
     },
-    async ({ coinId, side, leverage, marginMusd, idempotencyKey }, extra) =>
+    async (
+      {
+        coinId,
+        side,
+        leverage,
+        marginMusd,
+        idempotencyKey,
+        stopLossPrice,
+        takeProfitPrice,
+      },
+      extra,
+    ) =>
       present(
         await client.openFuturesPosition(
           {
@@ -689,6 +776,8 @@ export function registerTools(
             leverage,
             marginMusd,
             idempotencyKey,
+            ...(stopLossPrice !== undefined ? { stopLossPrice } : {}),
+            ...(takeProfitPrice !== undefined ? { takeProfitPrice } : {}),
           },
           requestKey(extra),
         ),

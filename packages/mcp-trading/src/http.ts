@@ -45,6 +45,7 @@ import {
   log,
 } from "./client.js";
 import { registerTools } from "./tools.js";
+import { SERVER_VERSION } from "./version.js";
 
 // The SDK reads `req.auth` (AuthInfo) off the Node request if present and threads
 // it to handlers as `extra.authInfo`. We populate a minimal AuthInfo carrying the
@@ -81,7 +82,10 @@ async function main(): Promise<void> {
       req.auth = { token: apiKey, clientId: "coinrithm-key", scopes: [] };
     }
 
-    const server = new McpServer({ name: "coinrithm-trading", version: "0.1.0" });
+    const server = new McpServer({
+      name: "coinrithm-trading",
+      version: SERVER_VERSION,
+    });
     registerTools(server, client);
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined, // stateless: no cross-request/user state

@@ -190,10 +190,16 @@ export class CoinRithmClient {
   resolveSymbol(query: { q: string }, apiKey?: string) {
     return this.request("GET", "/api/agent/resolve", { query, apiKey });
   }
-  getEquityCurve(query?: { days?: number }, apiKey?: string) {
+  getEquityCurve(
+    query?: { days?: number; granularity?: "daily" | "realized" },
+    apiKey?: string,
+  ) {
     return this.request("GET", "/api/agent/equity-curve", { query, apiKey });
   }
-  getMyTrades(query?: { venue?: string; limit?: number }, apiKey?: string) {
+  getMyTrades(
+    query?: { venue?: string; limit?: number; updatedSince?: string },
+    apiKey?: string,
+  ) {
     return this.request("GET", "/api/agent/trades", { query, apiKey });
   }
   getMarketContext(coinId: string, apiKey?: string) {
@@ -236,14 +242,20 @@ export class CoinRithmClient {
       { apiKey },
     );
   }
-  listOpenOrders(query: { coinId: string; limit?: number }, apiKey?: string) {
+  listOpenOrders(
+    query?: { coinId?: string; limit?: number; updatedSince?: string },
+    apiKey?: string,
+  ) {
     return this.request("GET", "/api/agent/orders/open", { query, apiKey });
   }
-  getFuturesPositions(apiKey?: string) {
-    return this.request("GET", "/api/agent/positions/futures", { apiKey });
+  getFuturesPositions(query?: { updatedSince?: string }, apiKey?: string) {
+    return this.request("GET", "/api/agent/positions/futures", {
+      query,
+      apiKey,
+    });
   }
-  getPmPositions(apiKey?: string) {
-    return this.request("GET", "/api/agent/positions/pm", { apiKey });
+  getPmPositions(query?: { updatedSince?: string }, apiKey?: string) {
+    return this.request("GET", "/api/agent/positions/pm", { query, apiKey });
   }
   futuresQuote(
     body: {
