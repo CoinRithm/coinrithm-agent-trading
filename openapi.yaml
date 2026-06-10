@@ -187,17 +187,29 @@ paths:
     get:
       operationId: getEquityCurve
       tags: [reads]
-      summary: Daily wallet equity time series
+      summary: Wallet equity time series (daily or intraday realized)
       description: |
-        Daily equity snapshots ({date, usdValue}) for the paper wallet — the
-        basis for a PnL chart / performance review. Empty (not 404) when no
-        snapshots exist yet. Requires scope `read`.
+        `granularity=daily` (default): daily equity snapshots
+        ({date, usdValue}) — the basis for a PnL chart / performance review.
+        `granularity=realized`: an intraday-resolution series with one point
+        per realization event (spot sell, futures close/liquidation, PM
+        settlement) carrying a cumulative running total — use this for active
+        intraday agents where daily snapshots are too coarse (capped at the
+        most recent 1000 in-window events). Empty (not 404) when no data
+        exists yet. Requires scope `read`.
       parameters:
         - name: days
           in: query
           required: false
           schema: { type: integer, minimum: 1, maximum: 365, default: 30 }
           description: Look-back window in days.
+        - name: granularity
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [daily, realized]
+            default: daily
       responses:
         "200":
           description: OK
@@ -212,13 +224,21 @@ paths:
                     properties:
                       days: { type: integer }
                       from: { type: string, format: date-time }
+                  granularity: { type: string, enum: [daily, realized] }
                   points:
                     type: array
+                    description: |
+                      daily -> {date, usdValue}. realized -> {t, venue,
+                      realizedPnlMusd, cumulativeRealizedPnlMusd}.
                     items:
                       type: object
                       properties:
                         date: { type: string, example: "2026-05-01" }
                         usdValue: { type: number }
+                        t: { type: string, format: date-time }
+                        venue: { type: string, enum: [spot, futures, pm] }
+                        realizedPnlMusd: { type: number }
+                        cumulativeRealizedPnlMusd: { type: number }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "429": { $ref: "#/components/responses/TooManyRequests" }
         "403": { $ref: "#/components/responses/Forbidden" }
@@ -233,6 +253,11 @@ paths:
         settled prediction-markets) merged into one realized-PnL log, most-recent
         first. The agent's memory of what it did and what won/lost. Requires
         scope `read`.
+
+        **Delta polling:** pass `updatedSince` (ISO 8601) to receive only
+        trades closed/settled since that instant — this is how you discover a
+        liquidation, stop, or settlement that fired between polls. Use the
+        response's `asOf` as the next cursor (server-clock based, skew-safe).
       parameters:
         - name: venue
           in: query
@@ -245,6 +270,11 @@ paths:
           in: query
           required: false
           schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+        - name: updatedSince
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+          description: Only trades closed/settled at/after this instant.
       responses:
         "200":
           description: OK
@@ -256,6 +286,12 @@ paths:
                   walletId: { type: integer, nullable: true }
                   venue: { type: string }
                   count: { type: integer }
+                  updatedSince:
+                    { type: string, format: date-time, nullable: true }
+                  asOf:
+                    type: string
+                    format: date-time
+                    description: Use as the next updatedSince cursor.
                   trades:
                     type: array
                     items:
@@ -471,7 +507,8 @@ paths:
       summary: Open spot orders (one coin, or all)
       description: |
         Open (resting) spot orders. Pass `coinId` to filter to one coin; omit it
-        to list ALL open spot orders. Requires scope `read`.
+        to list ALL open spot orders. Supports `updatedSince` delta polling
+        (use the response's `asOf` as the next cursor). Requires scope `read`.
       parameters:
         - name: coinId
           in: query
@@ -482,6 +519,11 @@ paths:
           in: query
           required: false
           schema: { type: integer, minimum: 1, maximum: 200, default: 100 }
+        - name: updatedSince
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+          description: Only orders whose row changed at/after this instant.
       responses:
         "200":
           description: OK
@@ -505,7 +547,17 @@ paths:
       operationId: getFuturesPositions
       tags: [reads]
       summary: Mock futures positions + unrealized PnL + liquidation distance
-      description: Up to 200 positions (open and historical). Requires scope `read`.
+      description: |
+        Up to 200 positions (open and historical). Supports `updatedSince`
+        delta polling — open/close/liquidation all bump a position's row, so
+        polling deltas tells you what changed between loops (use the
+        response's `asOf` as the next cursor). Requires scope `read`.
+      parameters:
+        - name: updatedSince
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+          description: Only positions whose row changed at/after this instant.
       responses:
         "200":
           description: OK
@@ -517,6 +569,9 @@ paths:
                   positions:
                     type: array
                     items: { $ref: "#/components/schemas/FuturesPosition" }
+                  updatedSince:
+                    { type: string, format: date-time, nullable: true }
+                  asOf: { type: string, format: date-time }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "429": { $ref: "#/components/responses/TooManyRequests" }
         "403": { $ref: "#/components/responses/Forbidden" }
@@ -526,7 +581,16 @@ paths:
       operationId: getPmPositions
       tags: [reads]
       summary: Mock prediction-market positions + unrealized mark
-      description: Up to 200 positions (open and historical). Requires scope `read`.
+      description: |
+        Up to 200 positions (open and historical). Supports `updatedSince`
+        delta polling — open/settlement/void all bump a position's row (use
+        the response's `asOf` as the next cursor). Requires scope `read`.
+      parameters:
+        - name: updatedSince
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+          description: Only positions whose row changed at/after this instant.
       responses:
         "200":
           description: OK
@@ -538,6 +602,9 @@ paths:
                   positions:
                     type: array
                     items: { $ref: "#/components/schemas/PmPosition" }
+                  updatedSince:
+                    { type: string, format: date-time, nullable: true }
+                  asOf: { type: string, format: date-time }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "429": { $ref: "#/components/responses/TooManyRequests" }
         "403": { $ref: "#/components/responses/Forbidden" }
