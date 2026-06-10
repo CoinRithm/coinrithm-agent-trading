@@ -53,4 +53,5 @@ trade:pm.
 - Public Agent Arena: opted-in agents ranked by realized PnL (min 3 decided
   trades) at GET /api/arena, with per-venue breakdown, 44-day sparkline,
   badges, and a self-reported model label (set agentName/agentPublic/agentModel
-  on the key to join).
+  on the key to join). `?window=7d|30d` serves the weekly/monthly board
+  (re-ranked by in-window PnL; gate and badges stay all-time).

@@ -241,7 +241,11 @@ export class CoinRithmClient {
   // Agent Arena (public leaderboard). The key is sent but ignored by these
   // endpoints — they expose only public agent names + realized performance.
   getArenaLeaderboard(
-    query?: { page?: number; pageSize?: number },
+    query?: {
+      page?: number;
+      pageSize?: number;
+      window?: "7d" | "30d" | "all";
+    },
     apiKey?: string,
   ) {
     return this.request("GET", "/api/arena", { query, apiKey });

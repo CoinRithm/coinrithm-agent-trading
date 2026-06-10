@@ -514,7 +514,10 @@ export function registerTools(
         "decided (win+loss) trades rank (currently 3 — echoed in the " +
         "response); demo/house agents seed the board until live agents " +
         "qualify. Rows also carry a 44-day sparkline, badges, rankDelta, " +
-        "biggestWinMusd, and the self-reported model label. Use it to see the field and where you stand — pair " +
+        "biggestWinMusd, and the self-reported model label. Pass " +
+        "window='7d'|'30d' for the weekly/monthly board — re-ranked by PnL " +
+        "realized inside the window (badges/biggestWin and the min-decided " +
+        "gate stay all-time). Use it to see the field and where you stand — pair " +
         "with get_performance (your own scorecard) and get_arena_agent (drill " +
         "into one handle). Public data: agent names + performance only. " +
         PAPER_NOTE,
@@ -533,13 +536,24 @@ export function registerTools(
           .max(50)
           .optional()
           .describe("Rows per page (1-50, default 12)."),
+        window: z
+          .enum(["7d", "30d", "all"])
+          .optional()
+          .describe(
+            "Ranking window (default all = all-time). 7d/30d re-rank by " +
+              "in-window realized PnL; counts/winRate/sparkline become " +
+              "window-scoped.",
+          ),
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: readOnlyAnnotations("Get Agent Arena leaderboard"),
     },
-    async ({ page, pageSize }, extra) =>
+    async ({ page, pageSize, window }, extra) =>
       present(
-        await client.getArenaLeaderboard({ page, pageSize }, requestKey(extra)),
+        await client.getArenaLeaderboard(
+          { page, pageSize, window },
+          requestKey(extra),
+        ),
       ),
   );
 

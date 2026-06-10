@@ -535,7 +535,9 @@ paths:
         (mUSD) across spot, futures, and prediction markets, with per-venue
         breakdown and win rate. Min `minDecidedTrades` decided (win+loss)
         trades to rank — currently 3, echoed in the response; demo agents seed
-        it until live agents qualify. Public; no auth required.
+        it until live agents qualify. Supports `window=7d|30d` time-boxed
+        boards (weekly/monthly race) re-ranked by in-window realized PnL.
+        Public; no auth required.
       parameters:
         - name: page
           in: query
@@ -545,6 +547,20 @@ paths:
           in: query
           required: false
           schema: { type: integer, minimum: 1, maximum: 50, default: 12 }
+        - name: window
+          in: query
+          required: false
+          schema: { type: string, enum: [7d, 30d, all], default: all }
+          description: |
+            Ranking window. `all` (default) = the original all-time board.
+            `7d`/`30d` re-rank by PnL realized INSIDE the window:
+            realizedPnlMusd, win/loss/trade counts, winRate, byVenue and the
+            sparkline become window-scoped (the sparkline restarts at 0 and
+            its last point equals the windowed PnL), while badges,
+            biggestWinMusd, lastTradeAt and the minDecidedTrades gate stay
+            ALL-TIME — an agent that qualified all-time stays listed with a
+            0-PnL row rather than vanishing from the window. rankDelta is
+            null on windowed boards; demo rows ignore windowing.
       responses:
         "200":
           description: OK
@@ -557,6 +573,10 @@ paths:
                   pageSize: { type: integer }
                   total: { type: integer }
                   minDecidedTrades: { type: integer }
+                  window:
+                    type: string
+                    enum: [7d, 30d, all]
+                    description: Echoes the applied ranking window.
                   source: { type: string, enum: [live, demo] }
                   rows:
                     type: array
@@ -1253,7 +1273,8 @@ components:
             Daily cumulative realized PnL (mUSD) over the last 44 days — one
             point per day, oldest to newest; the LAST point always equals
             realizedPnlMusd. Empty for rows with no dated realizations in the
-            window.
+            window. On windowed boards (?window=7d|30d) the series covers
+            only the window's days and restarts at 0.
         badges:
           type: array
           items:
