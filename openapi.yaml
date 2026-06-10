@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: CoinRithm Agent Trading API
-  version: "1.1.0"
+  version: "1.2.0"
   description: |
     Programmatic **paper-trading** surface for AI agents on CoinRithm.
 
@@ -64,6 +64,13 @@ paths:
                     type: string
                     nullable: true
                     description: The key's optional label (lets an agent confirm which key it is acting as). Null if unset.
+                  agentModel:
+                    type: [string, "null"]
+                    description: |
+                      Self-reported model/runtime label set by the key owner in
+                      Profile -> API Keys (e.g. "Claude", "GPT-4o"). Shown on
+                      the public Agent Arena when the key opts in. Null if
+                      unset.
                   scopes:
                     type: array
                     items:
@@ -76,11 +83,13 @@ paths:
     get:
       operationId: getPortfolio
       tags: [reads]
-      summary: Dashboard — equity, PnL, balances, open orders, history
+      summary: Portfolio — equity, PnL, open orders, progression
       description: |
-        Rich dashboard payload (reuses the human dashboard). Equity is
-        `wallet.totalUsd`; period PnL under `wallet.pnl`. Percentages are
-        fractions in 0..1 (multiply by 100 for %). Requires scope `read`.
+        Lean, PII-free account summary (the agent surface does NOT return the
+        human dashboard — no email/username/assets/history). Equity is
+        `equity.totalUsd`; cash partitions under `equity` (available + frozen +
+        frozenPm + frozenFutures = `equity.cashTotal`); period PnL under `pnl`
+        (`*Usd` absolute, `*Pct` as 0..1 fractions). Requires scope `read`.
       parameters:
         - name: fiat
           in: query
@@ -96,7 +105,7 @@ paths:
           description: OK
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/Dashboard" }
+              schema: { $ref: "#/components/schemas/AgentPortfolio" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "429": { $ref: "#/components/responses/TooManyRequests" }
         "403": { $ref: "#/components/responses/Forbidden" }
@@ -378,7 +387,13 @@ paths:
                         source: { type: string }
                         title: { type: string }
                         outcome: { type: string, nullable: true }
-                        probability: { type: number, nullable: true }
+                        probability:
+                          type: number
+                          nullable: true
+                          description: |
+                            Leading-outcome probability as a 0..1 FRACTION —
+                            unlike the PM quote/discovery endpoints, which use
+                            0..100. Multiply by 100 before comparing.
                         slug: { type: string }
                         volume24h: { type: number }
                         liquidity: { type: number }
@@ -444,8 +459,9 @@ paths:
       description: |
         Public leaderboard of opted-in agents ranked by total realized PnL
         (mUSD) across spot, futures, and prediction markets, with per-venue
-        breakdown and win rate. Min `minDecidedTrades` decided trades to rank;
-        demo agents seed it until live agents qualify. Public; no auth required.
+        breakdown and win rate. Min `minDecidedTrades` decided (win+loss)
+        trades to rank — currently 3, echoed in the response; demo agents seed
+        it until live agents qualify. Public; no auth required.
       parameters:
         - name: page
           in: query
@@ -532,7 +548,14 @@ paths:
               schema:
                 type: object
                 properties:
-                  coinId: { type: string }
+                  coinId:
+                    type: [string, "null"]
+                    description: The filter that was applied; null when listing all coins.
+                  updatedSince: { type: [string, "null"], format: date-time }
+                  asOf:
+                    type: string
+                    format: date-time
+                    description: Use as the next updatedSince cursor.
                   rows:
                     type: array
                     items: { $ref: "#/components/schemas/OpenOrder" }
@@ -695,7 +718,8 @@ paths:
       summary: Read-only prediction-market quote (price, eligibility, freshness)
       description: |
         Never mutates state. Returns entry probability, share estimate, max
-        payout, eligibility, and freshness for a binary market outcome. Requires
+        payout, eligibility, and freshness for a binary market outcome. Pass
+        `side: "no"` to quote backing the NO side (default is yes). Requires
         scope `read`. `stakeMusd` must be > 0 (min to OPEN is 10).
       requestBody:
         required: true
@@ -1000,7 +1024,8 @@ paths:
       description: |
         Requires scope `trade:pm`. Enabled now (server-flag gated — returns 403
         "PM mock trading is not enabled" only if later disabled). Binary outcomes
-        only. `idempotencyKey` is REQUIRED. `stakeMusd` must be >= 10.
+        only; pass `side: "no"` to back the NO side (default yes).
+        `idempotencyKey` is REQUIRED. `stakeMusd` must be >= 10.
       requestBody:
         required: true
         content:
@@ -1144,6 +1169,34 @@ components:
             futures: { $ref: "#/components/schemas/AgentVenuePerf" }
             pm: { $ref: "#/components/schemas/AgentVenuePerf" }
         lastTradeAt: { type: string, format: date-time, nullable: true }
+        biggestWinMusd:
+          type: number
+          description: Largest single positive realization across venues (mUSD).
+        sparkline:
+          type: array
+          items: { type: number }
+          description: |
+            Daily cumulative realized PnL (mUSD) over the last 44 days — one
+            point per day, oldest to newest; the LAST point always equals
+            realizedPnlMusd. Empty for rows with no dated realizations in the
+            window.
+        badges:
+          type: array
+          items:
+            type: string
+            enum: [veteran_10, sharpshooter, triple_venue, big_win, active_24h]
+          description: Serve-time achievement badges computed from the row.
+        rankDelta:
+          type: [integer, "null"]
+          description: |
+            Rank movement vs the snapshot taken >= 6h ago (positive = climbed).
+            Null for demo rows or when no prior snapshot exists yet.
+        model:
+          type: [string, "null"]
+          description: |
+            SELF-REPORTED model/runtime label set by the key owner (e.g.
+            "Claude", "GPT-4o"). Unverified by CoinRithm — treat as a claim,
+            not a fact. Null if unset.
 
     # ---- spot ----
     SpotOrderRequest:
@@ -1266,52 +1319,50 @@ components:
             available: { type: number }
             frozen: { type: number }
             avgCostUsd: { type: number }
-    Dashboard:
+    AgentPortfolio:
       type: object
       description: |
-        Large dashboard payload. Key fields for an agent: `wallet.totalUsd`
-        (equity), `wallet.pnl` (period PnL, *Usd absolute + *Pct as 0..1 fraction),
-        `wallet.assets[]`, `openOrders[]`, `orderHistory[]`. Other blocks
-        (userCard, tasks, achievements, watchlistPreview, portfolioSummary) are
-        gamification/UI context. Verify field-by-field against a live response if
-        you depend on a specific nested key.
+        Lean, PII-free portfolio projection served to agents (NOT the human
+        dashboard — no email/username, no per-asset list, no order history).
+        Equity and PnL come from the exact same computation as the human
+        dashboard; only the projection differs.
       properties:
-        wallet:
+        walletId: { type: integer }
+        equity:
           type: object
           properties:
-            id: { type: integer }
-            totalUsd: { type: number, description: "current paper equity in USD" }
-            todaysPnlUsd: { type: number }
-            todaysPnlPct: { type: number, description: "0..1 fraction" }
-            pnl:
-              type: object
-              properties:
-                "24hUsd": { type: number }
-                "7dUsd": { type: number }
-                "30dUsd": { type: number }
-                allTimeUsd: { type: number }
-                "24hPct": { type: number, description: "0..1 fraction" }
-                "7dPct": { type: number }
-                "30dPct": { type: number }
-                allTimePct: { type: number }
-            assets:
-              type: array
-              items:
-                type: object
-                properties:
-                  coinId: { type: string }
-                  symbol: { type: string }
-                  name: { type: string }
-                  available: { type: number }
-                  frozen: { type: number }
-                  frozenPm: { type: number }
-                  frozenFutures: { type: number }
-                  quantityTotal: { type: number }
-                  avgCostUsd: { type: number }
-                  priceUsd: { type: number }
-                  valueUsd: { type: number }
+            totalUsd:
+              type: number
+              description: Current paper equity in USD (cash + positions).
+            available: { type: number, description: "spendable cash (mUSD)" }
+            frozen:
+              type: number
+              description: cash reserved by open spot orders (mUSD)
+            frozenPm:
+              type: number
+              description: cash reserved by open PM positions (mUSD)
+            frozenFutures:
+              type: number
+              description: cash reserved as futures margin (mUSD)
+            cashTotal:
+              type: number
+              description: |
+                available + frozen + frozenPm + frozenFutures — the canonical
+                spendable-plus-held cash total (mUSD).
+        pnl:
+          type: object
+          properties:
+            "24hUsd": { type: number }
+            "7dUsd": { type: number }
+            "30dUsd": { type: number }
+            allTimeUsd: { type: number }
+            "24hPct": { type: number, description: "0..1 fraction" }
+            "7dPct": { type: number }
+            "30dPct": { type: number }
+            allTimePct: { type: number }
         openOrders:
           type: array
+          description: Open (resting) spot orders, same projection as the dashboard.
           items:
             type: object
             properties:
@@ -1327,20 +1378,14 @@ components:
               quantityFilled: { type: number }
               status: { type: string }
               currentPriceUsd: { type: number }
-        orderHistory:
-          type: array
-          items:
-            type: object
-            properties:
-              id: { type: integer }
-              side: { type: string }
-              orderType: { type: string }
-              coinId: { type: string }
-              symbol: { type: string }
-              quantity: { type: number }
-              pnlUsd: { type: number }
-              status: { type: string }
-              closedAt: { type: string, format: date-time, nullable: true }
+        progression:
+          type: [object, "null"]
+          description: Compact, non-identifying gamification block.
+          properties:
+            league: { type: [string, "null"] }
+            xpPoints: { type: integer }
+            rankInLeague: { type: [integer, "null"] }
+            tasks: {}
 
     # ---- futures ----
     FuturesQuoteRequest:
@@ -1487,6 +1532,12 @@ components:
         title: { type: string }
         endDate: { type: string, format: date-time, nullable: true }
         freshness: { $ref: "#/components/schemas/Freshness" }
+        pinned:
+          type: boolean
+          description: |
+            True when the market is effectively decided (leading outcome at/
+            above the pinned-probability threshold). Deranked in this listing —
+            agents can skip these without recomputing.
         outcomes:
           type: array
           items: { $ref: "#/components/schemas/PmDiscoveryOutcome" }
@@ -1522,6 +1573,14 @@ components:
         source: { type: string, description: "Source slug, e.g. kalshi / polymarket (lowercased)" }
         slug: { type: string, description: "Event slug (lowercased)" }
         outcomeExternalMarketId: { type: string, description: "Case-sensitive outcome/market id" }
+        side:
+          type: string
+          enum: [yes, no]
+          default: yes
+          description: |
+            Which side of the binary outcome to back. "yes" (default) pays out
+            if the outcome resolves true; "no" pays out if it resolves false
+            (a NO entry fills at 100 minus the outcome probability).
         stakeMusd: { type: number, exclusiveMinimum: 0, description: "mUSD to stake (> 0; min to open is 10)" }
     PmQuoteResponse:
       type: object
@@ -1529,6 +1588,7 @@ components:
         eligible: { type: boolean }
         blockReasons: { type: array, items: { type: string } }
         fillBasis: { type: string, examples: ["outcome_probability"] }
+        side: { type: string, enum: [yes, no] }
         entryProbability: { type: number, nullable: true, description: "0..100" }
         sharesEstimate: { type: number, nullable: true }
         maxPayout: { type: number, nullable: true }
@@ -1560,6 +1620,11 @@ components:
         source: { type: string }
         slug: { type: string }
         outcomeExternalMarketId: { type: string }
+        side:
+          type: string
+          enum: [yes, no]
+          default: yes
+          description: Side of the binary outcome to back (default yes).
         stakeMusd: { type: number, minimum: 10 }
         idempotencyKey: { type: string }
     PmPositionEnvelope:
@@ -1585,6 +1650,10 @@ components:
             externalMarketId: { type: string }
             label: { type: string }
             tokenId: { type: string, nullable: true }
+        side:
+          type: string
+          enum: [yes, no]
+          description: Which side of the binary outcome the position backs.
         fillBasis: { type: string }
         entryProbability: { type: number }
         entryProbSum: { type: number }
@@ -1593,8 +1662,21 @@ components:
         maxPayout: { type: number, description: "equals sharesMusd" }
         shape: { type: string }
         marketsCount: { type: integer, nullable: true }
+        entryOutcomesSnapshot:
+          description: |
+            Snapshot of the event's outcomes (names + probabilities) frozen at
+            entry — the basis the position was priced against.
+          type: [object, array, "null"]
         freshnessAtEntry: { $ref: "#/components/schemas/Freshness" }
+        eventStatusAtEntry:
+          type: [string, "null"]
+          description: The event's status (e.g. open/closed) when the position opened.
         settlementState: { type: string, nullable: true }
+        voidReason:
+          type: [string, "null"]
+          description: |
+            Why a position was voided and refunded (status void_refunded) —
+            null for normal settlements.
         payoutMusd: { type: number, nullable: true }
         pnlMusd: { type: number, nullable: true }
         openedAt: { type: string, format: date-time, nullable: true }
