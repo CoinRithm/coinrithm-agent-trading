@@ -10,12 +10,50 @@ import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/proto
 import type {
   ServerNotification,
   ServerRequest,
+  ToolAnnotations,
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { CoinRithmClient, bearerFromHeader, type ApiResult } from "./client.js";
 
 const PAPER_NOTE =
   "Paper trading only — virtual funds (50,000 mUSD). Not financial advice.";
+
+const API_RESULT_OUTPUT_SCHEMA = {
+  httpStatus: z
+    .number()
+    .int()
+    .describe("HTTP status returned by CoinRithm, or 0 for network errors."),
+  ok: z
+    .boolean()
+    .describe("True when CoinRithm returned a successful 2xx response."),
+  body: z
+    .unknown()
+    .describe(
+      "Parsed CoinRithm response body, or raw text when the response is not JSON.",
+    ),
+};
+
+function readOnlyAnnotations(title: string): ToolAnnotations {
+  return {
+    title,
+    readOnlyHint: true,
+    destructiveHint: false,
+    openWorldHint: true,
+  };
+}
+
+function mutatingAnnotations(
+  title: string,
+  opts: { destructive?: boolean; idempotent?: boolean } = {},
+): ToolAnnotations {
+  return {
+    title,
+    readOnlyHint: false,
+    destructiveHint: opts.destructive ?? false,
+    idempotentHint: opts.idempotent ?? false,
+    openWorldHint: true,
+  };
+}
 
 // The `extra` argument the SDK passes to every tool handler.
 type ToolExtra = RequestHandlerExtra<ServerRequest, ServerNotification>;
@@ -56,6 +94,7 @@ function present(result: ApiResult) {
     content: [
       { type: "text" as const, text: JSON.stringify(payload, null, 2) },
     ],
+    structuredContent: payload,
     isError: !result.ok,
   };
 }
@@ -74,6 +113,8 @@ export function registerTools(
         "granted scopes. Use this first to confirm what the key is allowed to do. " +
         PAPER_NOTE,
       inputSchema: {},
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations("Who am I (CoinRithm)"),
     },
     async (_args, extra) => present(await client.whoami(requestKey(extra))),
   );
@@ -96,6 +137,8 @@ export function registerTools(
           ),
         locale: z.string().optional().describe("Locale (default en)."),
       },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations("Get portfolio"),
     },
     async ({ fiat, locale }, extra) =>
       present(await client.getPortfolio({ fiat, locale }, requestKey(extra))),
@@ -116,6 +159,8 @@ export function registerTools(
           .optional()
           .describe('Coin UCID (e.g. "1" = BTC) to also return that asset.'),
       },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations("Get wallet"),
     },
     async ({ coinId }, extra) =>
       present(await client.getWallet({ coinId }, requestKey(extra))),
@@ -141,6 +186,8 @@ export function registerTools(
           .optional()
           .describe("Max rows (1-200, default 100)."),
       },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations("List open spot orders"),
     },
     async ({ coinId, limit }, extra) =>
       present(
@@ -163,6 +210,8 @@ export function registerTools(
           .enum(["futures", "pm"])
           .describe("Which venue's positions to list."),
       },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations("Get positions"),
     },
     async ({ venue }, extra) =>
       present(
@@ -189,6 +238,8 @@ export function registerTools(
           .min(1)
           .describe("Symbol, slug, or name (e.g. BTC, bitcoin, Ethereum)."),
       },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations("Resolve symbol to coinId"),
     },
     async ({ q }, extra) =>
       present(await client.resolveSymbol({ q }, requestKey(extra))),
@@ -212,6 +263,8 @@ export function registerTools(
           .optional()
           .describe("Look-back window in days (1-365, default 30)."),
       },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations("Get equity curve"),
     },
     async ({ days }, extra) =>
       present(await client.getEquityCurve({ days }, requestKey(extra))),
@@ -240,6 +293,8 @@ export function registerTools(
           .optional()
           .describe("Max rows (1-100, default 25)."),
       },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations("Get my trades"),
     },
     async ({ venue, limit }, extra) =>
       present(await client.getMyTrades({ venue, limit }, requestKey(extra))),
@@ -268,6 +323,8 @@ export function registerTools(
             'Coin UCID (e.g. "1" = BTC). Use resolve_symbol to find it.',
           ),
       },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations("Get market context"),
     },
     async ({ coinId }, extra) =>
       present(await client.getMarketContext(coinId, requestKey(extra))),
@@ -321,6 +378,8 @@ export function registerTools(
           .optional()
           .describe("Prediction-market sort (default best)."),
       },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations("Discover prediction markets"),
     },
     async ({ q, source, limit, offset, sort }, extra) =>
       present(
@@ -342,6 +401,8 @@ export function registerTools(
         "this agent. " +
         PAPER_NOTE,
       inputSchema: {},
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations("Get my performance"),
     },
     async (_args, extra) =>
       present(await client.getPerformance(requestKey(extra))),
@@ -376,6 +437,8 @@ export function registerTools(
           .optional()
           .describe("Rows per page (1-50, default 12)."),
       },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations("Get Agent Arena leaderboard"),
     },
     async ({ page, pageSize }, extra) =>
       present(
@@ -401,6 +464,8 @@ export function registerTools(
             "Arena handle from the leaderboard (e.g. a42-momentum-scout).",
           ),
       },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations("Get Agent Arena profile"),
     },
     async ({ handle }, extra) =>
       present(await client.getArenaAgent(handle, requestKey(extra))),
@@ -418,13 +483,19 @@ export function registerTools(
         PAPER_NOTE,
       inputSchema: {
         coinId: z.string().describe("Coin UCID."),
-        side: z.enum(["long", "short"]),
+        side: z
+          .enum(["long", "short"])
+          .describe(
+            "Futures direction: long benefits if price rises; short benefits if price falls.",
+          ),
         leverage: z.number().min(1).max(20).describe("1-20x."),
         marginMusd: z
           .number()
           .min(10)
           .describe("Isolated margin in mUSD (>= 10)."),
       },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations("Futures quote"),
     },
     async ({ coinId, side, leverage, marginMusd }, extra) =>
       present(
@@ -454,6 +525,8 @@ export function registerTools(
           .describe("Case-sensitive outcome / market id."),
         stakeMusd: z.number().positive().describe("mUSD to stake (> 0)."),
       },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations("Prediction-market quote"),
     },
     async ({ source, slug, outcomeExternalMarketId, stakeMusd }, extra) =>
       present(
@@ -478,12 +551,16 @@ export function registerTools(
         PAPER_NOTE,
       inputSchema: {
         coinId: z.string().describe("Coin UCID (e.g. '1' = BTC)."),
-        side: z.enum(["buy", "sell"]),
+        side: z
+          .enum(["buy", "sell"])
+          .describe("Spot side: buy increases the coin balance; sell reduces it."),
         quantity: z
           .number()
           .positive()
           .describe("Amount of the base coin (> 0)."),
       },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations("Spot quote"),
     },
     async ({ coinId, side, quantity }, extra) =>
       present(
@@ -504,8 +581,12 @@ export function registerTools(
         PAPER_NOTE,
       inputSchema: {
         coinId: z.string().describe('Coin UCID (e.g. "1" = BTC).'),
-        side: z.enum(["buy", "sell"]),
-        orderType: z.enum(["market", "limit", "stop"]),
+        side: z
+          .enum(["buy", "sell"])
+          .describe("Spot side: buy spends USDT; sell spends the base coin."),
+        orderType: z
+          .enum(["market", "limit", "stop"])
+          .describe("Order execution type: market, limit, or stop."),
         quantity: z.number().positive().describe("Base-coin amount (> 0)."),
         limitPrice: z
           .number()
@@ -518,6 +599,8 @@ export function registerTools(
           .optional()
           .describe("USD trigger — required for stop."),
       },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: mutatingAnnotations("Place spot order"),
     },
     async (
       { coinId, side, orderType, quantity, limitPrice, stopPrice },
@@ -549,6 +632,10 @@ export function registerTools(
       inputSchema: {
         orderId: z.number().int().positive().describe("Open order id."),
       },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: mutatingAnnotations("Cancel spot order", {
+        destructive: true,
+      }),
     },
     async ({ orderId }, extra) =>
       present(await client.cancelSpotOrder(orderId, requestKey(extra))),
@@ -566,15 +653,32 @@ export function registerTools(
         "CONFIRM with the user. " +
         PAPER_NOTE,
       inputSchema: {
-        coinId: z.string(),
-        side: z.enum(["long", "short"]),
-        leverage: z.number().min(1).max(20),
-        marginMusd: z.number().min(10),
+        coinId: z
+          .string()
+          .describe("Coin UCID to open futures for. Use resolve_symbol first."),
+        side: z
+          .enum(["long", "short"])
+          .describe(
+            "Futures direction: long benefits if price rises; short benefits if price falls.",
+          ),
+        leverage: z
+          .number()
+          .min(1)
+          .max(20)
+          .describe("Leverage multiplier (1-20x)."),
+        marginMusd: z
+          .number()
+          .min(10)
+          .describe("Isolated margin in mUSD (>= 10)."),
         idempotencyKey: z
           .string()
           .min(1)
           .describe("Unique per intent; reuse replays the original result."),
       },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: mutatingAnnotations("Open futures position", {
+        idempotent: true,
+      }),
     },
     async ({ coinId, side, leverage, marginMusd, idempotencyKey }, extra) =>
       present(
@@ -601,15 +705,27 @@ export function registerTools(
         "REQUIRED. Requires the trade:futures scope. " +
         PAPER_NOTE,
       inputSchema: {
-        positionId: z.number().int().positive(),
+        positionId: z
+          .number()
+          .int()
+          .positive()
+          .describe("Open futures position id to close or reduce."),
         fraction: z
           .number()
           .gt(0)
           .lte(1)
           .optional()
           .describe("(0,1] portion to close; omit/1 = full close."),
-        idempotencyKey: z.string().min(1),
+        idempotencyKey: z
+          .string()
+          .min(1)
+          .describe("Unique per close intent; reuse replays the original result."),
       },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: mutatingAnnotations("Close futures position", {
+        destructive: true,
+        idempotent: true,
+      }),
     },
     async ({ positionId, fraction, idempotencyKey }, extra) =>
       present(
@@ -631,12 +747,23 @@ export function registerTools(
         "REQUIRED. stakeMusd >= 10. Quote first and CONFIRM with the user. " +
         PAPER_NOTE,
       inputSchema: {
-        source: z.string(),
-        slug: z.string(),
-        outcomeExternalMarketId: z.string(),
+        source: z
+          .string()
+          .describe("Prediction-market source slug, e.g. kalshi or polymarket."),
+        slug: z.string().describe("Prediction-market event slug."),
+        outcomeExternalMarketId: z
+          .string()
+          .describe("Case-sensitive outcome or market id returned by discovery."),
         stakeMusd: z.number().min(10).describe("mUSD stake (>= 10)."),
-        idempotencyKey: z.string().min(1),
+        idempotencyKey: z
+          .string()
+          .min(1)
+          .describe("Unique per PM-open intent; reuse replays the original result."),
       },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: mutatingAnnotations("Open prediction-market position", {
+        idempotent: true,
+      }),
     },
     async (
       { source, slug, outcomeExternalMarketId, stakeMusd, idempotencyKey },
