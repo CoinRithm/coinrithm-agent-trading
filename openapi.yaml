@@ -881,6 +881,76 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
 
+  /api/agent/futures/sl-tp:
+    post:
+      operationId: setFuturesSlTp
+      tags: [futures]
+      summary: Set or clear resting stop-loss / take-profit on an open position
+      description: |
+        Requires scope `trade:futures`. Provide `stopLossPrice` and/or
+        `takeProfitPrice`: a positive number SETS that trigger (validated
+        side-aware against the CURRENT mark and the position's liquidation
+        price — long: liq < SL < mark < TP; short inverted), explicit `null`
+        CLEARS it, an omitted field is left unchanged. Naturally idempotent —
+        no idempotencyKey needed.
+
+        Triggers are fired by the per-minute worker off the same mark feed as
+        liquidation (liquidation always takes precedence). A fire closes the
+        FULL position at mark with realized PnL (exitReason `stop_loss` /
+        `take_profit`) — discover fills between polls via
+        `GET /trades?updatedSince=...`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [positionId]
+              properties:
+                positionId: { type: integer }
+                stopLossPrice:
+                  type: number
+                  nullable: true
+                  description: Positive number sets; null clears; omit = unchanged.
+                takeProfitPrice:
+                  type: number
+                  nullable: true
+                  description: Positive number sets; null clears; omit = unchanged.
+      responses:
+        "200":
+          description: Updated position (with the new trigger state)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FuturesPositionEnvelope" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: Position not found (or not yours)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: Position is not open
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "422":
+          description: |
+            Validation failed (error=sl_tp_invalid + blockReasons such as
+            stop_loss_not_below_mark, stop_loss_not_above_liquidation,
+            take_profit_not_above_mark) or no fresh mark (error=no_mark).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
+                  blockReasons:
+                    type: array
+                    items: { type: string }
+
   /api/agent/futures/close:
     post:
       operationId: closeFuturesPosition
@@ -1311,6 +1381,21 @@ components:
         idempotencyKey:
           type: string
           description: Unique per intent. Reusing it replays the original result.
+        stopLossPrice:
+          type: number
+          nullable: true
+          description: |
+            Optional open-time resting stop-loss. Side-aware: long requires
+            liq < SL < entry mark; short requires entry mark < SL < liq
+            (rejected as a dead trigger otherwise). Fired by the per-minute
+            worker; the FULL position settles at mark with
+            exitReason=stop_loss. Not accepted on an ADD — use /futures/sl-tp.
+        takeProfitPrice:
+          type: number
+          nullable: true
+          description: |
+            Optional open-time resting take-profit (long: above mark; short:
+            below). Same worker semantics, exitReason=take_profit.
     FuturesCloseRequest:
       type: object
       required: [positionId, idempotencyKey]
@@ -1349,8 +1434,19 @@ components:
         maintenanceMarginRate: { type: number }
         liquidationPrice: { type: number }
         freshnessAtEntry: { $ref: "#/components/schemas/Freshness" }
+        stopLossPrice:
+          type: number
+          nullable: true
+          description: Resting stop-loss trigger (null = none).
+        takeProfitPrice:
+          type: number
+          nullable: true
+          description: Resting take-profit trigger (null = none).
         exitPrice: { type: number, nullable: true }
-        exitReason: { type: string, nullable: true, description: "user_close | liquidation" }
+        exitReason:
+          type: string
+          nullable: true
+          description: "user_close | liquidation | stop_loss | take_profit"
         realizedPnlMusd: { type: number, nullable: true }
         openedAt: { type: string, format: date-time, nullable: true }
         closedAt: { type: string, format: date-time, nullable: true }

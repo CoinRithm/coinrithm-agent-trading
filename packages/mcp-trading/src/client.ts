@@ -302,10 +302,22 @@ export class CoinRithmClient {
       leverage: number;
       marginMusd: number;
       idempotencyKey: string;
+      stopLossPrice?: number | null;
+      takeProfitPrice?: number | null;
     },
     apiKey?: string,
   ) {
     return this.request("POST", "/api/agent/futures/open", { body, apiKey });
+  }
+  setFuturesSlTp(
+    body: {
+      positionId: number;
+      stopLossPrice?: number | null;
+      takeProfitPrice?: number | null;
+    },
+    apiKey?: string,
+  ) {
+    return this.request("POST", "/api/agent/futures/sl-tp", { body, apiKey });
   }
   closeFuturesPosition(
     body: {

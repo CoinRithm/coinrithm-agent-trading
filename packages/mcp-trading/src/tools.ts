@@ -696,6 +696,56 @@ export function registerTools(
   );
 
   server.registerTool(
+    "set_futures_sl_tp",
+    {
+      title: "Set futures stop-loss / take-profit",
+      description:
+        "Set or clear resting stop-loss / take-profit triggers on an OPEN mock " +
+        "futures position. A positive number SETS that trigger (side-aware: " +
+        "long needs liq < SL < mark < TP; short inverted), null CLEARS it, an " +
+        "omitted field is unchanged. Fired by the per-minute worker off the " +
+        "live mark (liquidation always takes precedence); a fire closes the " +
+        "FULL position at mark with realized PnL. Discover fills between polls " +
+        "via my_trades with updatedSince. Requires the trade:futures scope. " +
+        PAPER_NOTE,
+      inputSchema: {
+        positionId: z
+          .number()
+          .int()
+          .positive()
+          .describe("Open futures position id."),
+        stopLossPrice: z
+          .number()
+          .positive()
+          .nullable()
+          .optional()
+          .describe("Positive number sets; null clears; omit = unchanged."),
+        takeProfitPrice: z
+          .number()
+          .positive()
+          .nullable()
+          .optional()
+          .describe("Positive number sets; null clears; omit = unchanged."),
+      },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: mutatingAnnotations("Set futures SL/TP", {
+        idempotent: true,
+      }),
+    },
+    async ({ positionId, stopLossPrice, takeProfitPrice }, extra) =>
+      present(
+        await client.setFuturesSlTp(
+          {
+            positionId,
+            ...(stopLossPrice !== undefined ? { stopLossPrice } : {}),
+            ...(takeProfitPrice !== undefined ? { takeProfitPrice } : {}),
+          },
+          requestKey(extra),
+        ),
+      ),
+  );
+
+  server.registerTool(
     "close_futures_position",
     {
       title: "Close futures position",
