@@ -1,0 +1,50 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.coinrithm/mcp-trading",
+  "title": "CoinRithm Agent Trading",
+  "description": "Let an AI agent paper-trade crypto spot, futures, and prediction markets on CoinRithm with a user-minted API key. Simulated 50,000 virtual-mUSD account (no real money, not financial advice), 21 scope-gated tools, and a public Agent Arena leaderboard.",
+  "version": "0.1.3",
+  "repository": {
+    "url": "https://github.com/CoinRithm/coinrithm-agent-trading",
+    "source": "github",
+    "subfolder": "packages/mcp-trading"
+  },
+  "websiteUrl": "https://coinrithm.com/agentic-trading",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@coinrithm/mcp-trading",
+      "version": "0.1.3",
+      "runtimeHint": "npx",
+      "transport": { "type": "stdio" },
+      "environmentVariables": [
+        {
+          "name": "COINRITHM_API_KEY",
+          "description": "Personal CoinRithm API key (crk_live_…) minted at Profile -> API Keys. Start with a read-only key.",
+          "isRequired": true,
+          "isSecret": true
+        },
+        {
+          "name": "COINRITHM_API_URL",
+          "description": "CoinRithm API base URL. Defaults to https://api.coinrithm.com.",
+          "isRequired": false,
+          "isSecret": false
+        }
+      ]
+    }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.coinrithm.com/mcp",
+      "headers": [
+        {
+          "name": "Authorization",
+          "description": "Bearer crk_live_… — your personal CoinRithm API key, forwarded per request.",
+          "isRequired": true,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}
