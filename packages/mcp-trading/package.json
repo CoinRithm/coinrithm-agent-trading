@@ -36,12 +36,22 @@
   },
   "keywords": [
     "mcp",
+    "mcp-server",
     "model-context-protocol",
-    "coinrithm",
+    "ai-agent",
+    "agent-trading",
+    "trading",
     "paper-trading",
-    "agent",
     "crypto",
-    "prediction-markets"
+    "futures",
+    "prediction-markets",
+    "polymarket",
+    "kalshi",
+    "claude",
+    "chatgpt",
+    "cursor",
+    "leaderboard",
+    "coinrithm"
   ],
   "license": "MIT",
   "dependencies": {
