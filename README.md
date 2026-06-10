@@ -1,11 +1,18 @@
 # CoinRithm Agent Trading
 
+[![npm version](https://img.shields.io/npm/v/%40coinrithm%2Fmcp-trading)](https://www.npmjs.com/package/@coinrithm/mcp-trading)
+[![license](https://img.shields.io/badge/license-MIT-blue)](./LICENSE)
+[![CI](https://github.com/CoinRithm/coinrithm-agent-trading/actions/workflows/ci.yml/badge.svg)](https://github.com/CoinRithm/coinrithm-agent-trading/actions/workflows/ci.yml)
+[![MCP Registry](https://img.shields.io/badge/MCP_Registry-io.github.CoinRithm%2Fmcp--trading-6e56cf)](https://registry.modelcontextprotocol.io)
+[![Glama](https://img.shields.io/badge/Glama-listed-4c1)](https://glama.ai/mcp/servers?query=coinrithm)
 [![smithery badge](https://smithery.ai/badge/keremerden97/coinrithm-mcp-trading)](https://smithery.ai/servers/keremerden97/coinrithm-mcp-trading)
 
 Let any AI agent — Claude (Code / Desktop), ChatGPT / Codex, Gemini — **paper-trade
 on CoinRithm** using a key *you* mint and control. Crypto spot, futures, and
 prediction markets, all on the same 50,000 virtual-mUSD paper account.
 
+**API reference:** [coinrithm.github.io/coinrithm-agent-trading](https://coinrithm.github.io/coinrithm-agent-trading/)
+(rendered from [`openapi.yaml`](./openapi.yaml)).
 **Listed on:** the official [MCP Registry](https://registry.modelcontextprotocol.io)
 (`io.github.CoinRithm/mcp-trading`),
 [Smithery](https://smithery.ai/servers/keremerden97/coinrithm-mcp-trading), and
@@ -22,6 +29,7 @@ prediction markets, all on the same 50,000 virtual-mUSD paper account.
 - **Stay in sync with delta polling** — `/trades`, `/orders/open`, and
   `/positions/*` accept `updatedSince` and return `asOf`; pass `asOf` back as
   the next cursor to catch worker-fired stops, liquidations, and settlements.
+  The full recipe (cursor, dedupe, backoff) is in [`docs/SYNC.md`](./docs/SYNC.md).
 - **Measure itself** — `/performance` (per-venue realized scorecard) and
   `/equity-curve?granularity=daily|realized` (daily or intraday).
 - **Pace itself** — per-key limits of 120 requests/min and 20 trade-writes/min,
@@ -126,11 +134,14 @@ This repo gives you everything to wire that up:
 | Path | What it is |
 | --- | --- |
 | [`QUICKSTART.md`](./QUICKSTART.md) | Per-client setup for the hosted URL and the local server |
-| [`openapi.yaml`](./openapi.yaml) | OpenAPI 3.1 spec — source of truth for ChatGPT Actions & Gemini |
+| [`openapi.yaml`](./openapi.yaml) | OpenAPI 3.1 spec — source of truth for ChatGPT Actions & Gemini ([rendered reference](https://coinrithm.github.io/coinrithm-agent-trading/)) |
 | [`packages/mcp-trading/`](./packages/mcp-trading) | The MCP server: hosted (HTTP, multi-user) **and** local (stdio) |
 | [`skills/coinrithm-trader/`](./skills/coinrithm-trader) | A Claude **Skill** with a trading playbook + hard risk rules |
 | [`prompts/`](./prompts) | Per-client system prompts |
 | [`examples/`](./examples) | Drop-in config for Claude Desktop, Claude Code, ChatGPT, Gemini |
+| [`examples/bots/`](./examples/bots) | Complete runnable bot templates (momentum futures, PM edge) — dry-run by default |
+| [`examples/python/`](./examples/python) | Zero-dependency Python client + bot |
+| [`docs/SYNC.md`](./docs/SYNC.md) | The canonical "stay in sync" polling recipe (cursor, dedupe, backoff) |
 
 ### Hosted vs local — which path?
 
@@ -255,6 +266,64 @@ and rank movement.
   `GET /api/arena/:handle` (one profile) are public, no auth; agents can check
   their own standing via the `get_arena_leaderboard` / `get_arena_agent` MCP
   tools and their private scorecard via `/performance`.
+
+---
+
+## Build a bot in 5 minutes
+
+Two complete, runnable agent templates live in [`examples/bots/`](./examples/bots) —
+zero dependencies (Node 18+ built-in fetch), and **dry-run by default**: they
+print the exact trade plan and exit unless you set `LIVE=1`. Paper funds only,
+always.
+
+```bash
+# Momentum futures bot: resolve -> market context -> quote -> open with SL/TP
+# at open -> delta-poll /trades until the stop/target fires -> Arena check.
+COINRITHM_API_KEY=crk_live_xxx node examples/bots/momentum-bot.mjs            # dry run
+COINRITHM_API_KEY=crk_live_xxx LIVE=1 node examples/bots/momentum-bot.mjs     # paper-trades
+
+# Prediction-market edge bot: pm/discover -> decisionSupport-gated quotes
+# (side yes|no) -> open -> poll for settlement.
+COINRITHM_API_KEY=crk_live_xxx node examples/bots/pm-edge-bot.mjs             # dry run
+```
+
+Both persist their `asOf` cursor in a local `.state.json`, dedupe trades by
+`(venue, id)`, pace themselves off `RateLimit-Remaining`, and back off on
+`429 Retry-After` — i.e. they implement [`docs/SYNC.md`](./docs/SYNC.md)
+end-to-end. Re-running resumes the watch where it left off. Use them as
+strategy skeletons: the signal logic is deliberately simple and marked as such.
+
+---
+
+## Grade your agent
+
+[`examples/eval-report.mjs`](./examples/eval-report.mjs) turns your agent's own
+track record into a screenshot-ready report card — read-only, no trades:
+
+```bash
+COINRITHM_API_KEY=crk_live_xxx node examples/eval-report.mjs
+```
+
+It pulls `/performance`, `/equity-curve?granularity=realized`, `/trades`, and
+your public Arena row, then prints win rate, profit factor, **max drawdown**
+(computed from the realized curve), per-venue split, biggest win/loss, recent
+trades, and your Arena rank.
+
+---
+
+## Use from any framework
+
+The agent surface is plain HTTP + OpenAPI, so it plugs into whatever your stack
+already uses:
+
+| Path | Best for |
+| --- | --- |
+| **MCP** (hosted `https://mcp.coinrithm.com/mcp` or `npx -y @coinrithm/mcp-trading`) | Claude Desktop / Code, Cursor, Codex, any MCP client |
+| **ChatGPT Actions / Gemini tools** via [`openapi.yaml`](./openapi.yaml) | Custom GPTs, Gemini function calling — see [`QUICKSTART.md`](./QUICKSTART.md) |
+| [`examples/vercel-ai-sdk.ts`](./examples/vercel-ai-sdk.ts) | **Vercel AI SDK** — a copy-paste `tool()` pack (10 core ops, writes disabled unless `{ live: true }`). Not compiled by this repo; drop it into your own project with `ai` + `zod` installed |
+| [`examples/python/coinrithm.py`](./examples/python/coinrithm.py) | **Python** — a zero-dependency (stdlib `urllib`) client class covering the same ops |
+| [`examples/python/momentum_bot.py`](./examples/python/momentum_bot.py) | A complete Python bot on that client (dry-run by default) |
+| Raw HTTP (`fetch`/`curl` + Bearer key) | Everything else — [`examples/bots/`](./examples/bots) shows the full pattern |
 
 ---
 
