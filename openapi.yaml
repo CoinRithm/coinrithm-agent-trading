@@ -20,6 +20,15 @@ info:
     NOTE: `POST /futures/open` and `POST /pm/open` are additionally server-flag
     gated; they are enabled now and return 403 ("… not enabled") only if
     CoinRithm later disables them.
+
+    **Rate limits.** Every key carries two budgets, enforced per key (not per
+    IP): **120 requests/min** across all agent endpoints, and **20
+    trade-writes/min** (order placement/cancel, futures open/close, PM open).
+    Responses include `RateLimit-Limit`, `RateLimit-Remaining`, and
+    `RateLimit-Reset` headers so an agent can pace itself without guessing;
+    a `429` additionally carries `Retry-After` (seconds) — back off at least
+    that long before retrying. Budgets are server-tunable, so always prefer
+    the live headers over the documented defaults.
 servers:
   - url: https://api.coinrithm.com
     description: Production (live)
@@ -61,6 +70,7 @@ paths:
                       type: string
                       enum: [read, "trade:spot", "trade:futures", "trade:pm"]
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
 
   /api/agent/portfolio:
     get:
@@ -88,6 +98,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Dashboard" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/WalletNotFound" }
 
@@ -112,6 +123,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Wallet" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/WalletNotFound" }
 
@@ -168,6 +180,7 @@ paths:
                           items: { type: string }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
         "403": { $ref: "#/components/responses/Forbidden" }
 
   /api/agent/equity-curve:
@@ -207,6 +220,7 @@ paths:
                         date: { type: string, example: "2026-05-01" }
                         usdValue: { type: number }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
         "403": { $ref: "#/components/responses/Forbidden" }
 
   /api/agent/trades:
@@ -260,6 +274,7 @@ paths:
                         outcome: { type: string, nullable: true }
                         detail: { type: object, additionalProperties: true }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
         "403": { $ref: "#/components/responses/Forbidden" }
 
   /api/agent/market/{coinId}:
@@ -350,6 +365,7 @@ paths:
                   asOf: { type: string, format: date-time }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404":
           description: Coin not found
@@ -381,6 +397,7 @@ paths:
                       pm: { $ref: "#/components/schemas/AgentVenuePerf" }
                   asOf: { type: string, format: date-time }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
         "403": { $ref: "#/components/responses/Forbidden" }
 
   /api/arena:
@@ -479,6 +496,7 @@ paths:
                     items: { $ref: "#/components/schemas/OpenOrder" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/WalletNotFound" }
 
@@ -500,6 +518,7 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/FuturesPosition" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
         "403": { $ref: "#/components/responses/Forbidden" }
 
   /api/agent/positions/pm:
@@ -520,6 +539,7 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/PmPosition" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
         "403": { $ref: "#/components/responses/Forbidden" }
 
   /api/agent/futures/quote:
@@ -544,6 +564,7 @@ paths:
               schema: { $ref: "#/components/schemas/FuturesQuoteResponse" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404":
           description: Coin not found
@@ -597,6 +618,7 @@ paths:
               schema: { $ref: "#/components/schemas/PmDiscoveryResponse" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
         "403": { $ref: "#/components/responses/Forbidden" }
 
   /api/agent/pm/quote:
@@ -621,6 +643,7 @@ paths:
               schema: { $ref: "#/components/schemas/PmQuoteResponse" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404":
           description: Event not found
@@ -651,6 +674,7 @@ paths:
               schema: { $ref: "#/components/schemas/SpotQuoteResponse" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404":
           description: Coin not found
@@ -680,9 +704,36 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/SpotOrderResponse" }
-        "400": { $ref: "#/components/responses/BadRequest" }
+        "400":
+          description: |
+            Rejected. `blockReasons` carries stable machine-readable codes from
+            the same vocabulary as `spotQuote` (e.g. `price_unavailable`,
+            `insufficient_usdt_balance`, `insufficient_coin_balance`) — same
+            envelope shape as futures/PM entry blocks.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
+                  blockReasons:
+                    type: array
+                    items: { type: string }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
         "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: |
+            No active mock wallet (`blockReasons: ["wallet_not_found"]`).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
+                  blockReasons:
+                    type: array
+                    items: { type: string }
         "500": { $ref: "#/components/responses/ServerError" }
 
   /api/agent/spot/order/{id}/cancel:
@@ -712,6 +763,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/WalletNotFound" }
 
@@ -743,6 +795,7 @@ paths:
               schema: { $ref: "#/components/schemas/FuturesPositionEnvelope" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
         "403":
           description: Missing scope OR futures opening disabled (server flag)
           content:
@@ -784,6 +837,7 @@ paths:
               schema: { $ref: "#/components/schemas/FuturesPositionEnvelope" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404":
           description: Position not found
@@ -828,6 +882,7 @@ paths:
               schema: { $ref: "#/components/schemas/PmPositionEnvelope" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
         "403":
           description: Missing scope OR PM opening disabled (server flag)
           content:
@@ -876,6 +931,29 @@ components:
           schema: { $ref: "#/components/schemas/Error" }
     NotFound:
       description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    TooManyRequests:
+      description: |
+        Rate limit exceeded for this API key (120 req/min baseline, 20
+        trade-writes/min). Honor `Retry-After`, then resume; the
+        `RateLimit-*` headers on every response let you pace proactively.
+        (The platform also runs a per-IP limiter; its 429 body may be plain
+        text rather than JSON.)
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema: { type: integer }
+        RateLimit-Limit:
+          description: Request budget for the current window.
+          schema: { type: integer }
+        RateLimit-Remaining:
+          description: Requests remaining in the current window.
+          schema: { type: integer }
+        RateLimit-Reset:
+          description: Seconds until the current window resets.
+          schema: { type: integer }
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
