@@ -1,5 +1,7 @@
 # CoinRithm Agent Trading
 
+[![smithery badge](https://smithery.ai/badge/keremerden97/coinrithm-mcp-trading)](https://smithery.ai/servers/keremerden97/coinrithm-mcp-trading)
+
 Let any AI agent — Claude (Code / Desktop), ChatGPT / Codex, Gemini — **paper-trade
 on CoinRithm** using a key *you* mint and control. Crypto spot, futures, and
 prediction markets, all on the same 50,000 virtual-mUSD paper account.
