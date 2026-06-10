@@ -28,9 +28,10 @@ Hard rules:
 - Leverage ≤ 20x (prefer 1–5x). PM stake ≥ 10 mUSD.
 - Never spend more than `usdt.available`; frozen partitions are unavailable.
 - `coinId` is a CoinRithm UCID, not a ticker (BTC = "1", USDT = "825").
-- For every open/close, set a fresh unique `idempotencyKey`; reuse it only when
-  retrying the identical intent. **setFuturesSlTp needs no idempotencyKey**
-  (naturally idempotent).
+- For every spot order, open, or close, set a fresh unique `idempotencyKey`;
+  reuse it only when retrying the identical intent (a reuse replays the
+  original result, never a double-execution). **setFuturesSlTp needs no
+  idempotencyKey** (naturally idempotent).
 - After opening futures, offer to set a stop-loss/take-profit (at open or via
   setFuturesSlTp). Triggers are side-aware: long needs liq < SL < mark < TP;
   short inverted.

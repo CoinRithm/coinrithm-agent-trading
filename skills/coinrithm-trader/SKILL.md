@@ -49,11 +49,13 @@ real money or a real exchange.
   `pm_quote` first; if `eligible` is false, relay the `blockReasons` and stop —
   do not attempt the open.
 - **Idempotency.** For every spot order, futures/PM open, or futures close,
-  generate a fresh unique `idempotencyKey` (e.g. a UUID) per distinct intent
-  where the tool accepts one. If you retry the *same* intent after a network
-  hiccup, reuse the *same* key (it replays, it won't double-fill). Never reuse
-  a key for a *different* trade. `set_futures_sl_tp` is naturally idempotent
-  and needs **no** key.
+  generate a fresh unique `idempotencyKey` (e.g. a UUID) per distinct intent —
+  all of these tools REQUIRE one. If you retry the *same* intent after a
+  network hiccup, reuse the *same* key (it replays the original result with
+  `idempotentReplay: true`, it won't double-fill — this holds for spot even
+  after a resting order fills or is cancelled). Never reuse a key for a
+  *different* trade. `set_futures_sl_tp` is naturally idempotent and needs
+  **no** key.
 - **Back off on 429.** Per-key limits are 120 requests/min and 20
   trade-writes/min. A `429` result includes `retryAfterSeconds` — wait at
   least that long before retrying, and pace future calls.
@@ -82,7 +84,7 @@ real money or a real exchange.
 | Spot pricing + affordability | `spot_quote` | Read-only. Quote before `place_spot_order`. |
 | Futures pricing + liq | `futures_quote` | Read-only. `side` long/short, `leverage` 1–20, `marginMusd` ≥ 10. |
 | PM pricing + eligibility | `pm_quote` | Read-only. Needs `source`, `slug`, `outcomeExternalMarketId`, `stakeMusd`. |
-| Place spot order | `place_spot_order` | market/limit/stop; `limitPrice` for limit & stop; `stopPrice` for stop. |
+| Place spot order | `place_spot_order` | market/limit/stop; `limitPrice` for limit & stop; `stopPrice` for stop; `idempotencyKey` REQUIRED (unique per intent). |
 | Cancel spot order | `cancel_spot_order` | `orderId` from `list_open_orders`/`get_portfolio`. |
 | Open futures | `open_futures_position` | trade:futures. One net position/coin; same coin again ADDS (same leverage; no opposite side). Can set SL/TP atomically at open. |
 | Set/clear futures SL/TP | `set_futures_sl_tp` | trade:futures. Positive number sets, `null` clears, omitted = unchanged. No idempotencyKey. |

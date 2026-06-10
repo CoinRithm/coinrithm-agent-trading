@@ -122,6 +122,8 @@ const run = async () => {
         side: "buy",
         orderType: "market",
         quantity: 0.0005,
+        // REQUIRED for API-key callers; unique per intent (reuse replays).
+        idempotencyKey: `demo-spot-${me?.userId}-${Date.now()}`,
       });
       if (r.status >= 400) return { blocked: `HTTP ${r.status} ${JSON.stringify(r.json)}` };
       return { note: `filled @ ${r.json?.summary?.executionPrice ?? "?"}` };

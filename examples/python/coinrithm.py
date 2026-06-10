@@ -166,8 +166,11 @@ class CoinRithm:
 
     # -- writes (paper trades; need the matching trade:* scope) ----------------
     def place_spot_order(self, coin_id: str, side: str, order_type: str, quantity: float,
+                         idempotency_key: str,
                          limit_price: Optional[float] = None, stop_price: Optional[float] = None) -> dict:
-        body: dict[str, Any] = {"coinId": coin_id, "side": side, "orderType": order_type, "quantity": quantity}
+        """idempotency_key is REQUIRED (unique per intent; reuse replays the original result)."""
+        body: dict[str, Any] = {"coinId": coin_id, "side": side, "orderType": order_type,
+                                "quantity": quantity, "idempotencyKey": idempotency_key}
         if limit_price is not None:
             body["limitPrice"] = limit_price
         if stop_price is not None:

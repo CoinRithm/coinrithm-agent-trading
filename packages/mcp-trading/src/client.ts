@@ -314,6 +314,9 @@ export class CoinRithmClient {
       quantity: number;
       limitPrice?: number;
       stopPrice?: number;
+      // REQUIRED for API-key callers (server 400s without it). Unique per
+      // intent; reusing it replays the original result (idempotentReplay).
+      idempotencyKey: string;
     },
     apiKey?: string,
   ) {

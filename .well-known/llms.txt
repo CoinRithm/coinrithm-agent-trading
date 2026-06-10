@@ -34,6 +34,10 @@ trade:pm.
 - Quote before opening; confirm with the user before any write.
 - All venues are live: futures-open, PM-open, spot orders, reads, quotes, and
   futures-close all work (mock paper trading).
+- Every write (spot order, futures/PM open, futures close) REQUIRES an
+  idempotencyKey, unique per intent — retrying with the same key replays the
+  original result (idempotentReplay: true) instead of double-executing.
+  set_futures_sl_tp is the exception (naturally idempotent, no key).
 - Resting stop-loss / take-profit: set at futures open or later via
   set_futures_sl_tp (no idempotencyKey needed). Fired by a per-minute worker
   off the live mark — liquidation always takes precedence; a fire closes the

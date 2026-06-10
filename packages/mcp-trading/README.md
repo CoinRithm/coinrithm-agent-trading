@@ -77,7 +77,8 @@ key upstream. See [`DEPLOY.md`](./DEPLOY.md).
 ¹ Server-flag gated; live now. Returns `403 … not enabled` only if CoinRithm later disables it.
 
 ² Set/clear resting stop-loss / take-profit on an open futures position.
-Naturally idempotent — no `idempotencyKey` needed (unlike opens/closes).
+Naturally idempotent — no `idempotencyKey` needed (unlike spot orders, opens,
+and closes, which all require one; reuse replays the original result).
 
 Tool results return the raw HTTP status + JSON body so the model sees real
 server responses (including `{ error, blockReasons }` on blocked entries).

@@ -687,8 +687,10 @@ export function registerTools(
       description:
         "Place a paper spot order. coinId is a coin UCID, NOT a ticker. " +
         "orderType market/limit/stop. limitPrice required for limit & stop; " +
-        "stopPrice required for stop. Requires the trade:spot scope. CONFIRM with " +
-        "the user before calling. " +
+        "stopPrice required for stop. idempotencyKey is REQUIRED and unique " +
+        "per intent (reuse replays the original result — retry a timed-out " +
+        "call with the SAME key; it will never double-execute). Requires the " +
+        "trade:spot scope. CONFIRM with the user before calling. " +
         PAPER_NOTE,
       inputSchema: {
         coinId: z.string().describe('Coin UCID (e.g. "1" = BTC).'),
@@ -709,12 +711,16 @@ export function registerTools(
           .positive()
           .optional()
           .describe("USD trigger — required for stop."),
+        idempotencyKey: z
+          .string()
+          .min(1)
+          .describe("Unique per intent; reuse replays the original result."),
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: mutatingAnnotations("Place spot order"),
     },
     async (
-      { coinId, side, orderType, quantity, limitPrice, stopPrice },
+      { coinId, side, orderType, quantity, limitPrice, stopPrice, idempotencyKey },
       extra,
     ) =>
       present(
@@ -726,6 +732,7 @@ export function registerTools(
             quantity,
             limitPrice,
             stopPrice,
+            idempotencyKey,
           },
           requestKey(extra),
         ),

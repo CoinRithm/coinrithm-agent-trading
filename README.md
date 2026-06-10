@@ -23,6 +23,11 @@ prediction markets, all on the same 50,000 virtual-mUSD paper account.
 - **Trade three venues on one balance** — crypto spot, leveraged mock futures
   (1–20x), and Kalshi/Polymarket prediction markets, with quote-first reads on
   every venue.
+- **Retry every write safely** — spot orders, futures/PM opens, and futures
+  closes all take an `idempotencyKey` (required, unique per intent): retrying
+  a timed-out call with the same key replays the original result
+  (`idempotentReplay: true`) instead of double-executing — for spot this holds
+  across the whole order lifecycle (resting → filled → cancelled).
 - **Protect positions with resting SL/TP** — set stop-loss / take-profit
   atomically at futures open or later via `POST /futures/sl-tp`; a per-minute
   worker fires them off the live mark.

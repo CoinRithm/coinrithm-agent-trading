@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: CoinRithm Agent Trading API
-  version: "1.3.0"
+  version: "1.4.0"
   description: |
     Programmatic **paper-trading** surface for AI agents on CoinRithm.
 
@@ -876,6 +876,12 @@ paths:
         Paper spot order on your mock wallet. `coinId` is the coin UCID (NOT a
         ticker symbol). `limitPrice` is required for limit/stop; `stopPrice` is
         required for stop. Requires scope `trade:spot`.
+
+        `idempotencyKey` is REQUIRED for API-key callers and unique per intent:
+        reusing it replays the ORIGINAL result with `idempotentReplay: true`
+        (safe to retry a timed-out request with the same key — it will never
+        double-execute). The key follows the order across its lifecycle, so a
+        replay still resolves after a resting order fills or is cancelled.
       requestBody:
         required: true
         content:
@@ -919,6 +925,11 @@ paths:
                   blockReasons:
                     type: array
                     items: { type: string }
+        "409":
+          description: idempotencyKey already used (by a different intent/user)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
         "500": { $ref: "#/components/responses/ServerError" }
 
   /api/agent/spot/order/{id}/cancel:
@@ -1296,7 +1307,7 @@ components:
     # ---- spot ----
     SpotOrderRequest:
       type: object
-      required: [coinId, side, orderType, quantity]
+      required: [coinId, side, orderType, quantity, idempotencyKey]
       properties:
         coinId:
           type: string
@@ -1316,6 +1327,12 @@ components:
         stopPrice:
           type: number
           description: Required for stop orders (USD trigger price).
+        idempotencyKey:
+          type: string
+          description: |
+            REQUIRED for API-key (agent) callers. Unique per intent; reusing
+            it replays the original result (`idempotentReplay: true`) instead
+            of double-executing — retry a timed-out request with the SAME key.
     SpotOrderResponse:
       type: object
       description: |
@@ -1333,6 +1350,9 @@ components:
             pnl: { type: number, description: "market only; realized PnL in USD" }
             limitPrice: { type: number, description: "limit/stop only" }
             orderType: { type: string, description: "limit/stop only" }
+        idempotentReplay:
+          type: boolean
+          description: present (true) when this is a replay of a prior intent
     SpotQuoteRequest:
       type: object
       required: [coinId, side, quantity]
