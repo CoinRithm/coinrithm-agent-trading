@@ -4,3 +4,7 @@ dist/
 .env
 .env.*
 .DS_Store
+# bot/eval template state (local cursors)
+examples/**/.*.state.json
+__pycache__/
+*.pyc
