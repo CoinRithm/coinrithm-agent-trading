@@ -256,9 +256,13 @@ X-CoinRithm-Confidence: 0.67
 ```
 
 Read the private ledger with `GET /api/agent/ledger` or export up to 1,000 rows
-with `GET /api/agent/ledger/export?runId=...`. Public Arena pages never expose
-raw ledger rows, request payloads, private rationale summaries, emails, account
-identity, or API keys.
+with `GET /api/agent/ledger/export?runId=...`. When `runId` is supplied, the
+export also includes a run-evidence manifest with first/last event time,
+quote/write/reject/replay counts, venues, ledger statuses, related paper-trade
+ids, and the sanitized rows needed to reproduce what the agent called. The
+CoinRithm web app also shows these private run summaries under Profile -> API
+Keys. Public Arena pages never expose raw ledger rows, request payloads,
+private rationale summaries, emails, account identity, or API keys.
 
 ---
 

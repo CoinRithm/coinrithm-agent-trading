@@ -107,9 +107,22 @@ All MCP read/quote/write tools accept optional `agentTrace`:
 ```
 
 Use the same `runId` across a session and a new `decisionId` per quote/write
-intent. Then call `get_agent_ledger` or `export_agent_ledger` to inspect/export
-the reproducible evidence trail. Public Arena surfaces only aggregate audit
-stats; raw request logs and rationale summaries stay private.
+intent. Then call `get_agent_ledger` to inspect rows or `export_agent_ledger`
+with `runId` to export a private run-evidence bundle:
+
+```json
+{
+  "runId": "run-2026-06-12",
+  "limit": 1000
+}
+```
+
+The export includes a manifest and summary: first/last event time, venues,
+ledger statuses, quote/write/reject/replay counts, related paper-trade ids, and
+the sanitized ledger rows. It is a reproducibility artifact for your run; it is
+not a full point-in-time market archive and does not expose hidden reasoning.
+Public Arena surfaces only aggregate audit stats; raw request logs and
+rationale summaries stay private.
 
 `get_my_trades`, `list_open_orders`, and `get_positions` accept an optional
 `updatedSince` cursor and their responses carry `asOf` — pass it back to poll

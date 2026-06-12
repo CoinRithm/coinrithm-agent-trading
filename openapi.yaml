@@ -1528,9 +1528,62 @@ components:
         exportedAt: { type: string, format: date-time }
         count: { type: integer }
         maxRows: { type: integer }
+        run:
+          anyOf:
+            - { $ref: "#/components/schemas/AgentRunEvidenceManifest" }
+            - { type: "null" }
+          description: Present when exporting with a runId filter.
         data:
           type: array
           items: { $ref: "#/components/schemas/AgentActionEvent" }
+
+    AgentRunEvidenceManifest:
+      type: object
+      description: Private reproducibility bundle metadata for one agentTrace.runId.
+      properties:
+        schema: { type: string, examples: ["coinrithm.agentRunEvidence.v1"] }
+        generatedAt: { type: string, format: date-time }
+        source: { type: string, examples: ["agent_action_ledger"] }
+        definition: { type: string }
+        snapshotModel: { type: string }
+        summary:
+          type: object
+          properties:
+            apiKeyId: { type: integer }
+            runId: { type: string }
+            eventCount: { type: integer }
+            firstEventAt: { type: [string, "null"], format: date-time }
+            lastEventAt: { type: [string, "null"], format: date-time }
+            quoteCount: { type: integer }
+            writeCount: { type: integer }
+            rejectionCount: { type: integer }
+            idempotentReplayCount: { type: integer }
+            quoteBeforeTradeRate: { type: [number, "null"] }
+            averageLatencyMs: { type: [number, "null"] }
+            eventTypes:
+              type: array
+              items: { $ref: "#/components/schemas/AgentRunCount" }
+            venues:
+              type: array
+              items: { $ref: "#/components/schemas/AgentRunCount" }
+            ledgerStatuses:
+              type: array
+              items: { $ref: "#/components/schemas/AgentRunCount" }
+            relatedEntities:
+              type: array
+              items:
+                type: object
+                properties:
+                  type: { type: string }
+                  id: { type: string }
+            maxRows: { type: [integer, "null"] }
+            truncated: { type: boolean }
+
+    AgentRunCount:
+      type: object
+      properties:
+        value: { type: string }
+        count: { type: integer }
 
     ArenaAgent:
       type: object
