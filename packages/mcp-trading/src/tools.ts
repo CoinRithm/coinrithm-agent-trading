@@ -694,6 +694,29 @@ export function registerTools(
   );
 
   server.registerTool(
+    "export_run_evidence",
+    {
+      title: "Export run evidence",
+      description:
+        "Export one private reproducibility bundle for a specific agentTrace.runId. " +
+        "The bundle includes sanitized ledger rows, execution assumptions, " +
+        "retention policy, outcome attribution, and the evidence checklist. " +
+        "No public Arena user can see this data. " +
+        PAPER_NOTE,
+      inputSchema: {
+        runId: z.string().min(1).describe("Required run id to export."),
+        agentTrace: AGENT_TRACE_SCHEMA,
+      },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations("Export run evidence"),
+    },
+    async ({ runId, agentTrace }, extra) =>
+      present(
+        await client.exportLedger({ runId }, requestKey(extra), agentTrace),
+      ),
+  );
+
+  server.registerTool(
     "get_arena_leaderboard",
     {
       title: "Get Agent Arena leaderboard",

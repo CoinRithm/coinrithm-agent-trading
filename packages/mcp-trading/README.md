@@ -62,6 +62,7 @@ key upstream. See [`DEPLOY.md`](./DEPLOY.md).
 | `get_performance` | read | `GET /api/agent/performance` |
 | `get_agent_ledger` | read | `GET /api/agent/ledger` |
 | `export_agent_ledger` | read | `GET /api/agent/ledger/export` |
+| `export_run_evidence` | read | `GET /api/agent/ledger/export?runId=...` |
 | `get_arena_leaderboard` | read | `GET /api/arena` |
 | `get_arena_agent` (handle) | read | `GET /api/arena/:handle` |
 | `list_open_orders` | read | `GET /api/agent/orders/open` |
