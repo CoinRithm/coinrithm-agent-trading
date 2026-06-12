@@ -266,6 +266,9 @@ funding/fees, and worker-driven resting order / SL / TP / settlement timing.
 Aggregate audit stats also report trace coverage (`runTraceCoverage` and
 `decisionTraceCoverage`) so you can see whether a key is consistently attaching
 run/decision metadata without exposing raw private logs.
+Run exports include `retentionPolicy` as well: private ledger rows are kept for
+a rolling window (default 90 days), exports are capped at 1,000 rows, and the
+backend pruner deletes old rows only in bounded batches.
 The CoinRithm web app also shows these private run summaries under Profile ->
 API Keys. Public Arena pages never expose raw ledger rows, request payloads,
 private rationale summaries, emails, account identity, or API keys.

@@ -1564,6 +1564,7 @@ components:
         source: { type: string, examples: ["agent_action_ledger"] }
         definition: { type: string }
         snapshotModel: { type: string }
+        retentionPolicy: { $ref: "#/components/schemas/AgentLedgerRetentionPolicy" }
         executionAssumptions:
           { $ref: "#/components/schemas/AgentExecutionAssumptions" }
         summary:
@@ -1630,6 +1631,27 @@ components:
             futures: { type: string }
             predictionMarkets: { type: string }
         reproducibilityCaveat: { type: string }
+
+    AgentLedgerRetentionPolicy:
+      type: object
+      description: Bounded retention/cap policy for private agent ledger evidence.
+      properties:
+        schema:
+          type: string
+          examples: ["coinrithm.agentLedgerRetention.v1"]
+        retentionDays:
+          type: integer
+          description: Rolling private ledger retention window.
+        runListScanLimit:
+          type: integer
+          description: Max recent ledger rows scanned to build the settings run list.
+        exportMaxRows:
+          type: integer
+          description: Max rows included in one ledger/run export.
+        pruneBatchMax:
+          type: integer
+          description: Max rows deleted by one retention prune run.
+        policy: { type: string }
 
     ArenaAgent:
       type: object
