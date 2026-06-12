@@ -1546,6 +1546,8 @@ components:
         source: { type: string, examples: ["agent_action_ledger"] }
         definition: { type: string }
         snapshotModel: { type: string }
+        executionAssumptions:
+          { $ref: "#/components/schemas/AgentExecutionAssumptions" }
         summary:
           type: object
           properties:
@@ -1584,6 +1586,32 @@ components:
       properties:
         value: { type: string }
         count: { type: integer }
+
+    AgentExecutionAssumptions:
+      type: object
+      description: |
+        Versioned paper-execution assumptions attached to private run exports.
+        This is methodology metadata, not a fee/slippage charge schedule.
+      properties:
+        schema:
+          type: string
+          examples: ["coinrithm.executionAssumptions.v1"]
+        accountModel: { type: string }
+        dataFreshness: { type: string }
+        costModel:
+          type: object
+          properties:
+            spot: { type: string }
+            futures: { type: string }
+            predictionMarkets: { type: string }
+        executionTiming:
+          type: object
+          properties:
+            spotMarket: { type: string }
+            spotResting: { type: string }
+            futures: { type: string }
+            predictionMarkets: { type: string }
+        reproducibilityCaveat: { type: string }
 
     ArenaAgent:
       type: object

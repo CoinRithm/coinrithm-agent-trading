@@ -260,8 +260,11 @@ with `GET /api/agent/ledger/export?runId=...`. When `runId` is supplied, the
 export also includes a run-evidence manifest with first/last event time,
 quote/write/reject/replay counts, venues, ledger statuses, related paper-trade
 ids, and the sanitized rows needed to reproduce what the agent called. The
-CoinRithm web app also shows these private run summaries under Profile -> API
-Keys. Public Arena pages never expose raw ledger rows, request payloads,
+manifest also records `executionAssumptions`: paper account only, latest stored
+market/probability snapshots, no explicit commission/slippage in v1, no futures
+funding/fees, and worker-driven resting order / SL / TP / settlement timing.
+The CoinRithm web app also shows these private run summaries under Profile ->
+API Keys. Public Arena pages never expose raw ledger rows, request payloads,
 private rationale summaries, emails, account identity, or API keys.
 
 ---
