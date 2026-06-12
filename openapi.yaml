@@ -2056,6 +2056,7 @@ components:
         liquidationPrice: { type: number, nullable: true }
         maintenanceMarginRate: { type: number, nullable: true }
         freshness: { $ref: "#/components/schemas/Freshness" }
+        observation: { $ref: "#/components/schemas/AgentObservation" }
     FuturesOpenRequest:
       type: object
       required: [coinId, side, leverage, marginMusd, idempotencyKey]
@@ -2257,6 +2258,7 @@ components:
             slug: { type: string }
             title: { type: string }
             status: { type: string }
+        observation: { $ref: "#/components/schemas/AgentObservation" }
     PmOpenRequest:
       type: object
       required: [source, slug, outcomeExternalMarketId, stakeMusd, idempotencyKey]
