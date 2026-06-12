@@ -1661,8 +1661,9 @@ components:
       type: object
       description: |
         Best-effort run-level outcome/PnL attribution derived at export time
-        from ledger relatedEntityType/relatedEntityId links. No new data is
-        stored for this summary.
+        from ledger relatedEntityType/relatedEntityId links. Spot orders may
+        also match through their idempotency keys once a terminal ClosedOrder
+        exists. No new data is stored for this summary.
       properties:
         schema:
           type: string
