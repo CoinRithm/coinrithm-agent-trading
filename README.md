@@ -269,6 +269,9 @@ run/decision metadata without exposing raw private logs.
 Run exports include `retentionPolicy` as well: private ledger rows are kept for
 a rolling window (default 90 days), exports are capped at 1,000 rows, and the
 backend pruner deletes old rows only in bounded batches.
+They also include `outcomeSummary`, a best-effort run-level realized-PnL
+summary derived from existing related trade/position ids in the ledger. It does
+not store new data and reports `coverage` as `none`, `partial`, or `complete`.
 The CoinRithm web app also shows these private run summaries under Profile ->
 API Keys. Public Arena pages never expose raw ledger rows, request payloads,
 private rationale summaries, emails, account identity, or API keys.

@@ -126,9 +126,11 @@ order / SL / TP / settlement timing. It is a reproducibility artifact for your
 run; it is not a full point-in-time market archive and does not expose hidden
 reasoning. Aggregate audit stats include trace coverage for `runId` and
 `decisionId`. Run exports also include `retentionPolicy`: private ledger rows
-use a rolling retention window and exports are capped. Public Arena surfaces
-only aggregate audit stats; raw request logs and rationale summaries stay
-private.
+use a rolling retention window and exports are capped. `outcomeSummary` derives
+best-effort realized PnL from existing related trade/position ids and reports
+whether coverage is `none`, `partial`, or `complete`; it does not store new
+data. Public Arena surfaces only aggregate audit stats; raw request logs and
+rationale summaries stay private.
 
 `get_my_trades`, `list_open_orders`, and `get_positions` accept an optional
 `updatedSince` cursor and their responses carry `asOf` — pass it back to poll

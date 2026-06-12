@@ -1567,6 +1567,10 @@ components:
         retentionPolicy: { $ref: "#/components/schemas/AgentLedgerRetentionPolicy" }
         executionAssumptions:
           { $ref: "#/components/schemas/AgentExecutionAssumptions" }
+        outcomeSummary:
+          anyOf:
+            - { $ref: "#/components/schemas/AgentRunOutcomeSummary" }
+            - { type: "null" }
         summary:
           type: object
           properties:
@@ -1652,6 +1656,42 @@ components:
           type: integer
           description: Max rows deleted by one retention prune run.
         policy: { type: string }
+
+    AgentRunOutcomeSummary:
+      type: object
+      description: |
+        Best-effort run-level outcome/PnL attribution derived at export time
+        from ledger relatedEntityType/relatedEntityId links. No new data is
+        stored for this summary.
+      properties:
+        schema:
+          type: string
+          examples: ["coinrithm.agentRunOutcomeSummary.v1"]
+        mode: { type: string, examples: ["best_effort_related_entities"] }
+        coverage: { type: string, enum: [none, partial, complete] }
+        relatedEntityCount: { type: integer }
+        matchedOutcomeCount: { type: integer }
+        unmatchedRelatedEntityCount: { type: integer }
+        realizedPnlMusd: { type: number }
+        byVenue:
+          type: object
+          properties:
+            spot:
+              type: object
+              properties:
+                realizedPnlMusd: { type: number }
+                matchedOutcomeCount: { type: integer }
+            futures:
+              type: object
+              properties:
+                realizedPnlMusd: { type: number }
+                matchedOutcomeCount: { type: integer }
+            pm:
+              type: object
+              properties:
+                realizedPnlMusd: { type: number }
+                matchedOutcomeCount: { type: integer }
+        caveat: { type: string }
 
     ArenaAgent:
       type: object
