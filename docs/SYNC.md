@@ -54,6 +54,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 
 const BASE = "https://api.coinrithm.com";
 const KEY = process.env.COINRITHM_API_KEY;
+const RUN_ID = process.env.COINRITHM_RUN_ID || "sync-loop";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const load = () => { try { return JSON.parse(readFileSync(".state.json", "utf8")); } catch { return { cursor: null, seen: [] }; } };
@@ -61,7 +62,13 @@ const load = () => { try { return JSON.parse(readFileSync(".state.json", "utf8")
 const state = load();
 for (;;) {
   const qs = state.cursor ? `?updatedSince=${encodeURIComponent(state.cursor)}` : "?limit=1";
-  const res = await fetch(`${BASE}/api/agent/trades${qs}`, { headers: { Authorization: `Bearer ${KEY}` } });
+  const res = await fetch(`${BASE}/api/agent/trades${qs}`, {
+    headers: {
+      Authorization: `Bearer ${KEY}`,
+      "X-CoinRithm-Run-Id": RUN_ID,
+      "X-CoinRithm-Strategy-Label": "sync-loop",
+    },
+  });
   if (res.status === 429) {                       // backoff: honor Retry-After
     await sleep((Number(res.headers.get("retry-after")) || 30) * 1000);
     continue;
@@ -85,6 +92,33 @@ for (;;) {
 
 The same loop works verbatim against `/orders/open`, `/positions/futures`, and
 `/positions/pm` — only the response array field changes (`rows` / `positions`).
+
+## Ledger trace for reproducible runs
+
+All `/api/agent/*` reads in this loop are recorded in the private action ledger
+for the calling key. The response headers include `X-CoinRithm-Ledger-Event-Id`
+and `X-CoinRithm-Ledger-Status` when persistence succeeds.
+
+For raw HTTP reads, use headers to group the polling evidence:
+
+```
+X-CoinRithm-Run-Id: sync-loop-2026-06-12
+X-CoinRithm-Decision-Id: poll-0007
+X-CoinRithm-Strategy-Label: sync-loop
+X-CoinRithm-Confidence: 0.5
+```
+
+For MCP calls, pass the equivalent `agentTrace` object. Use one `runId` for the
+whole bot session and a distinct `decisionId` for each material decision or
+quote/write pair. Export the run with:
+
+```
+GET /api/agent/ledger/export?runId=sync-loop-2026-06-12
+```
+
+The ledger stores sanitized summaries and optional short rationale summaries
+only. Do not send chain-of-thought, API keys, emails, or private account
+identity in `agentTrace`.
 
 ## What you'll catch
 

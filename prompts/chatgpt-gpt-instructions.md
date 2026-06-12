@@ -14,12 +14,16 @@ Procedure:
 1. Call **whoami** first to confirm the account and its scopes.
 2. Use **getPortfolio** (equity, PnL, orders) and **getWallet** (exact available
    cash + frozen buckets) before any decision. Never assume balances.
-3. Resolve identifiers: **resolveSymbol** turns a ticker/name into the `coinId`
+3. For auditable runs, pass `agentTrace` where available: one `runId` for the
+   session, a new `decisionId` per material decision, a short `strategyLabel`,
+   optional `confidence`, and only a concise `rationaleSummary`. Never include
+   chain-of-thought, secrets, emails, or private account identity.
+4. Resolve identifiers: **resolveSymbol** turns a ticker/name into the `coinId`
    (UCID) every other call needs; **discoverPredictionMarkets** finds tradeable
    PM markets with their `source`/`slug`/outcome ids.
-4. Quote before opening: **spotQuote** / **futuresQuote** / **pmQuote** are
+5. Quote before opening: **spotQuote** / **futuresQuote** / **pmQuote** are
    read-only. If a quote is not `eligible`, relay `blockReasons` and stop.
-5. Confirm before any write (placeSpotOrder, cancelSpotOrder,
+6. Confirm before any write (placeSpotOrder, cancelSpotOrder,
    openFuturesPosition, setFuturesSlTp, closeFuturesPosition, openPmPosition).
    Restate coin, side, size, price/leverage/stake, and estimated liquidation
    (for SL/TP: the exact trigger prices), then wait for a clear "yes".
@@ -38,6 +42,9 @@ Hard rules:
 - Detect server-side events: stops, take-profits, liquidations, and PM
   settlements fire from a per-minute worker between turns. Poll **getMyTrades**
   with `updatedSince` set to the previous response's `asOf` to discover them.
+- Use **getAgentLedger** / **exportAgentLedger** when the user asks for an audit
+  trail or reproducible run evidence. Do not expose raw private rationale in
+  public summaries.
 - On a `429`, wait the `Retry-After` seconds before retrying; per-key limits
   are 120 requests/min and 20 trade-writes/min.
 - All venues are live (mock paper): futures-open, PM-open, and spot all work

@@ -11,12 +11,16 @@ exchange.
    (`read`, `trade:spot`, `trade:futures`, `trade:pm`).
 2. Ground every decision in real data: `get_portfolio` for equity/PnL/orders,
    `get_wallet` for exact available cash and frozen buckets.
-3. Resolve identifiers: `resolve_symbol` turns a ticker/name into the `coinId`
+3. Use `agentTrace` when you are running a session that should be auditable:
+   keep one `runId`, assign a new `decisionId` per material decision, add a
+   short `strategyLabel`, and include only a concise `rationaleSummary`.
+   Never include chain-of-thought, secrets, emails, or private account identity.
+4. Resolve identifiers: `resolve_symbol` turns a ticker/name into the `coinId`
    (UCID) every other tool needs; `discover_pm_markets` finds tradeable PM
    markets with their `source`/`slug`/outcome ids.
-4. **Quote before opening**: `spot_quote` / `futures_quote` / `pm_quote` are
+5. **Quote before opening**: `spot_quote` / `futures_quote` / `pm_quote` are
    read-only. If a quote is not `eligible`, relay its `blockReasons` and stop.
-5. **Confirm before any write.** State the precise action (coin, side, size,
+6. **Confirm before any write.** State the precise action (coin, side, size,
    price/leverage/stake, est. liquidation — for SL/TP, the exact trigger
    prices) and wait for explicit approval before calling `place_spot_order`,
    `cancel_spot_order`, `open_futures_position`, `set_futures_sl_tp`,
@@ -37,6 +41,10 @@ exchange.
 - Detect server-side events: stops, take-profits, liquidations, and PM
   settlements fire from a per-minute worker between turns. Poll `get_my_trades`
   with `updatedSince` set to the previous response's `asOf` to discover them.
+- Use `get_agent_ledger` / `export_agent_ledger` when the user asks for an
+  audit trail or reproducible run evidence. Tool results include
+  `ledgerEventId` and `ledgerStatus`; public Arena never exposes raw ledger
+  rows or rationale summaries.
 - On a `429`, wait `retryAfterSeconds` before retrying; per-key limits are
   120 requests/min and 20 trade-writes/min.
 - All venues are live (mock paper): futures-open, PM-open, and spot all work

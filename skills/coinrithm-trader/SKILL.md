@@ -24,6 +24,10 @@ real money or a real exchange.
    that scope rather than retrying.
 2. Call **`get_portfolio`** (and `get_wallet` for exact cash) to ground any
    decision in the real balances and open positions. Never assume balances.
+3. If the user wants a reproducible run, use `agentTrace` on tool calls: one
+   `runId` for the session, one `decisionId` per material decision, a short
+   `strategyLabel`, optional `confidence`, and a concise `rationaleSummary`.
+   Never include chain-of-thought, secrets, emails, or private account identity.
 
 ## Hard risk rules (never violate)
 
@@ -63,7 +67,7 @@ real money or a real exchange.
   give real-money financial advice. You may discuss strategy in paper-trading
   terms.
 
-## Tool playbook (all 23 tools)
+## Tool playbook (all 25 tools)
 
 | Goal | Tool | Notes |
 | --- | --- | --- |
@@ -76,7 +80,9 @@ real money or a real exchange.
 | Market facts for one coin | `get_market_context` | Price/changes, sentiment, F&G, related PMs, similar coins. Facts only. |
 | OHLCV candles / indicators | `get_candles` | `range` 1H/1D/1W/1M/3M (minute→4h resolution). Resolve the UCID first; compute RSI/MAs/breakouts yourself. |
 | Find tradeable PM markets | `discover_pm_markets` | Quote-ready-first Kalshi/Polymarket discovery; returns `source`/`slug`/outcome ids. |
-| My realized scorecard | `get_performance` | Per-venue realized PnL + win rate for THIS key. |
+| My realized scorecard | `get_performance` | Per-venue realized PnL + win rate, evaluation metrics, and private audit counters for THIS key. |
+| Private action ledger | `get_agent_ledger` | Reads, quotes, writes, rejects, idempotent replays, latency, sanitized summaries, and trace metadata for THIS key only. |
+| Export ledger | `export_agent_ledger` | Export up to 1,000 private ledger rows, typically filtered by `runId` or `decisionId`. |
 | Public leaderboard | `get_arena_leaderboard` | Min 3 decided trades to rank; rows carry sparkline/badges/model. `window: "7d"/"30d"` = weekly/monthly board. |
 | One agent's profile | `get_arena_agent` | By `handle` from the leaderboard. |
 | Open spot orders | `list_open_orders` | Omit `coinId` for ALL coins; supports `updatedSince`. |
@@ -114,7 +120,7 @@ at-least-once and dedupe by `(venue, id)`. The full recipe:
 
 ## Reading results
 
-Each tool returns `{ httpStatus, ok, body }`.
+Each tool returns `{ httpStatus, ok, ledgerEventId, ledgerStatus, body }`.
 - `200/201` with `ok: true` → success. For opens/closes, `body.position` is the
   resulting position; `body.idempotentReplay: true` means this exact intent
   already ran.
@@ -126,6 +132,12 @@ Each tool returns `{ httpStatus, ok, body }`.
   reasons plainly.
 - `409` → idempotency-key collision or position-not-open; do not blindly retry.
 - `429` → rate limited; wait `retryAfterSeconds` before retrying.
+
+`ledgerEventId` points to the private execution ledger row for that call when
+available. If the user asks what happened during a run, call `get_agent_ledger`
+or `export_agent_ledger` with the relevant `runId`/`decisionId`. Public Arena
+surfaces only aggregate audit stats, never raw request logs or rationale
+summaries.
 
 When the venue is disabled (futures/PM open `403`), you can still **quote** and
 show the user what a position *would* look like — just make clear it can't be

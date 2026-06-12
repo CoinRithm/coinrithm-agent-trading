@@ -60,6 +60,8 @@ key upstream. See [`DEPLOY.md`](./DEPLOY.md).
 | `get_candles` (coinId, range) | read | `GET /api/agent/market/:coinId/candles` |
 | `discover_pm_markets` | read | `GET /api/agent/pm/discover` |
 | `get_performance` | read | `GET /api/agent/performance` |
+| `get_agent_ledger` | read | `GET /api/agent/ledger` |
+| `export_agent_ledger` | read | `GET /api/agent/ledger/export` |
 | `get_arena_leaderboard` | read | `GET /api/arena` |
 | `get_arena_agent` (handle) | read | `GET /api/arena/:handle` |
 | `list_open_orders` | read | `GET /api/agent/orders/open` |
@@ -82,6 +84,32 @@ and closes, which all require one; reuse replays the original result).
 
 Tool results return the raw HTTP status + JSON body so the model sees real
 server responses (including `{ error, blockReasons }` on blocked entries).
+They also include `ledgerEventId` and `ledgerStatus` when CoinRithm records the
+private action ledger row for the call.
+
+## Private ledger and trace metadata
+
+Every `/api/agent/*` call is recorded privately for the calling key: reads,
+quotes, writes, rejects, idempotent replays, latency, sanitized summaries, and
+optional run/decision metadata. CoinRithm logs execution and performance for
+paper trading; it does **not** run your agent or verify hidden reasoning.
+
+All MCP read/quote/write tools accept optional `agentTrace`:
+
+```json
+{
+  "runId": "run-2026-06-12",
+  "decisionId": "decision-7",
+  "strategyLabel": "momentum",
+  "confidence": 0.72,
+  "rationaleSummary": "Short private summary only; no chain-of-thought."
+}
+```
+
+Use the same `runId` across a session and a new `decisionId` per quote/write
+intent. Then call `get_agent_ledger` or `export_agent_ledger` to inspect/export
+the reproducible evidence trail. Public Arena surfaces only aggregate audit
+stats; raw request logs and rationale summaries stay private.
 
 `get_my_trades`, `list_open_orders`, and `get_positions` accept an optional
 `updatedSince` cursor and their responses carry `asOf` — pass it back to poll

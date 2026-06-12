@@ -33,6 +33,14 @@ export interface ClientConfig {
   baseUrl: string;
 }
 
+export interface AgentTrace {
+  runId?: string;
+  decisionId?: string;
+  strategyLabel?: string;
+  confidence?: number;
+  rationaleSummary?: string;
+}
+
 function resolveBaseUrl(): string {
   return (process.env.COINRITHM_API_URL?.trim() || DEFAULT_BASE_URL).replace(/\/+$/, "");
 }
@@ -76,9 +84,35 @@ export function bearerFromHeader(
 export interface ApiResult {
   ok: boolean;
   status: number;
+  ledgerEventId?: string | null;
+  ledgerStatus?: string | null;
   // Parsed JSON body when available, else raw text.
   data: unknown;
 }
+
+type TraceableBody<T extends Record<string, unknown>> = T & {
+  agentTrace?: AgentTrace;
+};
+
+const applyAgentTraceHeaders = (
+  headers: Record<string, string>,
+  trace: AgentTrace | undefined,
+): void => {
+  if (!trace) return;
+  if (trace.runId) headers["X-CoinRithm-Run-Id"] = trace.runId;
+  if (trace.decisionId) headers["X-CoinRithm-Decision-Id"] = trace.decisionId;
+  if (trace.strategyLabel) {
+    headers["X-CoinRithm-Strategy-Label"] = trace.strategyLabel;
+  }
+  if (typeof trace.confidence === "number") {
+    headers["X-CoinRithm-Confidence"] = String(trace.confidence);
+  }
+};
+
+const traceFromBody = (body: unknown): AgentTrace | undefined =>
+  body && typeof body === "object" && "agentTrace" in body
+    ? ((body as { agentTrace?: AgentTrace }).agentTrace)
+    : undefined;
 
 export class CoinRithmClient {
   // Default key for the stdio (single-user) path. Undefined in the multi-user
@@ -97,6 +131,7 @@ export class CoinRithmClient {
     opts: {
       query?: Record<string, string | number | undefined>;
       body?: unknown;
+      agentTrace?: AgentTrace;
       // Per-request key (multi-user HTTP). Falls back to the constructor key
       // (single-user stdio). One of the two MUST be present.
       apiKey?: string;
@@ -129,6 +164,7 @@ export class CoinRithmClient {
       Authorization: `Bearer ${apiKey}`,
       Accept: "application/json",
     };
+    applyAgentTraceHeaders(headers, opts.agentTrace ?? traceFromBody(opts.body));
     if (opts.body !== undefined) headers["Content-Type"] = "application/json";
 
     let res: Response;
@@ -171,53 +207,98 @@ export class CoinRithmClient {
         hint: "Rate limited. Wait retryAfterSeconds (or the Retry-After header) before retrying; pace future calls using the RateLimit-Remaining response header.",
       };
     }
-    return { ok: res.ok, status: res.status, data };
+    return {
+      ok: res.ok,
+      status: res.status,
+      ledgerEventId: res.headers.get("x-coinrithm-ledger-event-id"),
+      ledgerStatus: res.headers.get("x-coinrithm-ledger-status"),
+      data,
+    };
   }
 
   // Every method takes an optional trailing `apiKey` (the per-request key for
   // the multi-user HTTP path). When omitted, the constructor key (stdio) is used.
 
   // ---- reads (scope: read) ----
-  whoami(apiKey?: string) {
-    return this.request("GET", "/api/agent/me", { apiKey });
+  whoami(apiKey?: string, agentTrace?: AgentTrace) {
+    return this.request("GET", "/api/agent/me", { apiKey, agentTrace });
   }
-  getPortfolio(query?: { fiat?: string; locale?: string }, apiKey?: string) {
-    return this.request("GET", "/api/agent/portfolio", { query, apiKey });
+  getPortfolio(
+    query?: { fiat?: string; locale?: string },
+    apiKey?: string,
+    agentTrace?: AgentTrace,
+  ) {
+    return this.request("GET", "/api/agent/portfolio", {
+      query,
+      apiKey,
+      agentTrace,
+    });
   }
-  getWallet(query?: { coinId?: string }, apiKey?: string) {
-    return this.request("GET", "/api/agent/wallet", { query, apiKey });
+  getWallet(
+    query?: { coinId?: string },
+    apiKey?: string,
+    agentTrace?: AgentTrace,
+  ) {
+    return this.request("GET", "/api/agent/wallet", {
+      query,
+      apiKey,
+      agentTrace,
+    });
   }
-  resolveSymbol(query: { q: string }, apiKey?: string) {
-    return this.request("GET", "/api/agent/resolve", { query, apiKey });
+  resolveSymbol(
+    query: { q: string },
+    apiKey?: string,
+    agentTrace?: AgentTrace,
+  ) {
+    return this.request("GET", "/api/agent/resolve", {
+      query,
+      apiKey,
+      agentTrace,
+    });
   }
   getEquityCurve(
     query?: { days?: number; granularity?: "daily" | "realized" },
     apiKey?: string,
+    agentTrace?: AgentTrace,
   ) {
-    return this.request("GET", "/api/agent/equity-curve", { query, apiKey });
+    return this.request("GET", "/api/agent/equity-curve", {
+      query,
+      apiKey,
+      agentTrace,
+    });
   }
   getMyTrades(
     query?: { venue?: string; limit?: number; updatedSince?: string },
     apiKey?: string,
+    agentTrace?: AgentTrace,
   ) {
-    return this.request("GET", "/api/agent/trades", { query, apiKey });
+    return this.request("GET", "/api/agent/trades", {
+      query,
+      apiKey,
+      agentTrace,
+    });
   }
-  getMarketContext(coinId: string, apiKey?: string) {
+  getMarketContext(
+    coinId: string,
+    apiKey?: string,
+    agentTrace?: AgentTrace,
+  ) {
     return this.request(
       "GET",
       `/api/agent/market/${encodeURIComponent(coinId)}`,
-      { apiKey },
+      { apiKey, agentTrace },
     );
   }
   getCandles(
     coinId: string,
     query?: { range?: "1H" | "1D" | "1W" | "1M" | "3M"; fiat?: string },
     apiKey?: string,
+    agentTrace?: AgentTrace,
   ) {
     return this.request(
       "GET",
       `/api/agent/market/${encodeURIComponent(coinId)}/candles`,
-      { query, apiKey },
+      { query, apiKey, agentTrace },
     );
   }
   discoverPmMarkets(
@@ -229,14 +310,59 @@ export class CoinRithmClient {
       sort?: string;
     },
     apiKey?: string,
+    agentTrace?: AgentTrace,
   ) {
     return this.request("GET", "/api/agent/pm/discover", {
       query,
       apiKey,
+      agentTrace,
     });
   }
-  getPerformance(apiKey?: string) {
-    return this.request("GET", "/api/agent/performance", { apiKey });
+  getPerformance(apiKey?: string, agentTrace?: AgentTrace) {
+    return this.request("GET", "/api/agent/performance", {
+      apiKey,
+      agentTrace,
+    });
+  }
+  getLedger(
+    query?: {
+      venue?: string;
+      eventType?: string;
+      runId?: string;
+      decisionId?: string;
+      status?: string;
+      from?: string;
+      to?: string;
+      limit?: number;
+      offset?: number;
+    },
+    apiKey?: string,
+    agentTrace?: AgentTrace,
+  ) {
+    return this.request("GET", "/api/agent/ledger", {
+      query,
+      apiKey,
+      agentTrace,
+    });
+  }
+  exportLedger(
+    query?: {
+      venue?: string;
+      eventType?: string;
+      runId?: string;
+      decisionId?: string;
+      status?: string;
+      from?: string;
+      to?: string;
+    },
+    apiKey?: string,
+    agentTrace?: AgentTrace,
+  ) {
+    return this.request("GET", "/api/agent/ledger/export", {
+      query,
+      apiKey,
+      agentTrace,
+    });
   }
   // Agent Arena (public leaderboard). The key is sent but ignored by these
   // endpoints — they expose only public agent names + realized performance.
@@ -260,17 +386,35 @@ export class CoinRithmClient {
   listOpenOrders(
     query?: { coinId?: string; limit?: number; updatedSince?: string },
     apiKey?: string,
+    agentTrace?: AgentTrace,
   ) {
-    return this.request("GET", "/api/agent/orders/open", { query, apiKey });
+    return this.request("GET", "/api/agent/orders/open", {
+      query,
+      apiKey,
+      agentTrace,
+    });
   }
-  getFuturesPositions(query?: { updatedSince?: string }, apiKey?: string) {
+  getFuturesPositions(
+    query?: { updatedSince?: string },
+    apiKey?: string,
+    agentTrace?: AgentTrace,
+  ) {
     return this.request("GET", "/api/agent/positions/futures", {
       query,
       apiKey,
+      agentTrace,
     });
   }
-  getPmPositions(query?: { updatedSince?: string }, apiKey?: string) {
-    return this.request("GET", "/api/agent/positions/pm", { query, apiKey });
+  getPmPositions(
+    query?: { updatedSince?: string },
+    apiKey?: string,
+    agentTrace?: AgentTrace,
+  ) {
+    return this.request("GET", "/api/agent/positions/pm", {
+      query,
+      apiKey,
+      agentTrace,
+    });
   }
   futuresQuote(
     body: {
@@ -278,7 +422,7 @@ export class CoinRithmClient {
       side: string;
       leverage: number;
       marginMusd: number;
-    },
+    } & { agentTrace?: AgentTrace },
     apiKey?: string,
   ) {
     return this.request("POST", "/api/agent/futures/quote", { body, apiKey });
@@ -289,7 +433,7 @@ export class CoinRithmClient {
       slug: string;
       outcomeExternalMarketId: string;
       stakeMusd: number;
-    },
+    } & { agentTrace?: AgentTrace },
     apiKey?: string,
   ) {
     return this.request("POST", "/api/agent/pm/quote", { body, apiKey });
@@ -299,7 +443,7 @@ export class CoinRithmClient {
       coinId: string;
       side: string;
       quantity: number;
-    },
+    } & { agentTrace?: AgentTrace },
     apiKey?: string,
   ) {
     return this.request("POST", "/api/agent/spot/quote", { body, apiKey });
@@ -307,7 +451,7 @@ export class CoinRithmClient {
 
   // ---- writes (scope: trade:<venue>) ----
   placeSpotOrder(
-    body: {
+    body: TraceableBody<{
       coinId: string;
       side: string;
       orderType: string;
@@ -317,16 +461,19 @@ export class CoinRithmClient {
       // REQUIRED for API-key callers (server 400s without it). Unique per
       // intent; reusing it replays the original result (idempotentReplay).
       idempotencyKey: string;
-    },
+    }>,
     apiKey?: string,
   ) {
     return this.request("POST", "/api/agent/spot/order", { body, apiKey });
   }
-  cancelSpotOrder(orderId: number, apiKey?: string) {
-    return this.request("POST", `/api/agent/spot/order/${orderId}/cancel`, { apiKey });
+  cancelSpotOrder(orderId: number, apiKey?: string, agentTrace?: AgentTrace) {
+    return this.request("POST", `/api/agent/spot/order/${orderId}/cancel`, {
+      apiKey,
+      agentTrace,
+    });
   }
   openFuturesPosition(
-    body: {
+    body: TraceableBody<{
       coinId: string;
       side: string;
       leverage: number;
@@ -334,39 +481,39 @@ export class CoinRithmClient {
       idempotencyKey: string;
       stopLossPrice?: number | null;
       takeProfitPrice?: number | null;
-    },
+    }>,
     apiKey?: string,
   ) {
     return this.request("POST", "/api/agent/futures/open", { body, apiKey });
   }
   setFuturesSlTp(
-    body: {
+    body: TraceableBody<{
       positionId: number;
       stopLossPrice?: number | null;
       takeProfitPrice?: number | null;
-    },
+    }>,
     apiKey?: string,
   ) {
     return this.request("POST", "/api/agent/futures/sl-tp", { body, apiKey });
   }
   closeFuturesPosition(
-    body: {
+    body: TraceableBody<{
       positionId: number;
       fraction?: number;
       idempotencyKey: string;
-    },
+    }>,
     apiKey?: string,
   ) {
     return this.request("POST", "/api/agent/futures/close", { body, apiKey });
   }
   openPmPosition(
-    body: {
+    body: TraceableBody<{
       source: string;
       slug: string;
       outcomeExternalMarketId: string;
       stakeMusd: number;
       idempotencyKey: string;
-    },
+    }>,
     apiKey?: string,
   ) {
     return this.request("POST", "/api/agent/pm/open", { body, apiKey });

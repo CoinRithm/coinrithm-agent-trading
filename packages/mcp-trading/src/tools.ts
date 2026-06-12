@@ -26,12 +26,54 @@ const API_RESULT_OUTPUT_SCHEMA = {
   ok: z
     .boolean()
     .describe("True when CoinRithm returned a successful 2xx response."),
+  ledgerEventId: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("Private AgentActionEvent id returned by /api/agent/*, when present."),
+  ledgerStatus: z
+    .string()
+    .nullable()
+    .optional()
+    .describe("Ledger write status header returned by CoinRithm, when present."),
   body: z
     .unknown()
     .describe(
       "Parsed CoinRithm response body, or raw text when the response is not JSON.",
     ),
 };
+
+const AGENT_TRACE_SCHEMA = z
+  .object({
+    runId: z.string().min(1).optional().describe("Agent run id for grouping."),
+    decisionId: z
+      .string()
+      .min(1)
+      .optional()
+      .describe("Agent decision id for quote/write attribution."),
+    strategyLabel: z
+      .string()
+      .min(1)
+      .max(120)
+      .optional()
+      .describe("Short strategy label, self-reported by the caller."),
+    confidence: z
+      .number()
+      .min(0)
+      .max(1)
+      .optional()
+      .describe("Optional confidence score from 0 to 1."),
+    rationaleSummary: z
+      .string()
+      .min(1)
+      .max(1200)
+      .optional()
+      .describe(
+        "Optional concise rationale summary. Do not include chain-of-thought, secrets, or account identity.",
+      ),
+  })
+  .optional()
+  .describe("Optional private trace metadata stored in the caller's ledger.");
 
 function readOnlyAnnotations(title: string): ToolAnnotations {
   return {
@@ -88,6 +130,8 @@ function present(result: ApiResult) {
   const payload = {
     httpStatus: result.status,
     ok: result.ok,
+    ledgerEventId: result.ledgerEventId ?? null,
+    ledgerStatus: result.ledgerStatus ?? null,
     body: result.data,
   };
   return {
@@ -115,11 +159,14 @@ export function registerTools(
         "model/runtime label shown on the public Agent Arena when opted in). " +
         "Use this first to confirm what the key is allowed to do. " +
         PAPER_NOTE,
-      inputSchema: {},
+      inputSchema: {
+        agentTrace: AGENT_TRACE_SCHEMA,
+      },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: readOnlyAnnotations("Who am I (CoinRithm)"),
     },
-    async (_args, extra) => present(await client.whoami(requestKey(extra))),
+    async ({ agentTrace }, extra) =>
+      present(await client.whoami(requestKey(extra), agentTrace)),
   );
 
   // ---------------- reads ----------------
@@ -141,12 +188,15 @@ export function registerTools(
             "Display fiat code (default USD). Equity stays USD-denominated.",
           ),
         locale: z.string().optional().describe("Locale (default en)."),
+        agentTrace: AGENT_TRACE_SCHEMA,
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: readOnlyAnnotations("Get portfolio"),
     },
-    async ({ fiat, locale }, extra) =>
-      present(await client.getPortfolio({ fiat, locale }, requestKey(extra))),
+    async ({ fiat, locale, agentTrace }, extra) =>
+      present(
+        await client.getPortfolio({ fiat, locale }, requestKey(extra), agentTrace),
+      ),
   );
 
   server.registerTool(
@@ -163,12 +213,13 @@ export function registerTools(
           .string()
           .optional()
           .describe('Coin UCID (e.g. "1" = BTC) to also return that asset.'),
+        agentTrace: AGENT_TRACE_SCHEMA,
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: readOnlyAnnotations("Get wallet"),
     },
-    async ({ coinId }, extra) =>
-      present(await client.getWallet({ coinId }, requestKey(extra))),
+    async ({ coinId, agentTrace }, extra) =>
+      present(await client.getWallet({ coinId }, requestKey(extra), agentTrace)),
   );
 
   server.registerTool(
@@ -201,15 +252,17 @@ export function registerTools(
             "ISO 8601 cursor: only orders whose row changed since this " +
               "instant. Pass the previous response's asOf back here.",
           ),
+        agentTrace: AGENT_TRACE_SCHEMA,
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: readOnlyAnnotations("List open spot orders"),
     },
-    async ({ coinId, limit, updatedSince }, extra) =>
+    async ({ coinId, limit, updatedSince, agentTrace }, extra) =>
       present(
         await client.listOpenOrders(
           { coinId, limit, updatedSince },
           requestKey(extra),
+          agentTrace,
         ),
       ),
   );
@@ -237,15 +290,24 @@ export function registerTools(
             "ISO 8601 cursor: only positions whose row changed since this " +
               "instant. Pass the previous response's asOf back here.",
           ),
+        agentTrace: AGENT_TRACE_SCHEMA,
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: readOnlyAnnotations("Get positions"),
     },
-    async ({ venue, updatedSince }, extra) =>
+    async ({ venue, updatedSince, agentTrace }, extra) =>
       present(
         venue === "futures"
-          ? await client.getFuturesPositions({ updatedSince }, requestKey(extra))
-          : await client.getPmPositions({ updatedSince }, requestKey(extra)),
+          ? await client.getFuturesPositions(
+              { updatedSince },
+              requestKey(extra),
+              agentTrace,
+            )
+          : await client.getPmPositions(
+              { updatedSince },
+              requestKey(extra),
+              agentTrace,
+            ),
       ),
   );
 
@@ -265,12 +327,13 @@ export function registerTools(
           .string()
           .min(1)
           .describe("Symbol, slug, or name (e.g. BTC, bitcoin, Ethereum)."),
+        agentTrace: AGENT_TRACE_SCHEMA,
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: readOnlyAnnotations("Resolve symbol to coinId"),
     },
-    async ({ q }, extra) =>
-      present(await client.resolveSymbol({ q }, requestKey(extra))),
+    async ({ q, agentTrace }, extra) =>
+      present(await client.resolveSymbol({ q }, requestKey(extra), agentTrace)),
   );
 
   server.registerTool(
@@ -301,13 +364,18 @@ export function registerTools(
             "daily (default) = one point per day; realized = intraday point " +
               "per realized-PnL event with cumulative total.",
           ),
+        agentTrace: AGENT_TRACE_SCHEMA,
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: readOnlyAnnotations("Get equity curve"),
     },
-    async ({ days, granularity }, extra) =>
+    async ({ days, granularity, agentTrace }, extra) =>
       present(
-        await client.getEquityCurve({ days, granularity }, requestKey(extra)),
+        await client.getEquityCurve(
+          { days, granularity },
+          requestKey(extra),
+          agentTrace,
+        ),
       ),
   );
 
@@ -343,15 +411,17 @@ export function registerTools(
             "ISO 8601 cursor: only trades closed/settled since this instant. " +
               "Pass the previous response's asOf back here.",
           ),
+        agentTrace: AGENT_TRACE_SCHEMA,
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: readOnlyAnnotations("Get my trades"),
     },
-    async ({ venue, limit, updatedSince }, extra) =>
+    async ({ venue, limit, updatedSince, agentTrace }, extra) =>
       present(
         await client.getMyTrades(
           { venue, limit, updatedSince },
           requestKey(extra),
+          agentTrace,
         ),
       ),
   );
@@ -378,12 +448,15 @@ export function registerTools(
           .describe(
             'Coin UCID (e.g. "1" = BTC). Use resolve_symbol to find it.',
           ),
+        agentTrace: AGENT_TRACE_SCHEMA,
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: readOnlyAnnotations("Get market context"),
     },
-    async ({ coinId }, extra) =>
-      present(await client.getMarketContext(coinId, requestKey(extra))),
+    async ({ coinId, agentTrace }, extra) =>
+      present(
+        await client.getMarketContext(coinId, requestKey(extra), agentTrace),
+      ),
   );
 
   server.registerTool(
@@ -415,13 +488,19 @@ export function registerTools(
           .string()
           .optional()
           .describe("Quote currency for o/h/l/c (default USD)."),
+        agentTrace: AGENT_TRACE_SCHEMA,
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: readOnlyAnnotations("Get OHLCV candles"),
     },
-    async ({ coinId, range, fiat }, extra) =>
+    async ({ coinId, range, fiat, agentTrace }, extra) =>
       present(
-        await client.getCandles(coinId, { range, fiat }, requestKey(extra)),
+        await client.getCandles(
+          coinId,
+          { range, fiat },
+          requestKey(extra),
+          agentTrace,
+        ),
       ),
   );
 
@@ -472,15 +551,17 @@ export function registerTools(
           ])
           .optional()
           .describe("Prediction-market sort (default best)."),
+        agentTrace: AGENT_TRACE_SCHEMA,
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: readOnlyAnnotations("Discover prediction markets"),
     },
-    async ({ q, source, limit, offset, sort }, extra) =>
+    async ({ q, source, limit, offset, sort, agentTrace }, extra) =>
       present(
         await client.discoverPmMarkets(
           { q, source, limit, offset, sort },
           requestKey(extra),
+          agentTrace,
         ),
       ),
   );
@@ -495,12 +576,121 @@ export function registerTools(
         "until there are decided trades). Closed trades only — the scorecard for " +
         "this agent. " +
         PAPER_NOTE,
-      inputSchema: {},
+      inputSchema: {
+        agentTrace: AGENT_TRACE_SCHEMA,
+      },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: readOnlyAnnotations("Get my performance"),
     },
-    async (_args, extra) =>
-      present(await client.getPerformance(requestKey(extra))),
+    async ({ agentTrace }, extra) =>
+      present(await client.getPerformance(requestKey(extra), agentTrace)),
+  );
+
+  server.registerTool(
+    "get_agent_ledger",
+    {
+      title: "Get private agent ledger",
+      description:
+        "List this API key's private execution ledger: reads, quotes, writes, " +
+        "rejects, idempotent replays, latency, sanitized summaries, and optional " +
+        "run/decision trace metadata. Only rows for the calling key are returned. " +
+        "Use this to audit a reproducible paper-trading run. " +
+        PAPER_NOTE,
+      inputSchema: {
+        venue: z.string().optional().describe("Optional venue filter."),
+        eventType: z.string().optional().describe("Optional event type filter."),
+        runId: z.string().optional().describe("Optional run id filter."),
+        decisionId: z
+          .string()
+          .optional()
+          .describe("Optional decision id filter."),
+        status: z
+          .string()
+          .optional()
+          .describe("Optional ledgerStatus filter."),
+        from: z.string().optional().describe("Optional ISO start timestamp."),
+        to: z.string().optional().describe("Optional ISO end timestamp."),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(100)
+          .optional()
+          .describe("Rows to return (1-100, default 25)."),
+        offset: z
+          .number()
+          .int()
+          .min(0)
+          .optional()
+          .describe("Pagination offset (default 0)."),
+        agentTrace: AGENT_TRACE_SCHEMA,
+      },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations("Get private agent ledger"),
+    },
+    async (
+      {
+        venue,
+        eventType,
+        runId,
+        decisionId,
+        status,
+        from,
+        to,
+        limit,
+        offset,
+        agentTrace,
+      },
+      extra,
+    ) =>
+      present(
+        await client.getLedger(
+          { venue, eventType, runId, decisionId, status, from, to, limit, offset },
+          requestKey(extra),
+          agentTrace,
+        ),
+      ),
+  );
+
+  server.registerTool(
+    "export_agent_ledger",
+    {
+      title: "Export private agent ledger",
+      description:
+        "Export up to 1,000 private ledger rows for the calling API key as JSON. " +
+        "Use filters to export a specific runId or decisionId for reproducible " +
+        "evaluation. No public Arena user can see this data. " +
+        PAPER_NOTE,
+      inputSchema: {
+        venue: z.string().optional().describe("Optional venue filter."),
+        eventType: z.string().optional().describe("Optional event type filter."),
+        runId: z.string().optional().describe("Optional run id filter."),
+        decisionId: z
+          .string()
+          .optional()
+          .describe("Optional decision id filter."),
+        status: z
+          .string()
+          .optional()
+          .describe("Optional ledgerStatus filter."),
+        from: z.string().optional().describe("Optional ISO start timestamp."),
+        to: z.string().optional().describe("Optional ISO end timestamp."),
+        agentTrace: AGENT_TRACE_SCHEMA,
+      },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations("Export private agent ledger"),
+    },
+    async (
+      { venue, eventType, runId, decisionId, status, from, to, agentTrace },
+      extra,
+    ) =>
+      present(
+        await client.exportLedger(
+          { venue, eventType, runId, decisionId, status, from, to },
+          requestKey(extra),
+          agentTrace,
+        ),
+      ),
   );
 
   server.registerTool(
@@ -604,14 +794,15 @@ export function registerTools(
           .number()
           .min(10)
           .describe("Isolated margin in mUSD (>= 10)."),
+        agentTrace: AGENT_TRACE_SCHEMA,
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: readOnlyAnnotations("Futures quote"),
     },
-    async ({ coinId, side, leverage, marginMusd }, extra) =>
+    async ({ coinId, side, leverage, marginMusd, agentTrace }, extra) =>
       present(
         await client.futuresQuote(
-          { coinId, side, leverage, marginMusd },
+          { coinId, side, leverage, marginMusd, agentTrace },
           requestKey(extra),
         ),
       ),
@@ -635,14 +826,18 @@ export function registerTools(
           .string()
           .describe("Case-sensitive outcome / market id."),
         stakeMusd: z.number().positive().describe("mUSD to stake (> 0)."),
+        agentTrace: AGENT_TRACE_SCHEMA,
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: readOnlyAnnotations("Prediction-market quote"),
     },
-    async ({ source, slug, outcomeExternalMarketId, stakeMusd }, extra) =>
+    async (
+      { source, slug, outcomeExternalMarketId, stakeMusd, agentTrace },
+      extra,
+    ) =>
       present(
         await client.pmQuote(
-          { source, slug, outcomeExternalMarketId, stakeMusd },
+          { source, slug, outcomeExternalMarketId, stakeMusd, agentTrace },
           requestKey(extra),
         ),
       ),
@@ -669,13 +864,17 @@ export function registerTools(
           .number()
           .positive()
           .describe("Amount of the base coin (> 0)."),
+        agentTrace: AGENT_TRACE_SCHEMA,
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: readOnlyAnnotations("Spot quote"),
     },
-    async ({ coinId, side, quantity }, extra) =>
+    async ({ coinId, side, quantity, agentTrace }, extra) =>
       present(
-        await client.spotQuote({ coinId, side, quantity }, requestKey(extra)),
+        await client.spotQuote(
+          { coinId, side, quantity, agentTrace },
+          requestKey(extra),
+        ),
       ),
   );
 
@@ -715,12 +914,22 @@ export function registerTools(
           .string()
           .min(1)
           .describe("Unique per intent; reuse replays the original result."),
+        agentTrace: AGENT_TRACE_SCHEMA,
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: mutatingAnnotations("Place spot order"),
     },
     async (
-      { coinId, side, orderType, quantity, limitPrice, stopPrice, idempotencyKey },
+      {
+        coinId,
+        side,
+        orderType,
+        quantity,
+        limitPrice,
+        stopPrice,
+        idempotencyKey,
+        agentTrace,
+      },
       extra,
     ) =>
       present(
@@ -733,6 +942,7 @@ export function registerTools(
             limitPrice,
             stopPrice,
             idempotencyKey,
+            agentTrace,
           },
           requestKey(extra),
         ),
@@ -749,14 +959,17 @@ export function registerTools(
         PAPER_NOTE,
       inputSchema: {
         orderId: z.number().int().positive().describe("Open order id."),
+        agentTrace: AGENT_TRACE_SCHEMA,
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: mutatingAnnotations("Cancel spot order", {
         destructive: true,
       }),
     },
-    async ({ orderId }, extra) =>
-      present(await client.cancelSpotOrder(orderId, requestKey(extra))),
+    async ({ orderId, agentTrace }, extra) =>
+      present(
+        await client.cancelSpotOrder(orderId, requestKey(extra), agentTrace),
+      ),
   );
 
   server.registerTool(
@@ -810,6 +1023,7 @@ export function registerTools(
             "Optional resting take-profit set atomically at open (USD " +
               "trigger; fired by the per-minute worker).",
           ),
+        agentTrace: AGENT_TRACE_SCHEMA,
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: mutatingAnnotations("Open futures position", {
@@ -825,6 +1039,7 @@ export function registerTools(
         idempotencyKey,
         stopLossPrice,
         takeProfitPrice,
+        agentTrace,
       },
       extra,
     ) =>
@@ -838,6 +1053,7 @@ export function registerTools(
             idempotencyKey,
             ...(stopLossPrice !== undefined ? { stopLossPrice } : {}),
             ...(takeProfitPrice !== undefined ? { takeProfitPrice } : {}),
+            agentTrace,
           },
           requestKey(extra),
         ),
@@ -875,19 +1091,21 @@ export function registerTools(
           .nullable()
           .optional()
           .describe("Positive number sets; null clears; omit = unchanged."),
+        agentTrace: AGENT_TRACE_SCHEMA,
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: mutatingAnnotations("Set futures SL/TP", {
         idempotent: true,
       }),
     },
-    async ({ positionId, stopLossPrice, takeProfitPrice }, extra) =>
+    async ({ positionId, stopLossPrice, takeProfitPrice, agentTrace }, extra) =>
       present(
         await client.setFuturesSlTp(
           {
             positionId,
             ...(stopLossPrice !== undefined ? { stopLossPrice } : {}),
             ...(takeProfitPrice !== undefined ? { takeProfitPrice } : {}),
+            agentTrace,
           },
           requestKey(extra),
         ),
@@ -919,6 +1137,7 @@ export function registerTools(
           .string()
           .min(1)
           .describe("Unique per close intent; reuse replays the original result."),
+        agentTrace: AGENT_TRACE_SCHEMA,
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: mutatingAnnotations("Close futures position", {
@@ -926,10 +1145,10 @@ export function registerTools(
         idempotent: true,
       }),
     },
-    async ({ positionId, fraction, idempotencyKey }, extra) =>
+    async ({ positionId, fraction, idempotencyKey, agentTrace }, extra) =>
       present(
         await client.closeFuturesPosition(
-          { positionId, fraction, idempotencyKey },
+          { positionId, fraction, idempotencyKey, agentTrace },
           requestKey(extra),
         ),
       ),
@@ -958,6 +1177,7 @@ export function registerTools(
           .string()
           .min(1)
           .describe("Unique per PM-open intent; reuse replays the original result."),
+        agentTrace: AGENT_TRACE_SCHEMA,
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: mutatingAnnotations("Open prediction-market position", {
@@ -965,7 +1185,14 @@ export function registerTools(
       }),
     },
     async (
-      { source, slug, outcomeExternalMarketId, stakeMusd, idempotencyKey },
+      {
+        source,
+        slug,
+        outcomeExternalMarketId,
+        stakeMusd,
+        idempotencyKey,
+        agentTrace,
+      },
       extra,
     ) =>
       present(
@@ -976,6 +1203,7 @@ export function registerTools(
             outcomeExternalMarketId,
             stakeMusd,
             idempotencyKey,
+            agentTrace,
           },
           requestKey(extra),
         ),

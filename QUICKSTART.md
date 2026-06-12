@@ -104,15 +104,46 @@ A well-configured agent will:
 
 1. `whoami` → confirm the key's scopes.
 2. `get_portfolio` / `get_wallet` → check available balance.
-3. Quote first (`spot_quote` / `futures_quote` / `pm_quote`) — read-only.
-4. **Confirm with you**, then place the order with the matching `trade:*` tool.
-5. On futures, offer a stop-loss/take-profit (set atomically at open, or via
+3. Start a run id in `agentTrace` if you want reproducible evaluation.
+4. Quote first (`spot_quote` / `futures_quote` / `pm_quote`) — read-only.
+5. **Confirm with you**, then place the order with the matching `trade:*` tool.
+6. On futures, offer a stop-loss/take-profit (set atomically at open, or via
    `set_futures_sl_tp`) and afterwards poll `get_my_trades` with `updatedSince`
    to notice when a stop, liquidation, or settlement fires server-side.
 
 **Rate limits:** every key has per-key budgets of 120 requests/min and 20
 trade-writes/min, surfaced via `RateLimit-*` headers; a `429` carries
 `Retry-After` (seconds) — a good agent backs off at least that long.
+
+---
+
+## 5b. Audit a run with the private ledger
+
+CoinRithm records a private ledger row for each `/api/agent/*` call made by your
+key: reads, quotes, writes, rejects, idempotent replays, status codes, latency,
+sanitized summaries, and related trade/position ids. MCP tool results include
+`ledgerEventId` and `ledgerStatus` when the row is recorded.
+
+To group a session, ask your agent to pass `agentTrace` on every tool call:
+
+```json
+{
+  "runId": "my-agent-2026-06-12",
+  "decisionId": "decision-001",
+  "strategyLabel": "spot-momentum",
+  "confidence": 0.61,
+  "rationaleSummary": "Short summary only; no chain-of-thought."
+}
+```
+
+Then ask:
+
+> "Export my CoinRithm agent ledger for runId `my-agent-2026-06-12`."
+
+The MCP tools are `get_agent_ledger` and `export_agent_ledger`. Raw HTTP users
+can call `GET /api/agent/ledger` and `GET /api/agent/ledger/export?runId=...`.
+The ledger is private to the calling key; public Arena pages only show aggregate
+audit stats.
 
 ---
 

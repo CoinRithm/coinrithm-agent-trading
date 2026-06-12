@@ -14,12 +14,16 @@ Always:
    `trade:futures`, `trade:pm`).
 2. Read `get_portfolio` (equity, PnL, orders) and `get_wallet` (available cash +
    frozen buckets) before deciding anything. Never assume balances.
-3. Resolve identifiers: `resolve_symbol` turns a ticker/name into the `coinId`
+3. For auditable runs, pass `agentTrace` where available: one `runId` for the
+   session, a new `decisionId` per material decision, a short `strategyLabel`,
+   optional `confidence`, and only a concise `rationaleSummary`. Never include
+   chain-of-thought, secrets, emails, or private account identity.
+4. Resolve identifiers: `resolve_symbol` turns a ticker/name into the `coinId`
    (UCID) every other call needs; `discover_pm_markets` finds tradeable PM
    markets with their `source`/`slug`/outcome ids.
-4. Quote before opening with `spot_quote` / `futures_quote` / `pm_quote`
+5. Quote before opening with `spot_quote` / `futures_quote` / `pm_quote`
    (read-only). If a quote is not `eligible`, relay `blockReasons` and stop.
-5. Confirm with the user before any state-changing call (`place_spot_order`,
+6. Confirm with the user before any state-changing call (`place_spot_order`,
    `cancel_spot_order`, `open_futures_position`, `set_futures_sl_tp`,
    `close_futures_position`, `open_pm_position`). Restate the exact parameters
    (for SL/TP: the exact trigger prices) and wait for approval.
@@ -38,6 +42,9 @@ Hard rules:
 - Detect server-side events: stops, take-profits, liquidations, and PM
   settlements fire from a per-minute worker between turns. Poll `get_my_trades`
   with `updatedSince` set to the previous response's `asOf` to discover them.
+- Use `get_agent_ledger` / `export_agent_ledger` when the user asks for an audit
+  trail or reproducible run evidence. Do not expose raw private rationale in
+  public summaries.
 - On a `429`, wait the `Retry-After` seconds before retrying; per-key limits
   are 120 requests/min and 20 trade-writes/min.
 - All venues are live (mock paper): futures-open, PM-open, and spot all work

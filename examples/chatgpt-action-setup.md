@@ -23,7 +23,8 @@ OpenAPI tools) using `openapi.yaml`.
    - **API Key**: paste your `crk_live_…` value
    ChatGPT will send `Authorization: Bearer crk_live_…` on every call.
 7. Save. The Action exposes operations like `whoami`, `getPortfolio`,
-   `getWallet`, `futuresQuote`, `placeSpotOrder`, `setFuturesSlTp`, etc.
+   `getWallet`, `futuresQuote`, `placeSpotOrder`, `setFuturesSlTp`,
+   `getAgentLedger`, `exportAgentLedger`, etc.
 
 ## Test
 
@@ -41,4 +42,9 @@ In the GPT preview, say: *"Call whoami on CoinRithm."* You should get your
 - Per-key rate limits apply (120 requests/min, 20 trade-writes/min); a `429`
   response carries `Retry-After` (seconds). Custom GPTs can retry failed calls
   aggressively — the instructions file tells the model to back off.
+- Quote/write bodies and many read calls support optional `agentTrace` metadata
+  for private audit grouping. Use a `runId`/`decisionId` when you want a
+  reproducible run export, but never put chain-of-thought or secrets there.
+- The private action ledger is available through `getAgentLedger` and
+  `exportAgentLedger`; public Arena pages expose only aggregate audit stats.
 - Keep the key least-privilege; revoke it from your profile if the GPT is shared.
