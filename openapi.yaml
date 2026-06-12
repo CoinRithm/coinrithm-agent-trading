@@ -1571,6 +1571,8 @@ components:
           anyOf:
             - { $ref: "#/components/schemas/AgentRunOutcomeSummary" }
             - { type: "null" }
+        evidenceChecklist:
+          { $ref: "#/components/schemas/AgentRunEvidenceChecklist" }
         summary:
           type: object
           properties:
@@ -1609,6 +1611,27 @@ components:
       properties:
         value: { type: string }
         count: { type: integer }
+
+    AgentRunEvidenceChecklist:
+      type: object
+      description: |
+        Derived private reproducibility checklist for a run export. Computed
+        from ledger rows at read/export time; no additional run table or raw
+        market archive is created.
+      properties:
+        schema:
+          type: string
+          examples: ["coinrithm.agentRunEvidenceChecklist.v1"]
+        overallStatus: { type: string, enum: [pass, warn, fail] }
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              label: { type: string }
+              status: { type: string, enum: [pass, warn, fail] }
+              detail: { type: string }
 
     AgentExecutionAssumptions:
       type: object

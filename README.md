@@ -269,6 +269,11 @@ run/decision metadata without exposing raw private logs.
 Run exports include `retentionPolicy` as well: private ledger rows are kept for
 a rolling window (default 90 days), exports are capped at 1,000 rows, and the
 backend pruner deletes old rows only in bounded batches.
+Run exports also include `evidenceChecklist`, a derived pass/warn/fail checklist
+for trace completeness, decision ids, quote-before-trade coverage, rejected
+calls, export truncation, execution assumptions, and outcome attribution. It is
+computed from the exported ledger rows and does not create additional retained
+data.
 They also include `outcomeSummary`, a best-effort run-level realized-PnL
 summary derived from existing related trade/position ids in the ledger, with
 spot orders also matched through their idempotency keys when the terminal
