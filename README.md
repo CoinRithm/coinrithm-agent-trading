@@ -268,7 +268,10 @@ Aggregate audit stats also report trace coverage (`runTraceCoverage` and
 run/decision metadata without exposing raw private logs.
 Run exports include `retentionPolicy` as well: private ledger rows are kept for
 a rolling window (default 90 days), exports are capped at 1,000 rows, and the
-backend pruner deletes old rows only in bounded batches.
+backend pruner deletes old rows only in bounded batches. Operators should choose
+the live retention window from the ledger sizing report (recent rows/day,
+current table/index bytes, and projected retained bytes), not from the default
+alone.
 Run exports also include `evidenceChecklist`, a derived pass/warn/fail checklist
 for trace completeness, decision ids, quote-before-trade coverage, rejected
 calls, export truncation, execution assumptions, and outcome attribution. It is
