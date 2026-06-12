@@ -1466,6 +1466,24 @@ components:
         writeCount: { type: integer }
         rejectionCount: { type: integer }
         idempotentReplayCount: { type: integer }
+        runIdEventCount:
+          type: integer
+          description: Ledger rows with agentTrace.runId / equivalent header.
+        decisionIdEventCount:
+          type: integer
+          description: Ledger rows with agentTrace.decisionId / equivalent header.
+        missingRunIdCount:
+          type: integer
+          description: Ledger rows missing runId trace metadata.
+        missingDecisionIdCount:
+          type: integer
+          description: Ledger rows missing decisionId trace metadata.
+        runTraceCoverage:
+          type: [number, "null"]
+          description: runIdEventCount / ledgerEventCount as a 0..1 fraction.
+        decisionTraceCoverage:
+          type: [number, "null"]
+          description: decisionIdEventCount / ledgerEventCount as a 0..1 fraction.
         quoteBeforeTradeRate:
           type: [number, "null"]
           description: Approximate aggregate quote/write coverage from the ledger.

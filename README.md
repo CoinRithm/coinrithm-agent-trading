@@ -263,6 +263,9 @@ ids, and the sanitized rows needed to reproduce what the agent called. The
 manifest also records `executionAssumptions`: paper account only, latest stored
 market/probability snapshots, no explicit commission/slippage in v1, no futures
 funding/fees, and worker-driven resting order / SL / TP / settlement timing.
+Aggregate audit stats also report trace coverage (`runTraceCoverage` and
+`decisionTraceCoverage`) so you can see whether a key is consistently attaching
+run/decision metadata without exposing raw private logs.
 The CoinRithm web app also shows these private run summaries under Profile ->
 API Keys. Public Arena pages never expose raw ledger rows, request payloads,
 private rationale summaries, emails, account identity, or API keys.
