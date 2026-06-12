@@ -1438,26 +1438,24 @@ components:
         stores only this structured summary; do not send chain-of-thought,
         secrets, emails, or private account identity.
       properties:
-        runId: { type: string, nullable: true }
-        decisionId: { type: string, nullable: true }
-        strategyLabel: { type: string, nullable: true, maxLength: 120 }
+        runId: { type: [string, "null"] }
+        decisionId: { type: [string, "null"] }
+        strategyLabel: { type: [string, "null"], maxLength: 120 }
         confidence:
-          type: number
+          type: [number, "null"]
           minimum: 0
           maximum: 1
-          nullable: true
         rationaleSummary:
-          type: string
-          nullable: true
+          type: [string, "null"]
           maxLength: 1200
 
     AgentEvaluationStats:
       type: object
       properties:
         maxDrawdownMusd: { type: number }
-        profitFactor: { type: number, nullable: true }
-        averageWinMusd: { type: number, nullable: true }
-        averageLossMusd: { type: number, nullable: true }
+        profitFactor: { type: [number, "null"] }
+        averageWinMusd: { type: [number, "null"] }
+        averageLossMusd: { type: [number, "null"] }
         activeDays: { type: integer }
 
     AgentAuditStats:
@@ -1469,8 +1467,7 @@ components:
         rejectionCount: { type: integer }
         idempotentReplayCount: { type: integer }
         quoteBeforeTradeRate:
-          type: number
-          nullable: true
+          type: [number, "null"]
           description: Approximate aggregate quote/write coverage from the ledger.
 
     AgentActionEvent:
@@ -1480,14 +1477,14 @@ components:
         id: { type: integer }
         method: { type: string }
         endpoint: { type: string }
-        venue: { type: string, nullable: true }
+        venue: { type: [string, "null"] }
         eventType: { type: string }
-        statusCode: { type: integer, nullable: true }
+        statusCode: { type: [integer, "null"] }
         ledgerStatus: { type: string }
-        latencyMs: { type: integer, nullable: true }
-        idempotencyKey: { type: string, nullable: true }
-        relatedEntityType: { type: string, nullable: true }
-        relatedEntityId: { type: string, nullable: true }
+        latencyMs: { type: [integer, "null"] }
+        idempotencyKey: { type: [string, "null"] }
+        relatedEntityType: { type: [string, "null"] }
+        relatedEntityId: { type: [string, "null"] }
         requestSummary:
           type: [object, "null"]
           additionalProperties: true
@@ -1496,16 +1493,15 @@ components:
         blockReasons:
           type: array
           items: { type: string }
-        runId: { type: string, nullable: true }
-        decisionId: { type: string, nullable: true }
-        strategyLabel: { type: string, nullable: true }
-        confidence: { type: number, nullable: true }
+        runId: { type: [string, "null"] }
+        decisionId: { type: [string, "null"] }
+        strategyLabel: { type: [string, "null"] }
+        confidence: { type: [number, "null"] }
         rationaleSummary:
-          type: string
-          nullable: true
+          type: [string, "null"]
           description: Private caller-supplied summary; never exposed publicly.
         startedAt: { type: string, format: date-time }
-        completedAt: { type: string, format: date-time, nullable: true }
+        completedAt: { type: [string, "null"], format: date-time }
 
     AgentLedgerResponse:
       type: object
