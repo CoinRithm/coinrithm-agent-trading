@@ -263,6 +263,10 @@ ids, and the sanitized rows needed to reproduce what the agent called. The
 manifest also records `executionAssumptions`: paper account only, latest stored
 market/probability snapshots, no explicit commission/slippage in v1, no futures
 funding/fees, and worker-driven resting order / SL / TP / settlement timing.
+Market observation reads now attach a compact `observation` block with source,
+input, row-count, freshness/as-of metadata, and a short payload hash; traced runs
+store that block in the private ledger `responseSummary` for reproducibility
+without creating an unbounded full market archive.
 Aggregate audit stats also report trace coverage (`runTraceCoverage` and
 `decisionTraceCoverage`) so you can see whether a key is consistently attaching
 run/decision metadata without exposing raw private logs.

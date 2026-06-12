@@ -497,6 +497,7 @@ paths:
                         v:
                           type: number
                           description: Volume in USD regardless of fiat.
+                  observation: { $ref: "#/components/schemas/AgentObservation" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
@@ -1585,6 +1586,8 @@ components:
             writeCount: { type: integer }
             rejectionCount: { type: integer }
             idempotentReplayCount: { type: integer }
+            observationCount: { type: integer }
+            observationCoverageRate: { type: [number, "null"] }
             quoteBeforeTradeRate: { type: [number, "null"] }
             averageLatencyMs: { type: [number, "null"] }
             eventTypes:
@@ -1917,6 +1920,7 @@ components:
             coinAvailable: { type: number, description: "coin units held for a SELL" }
         freshness: { $ref: "#/components/schemas/Freshness" }
         asOf: { type: string, format: date-time }
+        observation: { $ref: "#/components/schemas/AgentObservation" }
     OpenOrder:
       type: object
       properties:
@@ -2338,6 +2342,34 @@ components:
         ageSeconds: { type: number, nullable: true, description: "futures / spot" }
         ageMinutes: { type: number, nullable: true, description: "PM" }
         status: { type: string, nullable: true }
+
+    AgentObservation:
+      type: object
+      description: |
+        Compact provenance block for an agent-facing market observation. It is
+        also stored in the private ledger responseSummary when the request uses
+        agentTrace/run headers, giving run exports a verifiable snapshot of what
+        the agent observed without creating a full market archive.
+      properties:
+        schema: { type: string, examples: ["coinrithm.agentObservation.v1"] }
+        endpoint: { type: string }
+        source: { type: string }
+        observedAt: { type: string, format: date-time }
+        sourceAsOf: { type: [string, "null"], format: date-time }
+        freshness:
+          anyOf:
+            - { $ref: "#/components/schemas/Freshness" }
+            - { type: "null" }
+        inputs:
+          type: object
+          additionalProperties: true
+        dataset:
+          type: object
+          additionalProperties: true
+        rowCount: { type: [integer, "null"] }
+        hash:
+          type: string
+          description: Short SHA-256 digest of the observed payload metadata.
 
     DecisionSupport:
       type: object
