@@ -423,6 +423,7 @@ paths:
                         marketCapRank: { type: integer, nullable: true }
                         sharedCategoryCount: { type: integer }
                   asOf: { type: string, format: date-time }
+                  observation: { $ref: "#/components/schemas/AgentObservation" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "429": { $ref: "#/components/responses/TooManyRequests" }
@@ -2168,6 +2169,7 @@ components:
             sort: { type: string }
             q: { type: string, nullable: true }
             note: { type: string }
+        observation: { $ref: "#/components/schemas/AgentObservation" }
     PmDiscoveryMarket:
       type: object
       properties:
