@@ -29,6 +29,14 @@ Procedure:
    (for SL/TP: the exact trigger prices), then wait for a clear "yes".
 
 Hard rules:
+
+- **Check observation freshness before every trade.** Every quote and read
+  response carries `observation.freshness`. If `freshness.status` is `stale`
+  or `never_ingested`, do not open a position — skip that market or source.
+  For PM discovery, also check `meta.sourceHealth` per source.
+- **Cost model (v1, paper only).** Fills execute at mid/last price with no
+  commission, slippage, or futures funding in v1. Modeled fees/slippage are
+  roadmap — do not imply real execution costs.
 - Leverage ≤ 20x (prefer 1–5x). PM stake ≥ 10 mUSD.
 - Never spend more than `usdt.available`; frozen partitions are unavailable.
 - `coinId` is a CoinRithm UCID, not a ticker (BTC = "1", USDT = "825").

@@ -7,17 +7,24 @@
 //   - GET /api/agent/equity-curve?granularity=realized per-realization PnL series
 //   - GET /api/agent/trades                            most recent closed trades
 //   - GET /api/arena                                   your public rank (if opted in)
+//   - GET /api/agent/ledger/export?runId=RUN_ID        run evidence + evidenceChecklist
+//                                                      (only when RUN_ID env is set)
 //
 // And computes: win rate, profit factor, max drawdown (from the realized
-// curve), per-venue split, biggest win/loss, and recent trades — printed as a
-// tidy text card you can screenshot or paste anywhere.
+// curve), per-venue split, biggest win/loss, recent trades, and (when RUN_ID
+// is provided) trace coverage + evidenceChecklist — printed as a tidy text
+// card you can screenshot or paste anywhere. Pair bots with /ledger/export to
+// prove the agent only acted on data available at decision time.
 //
 // How to run:
 //   COINRITHM_API_KEY=crk_live_xxx node examples/eval-report.mjs
+//   COINRITHM_API_KEY=crk_live_xxx RUN_ID=momentum-2026-06-13-abc12345 node examples/eval-report.mjs
 //
 // Env:
 //   COINRITHM_API_KEY  (required)  any key with the read scope
 //   DAYS               (optional)  window for the curve metrics, default 30
+//   RUN_ID             (optional)  if set, fetches the run evidence bundle and
+//                                  prints trace coverage + evidenceChecklist
 //   BASE_URL           (optional)  default https://api.coinrithm.com
 //
 // What it costs: nothing — read-only calls against your PAPER account
@@ -29,6 +36,7 @@
 const BASE = process.env.BASE_URL || "https://api.coinrithm.com";
 const KEY = process.env.COINRITHM_API_KEY || process.env.CRK_API_KEY;
 const DAYS = Math.min(Math.max(Number(process.env.DAYS) || 30, 1), 365);
+const RUN_ID = process.env.RUN_ID || null;
 
 if (!KEY) {
   console.error("Set COINRITHM_API_KEY (CoinRithm -> Profile -> API Keys).");
@@ -130,6 +138,27 @@ const run = async () => {
   }
   rule();
   line("AGENT ARENA", arenaLine.slice(0, 44));
+
+  // --- Run evidence + evidenceChecklist (only when RUN_ID is supplied) ------
+  if (RUN_ID) {
+    rule("─");
+    line(`RUN EVIDENCE  runId=${RUN_ID}`.slice(0, W));
+    try {
+      const bundle = await api(`/api/agent/ledger/export?runId=${encodeURIComponent(RUN_ID)}`);
+      const ec = bundle.evidenceChecklist || {};
+      const ea = bundle.executionAssumptions || {};
+      line("  overallStatus",    String(ec.overallStatus    ?? "n/a"));
+      line("  traceCompleteness", String(ec.traceCompleteness ?? "n/a"));
+      line("  quoteBeforeTrade",  String(ec.quoteBeforeTrade  ?? "n/a"));
+      line("  decisionIds",       String(ec.decisionIdCoverage ?? "n/a"));
+      line("  exportTruncated",   String(ec.exportTruncated    ?? false));
+      line("  rows in export",    String(bundle.rows?.length   ?? 0));
+      line("  costModel", (ea.costModel ?? "paper, mid/last price, no commission/slippage/funding (v1)").slice(0, W - 12));
+    } catch (e) {
+      line("  (run evidence unavailable)", e.message.slice(0, 36));
+    }
+  }
+
   console.log(`└${"─".repeat(W + 2)}┘`);
   console.log(`as of ${perf.asOf} · paper funds only · not financial advice\n`);
 };

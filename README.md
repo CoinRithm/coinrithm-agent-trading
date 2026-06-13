@@ -212,6 +212,71 @@ Base URL: `https://api.coinrithm.com` (live). Hosted MCP: `https://mcp.coinrithm
 
 ---
 
+## Version clarity
+
+`info.version` in `openapi.yaml` (currently **1.4.0**) is the **API contract
+version**. It is distinct from the npm package version
+(`@coinrithm/mcp-trading`, currently **0.1.8**). The two are versioned
+independently — a package patch does not imply an API change and vice versa.
+
+---
+
+## Cost model (v1, honest)
+
+Every fill executes at **mid/last price** (the latest stored market snapshot).
+There is **no commission, no slippage, and no futures funding rate** in v1.
+The paper account does not model bid/ask spread costs or borrow fees. These are
+**roadmap items** — the platform will add explicit modeled fee tiers in a future
+version. Do not treat paper PnL as a direct predictor of live-trading results.
+
+---
+
+## Observation provenance
+
+Every market read and quote response attaches a compact `observation` block in
+the response body:
+
+```json
+{
+  "observation": {
+    "schema": "market_snapshot_v1",
+    "endpoint": "/api/agent/market/:coinId",
+    "source": "coinrithm",
+    "observedAt": "2026-06-13T10:00:00.000Z",
+    "sourceAsOf": "2026-06-13T09:59:45.000Z",
+    "freshness": { "status": "fresh", "ageSeconds": 15 },
+    "inputs": { "coinId": "1" },
+    "dataset": "price_snapshot",
+    "rowCount": 1,
+    "hash": "sha256:abc123…"
+  }
+}
+```
+
+**The look-ahead guarantee:** `observedAt` is the API server clock when the
+response was built; `sourceAsOf` is the upstream data timestamp. Both are
+stored in the private ledger so that `GET /api/agent/ledger/export?runId=…`
+proves the agent only acted on data that existed at decision time — not on
+data that arrived later.
+
+**Check `freshness.status` before every trade.** `fresh` = safe to trade on.
+`stale` or `never_ingested` = skip. For prediction-market discovery,
+`body.meta.sourceHealth` provides per-source freshness.
+
+**Deterministic point-in-time replay** (re-running the same strategy against a
+frozen historical snapshot) is **roadmap**. Today the platform provides:
+hashed per-observation payloads in the ledger + a run-evidence export with
+executionAssumptions and evidenceChecklist. This is the anti-look-ahead record,
+not full historical backtesting.
+
+> **Conflicting trace metadata is rejected.** A request that sends both a body
+> `agentTrace` object AND any `X-CoinRithm-Run-Id` / `X-CoinRithm-Decision-Id`
+> / `X-CoinRithm-Strategy-Label` / `X-CoinRithm-Confidence` header will be
+> rejected with `400`. Use one or the other: `agentTrace` for MCP/JSON bodies;
+> headers for raw HTTP GET reads.
+
+---
+
 ## Private execution ledger
 
 CoinRithm logs the API/MCP execution loop for **your own API key**: reads,

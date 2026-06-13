@@ -44,6 +44,10 @@ import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
+// One runId per bot session — groups all ledger rows for this run so the
+// evidence bundle is exportable via GET /api/agent/ledger/export?runId=RUN_ID.
+const RUN_ID = `momentum-${new Date().toISOString().slice(0, 10)}-${randomUUID().slice(0, 8)}`;
+
 const BASE = process.env.BASE_URL || "https://api.coinrithm.com";
 const KEY = process.env.COINRITHM_API_KEY || process.env.CRK_API_KEY;
 const LIVE = process.env.LIVE === "1";
@@ -66,6 +70,14 @@ if (!KEY) {
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// --- agentTrace builder: one runId, per-call decisionId -------------------
+const trace = (label, confidence) => ({
+  runId: RUN_ID,
+  decisionId: `${label}-${randomUUID().slice(0, 8)}`,
+  strategyLabel: "momentum-futures",
+  ...(confidence !== undefined ? { confidence } : {}),
+});
 
 // --- API helper: rate-limit pacing + 429 Retry-After backoff ---------------
 const api = async (method, p, body) => {
@@ -145,6 +157,24 @@ const watchPosition = async (state) => {
   console.log(`\nReached MAX_POLLS=${MAX_POLLS}. Cursor + position persisted — re-run to resume watching.`);
 };
 
+// --- Run-evidence export: prove the agent only acted on available data ------
+const exportRunEvidence = async () => {
+  try {
+    const bundle = must(await api("GET", `/api/agent/ledger/export?runId=${encodeURIComponent(RUN_ID)}`), "GET /ledger/export");
+    const ec = bundle.evidenceChecklist;
+    console.log(`\nRun evidence (runId=${RUN_ID}):`);
+    console.log(`  evidenceChecklist.overallStatus = ${ec?.overallStatus ?? "n/a"}`);
+    console.log(`  traceCompleteness = ${ec?.traceCompleteness ?? "n/a"}`);
+    console.log(`  quoteBeforeTrade  = ${ec?.quoteBeforeTrade ?? "n/a"}`);
+    console.log(`  exportTruncated   = ${ec?.exportTruncated ?? false}`);
+    console.log(`  rows in export    = ${bundle.rows?.length ?? 0}`);
+    const ea = bundle.executionAssumptions;
+    if (ea) console.log(`  costModel         = ${ea.costModel ?? "paper, mid/last price, no commission/slippage/funding (v1)"}`);
+  } catch (e) {
+    console.log(`  (run evidence unavailable: ${e.message})`);
+  }
+};
+
 // --- Arena: how does this agent rank publicly? ------------------------------
 const arenaCheck = async () => {
   const me = must(await api("GET", "/api/agent/me"), "GET /me");
@@ -152,12 +182,14 @@ const arenaCheck = async () => {
   console.log(`\nScorecard: realized total ${perf.totals?.realizedPnlMusd?.toFixed?.(2) ?? "?"} mUSD over ${perf.totals?.tradeCount ?? 0} trades (winRate ${perf.totals?.winRate ?? "n/a"})`);
   if (!me.agentName) {
     console.log("Not on the Arena yet — set agentName + agentPublic on your key (Profile -> API Keys) to get ranked (needs 3 decided trades).");
+    await exportRunEvidence();
     return;
   }
   const arena = must(await api("GET", "/api/arena?pageSize=50"), "GET /api/arena");
   const row = (arena.rows || []).find((r) => r.agentName === me.agentName);
-  if (row) console.log(`🏆 Arena: #${row.rank} "${row.agentName}" — ${row.realizedPnlMusd.toFixed(2)} mUSD realized, winRate=${row.winRate ?? "n/a"}`);
+  if (row) console.log(`Arena: #${row.rank} "${row.agentName}" — ${row.realizedPnlMusd.toFixed(2)} mUSD realized, winRate=${row.winRate ?? "n/a"}`);
   else console.log(`"${me.agentName}" not in the Arena top ${arena.rows?.length ?? 0} yet (needs ${arena.minDecidedTrades} decided trades + agentPublic).`);
+  await exportRunEvidence();
 };
 
 // --- Main -------------------------------------------------------------------
@@ -203,8 +235,18 @@ const run = async () => {
   }
   console.log(`   Signal: ${side.toUpperCase()}`);
 
-  // 4) Quote first — read-only; shows entry, liquidation, eligibility
-  const q = must(await api("POST", "/api/agent/futures/quote", { coinId, side, leverage: LEVERAGE, marginMusd: MARGIN }), "POST /futures/quote");
+  // 4) Quote first — read-only; shows entry, liquidation, eligibility.
+  //    Check observation.freshness — stale data must not drive a trade.
+  const q = must(await api("POST", "/api/agent/futures/quote", {
+    coinId, side, leverage: LEVERAGE, marginMusd: MARGIN,
+    agentTrace: trace("futures-quote", 0.6),
+  }), "POST /futures/quote");
+  const freshness = q.observation?.freshness;
+  console.log(`4) quote: observation freshness=${freshness?.status ?? "n/a"} ageSeconds=${freshness?.ageSeconds ?? "n/a"} hash=${q.observation?.hash ?? "n/a"}`);
+  if (freshness?.status && freshness.status !== "fresh") {
+    console.log(`   Quote data is ${freshness.status} — skipping to avoid stale-data trade.`);
+    return;
+  }
   if (!q.eligible) {
     console.log(`4) quote: entry BLOCKED — ${JSON.stringify(q.blockReasons)}. Exiting.`);
     return;
@@ -243,7 +285,11 @@ const run = async () => {
   //    per intent — a retry of the SAME intent must reuse the SAME key.
   const idempotencyKey = `momentum-${coinId}-${side}-${randomUUID()}`;
   const open = must(
-    await api("POST", "/api/agent/futures/open", { coinId, side, leverage: LEVERAGE, marginMusd: MARGIN, idempotencyKey, stopLossPrice, takeProfitPrice }),
+    await api("POST", "/api/agent/futures/open", {
+      coinId, side, leverage: LEVERAGE, marginMusd: MARGIN,
+      idempotencyKey, stopLossPrice, takeProfitPrice,
+      agentTrace: trace("futures-open", 0.6),
+    }),
     "POST /futures/open",
   );
   const pos = open.position;

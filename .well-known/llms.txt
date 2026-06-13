@@ -17,11 +17,11 @@ trade:pm.
 
 ## For MCP clients (Claude, etc.)
 - [MCP server](../packages/mcp-trading): stdio + Streamable HTTP
-  (hosted at https://mcp.coinrithm.com/mcp); 23 tools —
+  (hosted at https://mcp.coinrithm.com/mcp); 26 tools —
   reads: whoami, get_portfolio, get_wallet, resolve_symbol, get_equity_curve,
   get_my_trades, get_market_context, get_candles, get_performance,
   list_open_orders, get_positions, discover_pm_markets, get_arena_leaderboard,
-  get_arena_agent;
+  get_arena_agent, get_agent_ledger, export_agent_ledger, export_run_evidence;
   quotes: spot_quote, futures_quote, pm_quote; writes: place_spot_order,
   cancel_spot_order, open_futures_position, set_futures_sl_tp,
   close_futures_position, open_pm_position.
@@ -29,6 +29,17 @@ trade:pm.
   risk rules.
 
 ## Notes for agents
+- Every read and quote response carries an `observation` provenance block
+  (`{schema, endpoint, source, observedAt, sourceAsOf, freshness, inputs,
+  dataset, rowCount, hash}`). Check `freshness.status` before trading — it is
+  your run's anti-look-ahead record proving the agent acted only on data
+  available at decision time.
+- `GET /api/agent/pm/discover` meta includes per-source `sourceHealth`
+  (`{slug, lastIngestAt, ingestAgeSeconds, status: fresh|stale|never_ingested}`).
+  Skip `stale` or `never_ingested` sources before quoting.
+- Traced runs are exportable: `GET /api/agent/ledger/export?runId=…` returns a
+  bundle with sanitized ledger rows, `executionAssumptions` (cost model), and
+  `evidenceChecklist`.
 - Base URL: https://api.coinrithm.com (verify before relying on it).
 - `coinId` is a CoinRithm UCID, not a ticker (BTC = "1", USDT cash = "825").
 - Quote before opening; confirm with the user before any write.

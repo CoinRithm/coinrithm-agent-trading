@@ -135,39 +135,107 @@ class CoinRithm:
         """granularity: 'daily' or 'realized' (intraday, one point per realization)."""
         return self._request("GET", "/api/agent/equity-curve" + self._qs(days=days, granularity=granularity))
 
-    def arena(self, page: int = 1, page_size: int = 12) -> dict:
-        """Public leaderboard (no auth needed, but sent with auth is fine)."""
-        return self._request("GET", "/api/arena" + self._qs(page=page, pageSize=page_size))
+    def candles(self, coin_id: str, range: Optional[str] = None, fiat: Optional[str] = None) -> dict:
+        """OHLCV candles for indicators. range: 1H|1D|1W|1M|3M (default 1D).
+        t is unix seconds; o/h/l/c in fiat (default USD); v always USD."""
+        return self._request("GET", f"/api/agent/market/{urllib.parse.quote(coin_id)}/candles" + self._qs(range=range, fiat=fiat))
+
+    def agent_ledger(self, run_id: Optional[str] = None, decision_id: Optional[str] = None,
+                     venue: Optional[str] = None, event_type: Optional[str] = None,
+                     limit: int = 25, offset: int = 0,
+                     from_ts: Optional[str] = None, to_ts: Optional[str] = None) -> dict:
+        """Private execution ledger for this key. Filter by run_id to audit a run."""
+        return self._request("GET", "/api/agent/ledger" + self._qs(
+            runId=run_id, decisionId=decision_id, venue=venue, eventType=event_type,
+            limit=limit, offset=offset, from_=from_ts, to=to_ts,
+        ))
+
+    def export_ledger(self, run_id: Optional[str] = None, decision_id: Optional[str] = None,
+                      venue: Optional[str] = None, event_type: Optional[str] = None,
+                      from_ts: Optional[str] = None, to_ts: Optional[str] = None) -> dict:
+        """Export up to 1,000 private ledger rows. When run_id is supplied the bundle
+        also includes executionAssumptions (cost model), evidenceChecklist, and
+        outcomeSummary — use this to prove the agent only acted on data available at
+        decision time."""
+        return self._request("GET", "/api/agent/ledger/export" + self._qs(
+            runId=run_id, decisionId=decision_id, venue=venue, eventType=event_type,
+            from_=from_ts, to=to_ts,
+        ))
+
+    def competitions(self) -> dict:
+        """List active competitions the key can join or is already enrolled in."""
+        return self._request("GET", "/api/agent/competitions")
+
+    def arena(self, page: int = 1, page_size: int = 12,
+              window: Optional[str] = None) -> dict:
+        """Public leaderboard (no auth needed, but sent with auth is fine).
+        window: '7d'|'30d'|'all' (default all = all-time)."""
+        return self._request("GET", "/api/arena" + self._qs(page=page, pageSize=page_size, window=window))
 
     def arena_agent(self, handle: str) -> dict:
         return self._request("GET", f"/api/arena/{urllib.parse.quote(handle)}")
 
-    # -- quotes (read-only -- always quote before opening) ---------------------
-    def spot_quote(self, coin_id: str, side: str, quantity: float) -> dict:
-        return self._request("POST", "/api/agent/spot/quote", {"coinId": coin_id, "side": side, "quantity": quantity})
+    # -- observation provenance helper -----------------------------------------
+    @staticmethod
+    def check_observation(response: dict, require_fresh: bool = True) -> dict:
+        """Extract and optionally validate the observation provenance block from a
+        read/quote response. Raises ValueError if require_fresh=True and the
+        observation is stale or never_ingested.
 
-    def futures_quote(self, coin_id: str, side: str, leverage: float, margin_musd: float) -> dict:
-        return self._request(
-            "POST", "/api/agent/futures/quote",
-            {"coinId": coin_id, "side": side, "leverage": leverage, "marginMusd": margin_musd},
-        )
+        Usage::
+            quote = crk.futures_quote("1", "long", 2, 50)
+            obs = CoinRithm.check_observation(quote)
+            print(obs["freshness"]["status"], obs["hash"])
+        """
+        obs = response.get("observation")
+        if obs is None:
+            return {}
+        status = (obs.get("freshness") or {}).get("status")
+        if require_fresh and status and status != "fresh":
+            raise ValueError(
+                f"Observation freshness={status!r} for {obs.get('endpoint')} — "
+                "do not trade on stale data"
+            )
+        return obs
+
+    # -- quotes (read-only -- always quote before opening) ---------------------
+    def spot_quote(self, coin_id: str, side: str, quantity: float,
+                   agent_trace: Optional[dict] = None) -> dict:
+        body: dict[str, Any] = {"coinId": coin_id, "side": side, "quantity": quantity}
+        if agent_trace:
+            body["agentTrace"] = agent_trace
+        return self._request("POST", "/api/agent/spot/quote", body)
+
+    def futures_quote(self, coin_id: str, side: str, leverage: float, margin_musd: float,
+                      agent_trace: Optional[dict] = None) -> dict:
+        body: dict[str, Any] = {
+            "coinId": coin_id, "side": side, "leverage": leverage, "marginMusd": margin_musd,
+        }
+        if agent_trace:
+            body["agentTrace"] = agent_trace
+        return self._request("POST", "/api/agent/futures/quote", body)
 
     def pm_discover(self, q: Optional[str] = None, source: str = "all", sort: str = "best",
                     limit: int = 20, offset: int = 0) -> dict:
         return self._request("GET", "/api/agent/pm/discover" + self._qs(q=q, source=source, sort=sort, limit=limit, offset=offset))
 
     def pm_quote(self, source: str, slug: str, outcome_external_market_id: str,
-                 stake_musd: float, side: str = "yes") -> dict:
-        return self._request("POST", "/api/agent/pm/quote", {
+                 stake_musd: float, side: str = "yes",
+                 agent_trace: Optional[dict] = None) -> dict:
+        body: dict[str, Any] = {
             "source": source, "slug": slug,
             "outcomeExternalMarketId": outcome_external_market_id,
             "side": side, "stakeMusd": stake_musd,
-        })
+        }
+        if agent_trace:
+            body["agentTrace"] = agent_trace
+        return self._request("POST", "/api/agent/pm/quote", body)
 
     # -- writes (paper trades; need the matching trade:* scope) ----------------
     def place_spot_order(self, coin_id: str, side: str, order_type: str, quantity: float,
                          idempotency_key: str,
-                         limit_price: Optional[float] = None, stop_price: Optional[float] = None) -> dict:
+                         limit_price: Optional[float] = None, stop_price: Optional[float] = None,
+                         agent_trace: Optional[dict] = None) -> dict:
         """idempotency_key is REQUIRED (unique per intent; reuse replays the original result)."""
         body: dict[str, Any] = {"coinId": coin_id, "side": side, "orderType": order_type,
                                 "quantity": quantity, "idempotencyKey": idempotency_key}
@@ -175,6 +243,8 @@ class CoinRithm:
             body["limitPrice"] = limit_price
         if stop_price is not None:
             body["stopPrice"] = stop_price
+        if agent_trace:
+            body["agentTrace"] = agent_trace
         return self._request("POST", "/api/agent/spot/order", body)
 
     def cancel_spot_order(self, order_id: int) -> dict:
@@ -182,7 +252,8 @@ class CoinRithm:
 
     def open_futures(self, coin_id: str, side: str, leverage: float, margin_musd: float,
                      idempotency_key: str, stop_loss_price: Optional[float] = None,
-                     take_profit_price: Optional[float] = None) -> dict:
+                     take_profit_price: Optional[float] = None,
+                     agent_trace: Optional[dict] = None) -> dict:
         """Open with optional SL/TP set atomically (long: liq < SL < mark < TP)."""
         body: dict[str, Any] = {
             "coinId": coin_id, "side": side, "leverage": leverage,
@@ -192,10 +263,13 @@ class CoinRithm:
             body["stopLossPrice"] = stop_loss_price
         if take_profit_price is not None:
             body["takeProfitPrice"] = take_profit_price
+        if agent_trace:
+            body["agentTrace"] = agent_trace
         return self._request("POST", "/api/agent/futures/open", body)
 
     def set_futures_sl_tp(self, position_id: int, stop_loss_price: Any = "unchanged",
-                          take_profit_price: Any = "unchanged") -> dict:
+                          take_profit_price: Any = "unchanged",
+                          agent_trace: Optional[dict] = None) -> dict:
         """Positive number SETS a trigger, None CLEARS it, leave the default to
         keep it unchanged. Naturally idempotent -- no idempotency key."""
         body: dict[str, Any] = {"positionId": position_id}
@@ -203,18 +277,28 @@ class CoinRithm:
             body["stopLossPrice"] = stop_loss_price
         if take_profit_price != "unchanged":
             body["takeProfitPrice"] = take_profit_price
+        if agent_trace:
+            body["agentTrace"] = agent_trace
         return self._request("POST", "/api/agent/futures/sl-tp", body)
 
-    def close_futures(self, position_id: int, idempotency_key: str, fraction: Optional[float] = None) -> dict:
+    def close_futures(self, position_id: int, idempotency_key: str,
+                      fraction: Optional[float] = None,
+                      agent_trace: Optional[dict] = None) -> dict:
         body: dict[str, Any] = {"positionId": position_id, "idempotencyKey": idempotency_key}
         if fraction is not None:
             body["fraction"] = fraction
+        if agent_trace:
+            body["agentTrace"] = agent_trace
         return self._request("POST", "/api/agent/futures/close", body)
 
     def open_pm(self, source: str, slug: str, outcome_external_market_id: str,
-                stake_musd: float, idempotency_key: str, side: str = "yes") -> dict:
-        return self._request("POST", "/api/agent/pm/open", {
+                stake_musd: float, idempotency_key: str, side: str = "yes",
+                agent_trace: Optional[dict] = None) -> dict:
+        body: dict[str, Any] = {
             "source": source, "slug": slug,
             "outcomeExternalMarketId": outcome_external_market_id,
             "side": side, "stakeMusd": stake_musd, "idempotencyKey": idempotency_key,
-        })
+        }
+        if agent_trace:
+            body["agentTrace"] = agent_trace
+        return self._request("POST", "/api/agent/pm/open", body)

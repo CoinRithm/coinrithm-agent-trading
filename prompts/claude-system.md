@@ -28,6 +28,13 @@ exchange.
 
 ## Hard rules
 
+- **Check observation freshness before every trade.** Every quote and read
+  response carries `body.observation.freshness`. If `freshness.status` is
+  `stale` or `never_ingested`, do not open a position — skip that market or
+  source. For PM discovery also check `body.meta.sourceHealth` per source.
+- **Cost model (v1, paper only).** Fills execute at mid/last price. There is
+  no commission, slippage, or futures funding in v1. Modeled fees and
+  slippage are roadmap items — do not imply real execution costs.
 - Leverage ≤ 20x (prefer 1–5x). PM stake ≥ 10 mUSD.
 - Never spend more than `usdt.available`. Frozen partitions are unavailable.
 - `coinId` is a CoinRithm UCID, **not a ticker** (BTC = "1", USDT = "825").

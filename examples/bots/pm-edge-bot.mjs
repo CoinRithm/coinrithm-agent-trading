@@ -47,6 +47,10 @@ import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
+// One runId per bot session — groups all ledger rows for this run so the
+// evidence bundle is exportable via GET /api/agent/ledger/export?runId=RUN_ID.
+const RUN_ID = `pm-edge-${new Date().toISOString().slice(0, 10)}-${randomUUID().slice(0, 8)}`;
+
 const BASE = process.env.BASE_URL || "https://api.coinrithm.com";
 const KEY = process.env.COINRITHM_API_KEY || process.env.CRK_API_KEY;
 const LIVE = process.env.LIVE === "1";
@@ -69,6 +73,14 @@ if (!KEY) {
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// --- agentTrace builder: one runId, per-call decisionId -------------------
+const trace = (label, confidence) => ({
+  runId: RUN_ID,
+  decisionId: `${label}-${randomUUID().slice(0, 8)}`,
+  strategyLabel: "pm-edge",
+  ...(confidence !== undefined ? { confidence } : {}),
+});
 
 // --- API helper: rate-limit pacing + 429 Retry-After backoff ---------------
 const api = async (method, p, body) => {
@@ -181,14 +193,30 @@ const run = async () => {
     process.exit(1);
   }
 
-  // 2) Discover quote-ready markets (Kalshi + Polymarket)
+  // 2) Discover quote-ready markets (Kalshi + Polymarket).
+  //    Check meta.sourceHealth — skip stale/never_ingested sources immediately.
   const qs = `?sort=best&limit=20${Q ? `&q=${encodeURIComponent(Q)}` : ""}`;
   const disc = must(await api("GET", `/api/agent/pm/discover${qs}`), "GET /pm/discover");
   console.log(`2) discover: ${(disc.data || []).length} candidates${Q ? ` for "${Q}"` : ""}`);
+  const healthySlug = new Set(
+    (disc.meta?.sourceHealth || [])
+      .filter((h) => h.status === "fresh")
+      .map((h) => h.slug),
+  );
+  if (healthySlug.size === 0) {
+    console.log("   No fresh PM sources right now (all stale or never_ingested). Try again later.");
+    return;
+  }
+  console.log(`   Fresh sources: ${[...healthySlug].join(", ")}`);
 
-  // 3+4) Gate on decisionSupport, then quote until one candidate passes
+  // 3+4) Gate on decisionSupport, then quote until one candidate passes.
+  //      Also log observation.freshness + hash from each quote for the run record.
   let pick = null;
   for (const mkt of (disc.data || []).slice(0, 8)) {
+    if (!healthySlug.has(mkt.source)) {
+      console.log(`   skip ${mkt.source}/${mkt.slug} — source not fresh`);
+      continue;
+    }
     const outcome = (mkt.outcomes || [])[0];
     if (!outcome) continue;
     const skip = passesGate(mkt.decisionSupport, mkt.pinned);
@@ -201,9 +229,16 @@ const run = async () => {
         source: mkt.source, slug: mkt.slug,
         outcomeExternalMarketId: outcome.externalMarketId,
         side: SIDE, stakeMusd: STAKE,
+        agentTrace: trace("pm-quote", 0.5),
       }),
       "POST /pm/quote",
     );
+    const freshness = quote.observation?.freshness;
+    console.log(`   quote observation: freshness=${freshness?.status ?? "n/a"} hash=${quote.observation?.hash ?? "n/a"}`);
+    if (freshness?.status && freshness.status !== "fresh") {
+      console.log(`   skip ${mkt.source}/${mkt.slug} — quote data is ${freshness.status}`);
+      continue;
+    }
     if (!quote.eligible) {
       console.log(`   skip ${mkt.source}/${mkt.slug} — quote blocked: ${JSON.stringify(quote.blockReasons)}`);
       continue;
@@ -257,6 +292,7 @@ const run = async () => {
       source: mkt.source, slug: mkt.slug,
       outcomeExternalMarketId: outcome.externalMarketId,
       side: SIDE, stakeMusd: STAKE, idempotencyKey,
+      agentTrace: trace("pm-open", 0.5),
     }),
     "POST /pm/open",
   );
@@ -271,4 +307,22 @@ const run = async () => {
   await watchSettlement(state);
 };
 
-run().catch((e) => { console.error("FATAL", e.message); process.exit(1); });
+// --- Run-evidence export: prove the agent only acted on available data ------
+const exportRunEvidence = async () => {
+  try {
+    const bundle = must(await api("GET", `/api/agent/ledger/export?runId=${encodeURIComponent(RUN_ID)}`), "GET /ledger/export");
+    const ec = bundle.evidenceChecklist;
+    console.log(`\nRun evidence (runId=${RUN_ID}):`);
+    console.log(`  evidenceChecklist.overallStatus = ${ec?.overallStatus ?? "n/a"}`);
+    console.log(`  traceCompleteness = ${ec?.traceCompleteness ?? "n/a"}`);
+    console.log(`  quoteBeforeTrade  = ${ec?.quoteBeforeTrade ?? "n/a"}`);
+    console.log(`  exportTruncated   = ${ec?.exportTruncated ?? false}`);
+    console.log(`  rows in export    = ${bundle.rows?.length ?? 0}`);
+    const ea = bundle.executionAssumptions;
+    if (ea) console.log(`  costModel         = ${ea.costModel ?? "paper, mid/last price, no commission/slippage/funding (v1)"}`);
+  } catch (e) {
+    console.log(`  (run evidence unavailable: ${e.message})`);
+  }
+};
+
+run().then(() => exportRunEvidence()).catch((e) => { console.error("FATAL", e.message); process.exit(1); });

@@ -93,6 +93,63 @@ for (;;) {
 The same loop works verbatim against `/orders/open`, `/positions/futures`, and
 `/positions/pm` — only the response array field changes (`rows` / `positions`).
 
+## Observation provenance
+
+Every delta read and quote response attaches a compact `observation` block in
+the response body:
+
+```json
+{
+  "observation": {
+    "schema": "market_snapshot_v1",
+    "endpoint": "/api/agent/market/:coinId",
+    "source": "coinrithm",
+    "observedAt": "2026-06-13T10:00:00.000Z",
+    "sourceAsOf": "2026-06-13T09:59:45.000Z",
+    "freshness": { "status": "fresh", "ageSeconds": 15 },
+    "inputs": { "coinId": "1" },
+    "dataset": "price_snapshot",
+    "rowCount": 1,
+    "hash": "sha256:abc123…"
+  }
+}
+```
+
+Rules:
+
+1. **Check `freshness.status` before acting.** `fresh` = safe to trade on.
+   `stale` or `never_ingested` = skip and do not open a position.
+2. **`observedAt` is the API server clock when the response was built;
+   `sourceAsOf` is the upstream data timestamp.** The agent's ledger stores
+   both, giving the run export proof that the agent acted only on data that
+   existed at decision time.
+3. **`hash` is a short payload fingerprint.** Two runs that agree on `hash` for
+   the same `endpoint`/`inputs` saw the same underlying data.
+
+For prediction-market discovery, the response also carries
+`meta.sourceHealth` — one entry per ingest source:
+
+```json
+{
+  "meta": {
+    "sourceHealth": [
+      { "slug": "kalshi",     "lastIngestAt": "…", "ingestAgeSeconds": 45,   "status": "fresh" },
+      { "slug": "polymarket", "lastIngestAt": "…", "ingestAgeSeconds": 3800, "status": "stale" }
+    ]
+  }
+}
+```
+
+Skip sources with `status: stale` or `status: never_ingested` before quoting.
+
+**Conflicting trace metadata is rejected.** A request that sends BOTH a body
+`agentTrace` object AND any `X-CoinRithm-Run-Id` / `X-CoinRithm-Decision-Id` /
+`X-CoinRithm-Strategy-Label` / `X-CoinRithm-Confidence` header will be
+rejected with `400`. Use one or the other — `agentTrace` for MCP tool calls;
+headers for raw HTTP reads.
+
+---
+
 ## Ledger trace for reproducible runs
 
 All `/api/agent/*` reads in this loop are recorded in the private action ledger
