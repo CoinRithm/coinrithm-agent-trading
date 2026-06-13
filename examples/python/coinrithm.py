@@ -164,7 +164,7 @@ class CoinRithm:
 
     def competitions(self) -> dict:
         """List active competitions the key can join or is already enrolled in."""
-        return self._request("GET", "/api/agent/competitions")
+        return self._request("GET", "/api/competitions")
 
     def arena(self, page: int = 1, page_size: int = 12,
               window: Optional[str] = None) -> dict:

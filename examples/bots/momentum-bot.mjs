@@ -158,17 +158,22 @@ const watchPosition = async (state) => {
 };
 
 // --- Run-evidence export: prove the agent only acted on available data ------
+// Response shape (with runId): { apiKeyId, exportedAt, count, maxRows,
+//   run: { evidenceChecklist: { schema, overallStatus, items:[{id,label,status,detail}] },
+//          executionAssumptions: { costModel, ... }, outcomeSummary, summary, ... },
+//   data: [...ledger rows] }
 const exportRunEvidence = async () => {
   try {
     const bundle = must(await api("GET", `/api/agent/ledger/export?runId=${encodeURIComponent(RUN_ID)}`), "GET /ledger/export");
-    const ec = bundle.evidenceChecklist;
+    const run = bundle.run;
+    const ec = run?.evidenceChecklist;
     console.log(`\nRun evidence (runId=${RUN_ID}):`);
     console.log(`  evidenceChecklist.overallStatus = ${ec?.overallStatus ?? "n/a"}`);
-    console.log(`  traceCompleteness = ${ec?.traceCompleteness ?? "n/a"}`);
-    console.log(`  quoteBeforeTrade  = ${ec?.quoteBeforeTrade ?? "n/a"}`);
-    console.log(`  exportTruncated   = ${ec?.exportTruncated ?? false}`);
-    console.log(`  rows in export    = ${bundle.rows?.length ?? 0}`);
-    const ea = bundle.executionAssumptions;
+    for (const item of (ec?.items ?? [])) {
+      console.log(`    [${item.status}] ${item.label}: ${item.detail}`);
+    }
+    console.log(`  rows in export    = ${bundle.count ?? bundle.data?.length ?? 0}`);
+    const ea = run?.executionAssumptions;
     if (ea) console.log(`  costModel         = ${ea.costModel ?? "paper, mid/last price, no commission/slippage/funding (v1)"}`);
   } catch (e) {
     console.log(`  (run evidence unavailable: ${e.message})`);

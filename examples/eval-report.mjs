@@ -140,19 +140,23 @@ const run = async () => {
   line("AGENT ARENA", arenaLine.slice(0, 44));
 
   // --- Run evidence + evidenceChecklist (only when RUN_ID is supplied) ------
+  // Response shape (with runId): { apiKeyId, exportedAt, count, maxRows,
+  //   run: { evidenceChecklist: { schema, overallStatus, items:[{id,label,status,detail}] },
+  //          executionAssumptions: { costModel, ... }, outcomeSummary, summary, ... },
+  //   data: [...ledger rows] }
   if (RUN_ID) {
     rule("─");
     line(`RUN EVIDENCE  runId=${RUN_ID}`.slice(0, W));
     try {
       const bundle = await api(`/api/agent/ledger/export?runId=${encodeURIComponent(RUN_ID)}`);
-      const ec = bundle.evidenceChecklist || {};
-      const ea = bundle.executionAssumptions || {};
-      line("  overallStatus",    String(ec.overallStatus    ?? "n/a"));
-      line("  traceCompleteness", String(ec.traceCompleteness ?? "n/a"));
-      line("  quoteBeforeTrade",  String(ec.quoteBeforeTrade  ?? "n/a"));
-      line("  decisionIds",       String(ec.decisionIdCoverage ?? "n/a"));
-      line("  exportTruncated",   String(ec.exportTruncated    ?? false));
-      line("  rows in export",    String(bundle.rows?.length   ?? 0));
+      const run = bundle.run || {};
+      const ec = run.evidenceChecklist || {};
+      const ea = run.executionAssumptions || {};
+      line("  overallStatus",  String(ec.overallStatus ?? "n/a"));
+      for (const item of (ec.items || [])) {
+        line(`    [${item.status}] ${item.label}`.slice(0, W - 2), item.detail?.slice(0, 28) || "");
+      }
+      line("  rows in export", String(bundle.count ?? bundle.data?.length ?? 0));
       line("  costModel", (ea.costModel ?? "paper, mid/last price, no commission/slippage/funding (v1)").slice(0, W - 12));
     } catch (e) {
       line("  (run evidence unavailable)", e.message.slice(0, 36));
