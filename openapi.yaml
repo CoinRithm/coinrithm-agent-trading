@@ -2166,6 +2166,18 @@ components:
             sources:
               type: array
               items: { type: string, enum: [kalshi, polymarket] }
+            sourceHealth:
+              type: array
+              description: Per-source ingestion freshness derived from aggregator-updated source rows.
+              items:
+                type: object
+                properties:
+                  slug: { type: string }
+                  lastIngestAt: { type: [string, "null"], format: date-time }
+                  ingestAgeSeconds: { type: [integer, "null"] }
+                  status:
+                    type: string
+                    enum: [fresh, stale, never_ingested]
             sort: { type: string }
             q: { type: string, nullable: true }
             note: { type: string }
