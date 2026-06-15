@@ -152,7 +152,7 @@ This repo gives you everything to wire that up:
 | [`openapi.yaml`](./openapi.yaml) | OpenAPI 3.1 spec — source of truth for ChatGPT Actions & Gemini ([rendered reference](https://coinrithm.github.io/coinrithm-agent-trading/)) |
 | [`packages/mcp-trading/`](./packages/mcp-trading) | The MCP server: hosted (HTTP, multi-user) **and** local (stdio) |
 | [`skills/coinrithm-trader/`](./skills/coinrithm-trader) | A Claude **Skill** with a trading playbook + hard risk rules |
-| [`prompts/`](./prompts) | Per-client system prompts |
+| [`prompts/`](./prompts) | Per-client system prompts, plus [`disciplined-trader.md`](./prompts/disciplined-trader.md) — a research-backed strategy layer (calibration, abstention, risk gate, PM edge) |
 | [`examples/`](./examples) | Drop-in config for Claude Desktop, Claude Code, ChatGPT, Gemini |
 | [`examples/bots/`](./examples/bots) | Complete runnable bot templates (momentum futures, PM edge) — dry-run by default |
 | [`examples/python/`](./examples/python) | Zero-dependency Python client + bot |
