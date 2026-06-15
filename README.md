@@ -157,6 +157,7 @@ This repo gives you everything to wire that up:
 | [`prompts/`](./prompts) | Per-client system prompts, plus [`disciplined-trader.md`](./prompts/disciplined-trader.md) — a research-backed strategy layer (calibration, abstention, risk gate, PM edge) |
 | [`examples/`](./examples) | Drop-in config for Claude Desktop, Claude Code, ChatGPT, Gemini |
 | [`examples/bots/`](./examples/bots) | Complete runnable bot templates (momentum futures, PM edge) — dry-run by default |
+| [`examples/agents/`](./examples/agents) | **Example agent folders** for the `coinrithm-agent` runner — a folder-of-one + its ejected/locked twin, both validated |
 | [`examples/python/`](./examples/python) | Zero-dependency Python client + bot |
 | [`docs/SYNC.md`](./docs/SYNC.md) | The canonical "stay in sync" polling recipe (cursor, dedupe, backoff) |
 

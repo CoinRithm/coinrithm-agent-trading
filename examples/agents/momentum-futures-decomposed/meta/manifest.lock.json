@@ -1,0 +1,167 @@
+{
+  "configHash": "sha256:96bd55e8eb8b04c50cfb475627bb84ae9fc80247d373bf13f8b656c6d2e7d329",
+  "contentHashes": {
+    "agent.md": "sha256:778dd0eddae2236fe22f7af2452895d09c3150406357718576004edb5dd1e834",
+    "character/abstention.yaml": "sha256:2440bba7a71f3ef5589c1390113f73b1862d316564373105c1faf731d69c588d",
+    "character/limits.yaml": "sha256:18bbc8d6fcc4238d228c5c16ee0ce990552de6580674f420565bcfaa71046497",
+    "character/persona.md": "sha256:4677ce1c64c1b2da6314edc8bb139b7c98a09c860bde7a129850db6a215d9b8f",
+    "character/risk.yaml": "sha256:e93242b35aefaa5a3b025e8b5eb4dbc2c294ec666a88bc50a3a88e4fbaf65cd3",
+    "character/thesis.md": "sha256:85606dbc8e3af8e19ba55bbb1c23035b7795691ec4dcf79632aaed2f8483c560",
+    "runtime.yaml": "sha256:a2dde8ea84ccfc8be5e4b731f3cb77b6ffa67b74fc778649a2990ea287b11013",
+    "safety/killSwitch.yaml": "sha256:4c50679df368595371bb4ab73928e561eec993998c3d6234588c6c329462ec6b"
+  },
+  "provenance": {
+    "includeOrder": [],
+    "mergeOrder": [
+      "agent.md",
+      "runtime.yaml",
+      "character/risk.yaml",
+      "character/limits.yaml",
+      "character/abstention.yaml",
+      "safety/killSwitch.yaml",
+      "character/thesis.md",
+      "character/persona.md"
+    ],
+    "sources": {
+      "abstention": "character/abstention.yaml",
+      "description": "agent.md",
+      "killSwitch": "safety/killSwitch.yaml",
+      "limits": "character/limits.yaml",
+      "mode": "runtime.yaml",
+      "model": "runtime.yaml",
+      "name": "agent.md",
+      "objective": "agent.md",
+      "risk": "character/risk.yaml",
+      "sizing": "agent.md",
+      "spec": "agent.md",
+      "sync": "agent.md",
+      "trigger": "runtime.yaml",
+      "venues": "agent.md"
+    }
+  },
+  "resolvedConfig": {
+    "abstention": {
+      "minConfidence": 0.6,
+      "onInsufficientBalance": true,
+      "onMissingQuote": true,
+      "onStaleData": true,
+      "onWeakSignal": true
+    },
+    "description": "Trend-following CoinRithm paper-trading agent (momentum-futures, conservative).",
+    "killSwitch": {
+      "maxConsecutiveModelFailures": 3,
+      "maxConsecutiveRejects": 0,
+      "maxDrawdownMusd": 300,
+      "onRateLimitPressure": true
+    },
+    "limits": {
+      "maxDailyLossMusd": 300,
+      "maxOpenMarginMusd": 600,
+      "maxTradesPerDay": 6,
+      "maxWritesPerCycle": 1
+    },
+    "mode": "self-host",
+    "model": {
+      "name": "claude-sonnet-4-6",
+      "provider": "anthropic"
+    },
+    "name": "momentum-futures",
+    "objective": {
+      "horizon": "7d",
+      "primary": "realized_pnl",
+      "secondary": [
+        "drawdown_control",
+        "evidence_completeness"
+      ]
+    },
+    "risk": {
+      "maxConcurrentPositions": 2,
+      "maxLeverage": 2,
+      "perTradeMarginMusd": 50,
+      "requireStopLoss": true,
+      "watchlist": [
+        "BTC",
+        "ETH",
+        "SOL"
+      ]
+    },
+    "sizing": {
+      "kellyFraction": 0.25,
+      "riskPerTradePct": 1,
+      "riskRewardMin": 1.8
+    },
+    "spec": "coinrithm.agent.v1",
+    "sync": {
+      "requirePollBeforeWrite": true
+    },
+    "trigger": {
+      "cadence": "4h",
+      "timezone": "UTC"
+    },
+    "venues": [
+      "futures"
+    ]
+  },
+  "resolvedSpec": {
+    "abstention": {
+      "minConfidence": 0.6,
+      "onInsufficientBalance": true,
+      "onMissingQuote": true,
+      "onStaleData": true,
+      "onWeakSignal": true
+    },
+    "capabilities": [],
+    "description": "Trend-following CoinRithm paper-trading agent (momentum-futures, conservative).",
+    "killSwitch": {
+      "maxConsecutiveModelFailures": 3,
+      "maxConsecutiveRejects": 0,
+      "maxDrawdownMusd": 300,
+      "onRateLimitPressure": true
+    },
+    "limits": {
+      "maxDailyLossMusd": 300,
+      "maxOpenMarginMusd": 600,
+      "maxTradesPerDay": 6,
+      "maxWritesPerCycle": 1
+    },
+    "model": {
+      "name": "claude-sonnet-4-6",
+      "provider": "anthropic"
+    },
+    "name": "momentum-futures",
+    "objective": {
+      "horizon": "7d",
+      "primary": "realized_pnl",
+      "secondary": [
+        "drawdown_control",
+        "evidence_completeness"
+      ]
+    },
+    "risk": {
+      "maxConcurrentPositions": 2,
+      "maxLeverage": 2,
+      "perTradeMarginMusd": 50,
+      "requireStopLoss": true,
+      "watchlist": [
+        "BTC",
+        "ETH",
+        "SOL"
+      ]
+    },
+    "spec": "coinrithm.agent.v1",
+    "sync": {
+      "requirePollBeforeWrite": true
+    },
+    "trigger": {
+      "cadence": "4h",
+      "timezone": "UTC"
+    },
+    "venues": [
+      "futures"
+    ]
+  },
+  "resolverVersion": "1",
+  "runnerVersion": "0.1.0",
+  "schema": "coinrithm.manifest.v1",
+  "spec": "coinrithm.agent.v1"
+}

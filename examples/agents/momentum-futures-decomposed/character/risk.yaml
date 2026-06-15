@@ -1,0 +1,8 @@
+maxLeverage: 2
+perTradeMarginMusd: 50
+maxConcurrentPositions: 2
+requireStopLoss: true
+watchlist:
+  - BTC
+  - ETH
+  - SOL

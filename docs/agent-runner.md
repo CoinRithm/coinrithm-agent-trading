@@ -76,6 +76,13 @@ touch local files.
 | `lock <path>` | write the frozen `meta/manifest.lock.json` |
 | `run <path> [--once] [--live] [--dry-run] [--state <file>]` | run the loop (dry-run by default) |
 
+## Examples
+
+Two ready-made, validated agent folders live in
+[`examples/agents/`](../examples/agents) — a folder-of-one (`momentum-futures/`)
+and its decomposed, ejected + locked twin (`momentum-futures-decomposed/`). Copy
+one to start.
+
 ## Folder-of-one vs the ejected folder
 
 The smallest valid agent is a **single `agent.md`** (frontmatter config + a

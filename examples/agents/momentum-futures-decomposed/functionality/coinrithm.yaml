@@ -1,0 +1,13 @@
+api:
+  kind: coinrithm-agent-api
+  baseUrl: https://api.coinrithm.com
+  mcpUrl: https://mcp.coinrithm.com/mcp
+  openapiVersion: 1.4.0
+  mcpPackage: "@coinrithm/mcp-trading"
+  mcpVersion: 0.1.8
+venues:
+  - spot
+  - futures
+  - pm
+note: Reference pin. The runner warns if this lags the live API; it does not
+  block self-host.
