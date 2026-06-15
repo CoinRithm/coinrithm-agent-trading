@@ -1,7 +1,12 @@
 # @coinrithm/mcp-trading
 
-An MCP server that lets an AI agent paper-trade on CoinRithm (spot, futures,
-prediction markets) using a personal API key.
+CoinRithm paper-trading toolkit. Two binaries:
+
+- **`coinrithm-mcp`** — an MCP server that lets an AI agent paper-trade on
+  CoinRithm (spot, futures, prediction markets) using a personal API key.
+- **`coinrithm-agent`** — a self-host **agent runner**: author an agent as a
+  folder and run an observe→decide→validate→act loop with your own model key
+  (paper, futures v1). See [Agent runner](#agent-runner-coinrithm-agent) below.
 
 > **Paper trading only** — virtual funds (50,000 mUSD). Not financial advice.
 
@@ -11,6 +16,25 @@ prediction markets) using a personal API key.
 npm install
 npm run build
 ```
+
+## Agent runner (`coinrithm-agent`)
+
+This package also ships a **self-host agent runner**. You write an agent as a
+folder (strategy + hard caps in markdown/YAML); the runner compiles it and runs
+an `observe → decide → validate → act` loop, asking *your* model (bring-your-own
+key) for structured decisions and executing only the ones that pass your caps —
+**dry-run by default**, paper-only, futures in v1.
+
+```bash
+coinrithm-agent new my-agent --preset conservative
+coinrithm-agent validate my-agent
+COINRITHM_API_KEY=crk_live_… ANTHROPIC_API_KEY=sk-ant-… \
+  coinrithm-agent run my-agent --once --dry-run
+```
+
+Full guide (env vars, fail-closed guarantees, folder layout):
+**[docs/agent-runner.md](../../docs/agent-runner.md)**. The CoinRithm hosted
+scheduler runs this same engine for you (later).
 
 ## Two ways to run
 

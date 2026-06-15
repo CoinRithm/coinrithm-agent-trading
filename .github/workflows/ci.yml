@@ -17,10 +17,14 @@ jobs:
           cache: npm
           cache-dependency-path: packages/mcp-trading/package-lock.json
 
-      - name: Build MCP server
+      # Builds the MCP server AND the agent runner (both live in this package),
+      # plus the runner's unit tests (no network / no model / no live keys).
+      - name: MCP package — install, typecheck, test, build
         working-directory: packages/mcp-trading
         run: |
           npm ci
+          npm run typecheck
+          npm test
           npm run build
 
       - name: Syntax-check examples (.mjs)

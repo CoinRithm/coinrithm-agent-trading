@@ -150,8 +150,10 @@ This repo gives you everything to wire that up:
 | --- | --- |
 | [`QUICKSTART.md`](./QUICKSTART.md) | Per-client setup for the hosted URL and the local server |
 | [`openapi.yaml`](./openapi.yaml) | OpenAPI 3.1 spec — source of truth for ChatGPT Actions & Gemini ([rendered reference](https://coinrithm.github.io/coinrithm-agent-trading/)) |
-| [`packages/mcp-trading/`](./packages/mcp-trading) | The MCP server: hosted (HTTP, multi-user) **and** local (stdio) |
+| [`packages/mcp-trading/`](./packages/mcp-trading) | The npm package — the MCP server (`coinrithm-mcp`: hosted HTTP + local stdio) **and** the self-host agent runner (`coinrithm-agent`) |
+| [`docs/agent-runner.md`](./docs/agent-runner.md) | The **agent-runner** guide — author an agent folder, then run an observe→decide→validate→act loop with your own model key (paper, futures v1) |
 | [`skills/coinrithm-trader/`](./skills/coinrithm-trader) | A Claude **Skill** with a trading playbook + hard risk rules |
+| [`skills/momentum-futures/`](./skills/momentum-futures) | A runnable **agent skill** — the `momentum-futures` template the runner scaffolds |
 | [`prompts/`](./prompts) | Per-client system prompts, plus [`disciplined-trader.md`](./prompts/disciplined-trader.md) — a research-backed strategy layer (calibration, abstention, risk gate, PM edge) |
 | [`examples/`](./examples) | Drop-in config for Claude Desktop, Claude Code, ChatGPT, Gemini |
 | [`examples/bots/`](./examples/bots) | Complete runnable bot templates (momentum futures, PM edge) — dry-run by default |
@@ -216,7 +218,7 @@ Base URL: `https://api.coinrithm.com` (live). Hosted MCP: `https://mcp.coinrithm
 
 `info.version` in `openapi.yaml` (currently **1.4.0**) is the **API contract
 version**. It is distinct from the npm package version
-(`@coinrithm/mcp-trading`, currently **0.1.8**). The two are versioned
+(`@coinrithm/mcp-trading`, currently **0.2.0**). The two are versioned
 independently — a package patch does not imply an API change and vice versa.
 
 ---
@@ -493,6 +495,17 @@ already uses:
 | Raw HTTP (`fetch`/`curl` + Bearer key) | Everything else — [`examples/bots/`](./examples/bots) shows the full pattern |
 
 ---
+
+## Hosted agents roadmap
+
+Today this repo is the **self-host** path: bring your own model key and run your
+agent on your own machine with the
+[`coinrithm-agent` runner](./docs/agent-runner.md) (shipped inside
+`@coinrithm/mcp-trading`). A **hosted scheduler** — CoinRithm running the same
+agent spec for you, managed, so
+you don't need to keep a machine on — is a later step. The agent **format** and
+the **runner loop** are identical on both paths; hosting only adds the always-on
+scheduling layer.
 
 ## How it fits together
 
