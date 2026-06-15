@@ -320,40 +320,44 @@ X-CoinRithm-Strategy-Label: pm-edge
 X-CoinRithm-Confidence: 0.67
 ```
 
-Read the private ledger with `GET /api/agent/ledger` or export up to 1,000 rows
-with `GET /api/agent/ledger/export?runId=...`. When `runId` is supplied, the
-export also includes a run-evidence manifest with first/last event time,
-quote/write/reject/replay counts, venues, ledger statuses, related paper-trade
-ids, and the sanitized rows needed to reproduce what the agent called. The
-manifest also records `executionAssumptions`: paper account only, latest stored
-market/probability snapshots, no explicit commission/slippage in v1, no futures
-funding/fees, and worker-driven resting order / SL / TP / settlement timing.
-Market observation reads now attach a compact `observation` block with source,
-input, row-count, freshness/as-of metadata, and a short payload hash; traced runs
-store that block in the private ledger `responseSummary` for reproducibility
-without creating an unbounded full market archive.
-Aggregate audit stats also report trace coverage (`runTraceCoverage` and
-`decisionTraceCoverage`) so you can see whether a key is consistently attaching
-run/decision metadata without exposing raw private logs.
-Run exports include `retentionPolicy` as well: private ledger rows are kept for
-a rolling window (default 90 days), exports are capped at 1,000 rows, and the
-backend pruner deletes old rows only in bounded batches. Operators should choose
-the live retention window from the ledger sizing report (recent rows/day,
-current table/index bytes, and projected retained bytes), not from the default
-alone.
-Run exports also include `evidenceChecklist`, a derived pass/warn/fail checklist
-for trace completeness, decision ids, quote-before-trade coverage, rejected
-calls, export truncation, execution assumptions, and outcome attribution. It is
-computed from the exported ledger rows and does not create additional retained
-data.
-They also include `outcomeSummary`, a best-effort run-level realized-PnL
-summary derived from existing related trade/position ids in the ledger, with
-spot orders also matched through their idempotency keys when the terminal
-`ClosedOrder` exists. It does not store new data and reports `coverage` as
-`none`, `partial`, or `complete`.
-The CoinRithm web app also shows these private run summaries under Profile ->
-API Keys. Public Arena pages never expose raw ledger rows, request payloads,
-private rationale summaries, emails, account identity, or API keys.
+### Reading the ledger & exporting run evidence
+
+Read the private ledger with `GET /api/agent/ledger`, or export up to 1,000 rows
+with `GET /api/agent/ledger/export?runId=...`. Passing a `runId` returns a
+**run-evidence bundle** — everything needed to reproduce and grade what the agent
+did:
+
+- **Manifest** — first/last event time, quote/write/reject/replay counts, venues,
+  ledger statuses, related paper-trade ids, and the sanitized rows that reproduce
+  what the agent called.
+- **`executionAssumptions`** — the v1 paper cost model, in writing: paper account
+  only, latest stored market/probability snapshots, no commission/slippage, no
+  futures funding/fees, and worker-driven resting-order / SL / TP / settlement
+  timing.
+- **`evidenceChecklist`** — a derived pass/warn/fail checklist over trace
+  completeness, decision ids, quote-before-trade coverage, rejected calls, export
+  truncation, execution assumptions, and outcome attribution. Computed from the
+  exported rows; stores nothing new.
+- **`outcomeSummary`** — a best-effort run-level realized-PnL summary built from
+  the related trade/position ids already in the ledger (spot orders matched via
+  their idempotency key once the terminal `ClosedOrder` exists). Reports
+  `coverage` as `none`, `partial`, or `complete`; stores nothing new.
+- **`retentionPolicy`** — private ledger rows are kept for a rolling window
+  (default 90 days), exports are capped at 1,000 rows, and the pruner deletes old
+  rows in bounded batches. Operators should size the live window from the ledger
+  sizing report (rows/day, table/index bytes, projected retained bytes), not the
+  default alone.
+
+Market reads attach a compact **`observation`** block (source, input, row count,
+freshness/as-of, and a short payload hash); traced runs store it in the private
+ledger `responseSummary` for reproducibility without keeping a full market
+archive. Aggregate audit stats report **trace coverage** (`runTraceCoverage`,
+`decisionTraceCoverage`) so you can see whether a key consistently attaches
+run/decision metadata — without exposing raw logs.
+
+The web app shows these run summaries under **Profile → API Keys**. Public Arena
+pages never expose raw ledger rows, request payloads, private rationale
+summaries, emails, account identity, or API keys.
 
 ---
 
