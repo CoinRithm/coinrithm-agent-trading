@@ -1,0 +1,178 @@
+import { describe, it, expect, vi } from "vitest";
+import { runCycle, RunnerDeps } from "./runner.js";
+import { parseSkill } from "./skill.js";
+import { renderFolderOfOne } from "./templates.js";
+import { newState } from "./state.js";
+import { CoinRithmClient } from "./client.js";
+import { Provider } from "./providers.js";
+
+const okData = (data: unknown) => ({ ok: true, status: 200, data });
+
+function baseClient(over: Record<string, unknown> = {}) {
+  return {
+    me: async () => okData({ scopes: ["read", "trade:futures"] }),
+    portfolio: async () => okData({ equity: { totalUsd: 50000, availableUsd: 1000 } }),
+    wallet: async () => okData({ usdt: { available: 1000 } }),
+    futuresPositions: async () => okData({ positions: [] }),
+    trades: async () => okData({ asOf: "T1", trades: [] }),
+    resolve: async (q: string) => okData({ match: { coinId: "1", name: q } }),
+    market: async () =>
+      okData({ price: { usd: 67000, change1h: 1, change24h: 2 }, observation: { freshness: { status: "fresh" } } }),
+    futuresQuote: vi.fn(async () =>
+      okData({ eligible: true, entryPrice: 67000, liquidationPrice: 60000, observation: { freshness: { status: "fresh" } } }),
+    ),
+    openFutures: vi.fn(async () => okData({ position: { id: 99, status: "open" } })),
+    closeFutures: vi.fn(async () => okData({ position: { id: 99 } })),
+    setFuturesSlTp: vi.fn(async () => okData({})),
+    exportRunEvidence: vi.fn(async () => okData({})),
+    ...over,
+  };
+}
+
+function provider(decision: unknown): Provider {
+  return { label: "fake", decide: async () => ({ ok: true, text: JSON.stringify(decision) }) };
+}
+
+const VALID_OPEN = {
+  decision: "act",
+  confidence: 0.8,
+  actions: [{ type: "futures_open", symbol: "BTC", side: "long", leverage: 2, marginMusd: 50, stopLossPrice: 60000, confidence: 0.8 }],
+};
+const OVER_LEVERAGE = {
+  decision: "act",
+  actions: [{ type: "futures_open", symbol: "BTC", side: "long", leverage: 10, marginMusd: 50, stopLossPrice: 60000, confidence: 0.9 }],
+};
+
+function deps(
+  over: Partial<RunnerDeps>,
+  client = baseClient(),
+  prov = provider(VALID_OPEN),
+): RunnerDeps {
+  const spec = parseSkill(renderFolderOfOne("a", "conservative")).spec;
+  return {
+    client: client as unknown as CoinRithmClient,
+    provider: prov,
+    spec,
+    mergedProse: "strategy",
+    state: newState("run-1"),
+    live: false,
+    ...over,
+  };
+}
+
+describe("runCycle", () => {
+  it("--dry-run never writes (but plans the accepted action)", async () => {
+    const client = baseClient();
+    const r = await runCycle(deps({ live: false }, client));
+    expect(r.decision).toBe("act");
+    expect(r.planned[0].accepted).toBe(true);
+    expect(r.planned[0].executed).toBe(false);
+    expect(client.openFutures).not.toHaveBeenCalled();
+  });
+
+  it("--live writes only after fetching a quote + validating", async () => {
+    const client = baseClient();
+    const r = await runCycle(deps({ live: true }, client));
+    expect(client.futuresQuote).toHaveBeenCalled();
+    expect(client.openFutures).toHaveBeenCalledTimes(1);
+    expect(r.planned[0].executed).toBe(true);
+  });
+
+  it("rejects over-leverage and never writes", async () => {
+    const client = baseClient();
+    const r = await runCycle(deps({ live: true }, client, provider(OVER_LEVERAGE)));
+    expect(r.planned[0].accepted).toBe(false);
+    expect(r.planned[0].code).toBe("leverage_exceeds_cap");
+    expect(client.openFutures).not.toHaveBeenCalled();
+  });
+
+  it("invalid model output is a model failure with no write", async () => {
+    const client = baseClient();
+    const bad: Provider = { label: "x", decide: async () => ({ ok: true, text: "not json" }) };
+    const d = deps({ live: true }, client, bad);
+    const r = await runCycle(d);
+    expect(r.modelFailed).toBe(true);
+    expect(d.state.consecutiveModelFailures).toBe(1);
+    expect(client.openFutures).not.toHaveBeenCalled();
+  });
+
+  it("repeated rejects trip the kill-switch", async () => {
+    const client = baseClient();
+    const d = deps({ live: true }, client, provider(OVER_LEVERAGE));
+    d.spec.killSwitch.maxConsecutiveRejects = 1;
+    const c1 = await runCycle(d);
+    expect(c1.disabled).toBeFalsy();
+    const c2 = await runCycle(d);
+    expect(c2.disabled).toBe(true);
+    expect(d.state.disabled).toBe(true);
+  });
+
+  it("advances the cursor and dedupes closed trades", async () => {
+    const client = baseClient({
+      trades: async () => okData({ asOf: "T2", trades: [{ venue: "futures", id: 5, realizedPnlMusd: 10 }] }),
+    });
+    const d = deps({ live: false }, client, provider({ decision: "skip" }));
+    await runCycle(d);
+    expect(d.state.cursor).toBe("T2");
+    expect(d.state.seen).toContain("futures:5");
+    expect(d.state.realizedPnlMusd).toBe(10);
+    await runCycle(d); // same trade again -> deduped, not double-counted
+    expect(d.state.realizedPnlMusd).toBe(10);
+  });
+
+  it("running cash blocks a second open the stale snapshot would have allowed", async () => {
+    const client = baseClient();
+    const two = {
+      decision: "act",
+      actions: [
+        { type: "futures_open", symbol: "BTC", side: "long", leverage: 2, marginMusd: 600, stopLossPrice: 60000, confidence: 0.9 },
+        { type: "futures_open", symbol: "ETH", side: "long", leverage: 2, marginMusd: 600, stopLossPrice: 1000, confidence: 0.9 },
+      ],
+    };
+    const d = deps({ live: true }, client, provider(two));
+    d.spec.risk.perTradeMarginMusd = 600;
+    d.spec.limits.maxWritesPerCycle = 2;
+    d.spec.limits.maxOpenMarginMusd = 5000;
+    const r = await runCycle(d);
+    expect(r.planned[0].executed).toBe(true);
+    expect(r.planned[1].accepted).toBe(false);
+    expect(r.planned[1].code).toBe("insufficient_balance");
+    expect(client.openFutures).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a duplicate action on the same position within a cycle", async () => {
+    const client = baseClient({
+      futuresPositions: async () => okData({ positions: [{ id: 7, status: "open", marginMusd: 50 }] }),
+    });
+    const two = {
+      decision: "act",
+      actions: [
+        { type: "futures_close", positionId: 7 },
+        { type: "futures_close", positionId: 7 },
+      ],
+    };
+    const d = deps({ live: true }, client, provider(two));
+    d.spec.limits.maxWritesPerCycle = 2;
+    const r = await runCycle(d);
+    expect(r.planned[0].accepted).toBe(true);
+    expect(r.planned[1].code).toBe("position_already_targeted");
+    expect(client.closeFutures).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses a deterministic idempotency key that advances only on success", async () => {
+    const keys: string[] = [];
+    const client = baseClient({
+      openFutures: vi.fn(async (body: { idempotencyKey: string }) => {
+        keys.push(body.idempotencyKey);
+        return okData({ position: { id: 1 } });
+      }),
+    });
+    const d = deps({ live: true }, client, provider(VALID_OPEN));
+    d.spec.risk.maxConcurrentPositions = 5;
+    await runCycle(d);
+    await runCycle(d); // same intent, prior succeeded -> seq advances
+    expect(keys).toHaveLength(2);
+    expect(keys[0].endsWith(":0")).toBe(true);
+    expect(keys[1].endsWith(":1")).toBe(true);
+  });
+});
