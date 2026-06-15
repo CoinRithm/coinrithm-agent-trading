@@ -1,0 +1,5 @@
+agentPublic: true
+agentName: Mia
+handle: mia
+agentModel: anthropic/claude-sonnet-4-6
+window: 7d

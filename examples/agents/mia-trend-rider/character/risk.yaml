@@ -1,0 +1,10 @@
+maxLeverage: 5
+perTradeMarginMusd: 60
+maxConcurrentPositions: 3
+requireStopLoss: true
+watchlist:
+  - BTC
+  - ETH
+  - SOL
+  - AVAX
+  - LINK

@@ -1,0 +1,193 @@
+{
+  "configHash": "sha256:ab8978dd4af46bc523c138c451d41704b43c72c41911fcbbba710cd5a268ff38",
+  "contentHashes": {
+    "agent.md": "sha256:ccd0cde48dbc60d706d7caa45362d63d980741fc827a8fdb67e9f77501c67def",
+    "character/abstention.yaml": "sha256:2bce6d862d85ef7db391c58c3aea4bb42c35b739927cd8f2622ee696867a6ee9",
+    "character/limits.yaml": "sha256:b0b374ef7c7ebfcc1a4ecd45bd4381801ec2b96ce9e7c6cc59765d4d4ee5f196",
+    "character/persona.md": "sha256:94de7ced88593e4715c79bc266ab0940e92ea9b9c087725f3bc9bcc0c71debc0",
+    "character/risk.yaml": "sha256:fb1a5766cad3cf3e78ef0daeb9baaecf74c9529be96b549231d90f11f63c397b",
+    "character/sizing.yaml": "sha256:f57dbc7dce0a978b94a9b2b026ff0fa55e685866bd5ce335b03e146723ecf052",
+    "character/skills/breakout.md": "sha256:ef45018582bf8227ffc0bc1a79bd6992ad742d7ef9c8bae66b45707b1048e287",
+    "character/skills/volatility-expansion.md": "sha256:5a55f244df25efcd0cc3ff120eddd893bc50ef8569c0dafab834ba844919eafc",
+    "character/thesis.md": "sha256:bdf7355ed96c32adce8fe98cae9eff99c618dc50e0ab22fcf85ac931de1047a6",
+    "journal/notes.md": "sha256:467d5e6fc7090522b8ae2971cfa0678d6053569d917ef444246ddb11cf2ed20c",
+    "runtime.yaml": "sha256:bf074f710fa3edd8858ab7d682b3151b1571d725119790e5a80cef33ad3f92a2",
+    "safety/killSwitch.yaml": "sha256:73e3b22488dde56311d779cebb1f65091a59abd80792d6185ec4d4bba76ac5f4"
+  },
+  "provenance": {
+    "includeOrder": [
+      "breakout",
+      "volatility-expansion"
+    ],
+    "mergeOrder": [
+      "agent.md",
+      "runtime.yaml",
+      "character/sizing.yaml",
+      "character/risk.yaml",
+      "character/limits.yaml",
+      "character/abstention.yaml",
+      "safety/killSwitch.yaml",
+      "character/skills/breakout.md",
+      "character/skills/volatility-expansion.md",
+      "character/thesis.md",
+      "character/persona.md",
+      "journal/notes.md"
+    ],
+    "sources": {
+      "abstention": "character/abstention.yaml",
+      "capabilities": "agent.md",
+      "description": "agent.md",
+      "include": "agent.md",
+      "killSwitch": "safety/killSwitch.yaml",
+      "limits": "character/limits.yaml",
+      "mode": "runtime.yaml",
+      "model": "runtime.yaml",
+      "name": "agent.md",
+      "objective": "agent.md",
+      "risk": "character/risk.yaml",
+      "sizing": "character/sizing.yaml",
+      "spec": "agent.md",
+      "sync": "agent.md",
+      "trigger": "runtime.yaml",
+      "venues": "agent.md"
+    }
+  },
+  "resolvedConfig": {
+    "abstention": {
+      "minConfidence": 0.62,
+      "onInsufficientBalance": true,
+      "onMissingQuote": true,
+      "onStaleData": true,
+      "onWeakSignal": true
+    },
+    "capabilities": [
+      "indicators"
+    ],
+    "description": "Volatility-breakout CoinRithm paper-futures agent that waits for clean range breaks confirmed by volume, then takes fewer but larger protected positions.",
+    "include": [
+      "breakout",
+      "volatility-expansion"
+    ],
+    "killSwitch": {
+      "maxConsecutiveModelFailures": 3,
+      "maxConsecutiveRejects": 0,
+      "maxDrawdownMusd": 2500,
+      "onRateLimitPressure": true
+    },
+    "limits": {
+      "maxDailyLossMusd": 1200,
+      "maxOpenMarginMusd": 3000,
+      "maxTradesPerDay": 3,
+      "maxWritesPerCycle": 1
+    },
+    "mode": "self-host",
+    "model": {
+      "name": "claude-sonnet-4-6",
+      "provider": "anthropic"
+    },
+    "name": "Leo",
+    "objective": {
+      "horizon": "7d",
+      "primary": "realized_pnl",
+      "secondary": [
+        "drawdown_control",
+        "evidence_completeness"
+      ]
+    },
+    "risk": {
+      "maxConcurrentPositions": 2,
+      "maxLeverage": 4,
+      "perTradeMarginMusd": 1500,
+      "requireStopLoss": true,
+      "watchlist": [
+        "BTC",
+        "ETH",
+        "SOL",
+        "AVAX",
+        "LINK"
+      ]
+    },
+    "sizing": {
+      "kellyFraction": 0.3,
+      "riskPerTradePct": 2,
+      "riskRewardMin": 2.5
+    },
+    "spec": "coinrithm.agent.v1",
+    "sync": {
+      "requirePollBeforeWrite": true
+    },
+    "trigger": {
+      "cadence": "1h",
+      "timezone": "UTC"
+    },
+    "venues": [
+      "futures"
+    ]
+  },
+  "resolvedSpec": {
+    "abstention": {
+      "minConfidence": 0.62,
+      "onInsufficientBalance": true,
+      "onMissingQuote": true,
+      "onStaleData": true,
+      "onWeakSignal": true
+    },
+    "capabilities": [
+      "indicators"
+    ],
+    "description": "Volatility-breakout CoinRithm paper-futures agent that waits for clean range breaks confirmed by volume, then takes fewer but larger protected positions.",
+    "killSwitch": {
+      "maxConsecutiveModelFailures": 3,
+      "maxConsecutiveRejects": 0,
+      "maxDrawdownMusd": 2500,
+      "onRateLimitPressure": true
+    },
+    "limits": {
+      "maxDailyLossMusd": 1200,
+      "maxOpenMarginMusd": 3000,
+      "maxTradesPerDay": 3,
+      "maxWritesPerCycle": 1
+    },
+    "model": {
+      "name": "claude-sonnet-4-6",
+      "provider": "anthropic"
+    },
+    "name": "Leo",
+    "objective": {
+      "horizon": "7d",
+      "primary": "realized_pnl",
+      "secondary": [
+        "drawdown_control",
+        "evidence_completeness"
+      ]
+    },
+    "risk": {
+      "maxConcurrentPositions": 2,
+      "maxLeverage": 4,
+      "perTradeMarginMusd": 1500,
+      "requireStopLoss": true,
+      "watchlist": [
+        "BTC",
+        "ETH",
+        "SOL",
+        "AVAX",
+        "LINK"
+      ]
+    },
+    "spec": "coinrithm.agent.v1",
+    "sync": {
+      "requirePollBeforeWrite": true
+    },
+    "trigger": {
+      "cadence": "1h",
+      "timezone": "UTC"
+    },
+    "venues": [
+      "futures"
+    ]
+  },
+  "resolverVersion": "1",
+  "runnerVersion": "0.1.0",
+  "schema": "coinrithm.manifest.v1",
+  "spec": "coinrithm.agent.v1"
+}

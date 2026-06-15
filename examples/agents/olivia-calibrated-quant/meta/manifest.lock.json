@@ -1,0 +1,195 @@
+{
+  "configHash": "sha256:a959bf7e7a6b71e98806805ed9e8b482b955726e991e4a24095cdfb031f430aa",
+  "contentHashes": {
+    "agent.md": "sha256:089436cf516a30c1b08622d3f4cfd40eed0abc5369299a54b412973158f7c7b4",
+    "character/abstention.yaml": "sha256:91f56ae6ab7859cc8cf27fff0bdda21d17c0a6958978855024aece0055d3e97d",
+    "character/limits.yaml": "sha256:a4c1d5de1a53fbf00184f0021b348830115df25b3fc32c02d70e46245d73b7c0",
+    "character/persona.md": "sha256:6d0a4ea31b1e1cc53081f5558e1173bed456a34f20eb375714eeaff59927a682",
+    "character/risk.yaml": "sha256:c130c84e2db64eaf2f8bf9d3c7204a071a8e7c0d1069024718e77f249bcb281c",
+    "character/sizing.yaml": "sha256:903f1242d922d71de17b748f02db855d8283068d9f73332dc88f634c68ce457f",
+    "character/skills/abstention-discipline.md": "sha256:9eb4d6b31750e0370ea7a10a2e71c8cf0c79a70ccb09141efaf825fa83efae51",
+    "character/skills/conviction-sizing.md": "sha256:52f8ed0aef10463ef1dd59fa4f9bdb384bd4806cae0348cb98d3770763f67604",
+    "character/skills/probability-forecast.md": "sha256:9a77e009d51bd713a7047d01db00a2f0d56babaa7faf4be0dadd144687898544",
+    "character/thesis.md": "sha256:6831b404c4352aa798c39132653004568345e9f31ad15e893668167d47186feb",
+    "journal/notes.md": "sha256:98fa3f87363f08a34ab3398d864eb3792e732338e4ccec4988757f061422c8ab",
+    "runtime.yaml": "sha256:a2dde8ea84ccfc8be5e4b731f3cb77b6ffa67b74fc778649a2990ea287b11013",
+    "safety/killSwitch.yaml": "sha256:a5b9f9c1cb55250ea9d1e2b2e9e43b7a520df72750adbe94a7a7a6bbe964fe88"
+  },
+  "provenance": {
+    "includeOrder": [
+      "probability-forecast",
+      "conviction-sizing",
+      "abstention-discipline"
+    ],
+    "mergeOrder": [
+      "agent.md",
+      "runtime.yaml",
+      "character/sizing.yaml",
+      "character/risk.yaml",
+      "character/limits.yaml",
+      "character/abstention.yaml",
+      "safety/killSwitch.yaml",
+      "character/skills/probability-forecast.md",
+      "character/skills/conviction-sizing.md",
+      "character/skills/abstention-discipline.md",
+      "character/thesis.md",
+      "character/persona.md",
+      "journal/notes.md"
+    ],
+    "sources": {
+      "abstention": "character/abstention.yaml",
+      "capabilities": "agent.md",
+      "description": "agent.md",
+      "include": "agent.md",
+      "killSwitch": "safety/killSwitch.yaml",
+      "limits": "character/limits.yaml",
+      "mode": "runtime.yaml",
+      "model": "runtime.yaml",
+      "name": "agent.md",
+      "objective": "agent.md",
+      "risk": "character/risk.yaml",
+      "sizing": "character/sizing.yaml",
+      "spec": "agent.md",
+      "sync": "agent.md",
+      "trigger": "runtime.yaml",
+      "venues": "agent.md"
+    }
+  },
+  "resolvedConfig": {
+    "abstention": {
+      "minConfidence": 0.7,
+      "onInsufficientBalance": true,
+      "onMissingQuote": true,
+      "onStaleData": true,
+      "onWeakSignal": true
+    },
+    "capabilities": [
+      "indicators"
+    ],
+    "description": "A calibration-first CoinRithm paper futures agent that forecasts an explicit win probability before acting, trades tiny and rarely at 2x, and optimizes for being right as often as she claims.",
+    "include": [
+      "probability-forecast",
+      "conviction-sizing",
+      "abstention-discipline"
+    ],
+    "killSwitch": {
+      "maxConsecutiveModelFailures": 3,
+      "maxConsecutiveRejects": 0,
+      "maxDrawdownMusd": 1200,
+      "onRateLimitPressure": true
+    },
+    "limits": {
+      "maxDailyLossMusd": 250,
+      "maxOpenMarginMusd": 500,
+      "maxTradesPerDay": 2,
+      "maxWritesPerCycle": 1
+    },
+    "mode": "self-host",
+    "model": {
+      "name": "claude-sonnet-4-6",
+      "provider": "anthropic"
+    },
+    "name": "Olivia",
+    "objective": {
+      "horizon": "7d",
+      "primary": "calibration",
+      "secondary": [
+        "drawdown_control",
+        "risk_adjusted"
+      ]
+    },
+    "risk": {
+      "maxConcurrentPositions": 2,
+      "maxLeverage": 2,
+      "perTradeMarginMusd": 250,
+      "requireStopLoss": true,
+      "watchlist": [
+        "BTC",
+        "ETH",
+        "SOL",
+        "LINK"
+      ]
+    },
+    "sizing": {
+      "kellyFraction": 0.2,
+      "riskPerTradePct": 0.5,
+      "riskRewardMin": 1.5
+    },
+    "spec": "coinrithm.agent.v1",
+    "sync": {
+      "requirePollBeforeWrite": true
+    },
+    "trigger": {
+      "cadence": "4h",
+      "timezone": "UTC"
+    },
+    "venues": [
+      "futures"
+    ]
+  },
+  "resolvedSpec": {
+    "abstention": {
+      "minConfidence": 0.7,
+      "onInsufficientBalance": true,
+      "onMissingQuote": true,
+      "onStaleData": true,
+      "onWeakSignal": true
+    },
+    "capabilities": [
+      "indicators"
+    ],
+    "description": "A calibration-first CoinRithm paper futures agent that forecasts an explicit win probability before acting, trades tiny and rarely at 2x, and optimizes for being right as often as she claims.",
+    "killSwitch": {
+      "maxConsecutiveModelFailures": 3,
+      "maxConsecutiveRejects": 0,
+      "maxDrawdownMusd": 1200,
+      "onRateLimitPressure": true
+    },
+    "limits": {
+      "maxDailyLossMusd": 250,
+      "maxOpenMarginMusd": 500,
+      "maxTradesPerDay": 2,
+      "maxWritesPerCycle": 1
+    },
+    "model": {
+      "name": "claude-sonnet-4-6",
+      "provider": "anthropic"
+    },
+    "name": "Olivia",
+    "objective": {
+      "horizon": "7d",
+      "primary": "calibration",
+      "secondary": [
+        "drawdown_control",
+        "risk_adjusted"
+      ]
+    },
+    "risk": {
+      "maxConcurrentPositions": 2,
+      "maxLeverage": 2,
+      "perTradeMarginMusd": 250,
+      "requireStopLoss": true,
+      "watchlist": [
+        "BTC",
+        "ETH",
+        "SOL",
+        "LINK"
+      ]
+    },
+    "spec": "coinrithm.agent.v1",
+    "sync": {
+      "requirePollBeforeWrite": true
+    },
+    "trigger": {
+      "cadence": "4h",
+      "timezone": "UTC"
+    },
+    "venues": [
+      "futures"
+    ]
+  },
+  "resolverVersion": "1",
+  "runnerVersion": "0.1.0",
+  "schema": "coinrithm.manifest.v1",
+  "spec": "coinrithm.agent.v1"
+}

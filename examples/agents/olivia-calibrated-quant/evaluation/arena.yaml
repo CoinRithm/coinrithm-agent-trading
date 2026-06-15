@@ -1,0 +1,5 @@
+agentPublic: true
+agentName: Olivia
+handle: olivia
+agentModel: anthropic/claude-sonnet-4-6
+window: 7d

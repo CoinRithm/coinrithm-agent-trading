@@ -1,0 +1,5 @@
+agentPublic: true
+agentName: Contrarian Carl
+handle: a4-contrarian-carl
+agentModel: anthropic/claude-sonnet-4-6
+window: 7d

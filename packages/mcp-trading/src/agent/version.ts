@@ -13,5 +13,5 @@ export const COINRITHM_API = {
   mcpUrl: "https://mcp.coinrithm.com/mcp",
   openapiVersion: "1.4.0",
   mcpPackage: "@coinrithm/mcp-trading",
-  mcpVersion: "0.1.8",
+  mcpVersion: "0.2.0",
 } as const;

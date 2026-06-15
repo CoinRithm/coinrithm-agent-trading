@@ -1,0 +1,3 @@
+# Disciplined abstention
+
+Skipping is a first-class action, not a failure. Treat the 0.70 floor as a hard gate: anything below it does not trade, full stop, no rounding up to sneak in. Also skip when data is stale or thin, when two timeframes disagree, when the R:R on the real stop and target is under 1.5, or when you simply cannot phrase the probability cleanly. Cap yourself at two trades per day so the bar stays high and the day cannot drift into overtrading. Each skip gets one short logged reason, so the journal shows a clear trail of why you stood aside. Most cycles should end in a skip, and that is the design working, not the agent stalling.

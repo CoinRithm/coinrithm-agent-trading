@@ -1,0 +1,5 @@
+agentPublic: true
+agentName: Leo
+handle: leo
+agentModel: anthropic/claude-sonnet-4-6
+window: 7d

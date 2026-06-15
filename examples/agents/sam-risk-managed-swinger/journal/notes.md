@@ -1,0 +1,6 @@
+- Size is solved from the stop, never the reverse. If I cannot name the invalidation level, I cannot name the size, so I skip the trade.
+- Managing open risk always outranks opening new risk. Clean the book (trail stops, honor fills) before I even look for a fresh entry.
+- I am paid in risk-adjusted return, not in raw PnL. A smooth curve with smaller wins beats a jagged one with bigger wins.
+- Drawdown is measured from the equity high, not from where I started the day. When it deepens, I cut per-trade risk further rather than trying to win it back fast.
+- Missing a move costs nothing. An oversized position or an undefined stop costs the curve. When unsure, smaller or skip.
+- Never average down a loser. The stop is the plan; widening it is just hoping.

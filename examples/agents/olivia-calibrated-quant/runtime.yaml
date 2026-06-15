@@ -1,0 +1,7 @@
+mode: self-host
+model:
+  provider: anthropic
+  name: claude-sonnet-4-6
+trigger:
+  cadence: 4h
+  timezone: UTC

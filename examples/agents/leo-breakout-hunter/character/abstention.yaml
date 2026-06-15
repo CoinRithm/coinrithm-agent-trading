@@ -1,0 +1,5 @@
+onStaleData: true
+onWeakSignal: true
+onMissingQuote: true
+onInsufficientBalance: true
+minConfidence: 0.62

@@ -1,0 +1,191 @@
+{
+  "configHash": "sha256:d5c7c519fb634b9086cb7c1b5babff49fb9625f1cd09fb7cf6b5c905e4e9c20b",
+  "contentHashes": {
+    "agent.md": "sha256:b6a6b8e7e2ff2262b83669cba9119681b7af98fbabff4ec83ae61b8e379a60a0",
+    "character/abstention.yaml": "sha256:926750bbd253a3d8b85007fed099bb57898ca0c104848f45f27580354989a3a2",
+    "character/limits.yaml": "sha256:4e61d663ced5a84aaaf5dcb29eda9e170d4b08da13e31082d6af65b5b53ac562",
+    "character/persona.md": "sha256:f2ef52f9ec86724349e877c7c1e1a63568b69180eb82c87894b2a9e1f62c6e93",
+    "character/risk.yaml": "sha256:25884b459246d1f1b4fc006b20effda0002605153789e5f94d5241ca09e91902",
+    "character/sizing.yaml": "sha256:39ef3114d43ae621ef15e7b3379988f82ff197097f781ca3be96cf61923e1d49",
+    "character/skills/blowoff-fade.md": "sha256:9ecae923fc722046c89c11e03fdb06a63e885406d8e059f72fa8eea1779f8829",
+    "character/skills/oversold-bounce.md": "sha256:d79ce4b73643ec968ac7041b6771cc98348765bd2c01504d1403def4343c06d7",
+    "character/thesis.md": "sha256:88d7ee6816c8259b683e161376950d354b937b784a094329f04c5f4507335947",
+    "journal/notes.md": "sha256:83efbbe9782567f65adbf8181bee42ffbdaaddb7dd9acf9562f9be77606ea0e3",
+    "runtime.yaml": "sha256:a2dde8ea84ccfc8be5e4b731f3cb77b6ffa67b74fc778649a2990ea287b11013",
+    "safety/killSwitch.yaml": "sha256:73e3b22488dde56311d779cebb1f65091a59abd80792d6185ec4d4bba76ac5f4"
+  },
+  "provenance": {
+    "includeOrder": [
+      "oversold-bounce",
+      "blowoff-fade"
+    ],
+    "mergeOrder": [
+      "agent.md",
+      "runtime.yaml",
+      "character/sizing.yaml",
+      "character/risk.yaml",
+      "character/limits.yaml",
+      "character/abstention.yaml",
+      "safety/killSwitch.yaml",
+      "character/skills/oversold-bounce.md",
+      "character/skills/blowoff-fade.md",
+      "character/thesis.md",
+      "character/persona.md",
+      "journal/notes.md"
+    ],
+    "sources": {
+      "abstention": "character/abstention.yaml",
+      "capabilities": "agent.md",
+      "description": "agent.md",
+      "include": "agent.md",
+      "killSwitch": "safety/killSwitch.yaml",
+      "limits": "character/limits.yaml",
+      "mode": "runtime.yaml",
+      "model": "runtime.yaml",
+      "name": "agent.md",
+      "objective": "agent.md",
+      "risk": "character/risk.yaml",
+      "sizing": "character/sizing.yaml",
+      "spec": "agent.md",
+      "sync": "agent.md",
+      "trigger": "runtime.yaml",
+      "venues": "agent.md"
+    }
+  },
+  "resolvedConfig": {
+    "abstention": {
+      "minConfidence": 0.65,
+      "onInsufficientBalance": true,
+      "onMissingQuote": true,
+      "onStaleData": true,
+      "onWeakSignal": true
+    },
+    "capabilities": [
+      "indicators"
+    ],
+    "description": "A patient mean-reversion CoinRithm paper-futures agent that fades statistically stretched moves with low leverage, tight stops, and a drawdown-control objective.",
+    "include": [
+      "oversold-bounce",
+      "blowoff-fade"
+    ],
+    "killSwitch": {
+      "maxConsecutiveModelFailures": 3,
+      "maxConsecutiveRejects": 0,
+      "maxDrawdownMusd": 2500,
+      "onRateLimitPressure": true
+    },
+    "limits": {
+      "maxDailyLossMusd": 700,
+      "maxOpenMarginMusd": 1500,
+      "maxTradesPerDay": 3,
+      "maxWritesPerCycle": 2
+    },
+    "mode": "self-host",
+    "model": {
+      "name": "claude-sonnet-4-6",
+      "provider": "anthropic"
+    },
+    "name": "Contrarian Carl",
+    "objective": {
+      "horizon": "7d",
+      "primary": "drawdown_control",
+      "secondary": [
+        "realized_pnl",
+        "calibration"
+      ]
+    },
+    "risk": {
+      "maxConcurrentPositions": 2,
+      "maxLeverage": 2,
+      "perTradeMarginMusd": 600,
+      "requireStopLoss": true,
+      "watchlist": [
+        "BTC",
+        "ETH",
+        "SOL",
+        "LINK"
+      ]
+    },
+    "sizing": {
+      "kellyFraction": 0.15,
+      "riskPerTradePct": 0.5,
+      "riskRewardMin": 1.5
+    },
+    "spec": "coinrithm.agent.v1",
+    "sync": {
+      "requirePollBeforeWrite": true
+    },
+    "trigger": {
+      "cadence": "4h",
+      "timezone": "UTC"
+    },
+    "venues": [
+      "futures"
+    ]
+  },
+  "resolvedSpec": {
+    "abstention": {
+      "minConfidence": 0.65,
+      "onInsufficientBalance": true,
+      "onMissingQuote": true,
+      "onStaleData": true,
+      "onWeakSignal": true
+    },
+    "capabilities": [
+      "indicators"
+    ],
+    "description": "A patient mean-reversion CoinRithm paper-futures agent that fades statistically stretched moves with low leverage, tight stops, and a drawdown-control objective.",
+    "killSwitch": {
+      "maxConsecutiveModelFailures": 3,
+      "maxConsecutiveRejects": 0,
+      "maxDrawdownMusd": 2500,
+      "onRateLimitPressure": true
+    },
+    "limits": {
+      "maxDailyLossMusd": 700,
+      "maxOpenMarginMusd": 1500,
+      "maxTradesPerDay": 3,
+      "maxWritesPerCycle": 2
+    },
+    "model": {
+      "name": "claude-sonnet-4-6",
+      "provider": "anthropic"
+    },
+    "name": "Contrarian Carl",
+    "objective": {
+      "horizon": "7d",
+      "primary": "drawdown_control",
+      "secondary": [
+        "realized_pnl",
+        "calibration"
+      ]
+    },
+    "risk": {
+      "maxConcurrentPositions": 2,
+      "maxLeverage": 2,
+      "perTradeMarginMusd": 600,
+      "requireStopLoss": true,
+      "watchlist": [
+        "BTC",
+        "ETH",
+        "SOL",
+        "LINK"
+      ]
+    },
+    "spec": "coinrithm.agent.v1",
+    "sync": {
+      "requirePollBeforeWrite": true
+    },
+    "trigger": {
+      "cadence": "4h",
+      "timezone": "UTC"
+    },
+    "venues": [
+      "futures"
+    ]
+  },
+  "resolverVersion": "1",
+  "runnerVersion": "0.1.0",
+  "schema": "coinrithm.manifest.v1",
+  "spec": "coinrithm.agent.v1"
+}
