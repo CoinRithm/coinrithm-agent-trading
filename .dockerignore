@@ -1,0 +1,12 @@
+# Build context = repo root for both the root Dockerfile and
+# packages/scheduler/Dockerfile. Every image rebuilds node_modules + dist
+# in-layer, so never ship the host copies: they bloat the context, slow the
+# upload, and risk a stale dist being COPYd in before the in-image rebuild.
+# (Per-package .dockerignore files are NOT honored when the context is the
+# repo root — only this root file is.)
+**/node_modules
+**/dist
+**/*.log
+**/.env
+**/.env.*
+.git

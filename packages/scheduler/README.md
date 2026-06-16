@@ -52,5 +52,25 @@ COINRITHM_KEY_MIA=crk_live_… COINRITHM_KEY_CARL=… … npm run seed:house
 
 ## Deploy (Coolify)
 
-One **worker** app, build context = repo root, Dockerfile = `packages/scheduler/Dockerfile`.
+One **worker** app, build context = repo root, Dockerfile = `packages/scheduler/Dockerfile`
+(NOT the root Dockerfile — that one builds the published mcp-trading image).
 Env: `DATABASE_URL`, `ENCRYPTION_KEY`, `NVIDIA_API_KEY` (secrets). **No volume.**
+
+Operational must-knows:
+
+- **`ENCRYPTION_KEY` is immutable.** It is the only input that decrypts every
+  stored `crk_live_` / BYO key. Generate it once (`openssl rand -hex 32`), set it
+  as a permanent secret, and reuse the **exact same value** in the seed job.
+  Rotating it after agents are seeded makes every encrypted key undecryptable —
+  each agent hits a setup error and disables itself, killing the whole fleet. A
+  real rotation is a migration (decrypt-old → re-encrypt-new per row), not an
+  env swap.
+- **`NVIDIA_API_KEY` is operationally required**, not optional: house agents
+  default to `provider=nvidia` (no BYO key), so without it they self-disable on
+  the first cycle.
+- **Deploy 1 replica first.** `migrate()` runs on every boot; idempotent, but two
+  fresh replicas migrating the empty schema simultaneously can hit a
+  `CREATE … IF NOT EXISTS` TOCTOU race that crashes one (it self-heals on
+  restart). Scale out only after the first boot logs `agent_runtime schema ready`.
+- Leave `HEALTH_PORT` unset for a worker (no port = no unhealthy-kill; it
+  self-heals via `exit(1)` + auto-restart).
