@@ -7,24 +7,46 @@ import { AgentSpec, Observation } from "./types.js";
 
 export function buildSystemPrompt(spec: AgentSpec, mergedProse: string): string {
   const r = spec.risk;
+  const v = spec.venues;
+  const actions: string[] = [];
+  if (v.includes("futures")) {
+    actions.push(
+      '{"type":"futures_open","symbol","side":"long"|"short","leverage","marginMusd","stopLossPrice","takeProfitPrice"}',
+      '{"type":"futures_close","positionId","fraction"}',
+      '{"type":"futures_set_sltp","positionId","stopLossPrice","takeProfitPrice"}',
+    );
+  }
+  if (v.includes("spot")) {
+    actions.push(
+      '{"type":"spot_order","symbol","side":"buy"|"sell","orderType":"market"|"limit"|"stop","quantity","limitPrice","stopPrice"}',
+      '{"type":"spot_cancel","orderId"}',
+    );
+  }
+  if (v.includes("pm")) {
+    actions.push(
+      '{"type":"pm_open","source","slug","outcomeExternalMarketId","stakeMusd"}  (ONLY a market from observation.pmMarkets; stakeMusd >= 10)',
+    );
+  }
   return [
-    "You operate a CoinRithm PAPER-TRADING futures agent (simulated 50,000 mUSD; not real money, not financial advice).",
+    "You operate a CoinRithm PAPER-TRADING agent (simulated 50,000 mUSD; not real money, not financial advice).",
     "You only PROPOSE actions as structured JSON. A separate runner re-validates every action against hard caps and executes it; you cannot bypass a cap.",
     "",
     "## Your strategy (your borders)",
     mergedProse.trim() || "(no strategy prose provided)",
     "",
     "## Hard caps the runner enforces (do not exceed; proposing over a cap wastes the cycle)",
-    `- venues: ${spec.venues.join(", ")} (v1 executes FUTURES only)`,
-    `- maxLeverage ${r.maxLeverage}; perTradeMarginMusd ${r.perTradeMarginMusd}; maxConcurrentPositions ${r.maxConcurrentPositions}; requireStopLoss ${r.requireStopLoss}`,
-    `- watchlist (only these): ${r.watchlist.join(", ")}`,
+    `- venues you may act in: ${v.join(", ")}`,
+    `- perTradeMarginMusd ${r.perTradeMarginMusd} is the per-trade SIZE cap (futures margin / spot buy notional / PM stake)`,
+    `- futures: maxLeverage ${r.maxLeverage}, maxConcurrentPositions ${r.maxConcurrentPositions}, requireStopLoss ${r.requireStopLoss} (long stop below entry, short stop above)`,
+    `- watchlist (spot + futures use ONLY these): ${r.watchlist.join(", ")}`,
+    "- prediction markets: pick ONLY a market listed in observation.pmMarkets; minimum stake 10 mUSD",
     `- abstention.minConfidence ${spec.abstention.minConfidence}; a skipped cycle is correct and cheap`,
     "",
     "## Output contract — return ONLY this JSON object, nothing else:",
-    `{"decision":"skip"|"act","confidence":0..1,"reason":"short","actions":[]}`,
-    'Each action is one of: {"type":"futures_open","symbol","side":"long"|"short","leverage","marginMusd","stopLossPrice","takeProfitPrice"},',
-    '{"type":"futures_close","positionId","fraction"}, {"type":"futures_set_sltp","positionId","stopLossPrice","takeProfitPrice"}.',
-    "Always include a stopLossPrice on a futures_open. Prefer skip when the signal is weak or data is stale.",
+    '{"decision":"skip"|"act","confidence":0..1,"reason":"short","actions":[]}',
+    "Each action is one of:",
+    ...actions.map((a) => `- ${a}`),
+    "Prefer skip when the signal is weak or data is stale.",
   ].join("\n");
 }
 
@@ -39,6 +61,9 @@ export function buildUserPrompt(obs: Observation): string {
         cashAvailableMusd: obs.cashAvailableMusd,
         equityMusd: obs.equityMusd,
         openPositions: obs.openPositions,
+        openOrders: obs.openOrders,
+        pmPositions: obs.pmPositions,
+        pmMarkets: obs.pmMarkets,
         watch: obs.watch,
         newClosedTrades: obs.newClosedTrades,
         polledBeforeWrite: obs.polledBeforeWrite,

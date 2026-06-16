@@ -24,6 +24,20 @@ function baseClient(over: Record<string, unknown> = {}) {
     openFutures: vi.fn(async () => okData({ position: { id: 99, status: "open" } })),
     closeFutures: vi.fn(async () => okData({ position: { id: 99 } })),
     setFuturesSlTp: vi.fn(async () => okData({})),
+    // spot — REAL quote shape: executionPrice + estimatedCostMusd (= price*qty),
+    // never entryPrice. estimatedCostMusd tracks the requested quantity.
+    openOrders: async () => okData({ orders: [] }),
+    spotQuote: vi.fn(async (a: { quantity: number }) =>
+      okData({ eligible: true, executionPrice: 67000, estimatedCostMusd: 67000 * a.quantity, observation: { freshness: { status: "fresh" } } }),
+    ),
+    placeSpotOrder: vi.fn(async () => okData({ order: { id: 1, status: "open" } })),
+    cancelSpotOrder: vi.fn(async () => okData({ ok: true })),
+    // pm — REAL discover shape: { data: [event] }, id nested at outcomes[].externalMarketId.
+    pmPositions: async () => okData({ positions: [] }),
+    discoverPmMarkets: async () =>
+      okData({ data: [{ source: "kalshi", slug: "btc-up", title: "BTC up?", freshness: { status: "fresh" }, outcomes: [{ externalMarketId: "yes-1", name: "Yes", probability: 0.5 }] }] }),
+    pmQuote: vi.fn(async () => okData({ eligible: true, observation: { freshness: { status: "fresh" } } })),
+    openPmPosition: vi.fn(async () => okData({ position: { id: 9 } })),
     exportRunEvidence: vi.fn(async () => okData({})),
     ...over,
   };
@@ -174,5 +188,80 @@ describe("runCycle", () => {
     expect(keys).toHaveLength(2);
     expect(keys[0].endsWith(":0")).toBe(true);
     expect(keys[1].endsWith(":1")).toBe(true);
+  });
+
+  it("SPOT: dry-run plans a buy without writing; live writes after a quote", async () => {
+    const buy = {
+      decision: "act",
+      confidence: 0.8,
+      actions: [{ type: "spot_order", symbol: "BTC", side: "buy", orderType: "market", quantity: 0.0005, confidence: 0.8 }],
+    };
+    const dryC = baseClient();
+    const dry = deps({ live: false }, dryC, provider(buy));
+    dry.spec.venues = ["spot", "futures", "pm"];
+    const rDry = await runCycle(dry);
+    expect(rDry.planned[0].accepted).toBe(true);
+    expect(dryC.placeSpotOrder).not.toHaveBeenCalled();
+
+    const liveC = baseClient();
+    const live = deps({ live: true }, liveC, provider(buy));
+    live.spec.venues = ["spot", "futures", "pm"];
+    const rLive = await runCycle(live);
+    expect(liveC.spotQuote).toHaveBeenCalled();
+    expect(liveC.placeSpotOrder).toHaveBeenCalledTimes(1);
+    expect(rLive.planned[0].executed).toBe(true);
+  });
+
+  it("SPOT: running cash blocks a second market buy after the first consumes it", async () => {
+    // Regression for the field-drift double-spend: a market buy must decrement
+    // running cash (via the same spotBuyCost the validator gates on), so a second
+    // same-cycle buy the stale snapshot would allow is rejected.
+    const client = baseClient({
+      spotQuote: vi.fn(async () => okData({ eligible: true, executionPrice: 600, estimatedCostMusd: 600, observation: { freshness: { status: "fresh" } } })),
+    });
+    const two = {
+      decision: "act",
+      actions: [
+        { type: "spot_order", symbol: "BTC", side: "buy", orderType: "market", quantity: 1, confidence: 0.9 },
+        { type: "spot_order", symbol: "BTC", side: "buy", orderType: "market", quantity: 1, confidence: 0.9 },
+      ],
+    };
+    const d = deps({ live: true }, client, provider(two));
+    d.spec.venues = ["spot", "futures", "pm"];
+    d.spec.risk.perTradeMarginMusd = 600; // each buy is within the per-trade cap
+    d.spec.limits.maxWritesPerCycle = 2;
+    const r = await runCycle(d); // cash starts at 1000
+    expect(r.planned[0].executed).toBe(true); // 600 spent, cash -> 400
+    expect(r.planned[1].accepted).toBe(false);
+    expect(r.planned[1].code).toBe("insufficient_balance"); // 600 > 400
+    expect(client.placeSpotOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it("PM: opens only a discovered market (live)", async () => {
+    const client = baseClient();
+    const pm = {
+      decision: "act",
+      confidence: 0.8,
+      actions: [{ type: "pm_open", source: "kalshi", slug: "btc-up", outcomeExternalMarketId: "yes-1", stakeMusd: 20, confidence: 0.8 }],
+    };
+    const d = deps({ live: true }, client, provider(pm));
+    d.spec.venues = ["spot", "futures", "pm"];
+    const r = await runCycle(d);
+    expect(client.pmQuote).toHaveBeenCalled();
+    expect(client.openPmPosition).toHaveBeenCalledTimes(1);
+    expect(r.planned[0].executed).toBe(true);
+  });
+
+  it("PM: rejects a hallucinated (undiscovered) market", async () => {
+    const client = baseClient();
+    const pm = {
+      decision: "act",
+      actions: [{ type: "pm_open", source: "kalshi", slug: "not-real", outcomeExternalMarketId: "z", stakeMusd: 20, confidence: 0.9 }],
+    };
+    const d = deps({ live: true }, client, provider(pm));
+    d.spec.venues = ["spot", "futures", "pm"];
+    const r = await runCycle(d);
+    expect(r.planned[0].code).toBe("pm_market_not_discovered");
+    expect(client.openPmPosition).not.toHaveBeenCalled();
   });
 });

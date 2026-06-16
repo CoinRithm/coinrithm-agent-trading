@@ -14,17 +14,33 @@ const observation: Observation = {
   cashAvailableMusd: 1000,
   equityMusd: 50000,
   openPositions: [],
+  openOrders: [],
+  pmPositions: [],
+  pmMarkets: [],
   watch: [{ symbol: "BTC", coinId: "1", freshness: { status: "fresh" } }],
   syncCursor: null,
   newClosedTrades: [],
   polledBeforeWrite: true,
 };
 
+// A spec that allows all three venues (for the spot/PM branch tests).
+const allSpec = { ...spec, venues: ["spot", "futures", "pm"] as ("spot" | "futures" | "pm")[] };
+
 const freshQuote: QuoteEvidence = {
   eligible: true,
   freshness: { status: "fresh" },
   entryPrice: 67000,
   liquidationPrice: 60000,
+};
+
+// Spot quote shape from the REAL backend: executionPrice + estimatedCostMusd and
+// NO entryPrice (entryPrice is futures-only). estimatedCostMusd is omitted here
+// so a market buy sizes from executionPrice * quantity — matching the notional
+// test that varies quantity; a dedicated test below covers estimatedCostMusd.
+const freshSpotQuote: QuoteEvidence = {
+  eligible: true,
+  freshness: { status: "fresh" },
+  executionPrice: 67000,
 };
 
 const goodOpen: ProposedAction = {
@@ -49,6 +65,7 @@ function ctx(over: Partial<DecisionContext> = {}): DecisionContext {
     openMarginMusd: 0,
     realizedLossTodayMusd: 0,
     targetedPositionIds: [],
+    targetedOrderIds: [],
     ...over,
   };
 }
@@ -115,11 +132,6 @@ describe("validateAction", () => {
     expect(validateAction({ ...goodOpen, symbol: "DOGE" }, ctx()).code).toBe("unknown_symbol");
   });
 
-  it("rejects spot and pm actions as out of v1 scope", () => {
-    expect(validateAction({ type: "spot_order", symbol: "BTC", side: "buy", orderType: "market", quantity: 1 }, ctx()).code).toBe("out_of_scope_v1");
-    expect(validateAction({ type: "pm_open", source: "kalshi", slug: "x", outcomeExternalMarketId: "y", stakeMusd: 10 }, ctx()).code).toBe("out_of_scope_v1");
-  });
-
   it("rejects when aggregate open margin would exceed maxOpenMarginMusd", () => {
     // conservative maxOpenMarginMusd = 600; 600 already open + 50 more.
     expect(validateAction(goodOpen, ctx({ openMarginMusd: 600 })).code).toBe("open_margin_exceeds_cap");
@@ -152,5 +164,104 @@ describe("validateAction", () => {
     expect(
       validateAction({ type: "futures_close", positionId: 7 }, ctx({ observation: obsWithPos, targetedPositionIds: [7] })).code,
     ).toBe("position_already_targeted");
+  });
+
+  // ── spot ──────────────────────────────────────────────────────────────────
+  const spotBuy: ProposedAction = {
+    type: "spot_order",
+    symbol: "BTC",
+    side: "buy",
+    orderType: "market",
+    quantity: 0.0005,
+    confidence: 0.7,
+  };
+
+  it("accepts a compliant spot buy (venue enabled)", () => {
+    // 0.0005 * 67000 = 33.5 < perTradeMargin 50
+    expect(validateAction(spotBuy, ctx({ spec: allSpec, quote: freshSpotQuote })).valid).toBe(true);
+  });
+
+  it("rejects a spot action when spot is not an allowed venue", () => {
+    expect(validateAction(spotBuy, ctx()).code).toBe("venue_not_allowed"); // default spec is futures-only
+  });
+
+  it("rejects a limit order with no limitPrice", () => {
+    expect(
+      validateAction({ ...spotBuy, orderType: "limit" }, ctx({ spec: allSpec })).code,
+    ).toBe("missing_limit_price");
+  });
+
+  it("rejects a spot buy whose notional exceeds the per-trade cap", () => {
+    // 0.01 * 67000 = 670 > perTradeMargin 50
+    expect(
+      validateAction({ ...spotBuy, quantity: 0.01 }, ctx({ spec: allSpec, quote: freshSpotQuote })).code,
+    ).toBe("notional_exceeds_cap");
+  });
+
+  it("FAILS CLOSED on a market buy whose quote has no price (notional unbounded)", () => {
+    // eligible + fresh but no executionPrice/estimatedCostMusd — the old code
+    // silently SKIPPED the cap here; now it must reject, not fall through.
+    expect(
+      validateAction(spotBuy, ctx({ spec: allSpec, quote: { eligible: true, freshness: { status: "fresh" } } })).code,
+    ).toBe("missing_quote_price");
+  });
+
+  it("sizes a market buy from the server estimatedCostMusd, not executionPrice*qty", () => {
+    // estimatedCostMusd 60 (> cap 50) must bind even though executionPrice*qty
+    // would be tiny (1 * 0.0005). Proves the server's gross notional wins.
+    expect(
+      validateAction(
+        spotBuy,
+        ctx({ spec: allSpec, quote: { eligible: true, freshness: { status: "fresh" }, executionPrice: 1, estimatedCostMusd: 60 } }),
+      ).code,
+    ).toBe("notional_exceeds_cap");
+  });
+
+  it("sizes a stop buy from stopPrice", () => {
+    // stopPrice 200000 * 0.0005 = 100 > cap 50
+    expect(
+      validateAction(
+        { ...spotBuy, orderType: "stop", stopPrice: 200000 },
+        ctx({ spec: allSpec, quote: freshSpotQuote }),
+      ).code,
+    ).toBe("notional_exceeds_cap");
+  });
+
+  it("rejects cancelling an unknown order; accepts a known resting order", () => {
+    expect(validateAction({ type: "spot_cancel", orderId: 999 }, ctx({ spec: allSpec })).code).toBe("unknown_order");
+    const obs: Observation = { ...observation, openOrders: [{ id: 42, status: "open" }] };
+    expect(validateAction({ type: "spot_cancel", orderId: 42 }, ctx({ spec: allSpec, observation: obs })).valid).toBe(true);
+  });
+
+  // ── prediction markets ──────────────────────────────────────────────────
+  const obsWithPm: Observation = {
+    ...observation,
+    pmMarkets: [{ source: "kalshi", slug: "btc-up", outcomeExternalMarketId: "yes-1", freshness: { status: "fresh" } }],
+  };
+  const goodPm: ProposedAction = {
+    type: "pm_open",
+    source: "kalshi",
+    slug: "btc-up",
+    outcomeExternalMarketId: "yes-1",
+    stakeMusd: 20,
+    confidence: 0.7,
+  };
+
+  it("accepts a compliant pm_open on a discovered market", () => {
+    expect(validateAction(goodPm, ctx({ spec: allSpec, observation: obsWithPm })).valid).toBe(true);
+  });
+
+  it("rejects a pm_open on a market discovery did not surface", () => {
+    expect(
+      validateAction({ ...goodPm, slug: "hallucinated" }, ctx({ spec: allSpec, observation: obsWithPm })).code,
+    ).toBe("pm_market_not_discovered");
+  });
+
+  it("rejects a pm stake below the $10 minimum", () => {
+    expect(validateAction({ ...goodPm, stakeMusd: 5 }, ctx({ spec: allSpec, observation: obsWithPm })).code).toBe("pm_stake_below_min");
+  });
+
+  it("rejects a pm stake above the per-trade cap", () => {
+    expect(validateAction({ ...goodPm, stakeMusd: 60 }, ctx({ spec: allSpec, observation: obsWithPm })).code).toBe("pm_stake_exceeds_cap");
   });
 });

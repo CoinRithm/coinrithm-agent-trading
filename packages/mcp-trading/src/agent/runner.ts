@@ -1,11 +1,11 @@
-// The execution loop: observe -> decide (BYO model) -> validate -> act. v1
-// futures only. Dry-run never writes. Live uses idempotency keys + agentTrace
-// and exports run evidence. The client + provider are injected so the loop is
-// fully unit-testable with no network and no model calls.
+// The execution loop: observe -> decide (BYO model) -> validate -> act across
+// spot, futures, and prediction markets. Dry-run never writes. Live uses
+// idempotency keys + agentTrace and exports run evidence. The client + provider
+// are injected so the loop is fully unit-testable with no network/model calls.
 
 import { CoinRithmClient } from "./client.js";
 import { Provider } from "./providers.js";
-import { AgentSpec, RunState, CycleResult, PlannedAction, ProposedAction } from "./types.js";
+import { AgentSpec, RunState, CycleResult, PlannedAction, ProposedAction, QuoteEvidence, spotBuyCost } from "./types.js";
 import { observe } from "./observe.js";
 import { buildSystemPrompt, buildUserPrompt } from "./prompt.js";
 import { parseDecision } from "./decision.js";
@@ -39,7 +39,32 @@ function intentKeyOf(action: ProposedAction): string {
   if (action.type === "futures_set_sltp") {
     return `sltp:${action.positionId}`;
   }
-  return `other:${action.type}`; // unreachable: only futures actions are executed
+  if (action.type === "spot_order") {
+    return `spot:${action.symbol.toUpperCase()}:${action.side}:${action.orderType}:${action.quantity}:${action.limitPrice ?? ""}:${action.stopPrice ?? ""}`;
+  }
+  if (action.type === "spot_cancel") {
+    return `cancel:${action.orderId}`;
+  }
+  if (action.type === "pm_open") {
+    return `pm:${action.source.toLowerCase()}:${action.slug.toLowerCase()}:${action.outcomeExternalMarketId}:${action.stakeMusd}`;
+  }
+  return "other"; // unreachable: every action type is handled above
+}
+
+// Estimated cash a successful action consumes (for the running-cash guard):
+// futures margin, spot buy notional, or a PM stake. Closes/cancels/sells free
+// cash or are neutral, so they consume nothing here. Spot buys use the SAME
+// `spotBuyCost` helper the validator gates on, so the gate and this decrement
+// never diverge. The `?? 0` is unreachable for an EXECUTED buy: the validator
+// fails closed (missing_quote_price) on any buy whose cost can't be sized, so
+// nothing with an undefined cost ever reaches execution to be decremented.
+function cashConsumed(action: ProposedAction, quote?: QuoteEvidence): number {
+  if (action.type === "futures_open") return action.marginMusd;
+  if (action.type === "pm_open") return action.stakeMusd;
+  if (action.type === "spot_order" && action.side === "buy") {
+    return spotBuyCost(action, quote) ?? 0;
+  }
+  return 0;
 }
 
 export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
@@ -132,6 +157,7 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
   let cashAvailableMusd = observation.cashAvailableMusd;
   const realizedLossTodayMusd = Math.max(0, -state.realizedPnlTodayMusd);
   const targetedPositionIds: number[] = [];
+  const targetedOrderIds: number[] = [];
   let anyAccepted = false;
   let anyExecuted = false;
   let anyExecFailed = false;
@@ -149,6 +175,7 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
       openMarginMusd,
       realizedLossTodayMusd,
       targetedPositionIds,
+      targetedOrderIds,
     };
     const v = validateAction(action, ctx);
     if (!v.valid) {
@@ -159,6 +186,9 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
     anyAccepted = true;
     if (action.type === "futures_close" || action.type === "futures_set_sltp") {
       targetedPositionIds.push(action.positionId);
+    }
+    if (action.type === "spot_cancel") {
+      targetedOrderIds.push(action.orderId);
     }
     if (!live) {
       planned.push({ action, accepted: true, quote, executed: false });
@@ -182,8 +212,10 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
       if (action.type === "futures_open") {
         openCount += 1;
         openMarginMusd += action.marginMusd;
-        if (cashAvailableMusd != null) cashAvailableMusd -= action.marginMusd;
       }
+      // Decrement running cash by what this action consumed (futures margin /
+      // spot buy notional / PM stake) so a later action this cycle sees it spent.
+      if (cashAvailableMusd != null) cashAvailableMusd -= cashConsumed(action, quote);
     } else {
       anyExecFailed = true;
     }

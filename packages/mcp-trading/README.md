@@ -6,7 +6,7 @@ CoinRithm paper-trading toolkit. Two binaries:
   CoinRithm (spot, futures, prediction markets) using a personal API key.
 - **`coinrithm-agent`** — a self-host **agent runner**: author an agent as a
   folder and run an observe→decide→validate→act loop with your own model key
-  (paper, futures v1). See [Agent runner](#agent-runner-coinrithm-agent) below.
+  (paper: spot, futures, prediction markets). See [Agent runner](#agent-runner-coinrithm-agent) below.
 
 > **Paper trading only** — virtual funds (50,000 mUSD). Not financial advice.
 
@@ -23,7 +23,7 @@ This package also ships a **self-host agent runner**. You write an agent as a
 folder (strategy + hard caps in markdown/YAML); the runner compiles it and runs
 an `observe → decide → validate → act` loop, asking *your* model (bring-your-own
 key) for structured decisions and executing only the ones that pass your caps —
-**dry-run by default**, paper-only, futures in v1.
+**dry-run by default**, paper-only across spot, futures, and prediction markets.
 
 ```bash
 coinrithm-agent new my-agent --preset conservative

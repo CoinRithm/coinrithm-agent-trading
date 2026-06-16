@@ -143,6 +143,29 @@ export class CoinRithmClient {
   ) {
     return this.request("POST", "/api/agent/futures/quote", { body: { ...body, agentTrace: trace } });
   }
+  // ── spot ─────────────────────────────────────────────────────────────────
+  openOrders(query?: { coinId?: string; updatedSince?: string }, trace?: AgentTrace) {
+    return this.request("GET", "/api/agent/orders/open", { query, trace });
+  }
+  spotQuote(body: { coinId: string; side: string; quantity: number }, trace?: AgentTrace) {
+    return this.request("POST", "/api/agent/spot/quote", { body: { ...body, agentTrace: trace } });
+  }
+  // ── prediction markets ───────────────────────────────────────────────────
+  discoverPmMarkets(
+    query?: { q?: string; source?: string; limit?: number },
+    trace?: AgentTrace,
+  ) {
+    return this.request("GET", "/api/agent/pm/discover", { query, trace });
+  }
+  pmPositions(query?: { updatedSince?: string }, trace?: AgentTrace) {
+    return this.request("GET", "/api/agent/positions/pm", { query, trace });
+  }
+  pmQuote(
+    body: { source: string; slug: string; outcomeExternalMarketId: string; stakeMusd: number },
+    trace?: AgentTrace,
+  ) {
+    return this.request("POST", "/api/agent/pm/quote", { body: { ...body, agentTrace: trace } });
+  }
 
   // ── writes ─────────────────────────────────────────────────────────────────
   openFutures(body: {
@@ -172,6 +195,31 @@ export class CoinRithmClient {
     agentTrace?: AgentTrace;
   }) {
     return this.request("POST", "/api/agent/futures/sl-tp", { body });
+  }
+  placeSpotOrder(body: {
+    coinId: string;
+    side: string; // buy | sell
+    orderType: string; // market | limit | stop
+    quantity: number;
+    limitPrice?: number;
+    stopPrice?: number;
+    idempotencyKey: string;
+    agentTrace?: AgentTrace;
+  }) {
+    return this.request("POST", "/api/agent/spot/order", { body });
+  }
+  cancelSpotOrder(orderId: number, trace?: AgentTrace) {
+    return this.request("POST", `/api/agent/spot/order/${orderId}/cancel`, { trace });
+  }
+  openPmPosition(body: {
+    source: string;
+    slug: string;
+    outcomeExternalMarketId: string;
+    stakeMusd: number;
+    idempotencyKey: string;
+    agentTrace?: AgentTrace;
+  }) {
+    return this.request("POST", "/api/agent/pm/open", { body });
   }
 
   // Run-evidence export — runId is URL-encoded into the query.
