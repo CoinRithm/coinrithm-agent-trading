@@ -456,9 +456,7 @@ function resolveDirectory(dir: string): ResolvedAgent {
     }
   }
 
-  const mergedProse = proseParts
-    .map((p) => `<!-- ${p.source} -->\n${p.text.trim()}`)
-    .join("\n\n");
+  const mergedProse = mergeProseParts(proseParts);
 
   checkSizing(ctx, rawFrontmatter);
   scanSecrets(ctx, rawFrontmatter, mergedProse);
@@ -521,6 +519,21 @@ function applySkillPatch(
 }
 
 // ── entry point ──────────────────────────────────────────────────────────────
+
+// Is this prose part a tactic skill? (Used by the skills ablation kill-switch to
+// drop skill bodies from the run-time prompt without touching the resolver.)
+export function isSkillProseSource(source: string): boolean {
+  return source.startsWith("character/skills/");
+}
+
+// The canonical prose assembly: each part labelled with its source, joined by a
+// blank line. The resolver uses this for mergedProse; the run path reuses it to
+// re-assemble a skills-ablated prompt deterministically.
+export function mergeProseParts(
+  parts: Array<{ source: string; text: string }>,
+): string {
+  return parts.map((p) => `<!-- ${p.source} -->\n${p.text.trim()}`).join("\n\n");
+}
 
 export function resolveAgent(inputPath: string): ResolvedAgent {
   const abs = resolvePath(inputPath);

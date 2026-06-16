@@ -11,6 +11,21 @@ export const SPEC_VERSION = "coinrithm.agent.v1";
 export type Venue = "spot" | "futures" | "pm";
 export const VENUES: readonly Venue[] = ["spot", "futures", "pm"];
 
+// The runner's live action vocabulary — the capability set the drift guard
+// checks authored prose against. MUST mirror the ProposedAction union below and
+// the zod schema in decision.ts. A test ("ACTION_TYPES stays in lockstep with
+// the decision schema", capabilityGuard.test.ts) derives the literal set from
+// decision.ts's actionSchema and asserts equality, so the two cannot drift.
+export const ACTION_TYPES = [
+  "futures_open",
+  "futures_close",
+  "futures_set_sltp",
+  "spot_order",
+  "spot_cancel",
+  "pm_open",
+] as const;
+export type ActionType = (typeof ACTION_TYPES)[number];
+
 export type ProviderName = "anthropic" | "openai" | "groq" | "openai-compatible";
 export const PROVIDERS: readonly ProviderName[] = [
   "anthropic",

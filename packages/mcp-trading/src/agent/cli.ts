@@ -17,15 +17,16 @@ import {
 } from "node:fs";
 import { resolve as resolvePath, dirname, join, basename } from "node:path";
 import { parse as parseYaml } from "yaml";
-import { resolveAgent, ResolveError } from "./resolve.js";
+import { resolveAgent, ResolveError, mergeProseParts, isSkillProseSource } from "./resolve.js";
 import { buildSpec, loadAgent } from "./skill.js";
 import { validateSkill, SkillValidationMode } from "./skillValidator.js";
 import { strictLint } from "./strictLint.js";
+import { checkCapabilityDrift } from "./capabilityGuard.js";
 import { buildManifest, writeManifest } from "./manifest.js";
 import { parseFrontmatter } from "./frontmatter.js";
 import { renderFolderOfOne, ejectFiles, PRESET_NAMES, PresetName } from "./templates.js";
 import { COINRITHM_API } from "./version.js";
-import { stableStringify } from "./util.js";
+import { stableStringify, envFlag } from "./util.js";
 import { ResolveIssue } from "./types.js";
 import { CoinRithmClient } from "./client.js";
 import { selectProvider } from "./providers.js";
@@ -117,8 +118,8 @@ export function cmdValidate(
     throw e;
   }
   const raw = resolved.rawFrontmatter;
-  const lint = strictLint(raw);
   const spec = buildSpec(raw);
+  const lint = [...strictLint(raw), ...checkCapabilityDrift(resolved, spec)];
   const v = validateSkill({ spec, body: resolved.mergedProse, raw }, mode);
 
   const lintFatal = mode === "hosted";
@@ -141,7 +142,19 @@ export function cmdLock(path: string): CmdResult {
   const spec = buildSpec(resolved.rawFrontmatter);
   const manifest = buildManifest(resolved, spec);
   const out = writeManifest(agentDirOf(path), manifest);
-  return { ok: true, code: 0, lines: [`wrote ${out}`, `configHash ${manifest.configHash}`] };
+  // Self-host treats capability drift as advisory (not fatal), but locking past
+  // it silently would hide it — surface it so the author isn't surprised when
+  // `validate --hosted` later rejects the same folder.
+  const drift = ((v.data as { lint?: ResolveIssue[] } | undefined)?.lint ?? []).filter((i) =>
+    i.code.startsWith("drift_"),
+  );
+  const warn = drift.length
+    ? [
+        `⚠ locked with ${drift.length} advisory capability-drift note(s) — \`validate --hosted\` would reject these:`,
+        ...drift.map((i) => `  [${i.code}] ${i.path ? `${i.path}: ` : ""}${i.message}`),
+      ]
+    : [];
+  return { ok: true, code: 0, lines: [`wrote ${out}`, `configHash ${manifest.configHash}`, ...warn] };
 }
 
 export function cmdEject(path: string): CmdResult {
@@ -188,7 +201,7 @@ export function cmdInspect(path: string, json = false): CmdResult {
     throw e;
   }
   const spec = buildSpec(resolved.rawFrontmatter);
-  const lint = strictLint(resolved.rawFrontmatter);
+  const lint = [...strictLint(resolved.rawFrontmatter), ...checkCapabilityDrift(resolved, spec)];
   const v = validateSkill({ spec, body: resolved.mergedProse, raw: resolved.rawFrontmatter }, "self-host");
   const output = {
     resolvedConfig: resolved.rawFrontmatter,
@@ -284,11 +297,22 @@ export async function cmdRun(
     const lines: string[] = [
       `run ${live ? "LIVE (paper trades WILL be placed)" : "DRY-RUN (no writes; set --live or LIVE=1)"} — ${loaded.spec.name}`,
     ];
+    // Skills ablation kill-switch: drop tactic-skill prose from the prompt for
+    // token-cost control or A/B testing. Affects ONLY the run-time prompt — the
+    // resolver, manifest, and caps are untouched (the spec is still enforced).
+    const disableSkills = envFlag(process.env.COINRITHM_AGENT_DISABLE_SKILLS);
+    const mergedProse = disableSkills
+      ? mergeProseParts(loaded.resolved.proseParts.filter((p) => !isSkillProseSource(p.source)))
+      : loaded.body;
+    if (disableSkills) {
+      const dropped = loaded.resolved.proseParts.filter((p) => isSkillProseSource(p.source)).length;
+      lines.push(`skills DISABLED via COINRITHM_AGENT_DISABLE_SKILLS — ${dropped} tactic skill(s) dropped from the prompt (caps unchanged)`);
+    }
     const deps: RunnerDeps = {
       client,
       provider,
       spec: loaded.spec,
-      mergedProse: loaded.body,
+      mergedProse,
       state,
       live,
       stateFile,

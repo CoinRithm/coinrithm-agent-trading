@@ -24,6 +24,11 @@ export function dayKey(d: Date = new Date()): string {
   return d.toISOString().slice(0, 10);
 }
 
+// Truthy reading of an opt-in env flag (1/true/yes/on, case-insensitive).
+export function envFlag(value: string | undefined): boolean {
+  return ["1", "true", "yes", "on"].includes((value ?? "").trim().toLowerCase());
+}
+
 // Deep-scan a parsed frontmatter object for anything that looks like a secret.
 // The skill file is meant to be committable and shareable; a real key must
 // NEVER live in it (keys are supplied at runtime via env / encrypted store).

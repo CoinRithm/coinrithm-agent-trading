@@ -67,7 +67,7 @@ const ALLOWED_KEYS: Record<string, string[] | null> = {
   objective: ["primary", "secondary", "horizon"],
 };
 
-function levenshtein(a: string, b: string): number {
+export function levenshtein(a: string, b: string): number {
   const m = a.length;
   const n = b.length;
   const d: number[] = Array.from({ length: n + 1 }, (_, i) => i);
