@@ -201,6 +201,32 @@ for the agents to actually TRADE (Arena + live-terminal showcase), `observe()`
 likely needs richer signal (candles / recent highs-lows / volume via the existing
 `get_candles` + market context) and/or a stronger brain. Tracked, not a blocker.
 
+## D15 — Hosted runtime = a stateless, DB-driven scheduler (one schema in the shared Postgres)
+
+**Context.** The "free run" must run house **and** user agents 24/7 without a
+per-agent process, a custom house scheduler, or any local files.
+
+**Decision.** A separate private package `packages/scheduler` (NOT published)
+imports the runner engine and runs every active agent on its cadence. Postgres
+(its own `agent_runtime` schema inside the shared coinrithm-postgres) is the
+source of truth: `agents` (compiled spec + prose + model + cadence + encrypted
+keys), `agent_state` (the RunState), `agent_cycles` (the reasoning/trade feed).
+The scheduler is **stateless** — it claims due agents with `FOR UPDATE SKIP
+LOCKED` and advances `next_run_at` in the same transaction (at-most-once per
+window, multi-replica safe). Per-agent secrets (CoinRithm key + optional BYO
+model key) are **AES-256-GCM encrypted at rest**, decrypted only in memory.
+House agents are seeded rows; user agents are the same table via the deploy path.
+
+**Why.** No redeploy to add/edit an agent; stateless + horizontally scalable;
+house and user agents share one code path; the live terminal, Arena, and daily
+post all read `agent_cycles`. The engine needed **zero** changes — `runCycle`
+already takes `{spec, mergedProse, state}` as plain objects and `saveState(undefined)`
+no-ops. Adversarially reviewed (netHolds, no merge-blockers): the
+at-most-once-per-window + server-side idempotent-replay (UNIQUE INDEX on
+`idempotencyKey`) invariant holds end-to-end, so a crash never double-trades.
+Hardenings applied: config/credential errors disable the agent (vs error-looping),
+state+cycle+disable persist atomically, global crash handlers, URL validation.
+
 ---
 
 ## Open directions (not yet decided / not implemented)

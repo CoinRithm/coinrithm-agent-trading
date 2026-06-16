@@ -48,7 +48,10 @@ export function loadState(file: string | undefined, runId: string): RunState {
       ...base,
       ...parsed,
       seen: Array.isArray(parsed.seen) ? parsed.seen : [],
-      intentSeq: parsed.intentSeq && typeof parsed.intentSeq === "object" ? parsed.intentSeq : {},
+      intentSeq:
+        parsed.intentSeq && typeof parsed.intentSeq === "object" && !Array.isArray(parsed.intentSeq)
+          ? parsed.intentSeq
+          : {},
     });
   }
   return newState(runId);
