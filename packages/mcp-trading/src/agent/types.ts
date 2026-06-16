@@ -26,11 +26,12 @@ export const ACTION_TYPES = [
 ] as const;
 export type ActionType = (typeof ACTION_TYPES)[number];
 
-export type ProviderName = "anthropic" | "openai" | "groq" | "openai-compatible";
+export type ProviderName = "anthropic" | "openai" | "groq" | "nvidia" | "openai-compatible";
 export const PROVIDERS: readonly ProviderName[] = [
   "anthropic",
   "openai",
   "groq",
+  "nvidia",
   "openai-compatible",
 ];
 

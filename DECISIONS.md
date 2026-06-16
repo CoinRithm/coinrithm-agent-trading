@@ -175,15 +175,39 @@ untouched — the spec is still enforced in full.
 **Why.** Cost control + ablation testing, with zero risk to the safety envelope
 (caps live in the runner, D3, not in the skills).
 
+## D14 — Default free brain = `meta/llama-3.1-8b-instruct` via the `nvidia` preset
+
+**Context.** The hosted "free run" needs a default brain at ~$0 to us. NVIDIA NIM
+offers free, OpenAI-compatible endpoints. A live JSON probe (`scripts/nim-probe.mjs`)
+ran the REAL system prompt + observations through candidates.
+
+**Decision.** Default house-agent / free-tier brain = `meta/llama-3.1-8b-instruct`
+on a new `nvidia` provider preset (hard-wired to `integrate.api.nvidia.com/v1`,
+key from `NVIDIA_API_KEY`). `meta/llama-3.3-70b-instruct` is the optional "deep"
+tier; BYO-key (Claude/GPT) stays the upgrade path.
+
+**Why.** Probe (Mia + Leo, calm + strong tapes): **8b emitted valid `Decision`
+JSON 12/12 at ~0.6s**; 70b was valid but the free tier was slow + flaky (60–68s,
+intermittent HTTP 504); `nemotron-3-ultra` was rejected (~60s and its thinking
+tokens corrupt the JSON — a reasoning model is the wrong tool for trade-decide).
+NIM accepts `response_format: json_object`, so the existing openai-compatible
+provider works unchanged. Free tier is 40 RPM (plenty when cycles are staggered);
+its ToS is prototyping/eval, so production-at-scale moves to cheap serverless or
+BYO-key — never enterprise GPUs.
+
+**Caveat / follow-up.** Every model SKIPPED on the synthetic observation — even
+Leo on a breakout. Partly correct (don't act on ambiguous price/%-only data), but
+for the agents to actually TRADE (Arena + live-terminal showcase), `observe()`
+likely needs richer signal (candles / recent highs-lows / volume via the existing
+`get_candles` + market context) and/or a stronger brain. Tracked, not a blocker.
+
 ---
 
 ## Open directions (not yet decided / not implemented)
 
-- **Default brain = NVIDIA NIM free endpoints.** Use a free OpenAI-compatible NIM
-  model (e.g. nemotron) as the default tier for house agents and the free user
-  tier; BYO-key stays the upgrade path ("connect your own brain"). Safe because
-  caps live in the runner (D3) — a weaker brain can only propose. Enables the
-  hosted "free run" goal economically. *Pending owner go-ahead.*
+- **Default brain — DECIDED (see D14):** `meta/llama-3.1-8b-instruct` via the
+  `nvidia` preset. Remaining: wire it as the scheduler's default + the observation
+  enrichment from D14's caveat so house agents actually trade.
 - **Hosted scheduler ("free run").** CoinRithm runs the same engine for users who
   can't self-host 24/7. The runner is the importable core; the scheduler is the
   next build.
