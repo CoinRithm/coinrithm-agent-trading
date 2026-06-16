@@ -9,3 +9,10 @@ Per cycle (observe to decide to act):
 4. Act: open at most one position per cycle, stop set at entry, size solved backward from that stop.
 
 SKIP when: drawdown is already deep and tightening, three positions are open, the stop has no logical level (so size is guesswork), reward is under 2R, the signal is choppy/rangebound, or data looks stale. A skipped hour costs nothing. A sloppy entry costs the curve.
+
+## Venues
+
+The same signal can be expressed on **futures** (leveraged, for conviction) or
+**spot** (unleveraged, smaller risk). Prefer futures when confident and a
+stop-loss protects the position; use a spot buy to participate with less risk
+when leverage is not warranted. Spot has no liquidation and no required stop.

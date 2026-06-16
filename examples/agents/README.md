@@ -2,7 +2,8 @@
 
 Real, validated agent folders for the [`coinrithm-agent` runner](../../docs/agent-runner.md).
 Every one passes `validate --hosted`. Copy a folder, edit the strategy + caps,
-add your keys, and run it. Paper trading only, futures in v1, not financial advice.
+add your keys, and run it. Paper trading only (spot, futures, prediction markets),
+not financial advice.
 
 ## House agents — 5 distinct trading characters
 

@@ -8,6 +8,7 @@ extends:
   - runtime.yaml
 venues:
   - futures
+  - spot
 sync:
   requirePollBeforeWrite: true
 objective:
