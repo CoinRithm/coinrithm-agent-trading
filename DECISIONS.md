@@ -227,6 +227,52 @@ at-most-once-per-window + server-side idempotent-replay (UNIQUE INDEX on
 Hardenings applied: config/credential errors disable the agent (vs error-looping),
 state+cycle+disable persist atomically, global crash handlers, URL validation.
 
+## D16 — An agent's DATA DIET is declared in its folder; default = compact indicators
+
+**Context.** The free brain (llama-3.1-8b) emits valid `Decision` JSON but always
+SKIPS — even a breakout agent on a breakout — because the observation is a fixed
+thin bundle (price + 1h/24h/7d change + freshness) every agent shares. The folder
+already reserves a `capabilities: [indicators]` knob, but it is **declared-but-dead**:
+`observe.ts` never reads `spec.capabilities`. (Two siblings have the same rot —
+`onWeakSignal` is defaulted-on but has no runtime consumer, and the loop records
+decision OUTPUTS but not the structured INPUT the model saw, so you can't prove
+"skipped because RSI was mid-band" vs "because data was thin".)
+
+**Decision.** Make the agent's **data diet** a declared, version-pinned part of the
+folder (folder-as-architecture + OKF): an agent opts into richer signal via
+`capabilities: [indicators]` (and, later, a `data` block for timeframe/range). The
+runner's **default is compact precomputed indicators** (RSI/EMA/ATR/Bollinger +
+breakout levels) — the free brain reasons far better over a handful of clean
+numbers than over raw OHLCV bars (token + reasoning cost). Raw candles stay an
+opt-in for stronger/BYO brains.
+
+**Shipped tonight (probe-free).** `indicators.ts` — deterministic, tested
+indicator math (`computeIndicators` → RSI14/EMA20/EMA50/ATR14/Bollinger/recent
+high-low + derived `aboveEma20`/`ema20AboveEma50`/`brokeRecentHigh/Low` flags).
+Pure functions, 16 tests, no network. This is the runner-computed half of the
+`indicators` capability, shipped ahead of the fetch.
+
+**Gated on a live PROBE (Probe-First, owner's morning).** Wiring `observe()` to
+FETCH candles. The endpoint exists (`GET /api/agent/market/:coinId/candles`,
+`client.candles()`), but per Probe-First we must first probe the real payload:
+available vs populated fields, the `range` params, timestamp semantics, the
+429/Retry-After shape (so the existing `onRateLimitPressure` kill-switch is fed),
+and confirm the 60s shared cache + per-key limiter absorb the +1 call/coin/cycle.
+Then: in `observe()`, if `spec.capabilities.includes("indicators")`, fetch candles
+per resolved coin, `computeIndicators`, and add an `indicators` field to the
+`WatchEntry`; expose it in `prompt.ts`; and **also** stamp
+`{ observationHash, indicators, candleRange, indicatorVersion }` into the
+trace/manifest so each decision is reproducible against its exact inputs
+(closing the reproducible-eval gap). Wiring `onWeakSignal` to gate on a weak
+indicator read is the natural follow-on once the data is load-bearing.
+
+**Why.** This makes CoinRithm the platform where an agent's data diet is a
+declared, forkable, replayable part of the folder — not a hardcoded runner
+constant. The always-SKIP bug becomes a feature: agents skip when their declared
+signal is genuinely weak and act when it is genuinely present. Defensible wedge:
+reproducible, declarative, evaluable agents (the field's stated gap), while
+keeping the free brain viable on compact signal.
+
 ---
 
 ## Open directions (not yet decided / not implemented)
