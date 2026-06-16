@@ -24,8 +24,13 @@ export interface ProviderEnv {
   ANTHROPIC_API_KEY?: string;
   OPENAI_API_KEY?: string;
   GROQ_API_KEY?: string;
+  NVIDIA_API_KEY?: string;
   MODEL_API_KEY?: string;
 }
+
+// NVIDIA NIM is OpenAI-compatible; the `nvidia` preset hard-wires the hosted
+// endpoint so an agent only needs `{ provider: nvidia, name: "<model id>" }`.
+const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
 
 function envKey(provider: ProviderName, env: ProviderEnv): string | undefined {
   switch (provider) {
@@ -35,6 +40,8 @@ function envKey(provider: ProviderName, env: ProviderEnv): string | undefined {
       return env.OPENAI_API_KEY;
     case "groq":
       return env.GROQ_API_KEY;
+    case "nvidia":
+      return env.NVIDIA_API_KEY ?? env.MODEL_API_KEY;
     case "openai-compatible":
       return env.MODEL_API_KEY ?? env.OPENAI_API_KEY;
   }
@@ -46,6 +53,8 @@ function baseUrlFor(provider: ProviderName, configured?: string): string {
       return "https://api.openai.com/v1";
     case "groq":
       return "https://api.groq.com/openai/v1";
+    case "nvidia":
+      return NVIDIA_BASE_URL;
     case "openai-compatible":
       return (configured ?? "").replace(/\/+$/, "");
     case "anthropic":
@@ -150,7 +159,9 @@ export function selectProvider(
         ? "ANTHROPIC_API_KEY"
         : provider === "groq"
           ? "GROQ_API_KEY"
-          : "OPENAI_API_KEY / MODEL_API_KEY";
+          : provider === "nvidia"
+            ? "NVIDIA_API_KEY"
+            : "OPENAI_API_KEY / MODEL_API_KEY";
     throw new Error(`missing model API key: set ${varName} in the environment (never in an agent file)`);
   }
   if (provider === "anthropic") return new AnthropicProvider(name, key, fetchFn);
