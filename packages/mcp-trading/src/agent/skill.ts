@@ -21,6 +21,7 @@ import {
 } from "./types.js";
 import { resolveAgent, ResolveError } from "./resolve.js";
 import { strictLint } from "./strictLint.js";
+import { checkCapabilityDrift } from "./capabilityGuard.js";
 
 // Safe defaults for the OPTIONAL policy blocks. A minimal self-host skill
 // (name/description/spec/trigger/model/venues/risk) runs under these. Hosted
@@ -183,8 +184,10 @@ export function loadAgent(
 ): LoadedAgent {
   const resolved = resolveAgent(inputPath);
   const raw = resolved.rawFrontmatter;
-  const lint = strictLint(raw);
-  if (mode === "hosted" && lint.length) throw new ResolveError(lint);
   const spec = buildSpec(raw);
+  // strictLint = frontmatter keys/enums; capability drift = prose references to
+  // venues/actions/caps the runner (or this agent's venues) does not support.
+  const lint = [...strictLint(raw), ...checkCapabilityDrift(resolved, spec)];
+  if (mode === "hosted" && lint.length) throw new ResolveError(lint);
   return { resolved, spec, body: resolved.mergedProse, raw, lint };
 }

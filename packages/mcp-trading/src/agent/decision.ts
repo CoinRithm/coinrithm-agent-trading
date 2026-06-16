@@ -72,7 +72,7 @@ const pmOpen = z
   })
   .strict();
 
-const actionSchema = z.discriminatedUnion("type", [
+export const actionSchema = z.discriminatedUnion("type", [
   futuresOpen,
   futuresClose,
   futuresSetSltp,
