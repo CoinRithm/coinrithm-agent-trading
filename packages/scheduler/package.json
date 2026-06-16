@@ -1,0 +1,27 @@
+{
+  "name": "@coinrithm/agent-scheduler",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Hosted agent runtime: a stateless, DB-driven scheduler that runs CoinRithm paper-trading agents (house + user) on their cadences. NOT published.",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "start": "node dist/index.js",
+    "seed:house": "npm run build && node scripts/seed-house-agents.mjs"
+  },
+  "dependencies": {
+    "@coinrithm/mcp-trading": "file:../mcp-trading",
+    "pg": "^8.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/pg": "^8.11.10",
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
