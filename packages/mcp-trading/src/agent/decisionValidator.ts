@@ -1,7 +1,7 @@
 // The decision gate: re-check EVERY proposed action against the spec's hard caps
 // BEFORE any write. The model only proposes; this disposes. Because the caps
 // come from the spec (not the observation or the model), a prompt-injection in
-// market text cannot widen a limit or force a trade. v1 = futures only.
+// market text cannot widen a limit or force a trade. Covers futures + spot + PM.
 
 import {
   AgentSpec,
@@ -12,6 +12,7 @@ import {
   ok,
   fail,
   actionVenue,
+  spotBuyCost,
 } from "./types.js";
 
 export interface DecisionContext {
@@ -24,18 +25,15 @@ export interface DecisionContext {
   cashAvailableMusd: number | null; // RUNNING: decremented after each open this cycle
   openMarginMusd: number; // RUNNING: total open margin (existing + this cycle)
   realizedLossTodayMusd: number; // today's realized LOSS as a positive number
-  targetedPositionIds: number[]; // positions already acted on this cycle
+  targetedPositionIds: number[]; // futures positions already acted on this cycle
+  targetedOrderIds: number[]; // spot orders already cancelled this cycle
 }
 
 const SERVER_MAX_LEVERAGE = 20;
+const PM_MIN_STAKE_MUSD = 10; // server minimum prediction-market stake
 
 export function validateAction(action: ProposedAction, ctx: DecisionContext): ValidationResult {
   const { spec, observation } = ctx;
-
-  // v1 scope: futures only.
-  if (action.type === "spot_order" || action.type === "spot_cancel" || action.type === "pm_open") {
-    return fail("out_of_scope_v1", `action "${action.type}" is out of v1 scope (futures only)`);
-  }
 
   const venue = actionVenue(action);
   if (!spec.venues.includes(venue)) {
@@ -134,6 +132,98 @@ export function validateAction(action: ProposedAction, ctx: DecisionContext): Va
       if (!hasTrigger) {
         return fail("sltp_no_op", "futures_set_sltp must set at least one positive stopLossPrice or takeProfitPrice");
       }
+    }
+    return ok();
+  }
+
+  if (action.type === "spot_order") {
+    const entry = observation.watch.find(
+      (w) => w.symbol.toUpperCase() === action.symbol.toUpperCase(),
+    );
+    if (!entry) return fail("unknown_symbol", `${action.symbol} is not on the watchlist`);
+    if (!entry.coinId) return fail("unresolved_symbol", `${action.symbol} did not resolve to a coin`);
+    if (action.orderType === "limit" && !(typeof action.limitPrice === "number" && action.limitPrice > 0)) {
+      return fail("missing_limit_price", "a limit order needs a positive limitPrice");
+    }
+    if (action.orderType === "stop" && !(typeof action.stopPrice === "number" && action.stopPrice > 0)) {
+      return fail("missing_stop_price", "a stop order needs a positive stopPrice");
+    }
+    // A BUY opens new risk: daily-loss stop, confidence, per-trade notional, cash.
+    if (action.side === "buy") {
+      if (spec.limits.maxDailyLossMusd > 0 && ctx.realizedLossTodayMusd >= spec.limits.maxDailyLossMusd) {
+        return fail("daily_loss_cap", `today's realized loss ${ctx.realizedLossTodayMusd} >= ${spec.limits.maxDailyLossMusd}`);
+      }
+      if ((action.confidence ?? 0) < spec.abstention.minConfidence) {
+        return fail("below_min_confidence", `confidence ${action.confidence ?? 0} < min ${spec.abstention.minConfidence}`);
+      }
+      // Size the BUY with the SAME helper the runner uses to decrement cash, so
+      // the gate and the running-cash accounting never diverge. FAIL CLOSED: an
+      // unpriced market buy (server quote omits executionPrice/estimatedCostMusd)
+      // yields undefined -> reject. The old `cost != null && ...` guards SKIPPED
+      // both caps in that case (notional + balance), a fail-open we must not keep.
+      const cost = spotBuyCost(action, ctx.quote);
+      if (!(typeof cost === "number" && cost > 0)) {
+        return fail("missing_quote_price", "cannot size spot buy notional without a price");
+      }
+      if (cost > spec.risk.perTradeMarginMusd) {
+        return fail("notional_exceeds_cap", `spot notional ${cost} > per-trade cap ${spec.risk.perTradeMarginMusd}`);
+      }
+      if (ctx.cashAvailableMusd != null && cost > ctx.cashAvailableMusd) {
+        return fail("insufficient_balance", `spot cost ${cost} > available ${ctx.cashAvailableMusd}`);
+      }
+    }
+    if (!ctx.quote) return fail("missing_quote", "no quote evidence was fetched for this spot order");
+    if (!ctx.quote.eligible) {
+      return fail("quote_ineligible", `quote blocked: ${JSON.stringify(ctx.quote.blockReasons ?? [])}`);
+    }
+    if (!ctx.quote.freshness || ctx.quote.freshness.status !== "fresh") {
+      return fail("stale_quote", `quote freshness ${ctx.quote.freshness?.status ?? "missing"} (need fresh)`);
+    }
+    return ok();
+  }
+
+  if (action.type === "spot_cancel") {
+    const o = observation.openOrders.find((x) => x.id === action.orderId);
+    if (!o) return fail("unknown_order", `no open spot order ${action.orderId}`);
+    if (ctx.targetedOrderIds.includes(action.orderId)) {
+      return fail("order_already_targeted", `order ${action.orderId} already cancelled this cycle`);
+    }
+    return ok();
+  }
+
+  if (action.type === "pm_open") {
+    if (spec.limits.maxDailyLossMusd > 0 && ctx.realizedLossTodayMusd >= spec.limits.maxDailyLossMusd) {
+      return fail("daily_loss_cap", `today's realized loss ${ctx.realizedLossTodayMusd} >= ${spec.limits.maxDailyLossMusd}`);
+    }
+    // The model may only open a market that DISCOVERY surfaced this cycle — no
+    // hallucinated source/slug. (source/slug are lowercased; outcome is exact.)
+    const mkt = observation.pmMarkets.find(
+      (m) =>
+        m.source === action.source.toLowerCase() &&
+        m.slug === action.slug.toLowerCase() &&
+        m.outcomeExternalMarketId === action.outcomeExternalMarketId,
+    );
+    if (!mkt) {
+      return fail("pm_market_not_discovered", `${action.source}/${action.slug} is not in the discovered PM markets`);
+    }
+    if (action.stakeMusd < PM_MIN_STAKE_MUSD) {
+      return fail("pm_stake_below_min", `stake ${action.stakeMusd} < $${PM_MIN_STAKE_MUSD} minimum`);
+    }
+    if (action.stakeMusd > spec.risk.perTradeMarginMusd) {
+      return fail("pm_stake_exceeds_cap", `stake ${action.stakeMusd} > per-trade cap ${spec.risk.perTradeMarginMusd}`);
+    }
+    if (ctx.cashAvailableMusd != null && action.stakeMusd > ctx.cashAvailableMusd) {
+      return fail("insufficient_balance", `stake ${action.stakeMusd} > available ${ctx.cashAvailableMusd}`);
+    }
+    if ((action.confidence ?? 0) < spec.abstention.minConfidence) {
+      return fail("below_min_confidence", `confidence ${action.confidence ?? 0} < min ${spec.abstention.minConfidence}`);
+    }
+    if (!ctx.quote) return fail("missing_quote", "no quote evidence was fetched for this PM open");
+    if (!ctx.quote.eligible) {
+      return fail("quote_ineligible", `quote blocked: ${JSON.stringify(ctx.quote.blockReasons ?? [])}`);
+    }
+    if (!ctx.quote.freshness || ctx.quote.freshness.status !== "fresh") {
+      return fail("stale_quote", `quote freshness ${ctx.quote.freshness?.status ?? "missing"} (need fresh)`);
     }
     return ok();
   }

@@ -8,6 +8,7 @@ extends:
   - runtime.yaml
 venues:
   - futures
+  - pm
 sync:
   requirePollBeforeWrite: true
 objective:
@@ -32,6 +33,7 @@ include:
   - probability-forecast
   - conviction-sizing
   - abstention-discipline
+  - pm-calibration
 ---
 
 States a probability before every trade, abstains unless she is at least 70 percent sure, and is graded on whether her 70s really come in 70 percent of the time.

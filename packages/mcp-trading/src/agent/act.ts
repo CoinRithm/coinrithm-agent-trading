@@ -1,5 +1,6 @@
 // Act phase: fetch the quote evidence for an open (the runner does this, never
-// the model) and execute a validated futures action with an idempotency key.
+// the model) and execute a validated action (futures / spot / PM) with an
+// idempotency key.
 
 import { CoinRithmClient } from "./client.js";
 import { ProposedAction, AgentTrace, ApiResult, Observation, QuoteEvidence, Freshness } from "./types.js";
@@ -22,20 +23,40 @@ export async function fetchQuote(
   observation: Observation,
   trace?: AgentTrace,
 ): Promise<QuoteEvidence | undefined> {
-  if (action.type !== "futures_open") return undefined;
-  const coinId = coinIdFor(observation, action.symbol);
-  if (!coinId) return { eligible: false, blockReasons: ["unresolved_symbol"] };
-  const r = await client.futuresQuote(
-    { coinId, side: action.side, leverage: action.leverage, marginMusd: action.marginMusd },
-    trace,
-  );
+  let r: ApiResult;
+  if (action.type === "futures_open") {
+    const coinId = coinIdFor(observation, action.symbol);
+    if (!coinId) return { eligible: false, blockReasons: ["unresolved_symbol"] };
+    r = await client.futuresQuote(
+      { coinId, side: action.side, leverage: action.leverage, marginMusd: action.marginMusd },
+      trace,
+    );
+  } else if (action.type === "spot_order") {
+    const coinId = coinIdFor(observation, action.symbol);
+    if (!coinId) return { eligible: false, blockReasons: ["unresolved_symbol"] };
+    r = await client.spotQuote({ coinId, side: action.side, quantity: action.quantity }, trace);
+  } else if (action.type === "pm_open") {
+    r = await client.pmQuote(
+      {
+        source: action.source,
+        slug: action.slug,
+        outcomeExternalMarketId: action.outcomeExternalMarketId,
+        stakeMusd: action.stakeMusd,
+      },
+      trace,
+    );
+  } else {
+    return undefined; // close / set-sltp / cancel need no quote
+  }
   if (!r.ok) return { eligible: false, blockReasons: [`quote_http_${r.status}`] };
   const d = asObj(r.data);
   return {
     eligible: d.eligible === true,
     blockReasons: d.blockReasons,
-    entryPrice: asNum(d.entryPrice),
-    liquidationPrice: asNum(d.liquidationPrice),
+    entryPrice: asNum(d.entryPrice), // futures
+    liquidationPrice: asNum(d.liquidationPrice), // futures
+    executionPrice: asNum(d.executionPrice), // spot live fill price
+    estimatedCostMusd: asNum(d.estimatedCostMusd), // spot gross notional
     // Freshness lives in the response's `observation` block (anti-look-ahead).
     freshness: freshnessOf(asObj(d.observation)),
   };
@@ -75,6 +96,33 @@ export async function executeAction(
       positionId: action.positionId,
       stopLossPrice: action.stopLossPrice ?? undefined,
       takeProfitPrice: action.takeProfitPrice ?? undefined,
+      agentTrace: trace,
+    });
+  }
+  if (action.type === "spot_order") {
+    const coinId = coinIdFor(observation, action.symbol);
+    if (!coinId) return { ok: false, status: 0, data: { error: "unresolved_symbol" } };
+    return client.placeSpotOrder({
+      coinId,
+      side: action.side,
+      orderType: action.orderType,
+      quantity: action.quantity,
+      limitPrice: action.limitPrice,
+      stopPrice: action.stopPrice,
+      idempotencyKey,
+      agentTrace: trace,
+    });
+  }
+  if (action.type === "spot_cancel") {
+    return client.cancelSpotOrder(action.orderId, trace);
+  }
+  if (action.type === "pm_open") {
+    return client.openPmPosition({
+      source: action.source,
+      slug: action.slug,
+      outcomeExternalMarketId: action.outcomeExternalMarketId,
+      stakeMusd: action.stakeMusd,
+      idempotencyKey,
       agentTrace: trace,
     });
   }

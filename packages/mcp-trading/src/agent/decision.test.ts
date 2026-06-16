@@ -41,9 +41,13 @@ describe("parseDecision", () => {
     ).toBe(false);
   });
 
-  it("fails on a spot/pm action (not in the v1 futures schema)", () => {
+  it("parses spot and pm actions", () => {
+    expect(
+      parseDecision(JSON.stringify({ decision: "act", actions: [{ type: "spot_order", symbol: "BTC", side: "buy", orderType: "market", quantity: 0.001 }] })).ok,
+    ).toBe(true);
+    expect(parseDecision(JSON.stringify({ decision: "act", actions: [{ type: "spot_cancel", orderId: 5 }] })).ok).toBe(true);
     expect(
       parseDecision(JSON.stringify({ decision: "act", actions: [{ type: "pm_open", source: "kalshi", slug: "x", outcomeExternalMarketId: "y", stakeMusd: 10 }] })).ok,
-    ).toBe(false);
+    ).toBe(true);
   });
 });

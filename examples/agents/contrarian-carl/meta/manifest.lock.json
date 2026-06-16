@@ -1,7 +1,7 @@
 {
-  "configHash": "sha256:d5c7c519fb634b9086cb7c1b5babff49fb9625f1cd09fb7cf6b5c905e4e9c20b",
+  "configHash": "sha256:4c8207dc1f17d8237832270fa1372302e078973c6373efee8ab9d5675fb9aa50",
   "contentHashes": {
-    "agent.md": "sha256:b6a6b8e7e2ff2262b83669cba9119681b7af98fbabff4ec83ae61b8e379a60a0",
+    "agent.md": "sha256:9147b0b509f7203a78a8807f06b0a0c034c99fd903f6316566852820cad2aa92",
     "character/abstention.yaml": "sha256:926750bbd253a3d8b85007fed099bb57898ca0c104848f45f27580354989a3a2",
     "character/limits.yaml": "sha256:4e61d663ced5a84aaaf5dcb29eda9e170d4b08da13e31082d6af65b5b53ac562",
     "character/persona.md": "sha256:f2ef52f9ec86724349e877c7c1e1a63568b69180eb82c87894b2a9e1f62c6e93",
@@ -9,7 +9,7 @@
     "character/sizing.yaml": "sha256:39ef3114d43ae621ef15e7b3379988f82ff197097f781ca3be96cf61923e1d49",
     "character/skills/blowoff-fade.md": "sha256:9ecae923fc722046c89c11e03fdb06a63e885406d8e059f72fa8eea1779f8829",
     "character/skills/oversold-bounce.md": "sha256:d79ce4b73643ec968ac7041b6771cc98348765bd2c01504d1403def4343c06d7",
-    "character/thesis.md": "sha256:88d7ee6816c8259b683e161376950d354b937b784a094329f04c5f4507335947",
+    "character/thesis.md": "sha256:4061046f11c1155dbe36da3515581507bbb6a89b3775335cc38cc31314cd74c3",
     "journal/notes.md": "sha256:83efbbe9782567f65adbf8181bee42ffbdaaddb7dd9acf9562f9be77606ea0e3",
     "runtime.yaml": "sha256:a2dde8ea84ccfc8be5e4b731f3cb77b6ffa67b74fc778649a2990ea287b11013",
     "safety/killSwitch.yaml": "sha256:73e3b22488dde56311d779cebb1f65091a59abd80792d6185ec4d4bba76ac5f4"
@@ -120,7 +120,8 @@
       "timezone": "UTC"
     },
     "venues": [
-      "futures"
+      "futures",
+      "spot"
     ]
   },
   "resolvedSpec": {
@@ -181,7 +182,8 @@
       "timezone": "UTC"
     },
     "venues": [
-      "futures"
+      "futures",
+      "spot"
     ]
   },
   "resolverVersion": "1",

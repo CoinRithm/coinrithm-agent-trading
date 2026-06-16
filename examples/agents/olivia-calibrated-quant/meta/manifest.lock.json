@@ -1,7 +1,7 @@
 {
-  "configHash": "sha256:a959bf7e7a6b71e98806805ed9e8b482b955726e991e4a24095cdfb031f430aa",
+  "configHash": "sha256:4637be310dd63211967e043a735ceb417f2276cb723d841d921b3ee913fc2923",
   "contentHashes": {
-    "agent.md": "sha256:089436cf516a30c1b08622d3f4cfd40eed0abc5369299a54b412973158f7c7b4",
+    "agent.md": "sha256:0886593566b86fb14bc15b83045ef356cf8f0abe018eedf986ad99a706a32127",
     "character/abstention.yaml": "sha256:91f56ae6ab7859cc8cf27fff0bdda21d17c0a6958978855024aece0055d3e97d",
     "character/limits.yaml": "sha256:a4c1d5de1a53fbf00184f0021b348830115df25b3fc32c02d70e46245d73b7c0",
     "character/persona.md": "sha256:6d0a4ea31b1e1cc53081f5558e1173bed456a34f20eb375714eeaff59927a682",
@@ -9,8 +9,9 @@
     "character/sizing.yaml": "sha256:903f1242d922d71de17b748f02db855d8283068d9f73332dc88f634c68ce457f",
     "character/skills/abstention-discipline.md": "sha256:9eb4d6b31750e0370ea7a10a2e71c8cf0c79a70ccb09141efaf825fa83efae51",
     "character/skills/conviction-sizing.md": "sha256:52f8ed0aef10463ef1dd59fa4f9bdb384bd4806cae0348cb98d3770763f67604",
+    "character/skills/pm-calibration.md": "sha256:bce85ea96eabd1977af0935d6418d4b1d25d03b0e00d5af824cf90fc99936791",
     "character/skills/probability-forecast.md": "sha256:9a77e009d51bd713a7047d01db00a2f0d56babaa7faf4be0dadd144687898544",
-    "character/thesis.md": "sha256:6831b404c4352aa798c39132653004568345e9f31ad15e893668167d47186feb",
+    "character/thesis.md": "sha256:aea380732e644f94983618ad7fa38c04f068632d8d1e665eb80f8752498568a0",
     "journal/notes.md": "sha256:98fa3f87363f08a34ab3398d864eb3792e732338e4ccec4988757f061422c8ab",
     "runtime.yaml": "sha256:a2dde8ea84ccfc8be5e4b731f3cb77b6ffa67b74fc778649a2990ea287b11013",
     "safety/killSwitch.yaml": "sha256:a5b9f9c1cb55250ea9d1e2b2e9e43b7a520df72750adbe94a7a7a6bbe964fe88"
@@ -19,7 +20,8 @@
     "includeOrder": [
       "probability-forecast",
       "conviction-sizing",
-      "abstention-discipline"
+      "abstention-discipline",
+      "pm-calibration"
     ],
     "mergeOrder": [
       "agent.md",
@@ -32,6 +34,7 @@
       "character/skills/probability-forecast.md",
       "character/skills/conviction-sizing.md",
       "character/skills/abstention-discipline.md",
+      "character/skills/pm-calibration.md",
       "character/thesis.md",
       "character/persona.md",
       "journal/notes.md"
@@ -70,7 +73,8 @@
     "include": [
       "probability-forecast",
       "conviction-sizing",
-      "abstention-discipline"
+      "abstention-discipline",
+      "pm-calibration"
     ],
     "killSwitch": {
       "maxConsecutiveModelFailures": 3,
@@ -124,7 +128,8 @@
       "timezone": "UTC"
     },
     "venues": [
-      "futures"
+      "futures",
+      "pm"
     ]
   },
   "resolvedSpec": {
@@ -185,7 +190,8 @@
       "timezone": "UTC"
     },
     "venues": [
-      "futures"
+      "futures",
+      "pm"
     ]
   },
   "resolverVersion": "1",

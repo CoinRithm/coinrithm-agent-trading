@@ -151,7 +151,7 @@ This repo gives you everything to wire that up:
 | [`QUICKSTART.md`](./QUICKSTART.md) | Per-client setup for the hosted URL and the local server |
 | [`openapi.yaml`](./openapi.yaml) | OpenAPI 3.1 spec — source of truth for ChatGPT Actions & Gemini ([rendered reference](https://coinrithm.github.io/coinrithm-agent-trading/)) |
 | [`packages/mcp-trading/`](./packages/mcp-trading) | The npm package — the MCP server (`coinrithm-mcp`: hosted HTTP + local stdio) **and** the self-host agent runner (`coinrithm-agent`) |
-| [`docs/agent-runner.md`](./docs/agent-runner.md) | The **agent-runner** guide — author an agent folder, then run an observe→decide→validate→act loop with your own model key (paper, futures v1) |
+| [`docs/agent-runner.md`](./docs/agent-runner.md) | The **agent-runner** guide — author an agent folder, then run an observe→decide→validate→act loop with your own model key (paper: spot + futures + prediction markets) |
 | [`skills/coinrithm-trader/`](./skills/coinrithm-trader) | A Claude **Skill** with a trading playbook + hard risk rules |
 | [`skills/momentum-futures/`](./skills/momentum-futures) | A runnable **agent skill** — the `momentum-futures` template the runner scaffolds |
 | [`prompts/`](./prompts) | Per-client system prompts, plus [`disciplined-trader.md`](./prompts/disciplined-trader.md) — a research-backed strategy layer (calibration, abstention, risk gate, PM edge) |

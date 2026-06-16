@@ -1,7 +1,7 @@
 // Parse the model's single text response into a strict, structured Decision.
-// v1 accepts FUTURES actions only. Anything else — invalid JSON, an unknown
-// action type, a free-form endpoint/tool name, extra unknown fields, or a
-// missing required field — fails closed (the runner then skips the cycle).
+// Accepts futures + spot + prediction-market actions. Anything else — invalid
+// JSON, an unknown action type, a free-form endpoint/tool name, extra unknown
+// fields, or a missing required field — fails closed (the runner skips).
 
 import { z } from "zod";
 import { Decision, ProposedAction } from "./types.js";
@@ -39,10 +39,46 @@ const futuresSetSltp = z
   })
   .strict();
 
+const spotOrder = z
+  .object({
+    type: z.literal("spot_order"),
+    symbol: z.string().min(1),
+    side: z.enum(["buy", "sell"]),
+    orderType: z.enum(["market", "limit", "stop"]),
+    quantity: z.number().positive(),
+    limitPrice: z.number().positive().optional(),
+    stopPrice: z.number().positive().optional(),
+    confidence: z.number().min(0).max(1).optional(),
+    rationaleSummary: z.string().optional(),
+  })
+  .strict();
+
+const spotCancel = z
+  .object({
+    type: z.literal("spot_cancel"),
+    orderId: z.number(),
+  })
+  .strict();
+
+const pmOpen = z
+  .object({
+    type: z.literal("pm_open"),
+    source: z.string().min(1),
+    slug: z.string().min(1),
+    outcomeExternalMarketId: z.string().min(1),
+    stakeMusd: z.number().positive(),
+    confidence: z.number().min(0).max(1).optional(),
+    rationaleSummary: z.string().optional(),
+  })
+  .strict();
+
 const actionSchema = z.discriminatedUnion("type", [
   futuresOpen,
   futuresClose,
   futuresSetSltp,
+  spotOrder,
+  spotCancel,
+  pmOpen,
 ]);
 
 const decisionSchema = z

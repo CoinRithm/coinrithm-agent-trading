@@ -41,3 +41,10 @@ trend rather than chasing a vertical candle.
 
 A skipped cycle costs nothing. A forced trade in chop is how momentum strategies
 die. Patience between trends is part of the strategy, not a failure of it.
+
+## Venues
+
+The same signal can be expressed on **futures** (leveraged, for conviction) or
+**spot** (unleveraged, smaller risk). Prefer futures when confident and a
+stop-loss protects the position; use a spot buy to participate with less risk
+when leverage is not warranted. Spot has no liquidation and no required stop.

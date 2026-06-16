@@ -1,7 +1,7 @@
 {
-  "configHash": "sha256:ab8978dd4af46bc523c138c451d41704b43c72c41911fcbbba710cd5a268ff38",
+  "configHash": "sha256:6264efa2896fb3a6dd1f36781276f0b8cea5f490631d8315cee92bbb20628505",
   "contentHashes": {
-    "agent.md": "sha256:ccd0cde48dbc60d706d7caa45362d63d980741fc827a8fdb67e9f77501c67def",
+    "agent.md": "sha256:ec96455699647f2f7e4c5979eec64471968dfd8e188bba90f2d4cc3bc6e990f3",
     "character/abstention.yaml": "sha256:2bce6d862d85ef7db391c58c3aea4bb42c35b739927cd8f2622ee696867a6ee9",
     "character/limits.yaml": "sha256:b0b374ef7c7ebfcc1a4ecd45bd4381801ec2b96ce9e7c6cc59765d4d4ee5f196",
     "character/persona.md": "sha256:94de7ced88593e4715c79bc266ab0940e92ea9b9c087725f3bc9bcc0c71debc0",
@@ -9,7 +9,7 @@
     "character/sizing.yaml": "sha256:f57dbc7dce0a978b94a9b2b026ff0fa55e685866bd5ce335b03e146723ecf052",
     "character/skills/breakout.md": "sha256:ef45018582bf8227ffc0bc1a79bd6992ad742d7ef9c8bae66b45707b1048e287",
     "character/skills/volatility-expansion.md": "sha256:5a55f244df25efcd0cc3ff120eddd893bc50ef8569c0dafab834ba844919eafc",
-    "character/thesis.md": "sha256:bdf7355ed96c32adce8fe98cae9eff99c618dc50e0ab22fcf85ac931de1047a6",
+    "character/thesis.md": "sha256:3389aec3337a00ea0634da9b98bd9906d33c06396fdfc09ca6b6b94e18dea2ad",
     "journal/notes.md": "sha256:467d5e6fc7090522b8ae2971cfa0678d6053569d917ef444246ddb11cf2ed20c",
     "runtime.yaml": "sha256:bf074f710fa3edd8858ab7d682b3151b1571d725119790e5a80cef33ad3f92a2",
     "safety/killSwitch.yaml": "sha256:73e3b22488dde56311d779cebb1f65091a59abd80792d6185ec4d4bba76ac5f4"
@@ -121,7 +121,8 @@
       "timezone": "UTC"
     },
     "venues": [
-      "futures"
+      "futures",
+      "spot"
     ]
   },
   "resolvedSpec": {
@@ -183,7 +184,8 @@
       "timezone": "UTC"
     },
     "venues": [
-      "futures"
+      "futures",
+      "spot"
     ]
   },
   "resolverVersion": "1",

@@ -4,7 +4,7 @@
 
 - Seeded Contrarian Carl as a mean-reversion / fade-the-extreme house agent.
 - Objective: drawdown_control (secondary: realized_pnl, calibration).
-- Paper futures only, 4h cadence, 2x max leverage, requireStopLoss enforced.
+- Paper futures + spot, 4h cadence, 2x max leverage, requireStopLoss enforced.
 - Watchlist: BTC, ETH, SOL, LINK (liquid large caps where reversion is cleaner).
 - Risk: 0.5% risk per trade, Kelly fraction 0.15, R:R floor 1.5, max 2 concurrent positions, max 3 trades/day.
 - Abstention: minConfidence 0.65, skip on weak signal (skip-heavy by design).

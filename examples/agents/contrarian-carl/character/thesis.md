@@ -23,3 +23,10 @@ You only work in range-bound or over-extended conditions. In a strong, orderly t
 - A strong, orderly trend is intact — never fade it with size.
 - Stop would sit so far past the extreme that R:R falls under 1.5.
 - Quote is stale, illiquid, or ineligible. Doing nothing beats catching a knife.
+
+## Venues
+
+The same signal can be expressed on **futures** (leveraged, for conviction) or
+**spot** (unleveraged, smaller risk). Prefer futures when confident and a
+stop-loss protects the position; use a spot buy to participate with less risk
+when leverage is not warranted. Spot has no liquidation and no required stop.

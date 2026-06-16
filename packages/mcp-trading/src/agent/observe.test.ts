@@ -32,7 +32,7 @@ describe("observe", () => {
   it("skips when no watchlist symbol resolves", async () => {
     const c = fakeClient({ resolve: async () => okData({}) });
     const { skip } = await observe(c, spec, newState("r"));
-    expect(skip).toMatch(/no watchlist symbol resolved/);
+    expect(skip).toMatch(/no watchlist coin resolved/);
   });
 
   it("skips when a required read fails", async () => {
@@ -46,5 +46,37 @@ describe("observe", () => {
     const { observation, skip } = await observe(c, spec, newState("r"));
     expect(observation.polledBeforeWrite).toBe(false);
     expect(skip).toMatch(/poll-before-write/);
+  });
+
+  it("expands discovered PM markets from the real data[].outcomes[] shape", async () => {
+    // REAL /api/agent/pm/discover payload: { data: [event] }, source/slug/freshness
+    // at the event level, the quoteable id nested at outcomes[].externalMarketId.
+    const pmSpec = { ...spec, venues: ["pm", "futures"] as ("spot" | "futures" | "pm")[] };
+    const c = fakeClient({
+      pmPositions: async () => okData({ positions: [] }),
+      discoverPmMarkets: async () =>
+        okData({
+          data: [
+            {
+              source: "Kalshi", // mixed case -> lowercased
+              slug: "BTC-UP",
+              title: "BTC up?",
+              freshness: { status: "fresh" },
+              outcomes: [
+                { externalMarketId: "yes-1", name: "Yes" },
+                { externalMarketId: "no-1", name: "No" },
+              ],
+            },
+          ],
+        }),
+    });
+    const { observation } = await observe(c, pmSpec, newState("r"));
+    expect(observation.pmMarkets.length).toBe(2); // one row per quoteable outcome
+    expect(observation.pmMarkets[0]).toMatchObject({
+      source: "kalshi",
+      slug: "btc-up",
+      outcomeExternalMarketId: "yes-1",
+    });
+    expect(observation.pmMarkets.every((m) => m.outcomeExternalMarketId.length > 0)).toBe(true);
   });
 });

@@ -126,11 +126,15 @@ cause an unintended or oversized trade:
   only on confirmed success; a corrupt state file refuses to run; a per-agent
   lock prevents two runners racing one state file.
 
-## v1 scope
+## Venues
 
-Futures only (the shipped `momentum-futures` template). Spot and prediction-market
-actions are rejected as out-of-scope. The **hosted** scheduler (running this same
-agent spec for you, managed) is a later step — this is the self-host path.
+The runner trades CoinRithm **spot, futures, and prediction markets** — declare
+which an agent may use in `venues:`. Every venue is gated by the same caps:
+`perTradeMarginMusd` is the per-trade size cap (futures margin / spot buy
+notional / PM stake), opens are quote-gated (eligible + fresh), and a `pm_open`
+may only target a market that **discovery surfaced this cycle** (no hallucinated
+markets). The **hosted** scheduler (running this same agent spec for you,
+managed) is a later step — this is the self-host path.
 
 ## Develop
 

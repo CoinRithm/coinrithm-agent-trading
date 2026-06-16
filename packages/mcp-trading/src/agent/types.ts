@@ -157,12 +157,44 @@ export interface OpenPosition {
   unrealizedPnlMusd?: number;
 }
 
+export interface SpotOrder {
+  id: number;
+  coinId?: string;
+  symbol?: string;
+  side?: string; // buy | sell
+  orderType?: string;
+  quantity?: number;
+  status?: string;
+}
+
+export interface PmPosition {
+  id: number;
+  source?: string;
+  slug?: string;
+  outcomeExternalMarketId?: string;
+  stakeMusd?: number;
+  status?: string;
+}
+
+// A discovered, quote-ready prediction-market candidate the model may pick from
+// (PM markets are not coins, so they come from discovery, not the watchlist).
+export interface PmMarket {
+  source: string;
+  slug: string;
+  outcomeExternalMarketId: string;
+  title?: string;
+  freshness?: Freshness;
+}
+
 export interface Observation {
   asOf: string; // server time the bundle was built
   scopes: string[];
   cashAvailableMusd: number | null;
   equityMusd: number | null;
-  openPositions: OpenPosition[];
+  openPositions: OpenPosition[]; // open FUTURES positions
+  openOrders: SpotOrder[]; // resting SPOT orders
+  pmPositions: PmPosition[]; // open prediction-market positions
+  pmMarkets: PmMarket[]; // discovered quote-ready PM candidates (only if pm venue)
   watch: WatchEntry[];
   syncCursor: string | null; // advanced from /trades
   newClosedTrades: Array<Record<string, unknown>>; // fired stops/liqs/settlements
@@ -238,6 +270,27 @@ export function isOpenAction(
   return a.type === "futures_open" || a.type === "spot_order" || a.type === "pm_open";
 }
 
+// Gross mUSD a spot BUY consumes. The validator (per-trade cap + balance gate)
+// and the runner (running-cash decrement) BOTH size with this one function so
+// they can never diverge. Sizing: limit -> limitPrice*qty, stop -> stopPrice*qty,
+// market -> the server-computed `estimatedCostMusd` (preferred) or
+// executionPrice*qty. Returns undefined when no price is available (e.g. an
+// unpriced market quote) so callers FAIL CLOSED instead of treating it as $0.
+export function spotBuyCost(
+  action: Extract<ProposedAction, { type: "spot_order" }>,
+  quote?: QuoteEvidence,
+): number | undefined {
+  if (action.orderType === "limit") {
+    return typeof action.limitPrice === "number" ? action.limitPrice * action.quantity : undefined;
+  }
+  if (action.orderType === "stop") {
+    return typeof action.stopPrice === "number" ? action.stopPrice * action.quantity : undefined;
+  }
+  // market: prefer the server's gross notional, else derive from the fill price.
+  if (typeof quote?.estimatedCostMusd === "number") return quote.estimatedCostMusd;
+  return typeof quote?.executionPrice === "number" ? quote.executionPrice * action.quantity : undefined;
+}
+
 export interface Decision {
   decision: "skip" | "act";
   reason?: string; // when skip
@@ -246,11 +299,17 @@ export interface Decision {
 }
 
 // Read-only quote the runner fetches for an open BEFORE validating/executing.
+// Field-name note (verified against the live backend): the FUTURES quote returns
+// `entryPrice`/`liquidationPrice`, but the SPOT quote returns `executionPrice`
+// (live fill price) + `estimatedCostMusd` (gross notional = price * qty) and
+// NEVER an `entryPrice`. Both are carried so each venue reads its own field.
 export interface QuoteEvidence {
   eligible: boolean;
   blockReasons?: unknown;
-  entryPrice?: number;
-  liquidationPrice?: number;
+  entryPrice?: number; // futures fill price
+  liquidationPrice?: number; // futures
+  executionPrice?: number; // spot fill price
+  estimatedCostMusd?: number; // spot gross notional (server-computed)
   freshness?: Freshness;
 }
 

@@ -8,6 +8,9 @@ import {
   RunState,
   Observation,
   OpenPosition,
+  SpotOrder,
+  PmPosition,
+  PmMarket,
   WatchEntry,
   AgentTrace,
   Freshness,
@@ -32,6 +35,9 @@ function emptyObservation(state: RunState, scopes: string[] = []): Observation {
     cashAvailableMusd: null,
     equityMusd: null,
     openPositions: [],
+    openOrders: [],
+    pmPositions: [],
+    pmMarkets: [],
     watch: [],
     syncCursor: state.cursor,
     newClosedTrades: [],
@@ -122,19 +128,101 @@ export async function observe(
     });
   }
 
+  // Spot resting orders (for cancel + affordability) — only if spot is enabled.
+  const wantSpot = spec.venues.includes("spot");
+  const wantPm = spec.venues.includes("pm");
+
+  let openOrders: SpotOrder[] = [];
+  if (wantSpot) {
+    const ordR = await client.openOrders(undefined, trace);
+    if (ordR.ok) {
+      const od = asObj(ordR.data);
+      openOrders = asArr(od.orders ?? od.openOrders)
+        .map(asObj)
+        .filter((o) => (asStr(o.status) ?? "open") === "open")
+        .map((o) => ({
+          id: Number(asNum(o.id) ?? o.id),
+          coinId: asStr(o.coinId),
+          symbol: asStr(o.symbol),
+          side: asStr(o.side),
+          orderType: asStr(o.orderType),
+          quantity: asNum(o.quantity),
+          status: asStr(o.status) ?? "open",
+        }));
+    }
+  }
+
+  // PM open positions + discovered quote-ready candidates — only if pm enabled.
+  let pmPositions: PmPosition[] = [];
+  let pmMarkets: PmMarket[] = [];
+  if (wantPm) {
+    const [pmPosR, pmDiscR] = await Promise.all([
+      client.pmPositions(undefined, trace),
+      client.discoverPmMarkets({ limit: 8 }, trace),
+    ]);
+    if (pmPosR.ok) {
+      pmPositions = asArr(asObj(pmPosR.data).positions)
+        .map(asObj)
+        .filter((p) => (asStr(p.status) ?? "open") === "open")
+        .map((p) => ({
+          id: Number(asNum(p.id) ?? p.id),
+          source: asStr(p.source),
+          slug: asStr(p.slug),
+          outcomeExternalMarketId: asStr(p.outcomeExternalMarketId),
+          stakeMusd: asNum(p.stakeMusd),
+          status: asStr(p.status) ?? "open",
+        }));
+    }
+    if (pmDiscR.ok) {
+      const dd = asObj(pmDiscR.data);
+      // Real /api/agent/pm/discover payload: { data: [event], pagination, meta }.
+      // Each EVENT carries source/slug/title/freshness at the top level and the
+      // quoteable id NESTED at outcomes[].externalMarketId — so expand one
+      // PmMarket per quoteable outcome. (Tolerant `markets`/`results` and flat
+      // `outcomeExternalMarketId` fallbacks kept for older/mocked shapes.)
+      pmMarkets = asArr(dd.data ?? dd.markets ?? dd.results)
+        .map(asObj)
+        .flatMap((ev) => {
+          const source = (asStr(ev.source) ?? "").toLowerCase();
+          const slug = (asStr(ev.slug) ?? "").toLowerCase();
+          const title = asStr(ev.title) ?? asStr(ev.question);
+          const freshness = freshnessOf(ev); // freshness is event-level
+          const outcomes = asArr(ev.outcomes).map(asObj);
+          // A market with no outcomes array still round-trips a flat fallback row.
+          const rows = outcomes.length > 0 ? outcomes : [ev];
+          return rows.map((o) => ({
+            source,
+            slug,
+            outcomeExternalMarketId:
+              asStr(o.externalMarketId) ?? asStr(o.outcomeExternalMarketId) ?? "",
+            title,
+            freshness,
+          }));
+        })
+        .filter((m) => m.source && m.slug && m.outcomeExternalMarketId);
+    }
+  }
+
   const observation: Observation = {
     asOf: syncCursor ?? new Date().toISOString(),
     scopes,
     cashAvailableMusd,
     equityMusd,
     openPositions,
+    openOrders,
+    pmPositions,
+    pmMarkets,
     watch,
     syncCursor,
     newClosedTrades,
     polledBeforeWrite,
   };
 
-  if (!resolvedAny) return { observation, skip: "no watchlist symbol resolved to a coin" };
+  // Skip only when there is NOTHING actionable: no coin resolved (futures/spot)
+  // AND no PM candidate (pm). A pm-only agent proceeds on its discovered markets.
+  if (!resolvedAny && pmMarkets.length === 0) {
+    return { observation, skip: "no watchlist coin resolved and no PM markets available" };
+  }
   if (spec.sync.requirePollBeforeWrite && !polledBeforeWrite) {
     return { observation, skip: "poll-before-write required but /trades poll failed" };
   }
