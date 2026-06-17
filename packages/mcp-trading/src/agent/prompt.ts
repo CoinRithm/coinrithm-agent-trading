@@ -5,7 +5,10 @@
 
 import { AgentSpec, Observation } from "./types.js";
 
-export function buildSystemPrompt(spec: AgentSpec, mergedProse: string): string {
+export function buildSystemPrompt(
+  spec: AgentSpec,
+  mergedProse: string,
+): string {
   const r = spec.risk;
   const v = spec.venues;
   const actions: string[] = [];
@@ -41,6 +44,15 @@ export function buildSystemPrompt(spec: AgentSpec, mergedProse: string): string 
     `- watchlist (spot + futures use ONLY these): ${r.watchlist.join(", ")}`,
     "- prediction markets: pick ONLY a market listed in observation.pmMarkets; minimum stake 10 mUSD",
     `- abstention.minConfidence ${spec.abstention.minConfidence}; a skipped cycle is correct and cheap`,
+    ...(spec.capabilities.includes("indicators")
+      ? [
+          "",
+          "## Signals — each watch entry may carry `indicators` (computed from 5-minute candles)",
+          "- rsi14: momentum (>70 overbought, <30 oversold); ema20 & ema50: trend; atr14: volatility (size stops off it); bollinger {upper,mid,lower}; recent20 {high,low}: breakout levels.",
+          "- boolean reads: aboveEma20, ema20AboveEma50 (uptrend when both true), brokeRecentHigh (breakout), brokeRecentLow (breakdown).",
+          "- a null field = not enough data; ignore it. These INFORM your decision; they never widen a cap.",
+        ]
+      : []),
     "",
     "## Output contract — return ONLY this JSON object, nothing else:",
     '{"decision":"skip"|"act","confidence":0..1,"reason":"short","actions":[]}',

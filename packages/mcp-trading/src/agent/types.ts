@@ -6,6 +6,8 @@
 // these caps, and acts via the CoinRithm paper API. Nothing here touches real
 // money.
 
+import { IndicatorSet } from "./indicators.js";
+
 export const SPEC_VERSION = "coinrithm.agent.v1";
 
 export type Venue = "spot" | "futures" | "pm";
@@ -26,7 +28,12 @@ export const ACTION_TYPES = [
 ] as const;
 export type ActionType = (typeof ACTION_TYPES)[number];
 
-export type ProviderName = "anthropic" | "openai" | "groq" | "nvidia" | "openai-compatible";
+export type ProviderName =
+  | "anthropic"
+  | "openai"
+  | "groq"
+  | "nvidia"
+  | "openai-compatible";
 export const PROVIDERS: readonly ProviderName[] = [
   "anthropic",
   "openai",
@@ -160,6 +167,10 @@ export interface WatchEntry {
   change24h?: number;
   change7d?: number;
   freshness?: Freshness;
+  // Compact technical-indicator bundle (RSI/EMA/ATR/Bollinger/breakout) computed
+  // from candles when the agent declares the `indicators` capability. Omitted
+  // otherwise or when the candle fetch fails/is too sparse.
+  indicators?: IndicatorSet;
 }
 
 export interface OpenPosition {
@@ -282,8 +293,13 @@ export function isWriteAction(a: ProposedAction): boolean {
 
 export function isOpenAction(
   a: ProposedAction,
-): a is Extract<ProposedAction, { type: "futures_open" | "spot_order" | "pm_open" }> {
-  return a.type === "futures_open" || a.type === "spot_order" || a.type === "pm_open";
+): a is Extract<
+  ProposedAction,
+  { type: "futures_open" | "spot_order" | "pm_open" }
+> {
+  return (
+    a.type === "futures_open" || a.type === "spot_order" || a.type === "pm_open"
+  );
 }
 
 // Gross mUSD a spot BUY consumes. The validator (per-trade cap + balance gate)
@@ -297,14 +313,21 @@ export function spotBuyCost(
   quote?: QuoteEvidence,
 ): number | undefined {
   if (action.orderType === "limit") {
-    return typeof action.limitPrice === "number" ? action.limitPrice * action.quantity : undefined;
+    return typeof action.limitPrice === "number"
+      ? action.limitPrice * action.quantity
+      : undefined;
   }
   if (action.orderType === "stop") {
-    return typeof action.stopPrice === "number" ? action.stopPrice * action.quantity : undefined;
+    return typeof action.stopPrice === "number"
+      ? action.stopPrice * action.quantity
+      : undefined;
   }
   // market: prefer the server's gross notional, else derive from the fill price.
-  if (typeof quote?.estimatedCostMusd === "number") return quote.estimatedCostMusd;
-  return typeof quote?.executionPrice === "number" ? quote.executionPrice * action.quantity : undefined;
+  if (typeof quote?.estimatedCostMusd === "number")
+    return quote.estimatedCostMusd;
+  return typeof quote?.executionPrice === "number"
+    ? quote.executionPrice * action.quantity
+    : undefined;
 }
 
 export interface Decision {

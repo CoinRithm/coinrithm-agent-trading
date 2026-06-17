@@ -16,10 +16,40 @@ import {
   Freshness,
 } from "./types.js";
 import { asObj, asArr, asNum, asStr } from "./extract.js";
+import { computeIndicators, Candle, IndicatorSet } from "./indicators.js";
 
 export interface ObserveOutput {
   observation: Observation;
   skip?: string;
+}
+
+// Candle granularity feeding the indicators: the 1D range = 5-minute candles
+// (~5-min fresh, ~288 bars — ample for EMA50/RSI14/Bollinger20), which suits the
+// short cadence the hosted house agents run on. Probe-verified 2026-06-17.
+const INDICATOR_RANGE = "1D";
+
+// Fetch candles for one coin and reduce them to a compact indicator bundle.
+// Tolerant by design: any failure (HTTP error, malformed/sparse candles) returns
+// null so the cycle proceeds with price-only context rather than skipping.
+async function fetchIndicators(
+  client: CoinRithmClient,
+  coinId: string,
+  trace?: AgentTrace,
+): Promise<IndicatorSet | null> {
+  const cr = await client.candles(coinId, INDICATOR_RANGE, trace);
+  if (!cr.ok) return null;
+  // Endpoint shape: { candles: [{ t, o, h, l, c, v }] } ascending (oldest first).
+  const candles: Candle[] = [];
+  for (const raw of asArr(asObj(cr.data).candles)) {
+    const c = asObj(raw);
+    const open = asNum(c.o);
+    const high = asNum(c.h);
+    const low = asNum(c.l);
+    const close = asNum(c.c);
+    if (open == null || high == null || low == null || close == null) continue;
+    candles.push({ open, high, low, close, volume: asNum(c.v) ?? undefined });
+  }
+  return computeIndicators(candles);
 }
 
 function freshnessOf(block: Record<string, unknown>): Freshness | undefined {
@@ -52,8 +82,14 @@ export async function observe(
   trace?: AgentTrace,
 ): Promise<ObserveOutput> {
   const meR = await client.me(trace);
-  if (!meR.ok) return { observation: emptyObservation(state), skip: `me failed (HTTP ${meR.status})` };
-  const scopes = asArr(asObj(meR.data).scopes).filter((s): s is string => typeof s === "string");
+  if (!meR.ok)
+    return {
+      observation: emptyObservation(state),
+      skip: `me failed (HTTP ${meR.status})`,
+    };
+  const scopes = asArr(asObj(meR.data).scopes).filter(
+    (s): s is string => typeof s === "string",
+  );
 
   const [portR, walletR, posR] = await Promise.all([
     client.portfolio(trace),
@@ -61,13 +97,18 @@ export async function observe(
     client.futuresPositions(undefined, trace),
   ]);
   if (!portR.ok || !walletR.ok || !posR.ok) {
-    return { observation: emptyObservation(state, scopes), skip: "required reads failed (portfolio/wallet/positions)" };
+    return {
+      observation: emptyObservation(state, scopes),
+      skip: "required reads failed (portfolio/wallet/positions)",
+    };
   }
 
   const usdt = asObj(asObj(walletR.data).usdt);
   const equity = asObj(asObj(portR.data).equity);
-  const cashAvailableMusd = asNum(usdt.available) ?? asNum(equity.availableUsd) ?? null;
-  const equityMusd = asNum(equity.totalUsd) ?? asNum(asObj(portR.data).equityUsd) ?? null;
+  const cashAvailableMusd =
+    asNum(usdt.available) ?? asNum(equity.availableUsd) ?? null;
+  const equityMusd =
+    asNum(equity.totalUsd) ?? asNum(asObj(portR.data).equityUsd) ?? null;
 
   const openPositions: OpenPosition[] = asArr(asObj(posR.data).positions)
     .map(asObj)
@@ -85,7 +126,11 @@ export async function observe(
 
   // Sync poll: /trades since the persisted cursor.
   const tradesR = await client.trades(
-    { venue: "futures", updatedSince: state.cursor ?? undefined, limit: state.cursor ? undefined : 1 },
+    {
+      venue: "futures",
+      updatedSince: state.cursor ?? undefined,
+      limit: state.cursor ? undefined : 1,
+    },
     trace,
   );
   let polledBeforeWrite = false;
@@ -97,12 +142,18 @@ export async function observe(
     syncCursor = asStr(td.asOf) ?? state.cursor;
     newClosedTrades = asArr(td.trades)
       .map(asObj)
-      .filter((t) => !state.seen.includes(`${asStr(t.venue) ?? "futures"}:${asNum(t.id) ?? t.id}`));
+      .filter(
+        (t) =>
+          !state.seen.includes(
+            `${asStr(t.venue) ?? "futures"}:${asNum(t.id) ?? t.id}`,
+          ),
+      );
   }
 
   // Watchlist market context.
   const watch: WatchEntry[] = [];
   let resolvedAny = false;
+  const wantIndicators = spec.capabilities.includes("indicators");
   for (const symbol of spec.risk.watchlist) {
     const rs = await client.resolve(symbol, trace);
     const match = asObj(asObj(rs.data).match);
@@ -115,7 +166,7 @@ export async function observe(
     const mk = await client.market(coinId, trace);
     const m = asObj(mk.data);
     const price = asObj(m.price);
-    watch.push({
+    const entry: WatchEntry = {
       symbol,
       coinId,
       name: asStr(match.name),
@@ -125,7 +176,15 @@ export async function observe(
       change7d: asNum(price.change7d),
       // Freshness lives under the response's `observation` block.
       freshness: freshnessOf(asObj(m.observation)),
-    });
+    };
+    // `indicators` capability: enrich the observation with computed TA so the
+    // model reasons over structure (trend/momentum/volatility/breakout) instead
+    // of price + %change alone. Backed by the candles endpoint's shared cache.
+    if (wantIndicators) {
+      const ind = await fetchIndicators(client, coinId, trace);
+      if (ind) entry.indicators = ind;
+    }
+    watch.push(entry);
   }
 
   // Spot resting orders (for cancel + affordability) — only if spot is enabled.
@@ -194,7 +253,9 @@ export async function observe(
             source,
             slug,
             outcomeExternalMarketId:
-              asStr(o.externalMarketId) ?? asStr(o.outcomeExternalMarketId) ?? "",
+              asStr(o.externalMarketId) ??
+              asStr(o.outcomeExternalMarketId) ??
+              "",
             title,
             freshness,
           }));
@@ -221,10 +282,16 @@ export async function observe(
   // Skip only when there is NOTHING actionable: no coin resolved (futures/spot)
   // AND no PM candidate (pm). A pm-only agent proceeds on its discovered markets.
   if (!resolvedAny && pmMarkets.length === 0) {
-    return { observation, skip: "no watchlist coin resolved and no PM markets available" };
+    return {
+      observation,
+      skip: "no watchlist coin resolved and no PM markets available",
+    };
   }
   if (spec.sync.requirePollBeforeWrite && !polledBeforeWrite) {
-    return { observation, skip: "poll-before-write required but /trades poll failed" };
+    return {
+      observation,
+      skip: "poll-before-write required but /trades poll failed",
+    };
   }
   return { observation };
 }

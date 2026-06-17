@@ -50,6 +50,12 @@ try {
   for (const h of HOUSE) {
     const folder = join(here, "..", "..", "..", "examples", "agents", h.handle);
     const { spec, body } = loadAgent(folder, "hosted"); // throws if invalid / drifted
+    // House agents get the `indicators` capability so observe() enriches the
+    // observation with computed TA (RSI/EMA/ATR/Bollinger/breakout). Overrides
+    // the example folder, same as the MODEL/cadence overrides above.
+    spec.capabilities = Array.from(
+      new Set([...(spec.capabilities ?? []), "indicators"]),
+    );
     const cadenceSeconds = HOUSE_CADENCE_SECONDS;
     const crkEnc = encrypt(reqEnv(`COINRITHM_KEY_${h.display.toUpperCase()}`), key);
 

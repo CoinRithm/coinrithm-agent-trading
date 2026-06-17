@@ -11,19 +11,28 @@ const spec = parseSkill(renderFolderOfOne("a", "conservative")).spec;
 function fakeClient(over: Record<string, unknown> = {}): CoinRithmClient {
   return {
     me: async () => okData({ scopes: ["trade:futures"] }),
-    portfolio: async () => okData({ equity: { totalUsd: 50000, availableUsd: 1000 } }),
+    portfolio: async () =>
+      okData({ equity: { totalUsd: 50000, availableUsd: 1000 } }),
     wallet: async () => okData({ usdt: { available: 1000 } }),
     futuresPositions: async () => okData({ positions: [] }),
     trades: async () => okData({ asOf: "T1", trades: [] }),
     resolve: async (q: string) => okData({ match: { coinId: "1", name: q } }),
-    market: async () => okData({ price: { usd: 67000 }, observation: { freshness: { status: "fresh" } } }),
+    market: async () =>
+      okData({
+        price: { usd: 67000 },
+        observation: { freshness: { status: "fresh" } },
+      }),
     ...over,
   } as unknown as CoinRithmClient;
 }
 
 describe("observe", () => {
   it("records poll-before-write after /trades succeeds", async () => {
-    const { observation, skip } = await observe(fakeClient(), spec, newState("r"));
+    const { observation, skip } = await observe(
+      fakeClient(),
+      spec,
+      newState("r"),
+    );
     expect(skip).toBeUndefined();
     expect(observation.polledBeforeWrite).toBe(true);
     expect(observation.watch.length).toBeGreaterThan(0);
@@ -36,13 +45,17 @@ describe("observe", () => {
   });
 
   it("skips when a required read fails", async () => {
-    const c = fakeClient({ portfolio: async () => ({ ok: false, status: 403, data: {} }) });
+    const c = fakeClient({
+      portfolio: async () => ({ ok: false, status: 403, data: {} }),
+    });
     const { skip } = await observe(c, spec, newState("r"));
     expect(skip).toMatch(/required reads failed/);
   });
 
   it("does not set poll-before-write when /trades fails", async () => {
-    const c = fakeClient({ trades: async () => ({ ok: false, status: 500, data: {} }) });
+    const c = fakeClient({
+      trades: async () => ({ ok: false, status: 500, data: {} }),
+    });
     const { observation, skip } = await observe(c, spec, newState("r"));
     expect(observation.polledBeforeWrite).toBe(false);
     expect(skip).toMatch(/poll-before-write/);
@@ -51,7 +64,10 @@ describe("observe", () => {
   it("expands discovered PM markets from the real data[].outcomes[] shape", async () => {
     // REAL /api/agent/pm/discover payload: { data: [event] }, source/slug/freshness
     // at the event level, the quoteable id nested at outcomes[].externalMarketId.
-    const pmSpec = { ...spec, venues: ["pm", "futures"] as ("spot" | "futures" | "pm")[] };
+    const pmSpec = {
+      ...spec,
+      venues: ["pm", "futures"] as ("spot" | "futures" | "pm")[],
+    };
     const c = fakeClient({
       pmPositions: async () => okData({ positions: [] }),
       discoverPmMarkets: async () =>
@@ -77,6 +93,77 @@ describe("observe", () => {
       slug: "btc-up",
       outcomeExternalMarketId: "yes-1",
     });
-    expect(observation.pmMarkets.every((m) => m.outcomeExternalMarketId.length > 0)).toBe(true);
+    expect(
+      observation.pmMarkets.every((m) => m.outcomeExternalMarketId.length > 0),
+    ).toBe(true);
+  });
+
+  // ── indicators capability ──────────────────────────────────────────────────
+  const candlesPayload = (n: number) => {
+    const candles = [];
+    for (let i = 0; i < n; i++) {
+      const base = 60000 + i * 10;
+      candles.push({
+        t: 1700000000 + i * 300,
+        o: base,
+        h: base + 50,
+        l: base - 50,
+        c: base + 20,
+        v: 1000,
+      });
+    }
+    return { candles };
+  };
+  const indicators = ["indicators"] as ("websearch" | "indicators")[];
+
+  it("attaches computed indicators when the agent declares the capability", async () => {
+    let candleCalls = 0;
+    const c = fakeClient({
+      candles: async () => {
+        candleCalls++;
+        return okData(candlesPayload(60));
+      },
+    });
+    const { observation } = await observe(
+      c,
+      { ...spec, capabilities: indicators },
+      newState("r"),
+    );
+    expect(candleCalls).toBeGreaterThan(0);
+    const entry = observation.watch.find((w) => w.coinId);
+    expect(entry?.indicators).toBeDefined();
+    expect(typeof entry?.indicators?.asOfClose).toBe("number");
+    expect(typeof entry?.indicators?.rsi14).toBe("number");
+    expect(typeof entry?.indicators?.aboveEma20).toBe("boolean");
+  });
+
+  it("does NOT fetch candles when the capability is absent", async () => {
+    let candleCalls = 0;
+    const c = fakeClient({
+      candles: async () => {
+        candleCalls++;
+        return okData(candlesPayload(60));
+      },
+    });
+    const { observation } = await observe(
+      c,
+      { ...spec, capabilities: [] },
+      newState("r"),
+    );
+    expect(candleCalls).toBe(0);
+    expect(observation.watch.find((w) => w.coinId)?.indicators).toBeUndefined();
+  });
+
+  it("tolerates a failed candle fetch — omits indicators, cycle proceeds", async () => {
+    const c = fakeClient({
+      candles: async () => ({ ok: false, status: 500, data: {} }),
+    });
+    const { observation, skip } = await observe(
+      c,
+      { ...spec, capabilities: indicators },
+      newState("r"),
+    );
+    expect(skip).toBeUndefined();
+    expect(observation.watch.find((w) => w.coinId)?.indicators).toBeUndefined();
   });
 });
