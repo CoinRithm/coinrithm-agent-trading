@@ -14,20 +14,20 @@ export function buildSystemPrompt(
   const actions: string[] = [];
   if (v.includes("futures")) {
     actions.push(
-      '{"type":"futures_open","symbol","side":"long"|"short","leverage","marginMusd","stopLossPrice","takeProfitPrice"}',
+      '{"type":"futures_open","symbol","side":"long"|"short","leverage","marginMusd","stopLossPrice","takeProfitPrice","confidence":0..1}',
       '{"type":"futures_close","positionId","fraction"}',
       '{"type":"futures_set_sltp","positionId","stopLossPrice","takeProfitPrice"}',
     );
   }
   if (v.includes("spot")) {
     actions.push(
-      '{"type":"spot_order","symbol","side":"buy"|"sell","orderType":"market"|"limit"|"stop","quantity","limitPrice","stopPrice"}',
+      '{"type":"spot_order","symbol","side":"buy"|"sell","orderType":"market"|"limit"|"stop","quantity","limitPrice","stopPrice","confidence":0..1}',
       '{"type":"spot_cancel","orderId"}',
     );
   }
   if (v.includes("pm")) {
     actions.push(
-      '{"type":"pm_open","source","slug","outcomeExternalMarketId","stakeMusd"}  (ONLY a market from observation.pmMarkets; stakeMusd >= 10)',
+      '{"type":"pm_open","source","slug","outcomeExternalMarketId","stakeMusd","confidence":0..1}  (ONLY a market from observation.pmMarkets; stakeMusd >= 10)',
     );
   }
   return [
@@ -58,6 +58,7 @@ export function buildSystemPrompt(
     '{"decision":"skip"|"act","confidence":0..1,"reason":"short","actions":[]}',
     "Each action is one of:",
     ...actions.map((a) => `- ${a}`),
+    `Set each opening action's "confidence" (0..1) to your honest conviction — the runner REJECTS any open below abstention.minConfidence (${spec.abstention.minConfidence}). The decision-level "confidence" is the fallback when an action omits its own.`,
     "Prefer skip when the signal is weak or data is stale.",
   ].join("\n");
 }

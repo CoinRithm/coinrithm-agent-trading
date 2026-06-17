@@ -17,6 +17,10 @@ import {
 
 export interface DecisionContext {
   spec: AgentSpec;
+  // The model reports `confidence` at the DECISION level (per the output
+  // contract); the per-action abstention gate inherits it when an action omits
+  // its own, so a contract-following model isn't auto-rejected at confidence 0.
+  decisionConfidence?: number;
   observation: Observation;
   quote?: QuoteEvidence; // for futures_open — fetched by the runner, not the model
   writesThisCycle: number;
@@ -32,86 +36,161 @@ export interface DecisionContext {
 const SERVER_MAX_LEVERAGE = 20;
 const PM_MIN_STAKE_MUSD = 10; // server minimum prediction-market stake
 
-export function validateAction(action: ProposedAction, ctx: DecisionContext): ValidationResult {
+export function validateAction(
+  action: ProposedAction,
+  ctx: DecisionContext,
+): ValidationResult {
   const { spec, observation } = ctx;
 
   const venue = actionVenue(action);
   if (!spec.venues.includes(venue)) {
-    return fail("venue_not_allowed", `venue ${venue} not in [${spec.venues.join(", ")}]`);
+    return fail(
+      "venue_not_allowed",
+      `venue ${venue} not in [${spec.venues.join(", ")}]`,
+    );
   }
 
   if (spec.sync.requirePollBeforeWrite && !observation.polledBeforeWrite) {
-    return fail("no_poll_before_write", "must successfully poll /trades before writing");
+    return fail(
+      "no_poll_before_write",
+      "must successfully poll /trades before writing",
+    );
   }
   if (ctx.writesThisCycle >= spec.limits.maxWritesPerCycle) {
-    return fail("write_budget_exceeded", `maxWritesPerCycle ${spec.limits.maxWritesPerCycle} reached`);
+    return fail(
+      "write_budget_exceeded",
+      `maxWritesPerCycle ${spec.limits.maxWritesPerCycle} reached`,
+    );
   }
   if (ctx.writesToday >= spec.limits.maxTradesPerDay) {
-    return fail("daily_trade_cap", `maxTradesPerDay ${spec.limits.maxTradesPerDay} reached`);
+    return fail(
+      "daily_trade_cap",
+      `maxTradesPerDay ${spec.limits.maxTradesPerDay} reached`,
+    );
   }
 
   if (action.type === "futures_open") {
     // Daily realized-loss stop: once today's loss hits the cap, open no new risk.
-    if (spec.limits.maxDailyLossMusd > 0 && ctx.realizedLossTodayMusd >= spec.limits.maxDailyLossMusd) {
-      return fail("daily_loss_cap", `today's realized loss ${ctx.realizedLossTodayMusd} >= ${spec.limits.maxDailyLossMusd}`);
+    if (
+      spec.limits.maxDailyLossMusd > 0 &&
+      ctx.realizedLossTodayMusd >= spec.limits.maxDailyLossMusd
+    ) {
+      return fail(
+        "daily_loss_cap",
+        `today's realized loss ${ctx.realizedLossTodayMusd} >= ${spec.limits.maxDailyLossMusd}`,
+      );
     }
 
     const entry = observation.watch.find(
       (w) => w.symbol.toUpperCase() === action.symbol.toUpperCase(),
     );
-    if (!entry) return fail("unknown_symbol", `${action.symbol} is not on the watchlist`);
-    if (!entry.coinId) return fail("unresolved_symbol", `${action.symbol} did not resolve to a coin`);
+    if (!entry)
+      return fail("unknown_symbol", `${action.symbol} is not on the watchlist`);
+    if (!entry.coinId)
+      return fail(
+        "unresolved_symbol",
+        `${action.symbol} did not resolve to a coin`,
+      );
 
     if (action.leverage > spec.risk.maxLeverage) {
-      return fail("leverage_exceeds_cap", `leverage ${action.leverage} > cap ${spec.risk.maxLeverage}`);
+      return fail(
+        "leverage_exceeds_cap",
+        `leverage ${action.leverage} > cap ${spec.risk.maxLeverage}`,
+      );
     }
     if (action.leverage > SERVER_MAX_LEVERAGE) {
-      return fail("leverage_exceeds_server", `leverage ${action.leverage} > server cap ${SERVER_MAX_LEVERAGE}`);
+      return fail(
+        "leverage_exceeds_server",
+        `leverage ${action.leverage} > server cap ${SERVER_MAX_LEVERAGE}`,
+      );
     }
     if (action.marginMusd > spec.risk.perTradeMarginMusd) {
-      return fail("margin_exceeds_cap", `margin ${action.marginMusd} > cap ${spec.risk.perTradeMarginMusd}`);
+      return fail(
+        "margin_exceeds_cap",
+        `margin ${action.marginMusd} > cap ${spec.risk.perTradeMarginMusd}`,
+      );
     }
     // Aggregate exposure ceiling (existing open margin + this cycle) — the cap
     // that perTradeMargin × maxConcurrentPositions would otherwise blow past.
-    if (ctx.openMarginMusd + action.marginMusd > spec.limits.maxOpenMarginMusd) {
-      return fail("open_margin_exceeds_cap", `open margin ${ctx.openMarginMusd} + ${action.marginMusd} > ${spec.limits.maxOpenMarginMusd}`);
+    if (
+      ctx.openMarginMusd + action.marginMusd >
+      spec.limits.maxOpenMarginMusd
+    ) {
+      return fail(
+        "open_margin_exceeds_cap",
+        `open margin ${ctx.openMarginMusd} + ${action.marginMusd} > ${spec.limits.maxOpenMarginMusd}`,
+      );
     }
     if (ctx.openCount >= spec.risk.maxConcurrentPositions) {
-      return fail("max_positions", `already ${ctx.openCount} open >= ${spec.risk.maxConcurrentPositions}`);
+      return fail(
+        "max_positions",
+        `already ${ctx.openCount} open >= ${spec.risk.maxConcurrentPositions}`,
+      );
     }
-    if (ctx.cashAvailableMusd != null && action.marginMusd > ctx.cashAvailableMusd) {
-      return fail("insufficient_balance", `margin ${action.marginMusd} > available ${ctx.cashAvailableMusd}`);
+    if (
+      ctx.cashAvailableMusd != null &&
+      action.marginMusd > ctx.cashAvailableMusd
+    ) {
+      return fail(
+        "insufficient_balance",
+        `margin ${action.marginMusd} > available ${ctx.cashAvailableMusd}`,
+      );
     }
     // NOTE: minConfidence keys on the model's SELF-REPORTED confidence — a
     // cooperation hint, NOT an injection-resistant control. The hard caps above
     // (which come from the spec, never the observation) are what actually bind.
-    if ((action.confidence ?? 0) < spec.abstention.minConfidence) {
-      return fail("below_min_confidence", `confidence ${action.confidence ?? 0} < min ${spec.abstention.minConfidence}`);
+    if (
+      (action.confidence ?? ctx.decisionConfidence ?? 0) <
+      spec.abstention.minConfidence
+    ) {
+      return fail(
+        "below_min_confidence",
+        `confidence ${action.confidence ?? 0} < min ${spec.abstention.minConfidence}`,
+      );
     }
     if (spec.risk.requireStopLoss) {
       const sl = action.stopLossPrice;
       if (sl == null || !Number.isFinite(sl) || sl <= 0) {
-        return fail("missing_stop_loss", "requireStopLoss is set but no valid (finite, positive) stopLossPrice was proposed");
+        return fail(
+          "missing_stop_loss",
+          "requireStopLoss is set but no valid (finite, positive) stopLossPrice was proposed",
+        );
       }
       // Side-aware corridor: a long's stop must be BELOW entry, a short's ABOVE.
       // A wrong-side "stop" is a dead trigger that never protects.
       const e = ctx.quote?.entryPrice;
       if (typeof e === "number" && Number.isFinite(e)) {
         if (action.side === "long" && sl >= e) {
-          return fail("stop_loss_wrong_side", `long stop ${sl} must be below entry ${e}`);
+          return fail(
+            "stop_loss_wrong_side",
+            `long stop ${sl} must be below entry ${e}`,
+          );
         }
         if (action.side === "short" && sl <= e) {
-          return fail("stop_loss_wrong_side", `short stop ${sl} must be above entry ${e}`);
+          return fail(
+            "stop_loss_wrong_side",
+            `short stop ${sl} must be above entry ${e}`,
+          );
         }
       }
     }
-    if (!ctx.quote) return fail("missing_quote", "no quote evidence was fetched for this open");
+    if (!ctx.quote)
+      return fail(
+        "missing_quote",
+        "no quote evidence was fetched for this open",
+      );
     if (!ctx.quote.eligible) {
-      return fail("quote_ineligible", `quote blocked: ${JSON.stringify(ctx.quote.blockReasons ?? [])}`);
+      return fail(
+        "quote_ineligible",
+        `quote blocked: ${JSON.stringify(ctx.quote.blockReasons ?? [])}`,
+      );
     }
     // FAIL-CLOSED: a missing freshness block is treated as not-fresh.
     if (!ctx.quote.freshness || ctx.quote.freshness.status !== "fresh") {
-      return fail("stale_quote", `quote freshness ${ctx.quote.freshness?.status ?? "missing"} (need fresh)`);
+      return fail(
+        "stale_quote",
+        `quote freshness ${ctx.quote.freshness?.status ?? "missing"} (need fresh)`,
+      );
     }
     return ok();
   }
@@ -120,17 +199,27 @@ export function validateAction(action: ProposedAction, ctx: DecisionContext): Va
     const pos = observation.openPositions.find(
       (p) => p.id === action.positionId && p.venue === "futures",
     );
-    if (!pos) return fail("unknown_position", `no open futures position ${action.positionId}`);
+    if (!pos)
+      return fail(
+        "unknown_position",
+        `no open futures position ${action.positionId}`,
+      );
     // No double-acting on the same position within one cycle.
     if (ctx.targetedPositionIds.includes(action.positionId)) {
-      return fail("position_already_targeted", `position ${action.positionId} already acted on this cycle`);
+      return fail(
+        "position_already_targeted",
+        `position ${action.positionId} already acted on this cycle`,
+      );
     }
     if (action.type === "futures_set_sltp") {
       const hasTrigger = [action.stopLossPrice, action.takeProfitPrice].some(
         (v) => typeof v === "number" && Number.isFinite(v) && v > 0,
       );
       if (!hasTrigger) {
-        return fail("sltp_no_op", "futures_set_sltp must set at least one positive stopLossPrice or takeProfitPrice");
+        return fail(
+          "sltp_no_op",
+          "futures_set_sltp must set at least one positive stopLossPrice or takeProfitPrice",
+        );
       }
     }
     return ok();
@@ -140,21 +229,50 @@ export function validateAction(action: ProposedAction, ctx: DecisionContext): Va
     const entry = observation.watch.find(
       (w) => w.symbol.toUpperCase() === action.symbol.toUpperCase(),
     );
-    if (!entry) return fail("unknown_symbol", `${action.symbol} is not on the watchlist`);
-    if (!entry.coinId) return fail("unresolved_symbol", `${action.symbol} did not resolve to a coin`);
-    if (action.orderType === "limit" && !(typeof action.limitPrice === "number" && action.limitPrice > 0)) {
-      return fail("missing_limit_price", "a limit order needs a positive limitPrice");
+    if (!entry)
+      return fail("unknown_symbol", `${action.symbol} is not on the watchlist`);
+    if (!entry.coinId)
+      return fail(
+        "unresolved_symbol",
+        `${action.symbol} did not resolve to a coin`,
+      );
+    if (
+      action.orderType === "limit" &&
+      !(typeof action.limitPrice === "number" && action.limitPrice > 0)
+    ) {
+      return fail(
+        "missing_limit_price",
+        "a limit order needs a positive limitPrice",
+      );
     }
-    if (action.orderType === "stop" && !(typeof action.stopPrice === "number" && action.stopPrice > 0)) {
-      return fail("missing_stop_price", "a stop order needs a positive stopPrice");
+    if (
+      action.orderType === "stop" &&
+      !(typeof action.stopPrice === "number" && action.stopPrice > 0)
+    ) {
+      return fail(
+        "missing_stop_price",
+        "a stop order needs a positive stopPrice",
+      );
     }
     // A BUY opens new risk: daily-loss stop, confidence, per-trade notional, cash.
     if (action.side === "buy") {
-      if (spec.limits.maxDailyLossMusd > 0 && ctx.realizedLossTodayMusd >= spec.limits.maxDailyLossMusd) {
-        return fail("daily_loss_cap", `today's realized loss ${ctx.realizedLossTodayMusd} >= ${spec.limits.maxDailyLossMusd}`);
+      if (
+        spec.limits.maxDailyLossMusd > 0 &&
+        ctx.realizedLossTodayMusd >= spec.limits.maxDailyLossMusd
+      ) {
+        return fail(
+          "daily_loss_cap",
+          `today's realized loss ${ctx.realizedLossTodayMusd} >= ${spec.limits.maxDailyLossMusd}`,
+        );
       }
-      if ((action.confidence ?? 0) < spec.abstention.minConfidence) {
-        return fail("below_min_confidence", `confidence ${action.confidence ?? 0} < min ${spec.abstention.minConfidence}`);
+      if (
+        (action.confidence ?? ctx.decisionConfidence ?? 0) <
+        spec.abstention.minConfidence
+      ) {
+        return fail(
+          "below_min_confidence",
+          `confidence ${action.confidence ?? 0} < min ${spec.abstention.minConfidence}`,
+        );
       }
       // Size the BUY with the SAME helper the runner uses to decrement cash, so
       // the gate and the running-cash accounting never diverge. FAIL CLOSED: an
@@ -163,37 +281,66 @@ export function validateAction(action: ProposedAction, ctx: DecisionContext): Va
       // both caps in that case (notional + balance), a fail-open we must not keep.
       const cost = spotBuyCost(action, ctx.quote);
       if (!(typeof cost === "number" && cost > 0)) {
-        return fail("missing_quote_price", "cannot size spot buy notional without a price");
+        return fail(
+          "missing_quote_price",
+          "cannot size spot buy notional without a price",
+        );
       }
       if (cost > spec.risk.perTradeMarginMusd) {
-        return fail("notional_exceeds_cap", `spot notional ${cost} > per-trade cap ${spec.risk.perTradeMarginMusd}`);
+        return fail(
+          "notional_exceeds_cap",
+          `spot notional ${cost} > per-trade cap ${spec.risk.perTradeMarginMusd}`,
+        );
       }
       if (ctx.cashAvailableMusd != null && cost > ctx.cashAvailableMusd) {
-        return fail("insufficient_balance", `spot cost ${cost} > available ${ctx.cashAvailableMusd}`);
+        return fail(
+          "insufficient_balance",
+          `spot cost ${cost} > available ${ctx.cashAvailableMusd}`,
+        );
       }
     }
-    if (!ctx.quote) return fail("missing_quote", "no quote evidence was fetched for this spot order");
+    if (!ctx.quote)
+      return fail(
+        "missing_quote",
+        "no quote evidence was fetched for this spot order",
+      );
     if (!ctx.quote.eligible) {
-      return fail("quote_ineligible", `quote blocked: ${JSON.stringify(ctx.quote.blockReasons ?? [])}`);
+      return fail(
+        "quote_ineligible",
+        `quote blocked: ${JSON.stringify(ctx.quote.blockReasons ?? [])}`,
+      );
     }
     if (!ctx.quote.freshness || ctx.quote.freshness.status !== "fresh") {
-      return fail("stale_quote", `quote freshness ${ctx.quote.freshness?.status ?? "missing"} (need fresh)`);
+      return fail(
+        "stale_quote",
+        `quote freshness ${ctx.quote.freshness?.status ?? "missing"} (need fresh)`,
+      );
     }
     return ok();
   }
 
   if (action.type === "spot_cancel") {
     const o = observation.openOrders.find((x) => x.id === action.orderId);
-    if (!o) return fail("unknown_order", `no open spot order ${action.orderId}`);
+    if (!o)
+      return fail("unknown_order", `no open spot order ${action.orderId}`);
     if (ctx.targetedOrderIds.includes(action.orderId)) {
-      return fail("order_already_targeted", `order ${action.orderId} already cancelled this cycle`);
+      return fail(
+        "order_already_targeted",
+        `order ${action.orderId} already cancelled this cycle`,
+      );
     }
     return ok();
   }
 
   if (action.type === "pm_open") {
-    if (spec.limits.maxDailyLossMusd > 0 && ctx.realizedLossTodayMusd >= spec.limits.maxDailyLossMusd) {
-      return fail("daily_loss_cap", `today's realized loss ${ctx.realizedLossTodayMusd} >= ${spec.limits.maxDailyLossMusd}`);
+    if (
+      spec.limits.maxDailyLossMusd > 0 &&
+      ctx.realizedLossTodayMusd >= spec.limits.maxDailyLossMusd
+    ) {
+      return fail(
+        "daily_loss_cap",
+        `today's realized loss ${ctx.realizedLossTodayMusd} >= ${spec.limits.maxDailyLossMusd}`,
+      );
     }
     // The model may only open a market that DISCOVERY surfaced this cycle — no
     // hallucinated source/slug. (source/slug are lowercased; outcome is exact.)
@@ -204,26 +351,57 @@ export function validateAction(action: ProposedAction, ctx: DecisionContext): Va
         m.outcomeExternalMarketId === action.outcomeExternalMarketId,
     );
     if (!mkt) {
-      return fail("pm_market_not_discovered", `${action.source}/${action.slug} is not in the discovered PM markets`);
+      return fail(
+        "pm_market_not_discovered",
+        `${action.source}/${action.slug} is not in the discovered PM markets`,
+      );
     }
     if (action.stakeMusd < PM_MIN_STAKE_MUSD) {
-      return fail("pm_stake_below_min", `stake ${action.stakeMusd} < $${PM_MIN_STAKE_MUSD} minimum`);
+      return fail(
+        "pm_stake_below_min",
+        `stake ${action.stakeMusd} < $${PM_MIN_STAKE_MUSD} minimum`,
+      );
     }
     if (action.stakeMusd > spec.risk.perTradeMarginMusd) {
-      return fail("pm_stake_exceeds_cap", `stake ${action.stakeMusd} > per-trade cap ${spec.risk.perTradeMarginMusd}`);
+      return fail(
+        "pm_stake_exceeds_cap",
+        `stake ${action.stakeMusd} > per-trade cap ${spec.risk.perTradeMarginMusd}`,
+      );
     }
-    if (ctx.cashAvailableMusd != null && action.stakeMusd > ctx.cashAvailableMusd) {
-      return fail("insufficient_balance", `stake ${action.stakeMusd} > available ${ctx.cashAvailableMusd}`);
+    if (
+      ctx.cashAvailableMusd != null &&
+      action.stakeMusd > ctx.cashAvailableMusd
+    ) {
+      return fail(
+        "insufficient_balance",
+        `stake ${action.stakeMusd} > available ${ctx.cashAvailableMusd}`,
+      );
     }
-    if ((action.confidence ?? 0) < spec.abstention.minConfidence) {
-      return fail("below_min_confidence", `confidence ${action.confidence ?? 0} < min ${spec.abstention.minConfidence}`);
+    if (
+      (action.confidence ?? ctx.decisionConfidence ?? 0) <
+      spec.abstention.minConfidence
+    ) {
+      return fail(
+        "below_min_confidence",
+        `confidence ${action.confidence ?? 0} < min ${spec.abstention.minConfidence}`,
+      );
     }
-    if (!ctx.quote) return fail("missing_quote", "no quote evidence was fetched for this PM open");
+    if (!ctx.quote)
+      return fail(
+        "missing_quote",
+        "no quote evidence was fetched for this PM open",
+      );
     if (!ctx.quote.eligible) {
-      return fail("quote_ineligible", `quote blocked: ${JSON.stringify(ctx.quote.blockReasons ?? [])}`);
+      return fail(
+        "quote_ineligible",
+        `quote blocked: ${JSON.stringify(ctx.quote.blockReasons ?? [])}`,
+      );
     }
     if (!ctx.quote.freshness || ctx.quote.freshness.status !== "fresh") {
-      return fail("stale_quote", `quote freshness ${ctx.quote.freshness?.status ?? "missing"} (need fresh)`);
+      return fail(
+        "stale_quote",
+        `quote freshness ${ctx.quote.freshness?.status ?? "missing"} (need fresh)`,
+      );
     }
     return ok();
   }

@@ -5,14 +5,27 @@
 
 import { CoinRithmClient } from "./client.js";
 import { Provider } from "./providers.js";
-import { AgentSpec, RunState, CycleResult, PlannedAction, ProposedAction, QuoteEvidence, spotBuyCost } from "./types.js";
+import {
+  AgentSpec,
+  RunState,
+  CycleResult,
+  PlannedAction,
+  ProposedAction,
+  QuoteEvidence,
+  spotBuyCost,
+} from "./types.js";
 import { observe } from "./observe.js";
 import { buildSystemPrompt, buildUserPrompt } from "./prompt.js";
 import { parseDecision } from "./decision.js";
 import { validateAction, DecisionContext } from "./decisionValidator.js";
 import { fetchQuote, executeAction } from "./act.js";
 import { makeDecisionId, makeTrace, exportRunEvidence } from "./runEvidence.js";
-import { rollDay, checkKillSwitch, accrueRealized, saveState } from "./state.js";
+import {
+  rollDay,
+  checkKillSwitch,
+  accrueRealized,
+  saveState,
+} from "./state.js";
 import { asObj, asNum, asStr } from "./extract.js";
 import { parseCadenceMs, sleep } from "./util.js";
 
@@ -80,7 +93,13 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
     state.disabledReason = tripped;
     saveState(stateFile, state);
     log(`disabled: ${tripped}`);
-    return { decision: "skip", planned: [], disabled: true, disabledReason: tripped, live };
+    return {
+      decision: "skip",
+      planned: [],
+      disabled: true,
+      disabledReason: tripped,
+      live,
+    };
   }
 
   const runId = state.runId;
@@ -93,22 +112,34 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
   accrueRealized(state, observation.newClosedTrades);
   state.cursor = observation.syncCursor;
   for (const t of observation.newClosedTrades) {
-    state.seen.push(`${asStr(asObj(t).venue) ?? "futures"}:${asNum(asObj(t).id) ?? String(asObj(t).id)}`);
+    state.seen.push(
+      `${asStr(asObj(t).venue) ?? "futures"}:${asNum(asObj(t).id) ?? String(asObj(t).id)}`,
+    );
   }
   state.seen = state.seen.slice(-500);
 
   // Equity-aware drawdown: open mark-to-market losses trip the kill-switch too,
   // not only realized losses.
-  const unrealized = observation.openPositions.reduce((s, p) => s + (p.unrealizedPnlMusd ?? 0), 0);
+  const unrealized = observation.openPositions.reduce(
+    (s, p) => s + (p.unrealizedPnlMusd ?? 0),
+    0,
+  );
   if (
     spec.killSwitch.maxDrawdownMusd > 0 &&
-    state.peakRealizedMusd - (state.realizedPnlMusd + unrealized) >= spec.killSwitch.maxDrawdownMusd
+    state.peakRealizedMusd - (state.realizedPnlMusd + unrealized) >=
+      spec.killSwitch.maxDrawdownMusd
   ) {
     state.disabled = true;
     state.disabledReason = `equity drawdown >= ${spec.killSwitch.maxDrawdownMusd}`;
     saveState(stateFile, state);
     log(`disabled: ${state.disabledReason}`);
-    return { decision: "skip", planned: [], disabled: true, disabledReason: state.disabledReason, live };
+    return {
+      decision: "skip",
+      planned: [],
+      disabled: true,
+      disabledReason: state.disabledReason,
+      live,
+    };
   }
 
   if (obs.skip) {
@@ -127,14 +158,26 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
     state.consecutiveModelFailures += 1;
     saveState(stateFile, state);
     log(`model error: ${res.error}`);
-    return { decision: "skip", skipReason: `model error: ${res.error}`, planned: [], modelFailed: true, live };
+    return {
+      decision: "skip",
+      skipReason: `model error: ${res.error}`,
+      planned: [],
+      modelFailed: true,
+      live,
+    };
   }
   const parsed = parseDecision(res.text);
   if (!parsed.ok) {
     state.consecutiveModelFailures += 1;
     saveState(stateFile, state);
     log(`model output invalid: ${parsed.error}`);
-    return { decision: "skip", skipReason: `model output invalid: ${parsed.error}`, planned: [], modelFailed: true, live };
+    return {
+      decision: "skip",
+      skipReason: `model output invalid: ${parsed.error}`,
+      planned: [],
+      modelFailed: true,
+      live,
+    };
   }
   state.consecutiveModelFailures = 0;
   const decision = parsed.decision;
@@ -143,7 +186,12 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
     state.consecutiveRejectCycles += 1;
     saveState(stateFile, state);
     log(`model chose skip${decision.reason ? `: ${decision.reason}` : ""}`);
-    return { decision: "skip", skipReason: decision.reason ?? "model chose skip", planned: [], live };
+    return {
+      decision: "skip",
+      skipReason: decision.reason ?? "model chose skip",
+      planned: [],
+      live,
+    };
   }
 
   // VALIDATE (+ ACT when live). Quote evidence is fetched by the runner.
@@ -166,6 +214,10 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
     const quote = await fetchQuote(client, action, observation, baseTrace);
     const ctx: DecisionContext = {
       spec,
+      // Inherit the decision-level confidence so the per-action abstention gate
+      // doesn't reject a model that reports conviction on the decision (the
+      // output contract) rather than on each action.
+      decisionConfidence: decision.confidence,
       observation,
       quote,
       writesThisCycle,
@@ -179,7 +231,13 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
     };
     const v = validateAction(action, ctx);
     if (!v.valid) {
-      planned.push({ action, accepted: false, code: v.code, reason: v.reason, quote });
+      planned.push({
+        action,
+        accepted: false,
+        code: v.code,
+        reason: v.reason,
+        quote,
+      });
       log(`reject ${action.type}: ${v.code} (${v.reason})`);
       continue;
     }
@@ -201,9 +259,21 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
     const seq = state.intentSeq[intentKey] ?? 0;
     const idem = `${runId}:${intentKey}:${seq}`;
     const meta = action as { confidence?: number; rationaleSummary?: string };
-    const trace = makeTrace(runId, decisionId, spec, meta.confidence, meta.rationaleSummary);
+    const trace = makeTrace(
+      runId,
+      decisionId,
+      spec,
+      meta.confidence ?? decision.confidence,
+      meta.rationaleSummary,
+    );
     const r = await executeAction(client, action, observation, trace, idem);
-    planned.push({ action, accepted: true, quote, executed: r.ok, result: r.data });
+    planned.push({
+      action,
+      accepted: true,
+      quote,
+      executed: r.ok,
+      result: r.data,
+    });
     if (r.ok) {
       anyExecuted = true;
       state.intentSeq[intentKey] = seq + 1;
@@ -215,7 +285,8 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
       }
       // Decrement running cash by what this action consumed (futures margin /
       // spot buy notional / PM stake) so a later action this cycle sees it spent.
-      if (cashAvailableMusd != null) cashAvailableMusd -= cashConsumed(action, quote);
+      if (cashAvailableMusd != null)
+        cashAvailableMusd -= cashConsumed(action, quote);
     } else {
       anyExecFailed = true;
     }
@@ -226,8 +297,11 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
   // live write is not progress, or a persistently failing live agent would
   // never trip the kill-switch.
   const progressed = live ? anyExecuted : anyAccepted;
-  state.consecutiveRejectCycles = progressed ? 0 : state.consecutiveRejectCycles + 1;
-  state.consecutiveExecFailures = anyExecFailed && !anyExecuted ? state.consecutiveExecFailures + 1 : 0;
+  state.consecutiveRejectCycles = progressed
+    ? 0
+    : state.consecutiveRejectCycles + 1;
+  state.consecutiveExecFailures =
+    anyExecFailed && !anyExecuted ? state.consecutiveExecFailures + 1 : 0;
   state.rateLimitHits = client.rateLimitHits ?? state.rateLimitHits;
   saveState(stateFile, state);
   if (live && anyExecuted) await exportRunEvidence(client, runId);
@@ -239,7 +313,10 @@ export interface LoopOptions {
   maxCycles?: number;
 }
 
-export async function runLoop(deps: RunnerDeps, opts: LoopOptions = {}): Promise<CycleResult[]> {
+export async function runLoop(
+  deps: RunnerDeps,
+  opts: LoopOptions = {},
+): Promise<CycleResult[]> {
   const results: CycleResult[] = [];
   const cadenceMs = parseCadenceMs(deps.spec.trigger.cadence) ?? 3_600_000;
   const log = deps.log ?? (() => {});
