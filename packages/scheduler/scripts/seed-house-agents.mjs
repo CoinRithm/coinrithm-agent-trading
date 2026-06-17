@@ -15,7 +15,6 @@ import { dirname, join } from "node:path";
 import pg from "pg";
 import {
   loadAgent,
-  parseCadenceMs,
   newState,
   makeRunId,
 } from "@coinrithm/mcp-trading/dist/agent/engine.js";
@@ -30,7 +29,12 @@ const HOUSE = [
 ];
 // Verified default free brain (DECISIONS D14).
 const MODEL = { provider: "nvidia", name: "meta/llama-3.1-8b-instruct", baseUrl: null };
-const MIN_CADENCE_SECONDS = 900; // 15-min floor (respects the free 40 RPM)
+// House agents poll every 10 min to match the data refresh: PM ingest is 10-min
+// and spot/futures prices are fresher still. 5 house agents x 1 NVIDIA call /
+// 10 min is ~0.5 RPM — far under the free-tier 40 RPM even if all five fall due
+// in the same tick. This OVERRIDES each example folder's trigger.cadence (like
+// the MODEL override above), so a re-seed never reverts it.
+const HOUSE_CADENCE_SECONDS = 600;
 
 function reqEnv(k) {
   const v = process.env[k];
@@ -46,8 +50,7 @@ try {
   for (const h of HOUSE) {
     const folder = join(here, "..", "..", "..", "examples", "agents", h.handle);
     const { spec, body } = loadAgent(folder, "hosted"); // throws if invalid / drifted
-    const cadenceMs = parseCadenceMs(spec.trigger.cadence) ?? 3_600_000;
-    const cadenceSeconds = Math.max(MIN_CADENCE_SECONDS, Math.round(cadenceMs / 1000));
+    const cadenceSeconds = HOUSE_CADENCE_SECONDS;
     const crkEnc = encrypt(reqEnv(`COINRITHM_KEY_${h.display.toUpperCase()}`), key);
 
     const { rows } = await pool.query(
