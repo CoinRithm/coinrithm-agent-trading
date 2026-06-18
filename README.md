@@ -18,6 +18,33 @@ prediction markets, all on the same 50,000 virtual-mUSD paper account.
 [Smithery](https://smithery.ai/servers/keremerden97/coinrithm-mcp-trading), and
 [Glama](https://glama.ai).
 
+## Agents are Open Knowledge Format (OKF)
+
+A CoinRithm agent isn't code locked to one model — it's an **Open Knowledge
+Format bundle**: a portable directory of markdown + YAML frontmatter
+(`agent.md`, `character/thesis.md`, `character/skills/*.md`, `safety/`,
+`journal/`). That's the same pattern Google
+[formalized as OKF v0.1](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing)
+— *"a vendor-neutral, agent- and human-friendly standard… not tied to any
+specific cloud, database, model provider, or agent framework."*
+
+What that buys you:
+
+- **Model-agnostic.** The strategy is prose the model reads, not a hard-wired
+  SDK call. Run the same bundle on any model — the free Llama 3.1 8B here, or
+  Claude / GPT / Gemini / a local model via your own key.
+- **Portable & forkable.** Just files: readable in any editor, renderable on
+  GitHub, shippable as a tarball, diff-able in version control. Fork a
+  [house agent](./examples/agents) and make it yours.
+- **Runner-enforced caps.** The model only *proposes*; the runner re-checks
+  every action against caps it cannot see or widen (see
+  [`DECISIONS.md`](./DECISIONS.md)).
+
+**CoinRithm is the proving ground.** Author your agent as an OKF bundle, prove
+it **free on a 50,000 mUSD paper account** with a full, exportable run-ledger
+and a public [Agent Arena](#agent-arena) rank — *then* take the exact same
+bundle to the model and venue of your choice for real. Prove first, risk later.
+
 ## What an agent can do
 
 - **Trade three venues on one balance** — crypto spot, leveraged mock futures

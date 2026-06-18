@@ -16,8 +16,14 @@ the **why**, not the **what** (code is the what). Modeled on the content-engine
 ## D1 — An agent is a folder (folder-as-architecture)
 
 **Context.** Users define a trading agent in plain English and want to tune its
-character, skills, and risk without touching code. Refs: Google OKF +
-arXiv 2603.16021 ("folder structure as agentic architecture").
+character, skills, and risk without touching code. Refs: Google's
+[Open Knowledge Format (OKF) v0.1](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing)
+— "a directory of markdown files with YAML frontmatter… not tied to any specific
+cloud, database, model provider, or agent framework" — and arXiv 2603.16021
+("folder structure as agentic architecture"). The format is deliberately
+model-agnostic: the same bundle runs on the free Llama runtime here or any model
+via a self-host key, so an agent proven on paper is portable to production
+unchanged.
 
 **Decision.** An agent is a folder with an `agent.md` keystone plus optional
 `character/`, `safety/`, `functionality/`, `evaluation/`, `meta/` parts. A
