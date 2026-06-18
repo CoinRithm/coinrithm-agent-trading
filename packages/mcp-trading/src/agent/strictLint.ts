@@ -42,6 +42,7 @@ const ALLOWED_KEYS: Record<string, string[] | null> = {
     "maxConcurrentPositions",
     "requireStopLoss",
     "watchlist",
+    "blocklist",
   ],
   sizing: null,
   limits: [

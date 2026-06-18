@@ -89,6 +89,26 @@ describe("validateAction", () => {
     );
   });
 
+  it("rejects an open on a deny-listed symbol (deny wins over watchlist)", () => {
+    const blockedSpec = {
+      ...spec,
+      risk: { ...spec.risk, blocklist: ["BTC"] },
+    };
+    expect(validateAction(goodOpen, ctx({ spec: blockedSpec })).code).toBe(
+      "blocked_symbol",
+    );
+  });
+
+  it("allows a non-deny-listed open when a blocklist is set", () => {
+    const blockedSpec = {
+      ...spec,
+      risk: { ...spec.risk, blocklist: ["ETH"] },
+    };
+    expect(validateAction(goodOpen, ctx({ spec: blockedSpec })).valid).toBe(
+      true,
+    );
+  });
+
   it("rejects over-margin", () => {
     expect(validateAction({ ...goodOpen, marginMusd: 9999 }, ctx()).code).toBe(
       "margin_exceeds_cap",

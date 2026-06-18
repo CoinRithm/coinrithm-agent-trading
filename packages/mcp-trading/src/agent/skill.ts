@@ -112,6 +112,7 @@ export function buildSpec(raw: Record<string, unknown>): AgentSpec {
       maxConcurrentPositions: num(risk.maxConcurrentPositions, 0),
       requireStopLoss: bool(risk.requireStopLoss, true),
       watchlist: strArr(risk.watchlist),
+      blocklist: strArr(risk.blocklist),
     },
     limits: {
       maxTradesPerDay: num(limits.maxTradesPerDay, DEFAULT_LIMITS.maxTradesPerDay),

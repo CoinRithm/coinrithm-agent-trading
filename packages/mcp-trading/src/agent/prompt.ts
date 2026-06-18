@@ -42,6 +42,11 @@ export function buildSystemPrompt(
     `- perTradeMarginMusd ${r.perTradeMarginMusd} is the per-trade SIZE cap (futures margin / spot buy notional / PM stake)`,
     `- futures: maxLeverage ${r.maxLeverage}, maxConcurrentPositions ${r.maxConcurrentPositions}, requireStopLoss ${r.requireStopLoss} (long stop below entry, short stop above)`,
     `- watchlist (spot + futures use ONLY these): ${r.watchlist.join(", ")}`,
+    ...(r.blocklist && r.blocklist.length > 0
+      ? [
+          `- deny-list (NEVER open these, even if on the watchlist): ${r.blocklist.join(", ")}`,
+        ]
+      : []),
     "- prediction markets: pick ONLY a market listed in observation.pmMarkets; minimum stake 10 mUSD",
     `- abstention.minConfidence ${spec.abstention.minConfidence}; a skipped cycle is correct and cheap`,
     ...(spec.capabilities.includes("indicators")

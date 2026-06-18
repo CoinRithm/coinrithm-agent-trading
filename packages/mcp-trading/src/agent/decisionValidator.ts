@@ -69,6 +69,18 @@ export function validateAction(
     );
   }
 
+  // Deny-list: an open on a blocked symbol is rejected up front (deny wins over
+  // the watchlist). PM opens use a market slug, not a coin symbol, so skip them.
+  if (action.type === "futures_open" || action.type === "spot_order") {
+    const blocklist = spec.risk.blocklist;
+    if (Array.isArray(blocklist) && blocklist.length > 0) {
+      const sym = action.symbol.toUpperCase();
+      if (blocklist.some((b) => b.toUpperCase() === sym)) {
+        return fail("blocked_symbol", `${action.symbol} is on the deny-list`);
+      }
+    }
+  }
+
   if (action.type === "futures_open") {
     // Daily realized-loss stop: once today's loss hits the cap, open no new risk.
     if (

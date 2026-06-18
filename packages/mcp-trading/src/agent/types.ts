@@ -61,7 +61,12 @@ export interface RiskConfig {
   perTradeMarginMusd: number;
   maxConcurrentPositions: number;
   requireStopLoss: boolean;
+  // Allow-list of tradable symbols (uppercase). An open on a symbol NOT here is
+  // rejected. PM markets come from discovery, so they are not gated by this.
   watchlist: string[];
+  // Optional deny-list (uppercase): an open on a symbol here is rejected even if
+  // it is also on the watchlist (deny wins). Empty/omitted = nothing blocked.
+  blocklist?: string[];
 }
 
 export interface LimitsConfig {
