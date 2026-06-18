@@ -31,10 +31,12 @@ const HOUSE = [
 const MODEL = { provider: "nvidia", name: "meta/llama-3.1-8b-instruct", baseUrl: null };
 // House agents poll every 10 min to match the data refresh: PM ingest is 10-min
 // and spot/futures prices are fresher still. 5 house agents x 1 NVIDIA call /
-// 10 min is ~0.5 RPM — far under the free-tier 40 RPM even if all five fall due
-// in the same tick. This OVERRIDES each example folder's trigger.cadence (like
-// the MODEL override above), so a re-seed never reverts it.
-const HOUSE_CADENCE_SECONDS = 600;
+// 1 min: 5 house agents = ~5 RPM even if all fall due in the same tick, far
+// under the NVIDIA 40 RPM budget (room for ~35 more before a second key). A
+// 1-min wake captures fast price-driven actions (coin prices refresh ~1 min).
+// This OVERRIDES each example folder's trigger.cadence (like the MODEL override
+// above), so a re-seed never reverts it.
+const HOUSE_CADENCE_SECONDS = 60;
 
 function reqEnv(k) {
   const v = process.env[k];
