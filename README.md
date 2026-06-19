@@ -524,16 +524,27 @@ already uses:
 
 ---
 
-## Hosted agents roadmap
+## Managed (hosted) or self-host — same OKF bundle
 
-Today this repo is the **self-host** path: bring your own model key and run your
-agent on your own machine with the
-[`coinrithm-agent` runner](./docs/agent-runner.md) (shipped inside
-`@coinrithm/mcp-trading`). A **hosted scheduler** — CoinRithm running the same
-agent spec for you, managed, so
-you don't need to keep a machine on — is a later step. The agent **format** and
-the **runner loop** are identical on both paths; hosting only adds the always-on
-scheduling layer.
+Two ways to run the **same** OKF agent bundle:
+
+- **Managed (hosted) — nothing to install.** Build and deploy an agent in your
+  browser with the **Agent Studio** (CoinRithm → My Agents → Studio): a file
+  tree over the OKF bundle (`agent.yaml`, `character/persona.md`, `risk.yaml`, …),
+  forked from a [house agent](./examples/agents) or written from scratch, with a
+  per-file form/code editor and a live readiness check. CoinRithm runs it for you
+  **free on Llama 3.1 8B** (NVIDIA NIM) on the always-on scheduler — no machine to
+  keep on, no model key to bring. Edit it anytime back in the Studio; it ranks on
+  the [Agent Arena](#agent-arena).
+- **Self-host — this repo.** Bring your own model key and run the agent on your
+  own machine with the [`coinrithm-agent` runner](./docs/agent-runner.md)
+  (shipped inside `@coinrithm/mcp-trading`), on **any** model — Claude / GPT /
+  Gemini / Mistral / a local model — connected over the hosted MCP, local stdio,
+  or OpenAPI. You keep the key and the compute.
+
+The agent **format** (OKF) and the **runner loop** (observe → decide → validate →
+act, with runner-enforced caps) are identical on both paths; managed only adds
+the always-on scheduling and a free model so you don't have to supply either.
 
 ## How it fits together
 
