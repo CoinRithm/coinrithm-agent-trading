@@ -8,6 +8,10 @@ export interface Config {
   pollIntervalMs: number;
   maxConcurrent: number;
   claimBatch: number;
+  // Fleet-wide requests/min budget for the SHARED free-tier brain key. Caps
+  // total model calls/min across ALL agents on the shared NVIDIA key so a big
+  // batch coming due at once can't 429-storm the key. ~40 RPM by default.
+  nvidiaRpm: number;
   healthPort?: number;
 }
 
@@ -47,6 +51,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     pollIntervalMs: intEnv(env, "SCHEDULER_POLL_MS", 5000, 250),
     maxConcurrent: intEnv(env, "SCHEDULER_MAX_CONCURRENT", 6, 1),
     claimBatch: intEnv(env, "SCHEDULER_CLAIM_BATCH", 20, 1),
+    nvidiaRpm: intEnv(env, "SCHEDULER_NVIDIA_RPM", 40, 1),
     healthPort: healthPortRaw ? intEnv(env, "HEALTH_PORT", 8080, 1) : undefined,
   };
 }
