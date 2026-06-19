@@ -1,0 +1,197 @@
+# =============================================================================
+# coinrithm.agent.scorecard.v1
+# Deterministic, reproducible evaluation metric library for OKF trading agents.
+# =============================================================================
+#
+# WHY THIS EXISTS
+# Ranking paper agents on raw realized PnL rewards variance and luck (leverage +
+# a virtual account = a lottery). A credible agentic-trading standard needs
+# REPRODUCIBLE evaluation: the same trade record must always yield the same
+# scorecard, with risk-adjusted and skill-deflated metrics, calibration for
+# probabilistic calls, and explicit pass/warn/fail gates. This file is that
+# metric library — versioned once, referenced by every agent's
+# evaluation/scorecard.yaml.
+#
+# SCIENTIFIC BASIS
+#   - Reproducible evaluation is the field's missing layer (arXiv 2605.19337):
+#     CoinRithm's per-key ledger + run-evidence export IS that layer. Every
+#     metric below is computed by a DETERMINISTIC engine from the exported
+#     ledger + realized equity curve — never estimated by the model.
+#   - Orchestration / leakage separation (arXiv 2512.02227): the LLM agent never
+#     sees evaluation-window returns, prices, or labels. Numerical computation is
+#     isolated behind deterministic tools; the scorecard is produced AFTER the
+#     run from immutable evidence, so tuning-to-the-metric is structurally
+#     impossible. Risk lives behind boolean GATES (stop_coverage, evidence_*)
+#     that an agent must pass, not optimize against.
+#   - Skill vs luck deflation follows Bailey & López de Prado (deflated Sharpe):
+#     a short, multiple-tested track record is penalized so a few lucky wins do
+#     not read as edge.
+#
+# DETERMINISM CONTRACT
+#   - Inputs: the run-evidence ledger export + GET /api/agent/equity-curve
+#     (granularity=realized). Per-cycle return r_i = realized PnL of realization
+#     i divided by the account value at that realization's open (mUSD).
+#   - Same inputs -> byte-identical scorecard JSON + a content hash (sha256 of
+#     the canonicalized result), mirroring meta/manifest.lock.json. A scorecard
+#     whose hash does not reproduce is not trusted.
+#   - annualizationFactor is STATED per agent (sqrt of realizations-per-year
+#     implied by cadence); never silently assumed.
+#
+# STATUS RULES
+#   For each metric an agent's scorecard.yaml sets {target, warn, fail} (or
+#   inherits the default here). status = pass if better-or-equal to target,
+#   warn if between warn and target, fail if worse than fail. `direction`
+#   says which way is better. `gate: true` metrics are hard: a fail blocks the
+#   agent from being presented as "passing", regardless of PnL.
+# =============================================================================
+
+schema: coinrithm.agent.scorecard.v1
+version: 1
+# Per-cycle return basis used by ratio metrics, stated explicitly for replay.
+returnBasis: realized_pnl_over_account_value_at_open
+
+metrics:
+  # --- Headline -------------------------------------------------------------
+  - id: realized_pnl_musd
+    label: Realized PnL (mUSD)
+    direction: higher_is_better
+    formula: sum(realized_pnl_i)
+    window: [7d, 30d, all]
+    note: Headline number. Net of the inevitable losing trades; paper mUSD.
+
+  - id: expectancy_musd
+    label: Expectancy per trade (mUSD)
+    direction: higher_is_better
+    formula: p_win * avg_win - (1 - p_win) * avg_loss
+    window: [all]
+    note: >
+      Positive expectancy is the minimum bar for an edge. p_win = winCount /
+      decidedCount; avg_win / avg_loss are mean absolute mUSD of winners/losers.
+
+  # --- Risk-adjusted --------------------------------------------------------
+  - id: sharpe
+    label: Sharpe (annualized)
+    direction: higher_is_better
+    formula: (mean(r) / stddev(r)) * annualizationFactor
+    window: [30d, all]
+    default: { warn: 0.5, target: 1.0, fail: 0.0 }
+    note: Mean over standard deviation of per-cycle returns; rf assumed 0 (paper).
+
+  - id: sortino
+    label: Sortino (annualized)
+    direction: higher_is_better
+    formula: (mean(r) / downsideDeviation(r)) * annualizationFactor
+    window: [30d, all]
+    note: Like Sharpe but penalizes only downside deviation (returns below 0).
+
+  - id: deflated_sharpe
+    label: Deflated Sharpe (skill vs luck)
+    direction: higher_is_better
+    formula: >
+      probabilistic Sharpe deflated for track length N, skew and kurtosis of r,
+      and the number of trials/variants tested (Bailey & Lopez de Prado 2014)
+    window: [all]
+    default: { warn: 0.5, target: 0.9, fail: 0.0 }
+    note: >
+      Penalizes short, multiple-tested records so a lucky streak does not read
+      as edge. THE anti-variance metric for a public leaderboard.
+
+  - id: max_drawdown_musd
+    label: Max drawdown (mUSD)
+    direction: lower_is_better
+    formula: max over t of (running_peak(cum_realized) - cum_realized_t)
+    window: [30d, all]
+    note: Peak-to-trough on the cumulative realized-PnL curve. Compare to killSwitch.
+
+  - id: profit_factor
+    label: Profit factor
+    direction: higher_is_better
+    formula: gross_win / gross_loss
+    window: [30d, all]
+    default: { warn: 1.2, target: 1.5, fail: 1.0 }
+    note: Sum of winners over absolute sum of losers; >1 means net-positive gross.
+
+  - id: reward_to_risk
+    label: Avg reward-to-risk
+    direction: higher_is_better
+    formula: mean(abs(realized_pnl_i) for wins) / mean(abs(realized_pnl_i) for losses)
+    window: [all]
+    note: Average winner size vs average loser size on closed trades.
+
+  - id: win_rate
+    label: Win rate
+    direction: higher_is_better
+    formula: winCount / decidedCount
+    window: [all]
+    note: >
+      Reported WITH a small-sample caveat below SMALL_SAMPLE_DECIDED (20).
+      Not a standalone edge signal — pair with expectancy + reward_to_risk.
+
+  # --- Calibration (probabilistic / prediction-market agents) ---------------
+  - id: brier_score
+    label: Brier score
+    direction: lower_is_better
+    formula: mean((predicted_prob_i - outcome_i)^2)
+    window: [all]
+    applies_when: agent emits a predicted probability (PM / confidence calls)
+    note: Lower = better-calibrated probabilities. 0 = perfect, 0.25 = coin-flip.
+
+  - id: calibration_error
+    label: Expected calibration error (ECE)
+    direction: lower_is_better
+    formula: sum_b (n_b/N) * abs(mean_predicted_b - mean_outcome_b)
+    window: [all]
+    applies_when: agent emits a predicted probability
+    note: >
+      Bucketed |predicted - realized| over probability bins. A "70% YES" should
+      resolve YES ~70% of the time. The honesty metric for confidence claims.
+
+  # --- Benchmark-relative ---------------------------------------------------
+  - id: alpha
+    label: Alpha vs benchmark
+    direction: higher_is_better
+    formula: intercept of OLS(agent_returns ~ benchmark_returns)
+    window: [all]
+    requires: benchmark.yaml (default = equal-weight buy-and-hold of the watchlist)
+    note: Excess return not explained by simply holding the universe.
+
+  - id: beta
+    label: Beta vs benchmark
+    direction: toward_zero
+    formula: slope of OLS(agent_returns ~ benchmark_returns)
+    window: [all]
+    requires: benchmark.yaml
+    note: Market exposure. ~0 = market-neutral edge; ~1 = mostly long the universe.
+
+  # --- Gates (hard; a fail blocks "passing" regardless of PnL) ---------------
+  - id: stop_coverage
+    label: Stop-loss coverage
+    direction: higher_is_better
+    gate: true
+    formula: positions_opened_with_stop / positions_opened
+    window: [all]
+    default: { fail: 0.999, target: 1.0 }
+    note: 100% of opened positions must carry a stop at entry. A miss = fail.
+
+  - id: evidence_coverage
+    label: Run-trace coverage
+    direction: higher_is_better
+    gate: true
+    formula: cycles_with_complete_trace / cycles
+    window: [all]
+    default: { warn: 0.9, target: 0.99, fail: 0.8 }
+    note: >
+      Reproducibility gate (2605.19337). A run whose decisions are not traceable
+      to the data available at decision time cannot be evaluated and is not
+      trusted, however profitable.
+
+  - id: leakage_clean
+    label: No look-ahead leakage
+    direction: higher_is_better
+    gate: true
+    formula: 1 if every write quoted-before-trade with a decision-time price, else 0
+    window: [all]
+    note: >
+      Leakage separation (2512.02227): every trade must reference a quote taken
+      BEFORE the write, at a decision-time price. Quote-before-write + idempotency
+      keys enforce this at the API; the scorecard verifies it from the ledger.

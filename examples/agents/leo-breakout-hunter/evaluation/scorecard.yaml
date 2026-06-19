@@ -1,0 +1,52 @@
+# Machine-readable scorecard for Leo (breakout hunter) — the deterministic
+# companion to scorecard.md. Inherits formulas from the shared metric library
+# and sets Leo's targets + gates. The deterministic engine reads THIS file +
+# Leo's run-evidence ledger and emits a reproducible, content-hashed report.
+schema: coinrithm.agent.scorecard.v1
+metricsRef: ../../_shared/scorecard.metrics.yaml
+agent: leo
+objective: realized_pnl
+
+# Leo is a low-frequency breakout hunter (~0-3 trades/active day). Annualizing a
+# per-trade Sharpe at that frequency is misleading, so report RAW per-realization
+# ratios (annualizationFactor = 1) and state it. Honesty over a flattering number.
+annualizationFactor: 1
+benchmark: equal_weight_buy_and_hold_watchlist
+
+# Targets/gates (override the library defaults). status = pass | warn | fail.
+targets:
+  realized_pnl_musd: { warn: 0, target: 1, fail: -2500 } # net-positive after fakeouts
+  expectancy_musd: { warn: 0, target: 1, fail: -1 }
+  reward_to_risk: { warn: 2.0, target: 2.5, fail: 2.0 } # below 2.0 = stops too wide / targets too shy
+  profit_factor: { warn: 1.2, target: 1.5, fail: 1.0 }
+  deflated_sharpe: { warn: 0.5, target: 0.9, fail: 0.0 }
+  max_drawdown_musd: { warn: 1500, target: 1000, fail: 2500 } # 2500 = killSwitch
+
+gates:
+  stop_coverage: { fail: 0.999, target: 1.0 } # 100% of entries carry a stop
+  evidence_coverage: { warn: 0.9, target: 0.99, fail: 0.8 }
+  leakage_clean: { target: 1.0, fail: 1.0 } # any look-ahead = fail
+
+# Leo-specific selectivity metrics (his EDGE is patience, not activity). Computed
+# from the cycle log; not part of the shared library because they are
+# strategy-specific. direction + thresholds make them gradeable all the same.
+custom:
+  - id: trades_per_active_day
+    label: Trades per active day
+    direction: range
+    formula: opened_positions / active_days
+    target: { min: 0, max: 3 }
+    note: A sustained run near the 3/day cap means he is chasing, not waiting.
+  - id: skip_rate
+    label: Documented skip rate
+    direction: higher_is_better
+    formula: cycles_ending_in_skip / cycles
+    target: 0.6
+    note: >
+      Majority of cycles should end in a documented skip (mid-range / no volume /
+      wick-not-close). A low skip rate means the filters are being ignored.
+  - id: fakeout_rate
+    label: Fakeout rate (trend)
+    direction: lower_is_better
+    formula: entries_stopped_back_inside_range_within_3_cycles / entries
+    note: Trending DOWN over time = the volume/close filters are working.

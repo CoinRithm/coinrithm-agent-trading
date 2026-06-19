@@ -279,6 +279,43 @@ signal is genuinely weak and act when it is genuinely present. Defensible wedge:
 reproducible, declarative, evaluable agents (the field's stated gap), while
 keeping the free brain viable on compact signal.
 
+## D17 — Deterministic, reproducible scorecard (`coinrithm.agent.scorecard.v1`)
+
+**Context.** Ranking paper agents on raw realized PnL rewards variance and luck —
+with leverage and a virtual account, a few lucky wins read as edge. The field's
+stated gap is **reproducible evaluation** (arXiv 2605.19337): the same trade
+record must always yield the same risk-adjusted, skill-deflated, calibration-aware
+scorecard. Our prose `evaluation/scorecard.md` files are human-readable but not
+machine-evaluable, so two people grading the same agent could disagree.
+
+**Decision.** A versioned metric library —
+`examples/agents/_shared/scorecard.metrics.yaml` (`coinrithm.agent.scorecard.v1`)
+— defines each metric as `{id, formula, window, direction, target/warn/fail}`:
+Sharpe, Sortino, **deflated Sharpe** (skill vs luck, Bailey & López de Prado),
+max drawdown, profit factor, expectancy, reward-to-risk, win rate, **Brier +
+ECE calibration** (for probabilistic/PM calls), alpha/beta vs a benchmark, and
+hard **gates** (`stop_coverage`, `evidence_coverage`, `leakage_clean`). Each
+agent references it from a machine-readable `evaluation/scorecard.yaml` setting
+its own targets (shipped for Leo alongside the prose card).
+
+**Why.** Determinism contract: every metric is computed by a deterministic engine
+from the **run-evidence ledger export + realized equity curve** — never estimated
+by the model — so the same inputs yield a byte-identical, content-hashed scorecard
+(mirroring `meta/manifest.lock.json`). This bakes in **leakage separation** (arXiv
+2512.02227): the LLM never sees evaluation-window returns/prices/labels; the
+scorecard is produced AFTER the run from immutable evidence, so tuning-to-the-metric
+is structurally impossible, and risk lives behind boolean gates an agent must
+**pass**, not optimize against. Deflated Sharpe is the anti-variance metric a public
+leaderboard needs. This is the defensible wedge: CoinRithm's run-evidence layer IS
+the missing reproducible-evaluation layer, and the OKF folder makes it portable.
+
+**Shipped.** The metric library + Leo's machine-readable `scorecard.yaml`.
+**Next.** Upgrade `eval-report.mjs` into the deterministic engine (read
+scorecard.yaml + ledger export → emit every metric + a content hash) with golden
+fixtures from observed ledger shapes (Probe-First); bind or remove the decorative
+`kellyFraction` in `sizing.yaml` (gate-based, caps stay in the runner per D3); and
+author a flagship quant-rigorous reference agent that exercises the full spec.
+
 ---
 
 ## Open directions (not yet decided / not implemented)
