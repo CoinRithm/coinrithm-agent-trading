@@ -1,0 +1,4 @@
+# Edge gate. Skip unless stated confidence clears this. A documented skip is a
+# valid, GRADEABLE outcome — the scorecard rewards selectivity (deflated Sharpe,
+# expectancy), not activity. Most cycles should end in a reasoned skip.
+minConfidence: 0.58

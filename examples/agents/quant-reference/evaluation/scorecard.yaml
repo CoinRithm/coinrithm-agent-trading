@@ -1,0 +1,38 @@
+# Machine-readable scorecard for the Quant Reference agent — the full rigorous
+# spec: risk-adjusted + skill-deflated + calibrated + benchmark-relative, all hard
+# metrics with explicit pass/warn/fail, computed deterministically from the ledger.
+schema: coinrithm.agent.scorecard.v1
+metricsRef: ../../_shared/scorecard.metrics.yaml
+agent: quant-reference
+objective: risk_adjusted
+benchmark: ./benchmark.yaml
+
+# Risk-adjusted ratios reported on per-realization returns (r = realized /
+# accountValueAtOpen). annualizationFactor stated explicitly per cadence — set by
+# the deployer to sqrt(realizations-per-year); 1 = report raw.
+annualizationFactor: 1
+# Number of strategy variants tested, for the deflated-Sharpe multiple-testing
+# penalty. Keep honest — inflating trials understates skill, deflating overstates it.
+trials: 1
+
+targets:
+  sharpe: { warn: 0.5, target: 1.0, fail: 0.0 }
+  sortino: { warn: 0.7, target: 1.3, fail: 0.0 }
+  deflated_sharpe: { warn: 0.6, target: 0.9, fail: 0.0 } # skill, not luck
+  profit_factor: { warn: 1.3, target: 1.6, fail: 1.0 }
+  expectancy_musd: { warn: 0, target: 5, fail: -1 }
+  max_drawdown_musd: { warn: 3000, target: 1500, fail: 5000 } # 5000 = killSwitch
+  alpha: { warn: 0, target: 1, fail: -1 } # must beat buy-and-hold
+  # Calibration — this agent states win-probabilities, so it is held to them.
+  brier_score: { warn: 0.22, target: 0.18, fail: 0.25 }
+  calibration_error: { warn: 0.1, target: 0.05, fail: 0.2 }
+
+gates:
+  stop_coverage: { fail: 0.999, target: 1.0 }
+  evidence_coverage: { warn: 0.9, target: 0.99, fail: 0.8 }
+  leakage_clean: { target: 1.0, fail: 1.0 }
+
+# Reproducibility: the deterministic engine emits a content hash of this report
+# (sha256 of the canonicalized metrics). A scorecard whose hash does not reproduce
+# from the same ledger is not trusted — that is the whole point.
+reproducible: true

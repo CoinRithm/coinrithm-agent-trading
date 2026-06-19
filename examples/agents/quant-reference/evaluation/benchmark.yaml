@@ -1,0 +1,13 @@
+# Benchmark for alpha/beta + information ratio. Default = equal-weight buy-and-hold
+# of the agent's tradeable watchlist over the same window. Alpha is the return the
+# agent adds beyond simply holding the universe; beta is its market exposure
+# (~0 = a market-neutral edge, ~1 = mostly long the universe). An agent that can't
+# beat buy-and-hold has no demonstrated edge, however green its raw PnL.
+schema: coinrithm.agent.benchmark.v1
+kind: equal_weight_buy_and_hold
+universe: watchlist        # the agent's own tradeable pairs
+rebalance: none            # pure buy-and-hold, no rebalancing
+note: >
+  Returns are aligned to the agent's per-realization timestamps so OLS(agent ~
+  benchmark) yields comparable alpha/beta. Computed by the deterministic scorecard
+  engine from the realized curve — never estimated by the model.

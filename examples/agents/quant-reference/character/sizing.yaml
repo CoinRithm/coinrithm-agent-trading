@@ -1,0 +1,31 @@
+# Formula-bound position sizing — every number is DERIVED, not guessed. The runner
+# enforces the hard caps (DECISIONS D3: caps live in the runner; the model only
+# proposes a stake WITHIN them). The final stake is the MOST CONSERVATIVE of the
+# three derivations below — so no single knob can blow up risk.
+schema: coinrithm.agent.sizing.v1
+
+# (1) Fixed-fractional risk anchor — the primary control.
+#     Stake so that hitting the stop loses at most riskPerTradePct of equity:
+#       stopDistanceFrac = |entry - stop| / entry
+#       riskStake        = equity * (riskPerTradePct/100) / stopDistanceFrac
+riskPerTradePct: 1.0
+
+# (2) Fractional Kelly on the agent's STATED edge (not curve-fit):
+#       f_kelly   = (p*b - (1 - p)) / b      # p = stated win-prob, b = reward:risk
+#       kellyStake = max(0, kellyFraction * f_kelly) * equity
+#     Quarter-Kelly (0.25) for drawdown control — full Kelly is too aggressive on
+#     a noisy, self-reported p. f_kelly <= 0 (no edge) => no trade.
+kellyFraction: 0.25
+
+# (3) Volatility target — hold realized vol ~constant across regimes:
+#       atrPct      = ATR14 / price * 100
+#       volStake    = equity * min(1, volTargetPct / atrPct)
+#     High-ATR coins get smaller size; quiet coins larger, to the same risk budget.
+volTargetPct: 2.0
+
+# Hard quality gate: skip any setup whose reward:risk is below this.
+riskRewardMin: 2.0
+
+# FINAL STAKE = min(riskStake, kellyStake, volStake, runnerCaps.perTradeMarginMusd).
+# Most-conservative-wins: a generous Kelly can never override the risk anchor or
+# the runner's per-trade cap.
