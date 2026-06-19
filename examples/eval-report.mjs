@@ -33,6 +33,10 @@
 // Zero dependencies — Node 18+ (built-in fetch) only.
 // ---------------------------------------------------------------------------
 
+// The deterministic scorecard engine (coinrithm.agent.scorecard.v1). Built dist —
+// run `npm --prefix packages/mcp-trading run build` once if this import fails.
+import { computeScorecard } from "../packages/mcp-trading/dist/agent/scorecard.js";
+
 const BASE = process.env.BASE_URL || "https://api.coinrithm.com";
 const KEY = process.env.COINRITHM_API_KEY || process.env.CRK_API_KEY;
 const DAYS = Math.min(Math.max(Number(process.env.DAYS) || 30, 1), 365);
@@ -128,6 +132,29 @@ const run = async () => {
     const x = perf.byVenue?.[v] || {};
     line(`  ${v.padEnd(8)} ${String(x.tradeCount ?? 0).padStart(4)} trades`, `${fmt(x.realizedPnlMusd)} mUSD  wr ${x.winRate == null ? " n/a" : pct(x.winRate)}`);
   }
+  rule();
+  // --- Reproducible scorecard (coinrithm.agent.scorecard.v1) ----------------
+  // The deterministic engine's view of this key's realized record: risk-adjusted
+  // + skill-deflated, with a content hash so the card is verifiable (a hash that
+  // doesn't reproduce from the same ledger is not trusted). Same metrics any
+  // grader computes — no model in the loop.
+  const sc = computeScorecard({
+    realizedPnls: pnls,
+    cumulative: points
+      .map((p) => Number(p.cumulativeRealizedPnlMusd))
+      .filter(Number.isFinite),
+    annualizationFactor: Number(process.env.ANNUALIZATION) || 1,
+    trials: Number(process.env.TRIALS) || 1,
+  });
+  const m = sc.metrics;
+  line("REPRODUCIBLE SCORECARD", "scorecard.v1");
+  line("  Sharpe / Sortino", `${m.sharpe ?? "n/a"} / ${m.sortino ?? "n/a"}`);
+  line(
+    "  Deflated Sharpe (skill)",
+    m.deflated_sharpe == null ? "n/a" : `${(m.deflated_sharpe * 100).toFixed(0)}%`,
+  );
+  line("  Expectancy / trade", `${fmt(m.expectancy_musd)} mUSD`);
+  line("  content hash", `${sc.contentHash.slice(0, 16)}…`);
   rule();
   line("RECENT TRADES");
   const recent = trades.trades || [];
