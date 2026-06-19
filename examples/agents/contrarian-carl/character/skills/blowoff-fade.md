@@ -1,4 +1,8 @@
 ---
+type: coinrithm.agent.skill
+title: Blow-off Top Fade
+description: Short-side mean-reversion tactic for exhausted euphoric moves.
+tags: [skill, short, mean-reversion, futures]
 risk:
   maxLeverage: 2
 ---

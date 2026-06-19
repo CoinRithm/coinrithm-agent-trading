@@ -1,16 +1,17 @@
 {
-  "configHash": "sha256:4c8207dc1f17d8237832270fa1372302e078973c6373efee8ab9d5675fb9aa50",
+  "configHash": "sha256:21e90b92eab9f5160f1eca6862d427a8c92f3c6a98f547797e5323e65ada7b2d",
   "contentHashes": {
     "agent.md": "sha256:9147b0b509f7203a78a8807f06b0a0c034c99fd903f6316566852820cad2aa92",
     "character/abstention.yaml": "sha256:926750bbd253a3d8b85007fed099bb57898ca0c104848f45f27580354989a3a2",
     "character/limits.yaml": "sha256:4e61d663ced5a84aaaf5dcb29eda9e170d4b08da13e31082d6af65b5b53ac562",
-    "character/persona.md": "sha256:f2ef52f9ec86724349e877c7c1e1a63568b69180eb82c87894b2a9e1f62c6e93",
+    "character/persona.md": "sha256:177007c6fed9e74c2d003e9a7f0f014a7eecd1af74eb796c3d006f90534d3b88",
     "character/risk.yaml": "sha256:25884b459246d1f1b4fc006b20effda0002605153789e5f94d5241ca09e91902",
     "character/sizing.yaml": "sha256:39ef3114d43ae621ef15e7b3379988f82ff197097f781ca3be96cf61923e1d49",
-    "character/skills/blowoff-fade.md": "sha256:9ecae923fc722046c89c11e03fdb06a63e885406d8e059f72fa8eea1779f8829",
-    "character/skills/oversold-bounce.md": "sha256:d79ce4b73643ec968ac7041b6771cc98348765bd2c01504d1403def4343c06d7",
-    "character/thesis.md": "sha256:4061046f11c1155dbe36da3515581507bbb6a89b3775335cc38cc31314cd74c3",
-    "journal/notes.md": "sha256:83efbbe9782567f65adbf8181bee42ffbdaaddb7dd9acf9562f9be77606ea0e3",
+    "character/skills/blowoff-fade.md": "sha256:f6a55feaa353e11300c9536c70e96caf1ec117047842a1047f7e6ff1e3aae432",
+    "character/skills/oversold-bounce.md": "sha256:a624febb2af2b6a5824abea373b223d268ee2d40cd56998f0a0284cccf235547",
+    "character/thesis.md": "sha256:ed9af16ecdfabbedc0c1922387eaf6cc485e429051e03c4054160c2ee770c39e",
+    "functionality/coinrithm.yaml": "sha256:9bf7b8ea39bd4bc2ea14807c82b837beef80d2dad61acf0346c66c55ced78bcf",
+    "journal/notes.md": "sha256:ece7e4c55ab8b612aeb7f75240e545a0f558c0cc9bf8b3a79eaba564f22eb771",
     "runtime.yaml": "sha256:a2dde8ea84ccfc8be5e4b731f3cb77b6ffa67b74fc778649a2990ea287b11013",
     "safety/killSwitch.yaml": "sha256:73e3b22488dde56311d779cebb1f65091a59abd80792d6185ec4d4bba76ac5f4"
   },
@@ -31,12 +32,14 @@
       "character/skills/blowoff-fade.md",
       "character/thesis.md",
       "character/persona.md",
-      "journal/notes.md"
+      "journal/notes.md",
+      "functionality/coinrithm.yaml"
     ],
     "sources": {
       "abstention": "character/abstention.yaml",
       "capabilities": "agent.md",
       "description": "agent.md",
+      "functionality": "functionality/coinrithm.yaml",
       "include": "agent.md",
       "killSwitch": "safety/killSwitch.yaml",
       "limits": "character/limits.yaml",
@@ -162,6 +165,7 @@
       ]
     },
     "risk": {
+      "blocklist": [],
       "maxConcurrentPositions": 2,
       "maxLeverage": 2,
       "perTradeMarginMusd": 600,

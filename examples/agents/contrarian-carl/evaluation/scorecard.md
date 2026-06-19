@@ -1,3 +1,10 @@
+---
+type: coinrithm.agent.scorecard
+title: Scorecard - Contrarian Carl
+description: Defines Carl's evaluation gates and secondary metrics for Arena review.
+tags: [agent, evaluation, scorecard, drawdown-control]
+---
+
 # Scorecard — Contrarian Carl
 
 Carl's primary objective is **drawdown_control**: he is graded first on how well he protects equity, and only second on raw return. A profitable run with an ugly equity curve is a failing run for this agent.

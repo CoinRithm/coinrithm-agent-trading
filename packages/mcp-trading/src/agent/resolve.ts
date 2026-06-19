@@ -61,6 +61,7 @@ const JOURNAL_MAX_BYTES = 8_000;
 
 // Optional prose files (markdown the LLM reads), in assembly order.
 const PROSE_FILES = ["character/thesis.md", "character/persona.md"];
+const FUNCTIONALITY_PIN = "functionality/coinrithm.yaml";
 
 // Enforced cap field names. sizing.yaml is SOFT guidance and must NOT contain
 // any of these (or a user could think a limit binds when it does not).
@@ -72,6 +73,7 @@ const ENFORCED_FIELD_NAMES = new Set<string>([
   "maxConsecutiveModelFailures",
   "onRateLimitPressure",
 ]);
+const SKILL_METADATA_KEYS = new Set(["type", "title", "description", "tags"]);
 
 // A $ref must be a LOCAL, RELATIVE path inside the agent folder — never a URL,
 // an absolute path, a home/drive path, or a Windows backslash path.
@@ -427,6 +429,13 @@ function resolveDirectory(dir: string): ResolvedAgent {
       // a skill file may be pure prose (no frontmatter) — treat whole as body.
       body = readFileSync(abs, "utf8");
     }
+    for (const f of scanForSecrets(patch)) {
+      ctx.issues.push({
+        code: "secret_in_frontmatter",
+        path: refPath,
+        message: `${f} (skill frontmatter is committable metadata — remove secrets)`,
+      });
+    }
     includeOrder.push(name);
     skillProse.push({ source: refPath, text: body });
     applySkillPatch(ctx, rawFrontmatter, patch, refPath);
@@ -453,6 +462,24 @@ function resolveDirectory(dir: string): ResolvedAgent {
         source: "journal/notes.md",
         text: boundTail(full, JOURNAL_MAX_LINES, JOURNAL_MAX_BYTES),
       });
+    }
+  }
+
+  // Optional API/tool contract pin. It is locked for reproducibility and stale
+  // warnings, but it is not part of AgentSpec and is never sent to the model.
+  const functionalityPath = join(dir, FUNCTIONALITY_PIN);
+  if (existsSync(functionalityPath)) {
+    const abs = safePath(ctx, FUNCTIONALITY_PIN, "functionality pin");
+    if (abs) {
+      const parsed = parseYamlSafe(ctx, readHashed(ctx, abs), FUNCTIONALITY_PIN);
+      for (const f of scanForSecrets(parsed)) {
+        ctx.issues.push({
+          code: "secret_in_functionality",
+          path: FUNCTIONALITY_PIN,
+          message: `${f} (the functionality pin is committable metadata — remove secrets)`,
+        });
+      }
+      sources.functionality = FUNCTIONALITY_PIN;
     }
   }
 
@@ -488,6 +515,7 @@ function applySkillPatch(
   sourceLabel: string,
 ): void {
   for (const key of Object.keys(patch)) {
+    if (SKILL_METADATA_KEYS.has(key)) continue;
     if (key === "risk" || key === "limits") {
       const caps = key === "risk" ? RISK_CAPS : LIMIT_CAPS;
       const base = (rawFrontmatter[key] as Record<string, unknown>) ?? {};

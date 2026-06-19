@@ -1,4 +1,8 @@
 ---
+type: coinrithm.agent.skill
+title: Oversold Capitulation Bounce
+description: Long-side mean-reversion tactic for exhausted panic moves.
+tags: [skill, long, mean-reversion, futures]
 risk:
   maxLeverage: 2
 ---

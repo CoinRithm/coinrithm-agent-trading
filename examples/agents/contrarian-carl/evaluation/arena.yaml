@@ -3,3 +3,13 @@ agentName: Contrarian Carl
 handle: a4-contrarian-carl
 agentModel: anthropic/claude-sonnet-4-6
 window: 7d
+visibility: public
+objective:
+  primary: drawdown_control
+  secondary:
+    - realized_pnl
+    - calibration
+scoring:
+  mode: realized-paper-pnl
+  guardrail: max-drawdown
+  evidence: private-run-ledger

@@ -1,3 +1,10 @@
+---
+type: coinrithm.agent.changelog
+title: Contrarian Carl - Changelog
+description: Human-readable release notes for the Contrarian Carl house agent.
+tags: [agent, changelog, house-agent]
+---
+
 # Changelog
 
 ## v1.0.0 — initial release

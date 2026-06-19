@@ -89,6 +89,46 @@ watchlist: [BTC, ETH]`,
   });
 });
 
+describe("resolveAgent — functionality pin", () => {
+  it("locks functionality/coinrithm.yaml as provenance without adding it to AgentSpec", () => {
+    write("agent.md", INLINE_AGENT);
+    write(
+      "functionality/coinrithm.yaml",
+      `api:
+  kind: coinrithm-agent-api
+  openapiVersion: 1.4.0
+`,
+    );
+
+    const r = resolveAgent(dir);
+    expect(r.contentHashes["functionality/coinrithm.yaml"]).toMatch(/^sha256:/);
+    expect(r.provenance.mergeOrder).toContain("functionality/coinrithm.yaml");
+    expect(r.provenance.sources.functionality).toBe("functionality/coinrithm.yaml");
+    expect(r.rawFrontmatter.functionality).toBeUndefined();
+    expect(r.mergedProse).not.toContain("openapiVersion");
+  });
+
+  it("rejects secrets in functionality/coinrithm.yaml", () => {
+    write("agent.md", INLINE_AGENT);
+    write(
+      "functionality/coinrithm.yaml",
+      `api:
+  kind: coinrithm-agent-api
+  apiKey: crk_live_AbCdEfGh12345678_a1b2c3
+`,
+    );
+
+    expect(() => resolveAgent(dir)).toThrow(ResolveError);
+    try {
+      resolveAgent(dir);
+    } catch (e) {
+      expect((e as ResolveError).issues.map((i) => i.code)).toContain(
+        "secret_in_functionality",
+      );
+    }
+  });
+});
+
 describe("resolveAgent — fail-closed", () => {
   it("a secret in a prose body fails", () => {
     write("agent.md", `---\nspec: coinrithm.agent.v1\nname: t\ndescription: d\n---\nbody`);
@@ -148,6 +188,20 @@ describe("resolveAgent — fail-closed", () => {
     expect((r.rawFrontmatter.risk as Record<string, unknown>).maxLeverage).toBe(2);
     expect(r.provenance.includeOrder).toEqual(["momentum"]);
     expect(r.mergedProse).toContain("momentum tactic");
+  });
+
+  it("allows descriptive metadata in tactic frontmatter without granting power", () => {
+    write(
+      "agent.md",
+      `---\nspec: coinrithm.agent.v1\nname: t\ndescription: d\nvenues: [futures]\ninclude: [momentum]\nrisk:\n  maxLeverage: 5\n  perTradeMarginMusd: 100\n  maxConcurrentPositions: 3\n  requireStopLoss: true\n  watchlist: [BTC]\n---\nbody`,
+    );
+    write(
+      "character/skills/momentum.md",
+      `---\ntype: coinrithm.agent.skill\ntitle: Momentum\ndescription: Test tactic\ntags: [skill]\nrisk:\n  maxLeverage: 2\n---\nmomentum tactic`,
+    );
+    const r = resolveAgent(dir);
+    expect((r.rawFrontmatter.risk as Record<string, unknown>).maxLeverage).toBe(2);
+    expect(r.rawFrontmatter.type).toBeUndefined();
   });
 
   it("rejects a symlinked $ref (where symlinks can be created)", () => {

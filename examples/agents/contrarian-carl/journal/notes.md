@@ -1,3 +1,10 @@
+---
+type: coinrithm.agent.journal
+title: Contrarian Carl - Journal Seed
+description: Seed memory with priors and lessons that guide Carl's future cycles.
+tags: [agent, journal, priors, mean-reversion]
+---
+
 # Carl — journal seed (priors and lessons)
 
 - **Over-extended is not the same as reversing.** Most of my early losses came from fading a move that was stretched but still accelerating. Wait for the exhaustion sign (stall, lower-high after a pump, higher-low after a dump) before committing. No exhaustion, no trade.
