@@ -5,6 +5,23 @@ ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (t
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
 versioned separately (see `openapi.yaml` `info.version`, currently `1.4.0`).
 
+## 0.4.0
+
+- **Deterministic scorecard engine (`computeScorecard`).** The reproducible-
+  evaluation engine for `coinrithm.agent.scorecard.v1` — pure math over an
+  agent's realized track record (no network, no model): realized PnL, win rate,
+  expectancy, profit factor, reward-to-risk, Sharpe, Sortino, deflated /
+  probabilistic Sharpe (Bailey & López de Prado — skill vs luck with a multiple-
+  testing penalty), max drawdown, and Brier + ECE calibration for probabilistic
+  calls. Same inputs → identical metrics **and** a sha256 `contentHash` of the
+  canonicalized result, so a scorecard whose hash doesn't reproduce isn't
+  trusted. Metrics are computed AFTER the run from immutable evidence (leakage-
+  separation), so tuning-to-the-metric is structurally impossible. Returns
+  `null` for thin records — never a fabricated number.
+- **Resolver: committable file metadata + functionality pin.** The OKF resolver
+  now carries per-file metadata and pins functionality through resolution, so a
+  bundle's behavior is reproducible from its committed files.
+
 ## 0.3.0
 
 - **Agent risk config: coin deny-list (`blocklist`).** `risk.blocklist` lets an
