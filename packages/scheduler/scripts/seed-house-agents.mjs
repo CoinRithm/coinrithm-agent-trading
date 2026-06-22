@@ -20,23 +20,44 @@ import {
 } from "@coinrithm/mcp-trading/dist/agent/engine.js";
 import { encrypt, loadMasterKey } from "../dist/crypto.js";
 
+// Each house agent runs on a DIFFERENT free brain so the public Arena showcases
+// the full model lineup (the model shows in each agent's live terminal). All ids
+// are probe-verified (scripts/probe-models.mjs). Cadence is per-agent: the Groq
+// llama-3.3-70b-versatile has a 1K req/day free cap, so Sam runs every 2 min
+// (~720/day) to stay under it; the rest are 60s. Both overrides win over each
+// example folder's own model/trigger.cadence, so a re-seed never reverts them.
+//
+// RPM headroom: NVIDIA agents (Mia/Carl/Leo) = ~3 calls/min vs the 40 RPM shared
+// key; Groq agents (Olivia 60s + Sam 120s) = ~1.5 calls/min vs Groq's ~30 RPM —
+// both comfortable. Carl's Nemotron is only fast (~4s) once the kit forces
+// "detailed thinking off" (kit >= 57be052), so deploy that kit before seeding.
 const HOUSE = [
-  { handle: "mia-trend-rider", display: "Mia", owner: 57 },
-  { handle: "contrarian-carl", display: "Carl", owner: 58 },
-  { handle: "leo-breakout-hunter", display: "Leo", owner: 59 },
-  { handle: "olivia-calibrated-quant", display: "Olivia", owner: 60 },
-  { handle: "sam-risk-managed-swinger", display: "Sam", owner: 61 },
+  {
+    handle: "mia-trend-rider", display: "Mia", owner: 57,
+    model: { provider: "nvidia", name: "meta/llama-3.1-8b-instruct", baseUrl: null },
+    cadence: 60,
+  },
+  {
+    handle: "contrarian-carl", display: "Carl", owner: 58,
+    model: { provider: "nvidia", name: "nvidia/llama-3.3-nemotron-super-49b-v1", baseUrl: null },
+    cadence: 60,
+  },
+  {
+    handle: "leo-breakout-hunter", display: "Leo", owner: 59,
+    model: { provider: "nvidia", name: "meta/llama-3.1-70b-instruct", baseUrl: null },
+    cadence: 60,
+  },
+  {
+    handle: "olivia-calibrated-quant", display: "Olivia", owner: 60,
+    model: { provider: "groq", name: "llama-3.1-8b-instant", baseUrl: null },
+    cadence: 60,
+  },
+  {
+    handle: "sam-risk-managed-swinger", display: "Sam", owner: 61,
+    model: { provider: "groq", name: "llama-3.3-70b-versatile", baseUrl: null },
+    cadence: 120,
+  },
 ];
-// Verified default free brain (DECISIONS D14).
-const MODEL = { provider: "nvidia", name: "meta/llama-3.1-8b-instruct", baseUrl: null };
-// House agents poll every 10 min to match the data refresh: PM ingest is 10-min
-// and spot/futures prices are fresher still. 5 house agents x 1 NVIDIA call /
-// 1 min: 5 house agents = ~5 RPM even if all fall due in the same tick, far
-// under the NVIDIA 40 RPM budget (room for ~35 more before a second key). A
-// 1-min wake captures fast price-driven actions (coin prices refresh ~1 min).
-// This OVERRIDES each example folder's trigger.cadence (like the MODEL override
-// above), so a re-seed never reverts it.
-const HOUSE_CADENCE_SECONDS = 60;
 
 function reqEnv(k) {
   const v = process.env[k];
@@ -58,7 +79,7 @@ try {
     spec.capabilities = Array.from(
       new Set([...(spec.capabilities ?? []), "indicators"]),
     );
-    const cadenceSeconds = HOUSE_CADENCE_SECONDS;
+    const cadenceSeconds = h.cadence;
     const crkEnc = encrypt(reqEnv(`COINRITHM_KEY_${h.display.toUpperCase()}`), key);
 
     const { rows } = await pool.query(
@@ -78,8 +99,8 @@ try {
           updated_at        = now()
        RETURNING id`,
       [
-        h.owner, h.handle, h.display, cadenceSeconds, MODEL.provider, MODEL.name,
-        MODEL.baseUrl, JSON.stringify(spec), body, crkEnc,
+        h.owner, h.handle, h.display, cadenceSeconds, h.model.provider, h.model.name,
+        h.model.baseUrl, JSON.stringify(spec), body, crkEnc,
       ],
     );
     const id = rows[0].id;
@@ -89,7 +110,7 @@ try {
        VALUES ($1, $2::jsonb) ON CONFLICT (agent_id) DO NOTHING`,
       [id, JSON.stringify(newState(makeRunId(spec)))],
     );
-    console.log(`seeded ${h.handle} (id ${id}, cadence ${cadenceSeconds}s, brain ${MODEL.name})`);
+    console.log(`seeded ${h.handle} (id ${id}, cadence ${cadenceSeconds}s, brain ${h.model.provider}/${h.model.name})`);
   }
   console.log("house agents seeded.");
 } finally {
