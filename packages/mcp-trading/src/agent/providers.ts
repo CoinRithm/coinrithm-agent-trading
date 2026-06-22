@@ -9,6 +9,9 @@ export interface DecideInput {
   system: string;
   user: string;
   maxTokens?: number;
+  // Abort the model call after this many ms so a slow/hung provider can never
+  // bleed past the agent's cadence. Default DEFAULT_TIMEOUT_MS.
+  timeoutMs?: number;
 }
 
 export type DecideResult =
@@ -31,6 +34,45 @@ export interface ProviderEnv {
 // NVIDIA NIM is OpenAI-compatible; the `nvidia` preset hard-wires the hosted
 // endpoint so an agent only needs `{ provider: nvidia, name: "<model id>" }`.
 const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
+
+// Cap any single model call. Our measured NIM latencies are a few seconds, but a
+// shared free key occasionally queues/hangs; without a cap one slow call would
+// run past the next cadence and bleed cycles together. On timeout the call aborts
+// -> the runner records a model failure -> it simply retries next cadence.
+const DEFAULT_TIMEOUT_MS = 30_000;
+
+// Reasoning models (NVIDIA Nemotron) DEFAULT to emitting a long <think> chain:
+// measured ~30-60s/call and a JSON-leak risk. The documented toggle is a
+// "detailed thinking off" line in the system prompt, which drops them to
+// instruct mode (measured ~3-4s, clean JSON). Apply it automatically for any
+// nemotron model so a per-cadence decision never blows the cadence.
+function applyReasoningToggle(model: string, system: string): string {
+  return /nemotron/i.test(model) ? `detailed thinking off\n\n${system}` : system;
+}
+
+// fetch with a hard timeout via AbortController. A custom fetchFn (tests) that
+// ignores `signal` still works — the timer just never fires for it.
+async function fetchWithTimeout(
+  fetchFn: typeof fetch,
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetchFn(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function callError(err: unknown, timeoutMs: number): string {
+  if (err instanceof Error && err.name === "AbortError") {
+    return `model call timed out after ${timeoutMs}ms`;
+  }
+  return err instanceof Error ? err.message : String(err);
+}
 
 function envKey(provider: ProviderName, env: ProviderEnv): string | undefined {
   switch (provider) {
@@ -72,27 +114,33 @@ class AnthropicProvider implements Provider {
     this.label = `anthropic/${model}`;
   }
   async decide(input: DecideInput): Promise<DecideResult> {
+    const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     try {
-      const res = await this.fetchFn("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "x-api-key": this.apiKey,
-          "anthropic-version": "2023-06-01",
-          "content-type": "application/json",
+      const res = await fetchWithTimeout(
+        this.fetchFn,
+        "https://api.anthropic.com/v1/messages",
+        {
+          method: "POST",
+          headers: {
+            "x-api-key": this.apiKey,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            model: this.model,
+            max_tokens: input.maxTokens ?? 1024,
+            system: input.system,
+            messages: [{ role: "user", content: input.user }],
+          }),
         },
-        body: JSON.stringify({
-          model: this.model,
-          max_tokens: input.maxTokens ?? 1024,
-          system: input.system,
-          messages: [{ role: "user", content: input.user }],
-        }),
-      });
+        timeoutMs,
+      );
       if (!res.ok) return { ok: false, error: `anthropic HTTP ${res.status}: ${await res.text()}` };
       const json = (await res.json()) as { content?: Array<{ text?: string }> };
       const text = json.content?.map((c) => c.text ?? "").join("") ?? "";
       return text ? { ok: true, text } : { ok: false, error: "anthropic returned empty content" };
     } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      return { ok: false, error: callError(err, timeoutMs) };
     }
   }
 }
@@ -108,24 +156,30 @@ class OpenAiCompatProvider implements Provider {
     this.label = `${baseUrl}/${model}`;
   }
   async decide(input: DecideInput): Promise<DecideResult> {
+    const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     try {
-      const res = await this.fetchFn(`${this.baseUrl}/chat/completions`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
-          "content-type": "application/json",
+      const res = await fetchWithTimeout(
+        this.fetchFn,
+        `${this.baseUrl}/chat/completions`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            model: this.model,
+            temperature: 0.2,
+            max_tokens: input.maxTokens ?? 1024,
+            response_format: { type: "json_object" },
+            messages: [
+              { role: "system", content: applyReasoningToggle(this.model, input.system) },
+              { role: "user", content: input.user },
+            ],
+          }),
         },
-        body: JSON.stringify({
-          model: this.model,
-          temperature: 0.2,
-          max_tokens: input.maxTokens ?? 1024,
-          response_format: { type: "json_object" },
-          messages: [
-            { role: "system", content: input.system },
-            { role: "user", content: input.user },
-          ],
-        }),
-      });
+        timeoutMs,
+      );
       if (!res.ok) return { ok: false, error: `provider HTTP ${res.status}: ${await res.text()}` };
       const json = (await res.json()) as {
         choices?: Array<{ message?: { content?: string } }>;
@@ -133,7 +187,7 @@ class OpenAiCompatProvider implements Provider {
       const text = json.choices?.[0]?.message?.content ?? "";
       return text ? { ok: true, text } : { ok: false, error: "provider returned empty content" };
     } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      return { ok: false, error: callError(err, timeoutMs) };
     }
   }
 }
