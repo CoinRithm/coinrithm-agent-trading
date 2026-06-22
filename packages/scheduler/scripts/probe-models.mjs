@@ -8,32 +8,58 @@
 // and reports median latency + whether the output parsed as JSON. A model whose
 // median latency approaches a cadence is unusable at that cadence.
 
-const KEY = process.env.NVIDIA_API_KEY?.trim();
-if (!KEY) {
-  console.error("NVIDIA_API_KEY not set in env — refusing to run.");
+// Provider-agnostic: PROBE_PROVIDER=nvidia (default) | groq. Both are
+// OpenAI-compatible; only the base URL + key env + candidate models differ.
+const PROVIDER = (process.env.PROBE_PROVIDER || "nvidia").trim().toLowerCase();
+const PROVIDERS = {
+  nvidia: {
+    base: "https://integrate.api.nvidia.com/v1",
+    keyEnv: "NVIDIA_API_KEY",
+    models: [
+      { id: "meta/llama-3.1-8b-instruct" },
+      { id: "meta/llama-3.3-70b-instruct" },
+      { id: "meta/llama-3.1-70b-instruct" },
+      { id: "nvidia/llama-3.3-nemotron-super-49b-v1", label: "nemotron-49b (reasoning ON)" },
+      {
+        id: "nvidia/llama-3.3-nemotron-super-49b-v1",
+        label: "nemotron-49b (thinking OFF)",
+        system: "detailed thinking off",
+      },
+      { id: "qwen/qwen2.5-72b-instruct" },
+      { id: "mistralai/mixtral-8x22b-instruct-v0.1" },
+      { id: "meta/llama-3.2-3b-instruct" },
+      { id: "microsoft/phi-3.5-mini-instruct" },
+    ],
+  },
+  groq: {
+    base: "https://api.groq.com/openai/v1",
+    keyEnv: "GROQ_API_KEY",
+    models: [
+      { id: "llama-3.3-70b-versatile" },
+      { id: "llama-3.1-8b-instant" },
+      { id: "openai/gpt-oss-20b" },
+      { id: "moonshotai/kimi-k2-instruct" },
+      { id: "qwen/qwen3-32b" },
+    ],
+  },
+};
+const CONF = PROVIDERS[PROVIDER];
+if (!CONF) {
+  console.error(`unknown PROBE_PROVIDER "${PROVIDER}" — use nvidia or groq.`);
   process.exit(1);
 }
-const BASE = "https://integrate.api.nvidia.com/v1";
+const KEY = process.env[CONF.keyEnv]?.trim();
+if (!KEY) {
+  console.error(`${CONF.keyEnv} not set in env — refusing to run.`);
+  process.exit(1);
+}
+const BASE = CONF.base;
 const RUNS = Number(process.env.PROBE_RUNS || 2);
 const MAX_TOKENS = 512;
 
-// Candidate models. `think` variants prepend Nemotron's reasoning-toggle so we
-// can measure reasoning-on vs reasoning-off latency for the same model.
-const MODELS = [
-  { id: "meta/llama-3.1-8b-instruct" },
-  { id: "meta/llama-3.3-70b-instruct" },
-  { id: "meta/llama-3.1-70b-instruct" },
-  { id: "nvidia/llama-3.3-nemotron-super-49b-v1", label: "nemotron-49b (reasoning ON)" },
-  {
-    id: "nvidia/llama-3.3-nemotron-super-49b-v1",
-    label: "nemotron-49b (thinking OFF)",
-    system: "detailed thinking off",
-  },
-  { id: "qwen/qwen2.5-72b-instruct" },
-  { id: "mistralai/mixtral-8x22b-instruct-v0.1" },
-  { id: "meta/llama-3.2-3b-instruct" },
-  { id: "microsoft/phi-3.5-mini-instruct" },
-];
+// Candidate models for the selected provider. Nemotron's two entries (NVIDIA)
+// measure reasoning-on vs the "detailed thinking off" toggle for the same model.
+const MODELS = CONF.models;
 
 const SYS_BASE =
   "You are a crypto paper-trading agent. Respond with ONE JSON object and nothing else: " +
@@ -126,7 +152,7 @@ async function probe(m) {
 }
 
 (async () => {
-  console.log(`Probing ${MODELS.length} models, ${RUNS} runs each, ~300-tok JSON decision prompt\n`);
+  console.log(`Probing ${PROVIDER} (${MODELS.length} models, ${RUNS} runs each), ~300-tok JSON decision prompt\n`);
   const rows = [];
   for (const m of MODELS) {
     const r = await probe(m);

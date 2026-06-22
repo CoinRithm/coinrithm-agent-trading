@@ -24,20 +24,30 @@ import type { Config } from "./config.js";
 
 const errMsg = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
+// Pick a shared NVIDIA key from the pool for this agent. Deterministic by id so a
+// given agent always uses the same key (stable idempotency/rate behavior), while
+// the fleet spreads evenly across the pool. Empty pool => undefined (selectProvider
+// then errors clearly that no key is configured).
+function pickNvidiaKey(agent: AgentRow, config: Config): string | undefined {
+  const keys = config.nvidiaApiKeys;
+  if (keys.length === 0) return undefined;
+  return keys[Number(agent.id) % keys.length];
+}
+
 // Put the agent's model key into the env var the runner's selectProvider reads
-// for that provider. Free-tier `nvidia` uses the shared scheduler key; any other
-// (or a BYO nvidia) uses the agent's own decrypted brain key.
+// for that provider. Free-tier `nvidia`/`groq` use the shared scheduler keys; any
+// other provider (or a BYO key) uses the agent's own decrypted brain key.
 function providerEnvFor(agent: AgentRow, config: Config): ProviderEnv {
   const byo = agent.brainKeyEnc ? decrypt(agent.brainKeyEnc, config.encryptionKey) : undefined;
   switch (agent.modelProvider) {
     case "nvidia":
-      return { NVIDIA_API_KEY: byo ?? config.nvidiaApiKey };
+      return { NVIDIA_API_KEY: byo ?? pickNvidiaKey(agent, config) };
     case "anthropic":
       return { ANTHROPIC_API_KEY: byo };
     case "openai":
       return { OPENAI_API_KEY: byo };
     case "groq":
-      return { GROQ_API_KEY: byo };
+      return { GROQ_API_KEY: byo ?? config.groqApiKey };
     default:
       return { MODEL_API_KEY: byo };
   }

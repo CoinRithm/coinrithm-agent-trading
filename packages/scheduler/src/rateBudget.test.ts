@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { RateBudget, usesSharedBrain } from "./rateBudget.js";
+import { RateBudget, usesSharedBrain, sharedKeyFor } from "./rateBudget.js";
 
 describe("RateBudget", () => {
   it("starts full and depletes one token per acquire", () => {
@@ -41,5 +41,18 @@ describe("usesSharedBrain", () => {
     expect(usesSharedBrain("anthropic", false)).toBe(false);
     expect(usesSharedBrain("openai", true)).toBe(false);
     expect(usesSharedBrain("groq", false)).toBe(false);
+  });
+});
+
+describe("sharedKeyFor", () => {
+  it("routes each shared-key provider to its own budget, BYO/others to none", () => {
+    expect(sharedKeyFor("nvidia", false)).toBe("nvidia");
+    expect(sharedKeyFor("groq", false)).toBe("groq");
+    // BYO key on any provider => own quota, no shared budget.
+    expect(sharedKeyFor("nvidia", true)).toBeNull();
+    expect(sharedKeyFor("groq", true)).toBeNull();
+    // Providers without a shared scheduler key are exempt.
+    expect(sharedKeyFor("anthropic", false)).toBeNull();
+    expect(sharedKeyFor("openai", false)).toBeNull();
   });
 });

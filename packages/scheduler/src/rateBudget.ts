@@ -53,12 +53,25 @@ export class RateBudget {
   }
 }
 
-// Does this agent draw from the SHARED free-tier brain key (and thus the fleet
-// budget)? Only nvidia-provider agents WITHOUT their own (BYO) brain key do; a
-// BYO key or any other provider runs on its own quota and is exempt.
+// Which SHARED free-tier key (and thus which fleet budget) does this agent draw
+// from? Only provider agents WITHOUT their own (BYO) brain key use a shared key;
+// a BYO key runs on the user's own quota and is exempt (null). Each shared
+// provider has its own budget bucket.
+export type SharedKey = "nvidia" | "groq";
+export function sharedKeyFor(
+  modelProvider: string,
+  hasBrainKey: boolean,
+): SharedKey | null {
+  if (hasBrainKey) return null;
+  if (modelProvider === "nvidia") return "nvidia";
+  if (modelProvider === "groq") return "groq";
+  return null;
+}
+
+// Back-compat: NVIDIA is the original shared brain.
 export function usesSharedBrain(
   modelProvider: string,
   hasBrainKey: boolean,
 ): boolean {
-  return modelProvider === "nvidia" && !hasBrainKey;
+  return sharedKeyFor(modelProvider, hasBrainKey) === "nvidia";
 }
