@@ -86,6 +86,10 @@ const decisionSchema = z
     decision: z.enum(["skip", "act"]),
     confidence: z.number().min(0).max(1).optional(),
     reason: z.string().optional(),
+    // The model's short analysis for this cycle. Allowed here so a model that
+    // explains its thinking isn't fail-closed by .strict(); capped so a runaway
+    // generation can't bloat the cycle record. Surfaced in the Arena terminal.
+    rationale: z.string().max(1200).optional(),
     actions: z.array(actionSchema).default([]),
   })
   .strict();
@@ -126,6 +130,12 @@ export function parseDecision(text: string): ParseDecisionResult {
   const actions = d.decision === "act" ? (d.actions as ProposedAction[]) : [];
   return {
     ok: true,
-    decision: { decision: d.decision, confidence: d.confidence, reason: d.reason, actions },
+    decision: {
+      decision: d.decision,
+      confidence: d.confidence,
+      reason: d.reason,
+      rationale: d.rationale,
+      actions,
+    },
   };
 }

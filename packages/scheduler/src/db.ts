@@ -21,6 +21,11 @@ export interface AgentRow {
 export interface CycleRecord {
   decision: string;
   skipReason?: string;
+  // Keystone transparency: the model's own analysis this cycle + decision
+  // confidence + the full raw model text (capped), surfaced in the Arena terminal.
+  rationale?: string;
+  confidence?: number;
+  rawModelOutput?: string;
   modelFailed?: boolean;
   disabled?: boolean;
   actions?: unknown;
@@ -129,12 +134,15 @@ export async function saveStateJson(pool: Pool, agentId: number, state: unknown)
 export async function recordCycle(pool: Pool, agentId: number, rec: CycleRecord): Promise<void> {
   await pool.query(
     `INSERT INTO agent_runtime.agent_cycles
-       (agent_id, decision, skip_reason, model_failed, disabled, actions, log, error)
-     VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8)`,
+       (agent_id, decision, skip_reason, rationale, confidence, raw_model_output, model_failed, disabled, actions, log, error)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11)`,
     [
       agentId,
       rec.decision,
       rec.skipReason ?? null,
+      rec.rationale ?? null,
+      rec.confidence ?? null,
+      rec.rawModelOutput ?? null,
       !!rec.modelFailed,
       !!rec.disabled,
       rec.actions === undefined ? null : JSON.stringify(rec.actions),
@@ -164,10 +172,11 @@ export async function persistCycleResult(
     const c = args.cycle;
     await client.query(
       `INSERT INTO agent_runtime.agent_cycles
-         (agent_id, decision, skip_reason, model_failed, disabled, actions, log, error)
-       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8)`,
+         (agent_id, decision, skip_reason, rationale, confidence, raw_model_output, model_failed, disabled, actions, log, error)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11)`,
       [
-        agentId, c.decision, c.skipReason ?? null, !!c.modelFailed, !!c.disabled,
+        agentId, c.decision, c.skipReason ?? null, c.rationale ?? null, c.confidence ?? null,
+        c.rawModelOutput ?? null, !!c.modelFailed, !!c.disabled,
         c.actions === undefined ? null : JSON.stringify(c.actions), c.log ?? null, c.error ?? null,
       ],
     );

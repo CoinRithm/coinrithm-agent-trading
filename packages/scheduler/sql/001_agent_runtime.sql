@@ -54,12 +54,21 @@ CREATE TABLE IF NOT EXISTS agent_runtime.agent_cycles (
   ts           TIMESTAMPTZ NOT NULL DEFAULT now(),
   decision     TEXT NOT NULL,                       -- skip | act | error
   skip_reason  TEXT,
+  rationale    TEXT,                                -- model's short analysis this cycle (keystone transparency)
+  confidence   DOUBLE PRECISION,                    -- decision-level confidence 0..1
+  raw_model_output TEXT,                            -- full pre-parse model text (capped) for debugging
   model_failed BOOLEAN NOT NULL DEFAULT false,
   disabled     BOOLEAN NOT NULL DEFAULT false,
   actions      JSONB,                               -- planned actions (+ accept/reject + executed)
   log          TEXT,                                -- human-readable cycle log (terminal feed)
   error        TEXT
 );
+
+-- Keystone transparency columns — additive + idempotent so re-running migrate on
+-- an EXISTING deployment backfills them (CREATE TABLE IF NOT EXISTS won't).
+ALTER TABLE agent_runtime.agent_cycles ADD COLUMN IF NOT EXISTS rationale TEXT;
+ALTER TABLE agent_runtime.agent_cycles ADD COLUMN IF NOT EXISTS confidence DOUBLE PRECISION;
+ALTER TABLE agent_runtime.agent_cycles ADD COLUMN IF NOT EXISTS raw_model_output TEXT;
 
 CREATE INDEX IF NOT EXISTS agent_cycles_agent_ts_idx
   ON agent_runtime.agent_cycles (agent_id, ts DESC);

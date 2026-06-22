@@ -60,10 +60,11 @@ export function buildSystemPrompt(
       : []),
     "",
     "## Output contract — return ONLY this JSON object, nothing else:",
-    '{"decision":"skip"|"act","confidence":0..1,"reason":"short","actions":[]}',
+    '{"decision":"skip"|"act","confidence":0..1,"reason":"short","rationale":"1-2 sentences","actions":[]}',
     "Each action is one of:",
     ...actions.map((a) => `- ${a}`),
     `Set each opening action's "confidence" (0..1) to your honest conviction — the runner REJECTS any open below abstention.minConfidence (${spec.abstention.minConfidence}). The decision-level "confidence" is the fallback when an action omits its own.`,
+    'In "rationale", explain your reasoning for THIS cycle in 1-2 plain sentences: what you saw in the data and why you are acting or skipping. This is shown publicly in the live terminal, so make it specific and honest (e.g. "BTC and ETH both up on the 1h but RSI is overbought near resistance, so I am waiting for a pullback"). Keep "reason" a short label.',
     "Prefer skip when the signal is weak or data is stale.",
   ].join("\n");
 }

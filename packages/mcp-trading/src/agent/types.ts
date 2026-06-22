@@ -337,7 +337,12 @@ export function spotBuyCost(
 
 export interface Decision {
   decision: "skip" | "act";
-  reason?: string; // when skip
+  reason?: string; // when skip — short label
+  // The model's own 1-2 sentence analysis of THIS cycle ("show your work").
+  // Optional + capped; surfaced in the Arena terminal so users can watch the
+  // agent reason, debug it, and share it. Previously impossible: the decision
+  // schema was .strict() and the prompt only ever asked for a short reason.
+  rationale?: string;
   confidence?: number;
   actions: ProposedAction[]; // empty when skip
 }
@@ -410,6 +415,12 @@ export interface PlannedAction {
 export interface CycleResult {
   decision: "skip" | "act";
   skipReason?: string;
+  // Reasoning surfaced to the Arena terminal (keystone transparency). rationale
+  // = the model's short analysis this cycle; confidence = decision-level 0..1;
+  // rawModelOutput = the full pre-parse model text (capped) for debugging.
+  rationale?: string;
+  confidence?: number;
+  rawModelOutput?: string;
   planned: PlannedAction[];
   modelFailed?: boolean;
   disabled?: boolean;

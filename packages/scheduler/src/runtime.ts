@@ -125,6 +125,9 @@ export async function runAgentOnce(pool: Pool, agent: AgentRow, config: Config):
       cycle: {
         decision: result.decision,
         skipReason: result.skipReason,
+        rationale: result.rationale,
+        confidence: result.confidence,
+        rawModelOutput: result.rawModelOutput,
         modelFailed: result.modelFailed,
         disabled: result.disabled,
         actions: result.planned,

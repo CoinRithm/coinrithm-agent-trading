@@ -174,6 +174,7 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
     return {
       decision: "skip",
       skipReason: `model output invalid: ${parsed.error}`,
+      rawModelOutput: res.text.slice(0, 8000),
       planned: [],
       modelFailed: true,
       live,
@@ -181,6 +182,12 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
   }
   state.consecutiveModelFailures = 0;
   const decision = parsed.decision;
+  // Reasoning captured for the Arena terminal (keystone transparency): the
+  // model's own analysis this cycle + decision confidence + the full raw text
+  // (capped) for debugging. Shared across the skip + act return paths.
+  const rationale = decision.rationale;
+  const confidence = decision.confidence;
+  const rawModelOutput = res.text.slice(0, 8000);
 
   if (decision.decision === "skip" || decision.actions.length === 0) {
     state.consecutiveRejectCycles += 1;
@@ -189,6 +196,9 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
     return {
       decision: "skip",
       skipReason: decision.reason ?? "model chose skip",
+      rationale,
+      confidence,
+      rawModelOutput,
       planned: [],
       live,
     };
@@ -305,7 +315,7 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
   state.rateLimitHits = client.rateLimitHits ?? state.rateLimitHits;
   saveState(stateFile, state);
   if (live && anyExecuted) await exportRunEvidence(client, runId);
-  return { decision: "act", planned, live };
+  return { decision: "act", rationale, confidence, rawModelOutput, planned, live };
 }
 
 export interface LoopOptions {
