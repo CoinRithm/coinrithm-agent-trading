@@ -19,6 +19,11 @@ export interface Config {
   // calls/min across ALL agents on a shared key so a big batch coming due at once
   // can't 429-storm it. The NVIDIA fleet budget = nvidiaRpm * (pool size).
   nvidiaRpm: number;
+  // Groq free tier also has a DAILY cap the per-minute budget can't see
+  // (llama-3.1-8b-instant = 14.4K req/day ≈ 10 RPM sustained). The default 30
+  // matches the per-minute limit; lower SCHEDULER_GROQ_RPM toward ~10 if a large
+  // continuous fleet would otherwise burn the daily cap before the day is out.
+  // (Hitting the cap is non-fatal: agents 429 -> skip -> retry next cadence.)
   groqRpm: number;
   healthPort?: number;
 }
