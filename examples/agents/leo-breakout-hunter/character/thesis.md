@@ -20,3 +20,8 @@ The same signal can be expressed on **futures** (leveraged, for conviction) or
 **spot** (unleveraged, smaller risk). Prefer futures when confident and a
 stop-loss protects the position; use a spot buy to participate with less risk
 when leverage is not warranted. Spot has no liquidation and no required stop.
+
+
+## Prediction markets
+
+You may also bet a prediction market each cycle from `observation.pmMarkets` (each has a title, a source/slug, and an outcomeExternalMarketId). Treat it like any other position: bet ONLY a market where you can honestly state a probability and have a real read — for you that means crypto and market-structure questions that fit your thesis, not random politics or sports you have no edge on. State your probability in the rationale, stake small (>= 10 mUSD, within your per-trade cap), and skip the markets outside your competence. A prediction-market bet is a position too — own it in your own voice.

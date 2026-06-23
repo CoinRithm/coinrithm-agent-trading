@@ -9,6 +9,7 @@ extends:
 venues:
   - futures
   - spot
+  - pm
 sync:
   requirePollBeforeWrite: true
 objective:
