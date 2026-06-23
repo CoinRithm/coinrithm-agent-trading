@@ -1,12 +1,12 @@
 openapi: 3.1.0
 info:
   title: CoinRithm Agent Trading API
-  version: "1.4.0"
+  version: "1.5.0"
   description: |
     Programmatic **paper-trading** surface for AI agents on CoinRithm.
 
     **Version note:** `info.version` (1.4.0) is the API contract version and is
-    distinct from the npm package version (@coinrithm/mcp-trading 0.3.0). They
+    distinct from the npm package version (@coinrithm/mcp-trading 0.4.0). They
     are versioned independently; a package update does not imply an API change.
 
     All trading here is simulated: a 50,000 virtual-mUSD paper account, cash coin
@@ -41,6 +41,16 @@ info:
     Quote/write bodies may include optional `agentTrace` metadata; GET calls may
     send equivalent `X-CoinRithm-Run-Id`, `X-CoinRithm-Decision-Id`,
     `X-CoinRithm-Strategy-Label`, and `X-CoinRithm-Confidence` headers.
+
+    **Paper execution model.** Fills are not idealized: every spot and futures
+    fill applies a deterministic, fully-disclosed cost (a taker fee on notional,
+    plus spread + slippage on spot market orders), folded into realized PnL — so
+    a flat round-trip is a small loss, not a free breakeven. Quote and order
+    responses carry an `executionModel` object describing the assumptions
+    (fee/spread/slippage bps, per-trade estimates, `fundingMode`). PM is
+    disclose-only (fills at the quoted probability; fees/spread not modeled).
+    This is a rehearsal cost model, NOT an exchange fill guarantee; funding,
+    order-book depth, latency, and market impact are not modeled.
 servers:
   - url: https://api.coinrithm.com
     description: Production (live)
@@ -1861,6 +1871,34 @@ components:
             it replays the original result (`idempotentReplay: true`) instead
             of double-executing — retry a timed-out request with the SAME key.
         agentTrace: { $ref: "#/components/schemas/AgentTraceMetadata" }
+    ExecutionModel:
+      type: object
+      description: |
+        Paper Execution Realism v1 cost disclosure. Paper fills apply a
+        deterministic, fully-disclosed cost so simulated PnL reflects real
+        trading friction (a flat round-trip is a small loss, not a free
+        breakeven). This is a rehearsal cost model, NOT an exchange fill
+        guarantee. Per venue:
+          - spot/futures: a taker fee (`feeBps`) on notional, folded into
+            realized PnL. Spot market orders also fill at an adverse price
+            (half-spread + slippage); futures entry/exit spread/slippage is
+            not modeled in v1.
+          - PM: disclose-only — fills at the quoted probability; fees and
+            probability spread are not modeled (all `*Bps` = 0).
+        Funding rates, order-book depth, latency, and market impact are not
+        modeled.
+      properties:
+        version: { type: string, examples: ["paper_execution_v1"] }
+        feeBps: { type: number, description: "taker fee, basis points of notional" }
+        spreadBps: { type: number, description: "modeled bid/ask spread (bps)" }
+        slippageBps: { type: number, description: "modeled slippage (bps)" }
+        estimatedFeeMusd: { type: number, description: "estimated fee for this trade (mUSD)" }
+        estimatedSlippageMusd: { type: number, description: "estimated slippage cost for this trade (mUSD)" }
+        fundingMode: { type: string, examples: ["not_modeled"] }
+        assumptions:
+          type: array
+          items: { type: string }
+          description: human-readable list of what is and isn't modeled
     SpotOrderResponse:
       type: object
       description: |
@@ -1873,9 +1911,12 @@ components:
           properties:
             side: { type: string }
             quantity: { type: number }
-            executionPrice: { type: number, description: "market only" }
+            executionPrice: { type: number, description: "market only; fill price after spread+slippage" }
             totalCost: { type: number, description: "market only" }
-            pnl: { type: number, description: "market only; realized PnL in USD" }
+            pnl: { type: number, description: "market only; realized PnL in USD, net of fee" }
+            feeUsd: { type: number, description: "market only; taker fee charged on this fill" }
+            slippageUsd: { type: number, description: "market only; modeled slippage cost" }
+            executionModel: { $ref: "#/components/schemas/ExecutionModel" }
             limitPrice: { type: number, description: "limit/stop only" }
             orderType: { type: string, description: "limit/stop only" }
         idempotentReplay:
@@ -1913,11 +1954,16 @@ components:
         executionPrice:
           type: number
           nullable: true
-          description: Live USD price per coin; null when unavailable.
+          description: Estimated fill price — live mid adjusted for spread+slippage; null when unavailable.
         estimatedCostMusd:
           type: number
           nullable: true
           description: Gross notional (price × quantity). BUY = cash debited; SELL = proceeds.
+        estimatedFeeMusd:
+          type: number
+          nullable: true
+          description: Estimated taker fee for this trade (mUSD), included in the affordability check.
+        executionModel: { $ref: "#/components/schemas/ExecutionModel" }
         available:
           type: object
           properties:
@@ -2260,6 +2306,7 @@ components:
         frozenEntrySnapshot: { type: object, additionalProperties: true }
         freshness: { $ref: "#/components/schemas/Freshness" }
         decisionSupport: { $ref: "#/components/schemas/DecisionSupport" }
+        executionModel: { $ref: "#/components/schemas/ExecutionModel" }
         eligibility:
           type: object
           properties:
