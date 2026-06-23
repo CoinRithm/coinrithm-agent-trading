@@ -5,6 +5,12 @@
 // hardcoded. Re-running is safe: it refreshes the definition but never resets
 // running state or the schedule.
 //
+// CONFIG-ONLY re-seed: if a COINRITHM_KEY_<DISPLAY> is absent, that agent's
+// spec/prose/model/cadence are UPDATED in place without its raw key (the stored
+// key + running state are left untouched). So refreshing the floors/caps/
+// personas on the LIVE agents needs only DATABASE_URL — no secret keys to paste.
+// Provide the keys only for an initial seed (or a deliberate key rotation).
+//
 //   DATABASE_URL=... ENCRYPTION_KEY=... \
 //   COINRITHM_KEY_MIA=crk_live_... COINRITHM_KEY_CARL=... COINRITHM_KEY_LEO=... \
 //   COINRITHM_KEY_OLIVIA=... COINRITHM_KEY_SAM=... \
@@ -66,8 +72,12 @@ function reqEnv(k) {
 }
 
 const here = dirname(fileURLToPath(import.meta.url));
-const key = loadMasterKey(reqEnv("ENCRYPTION_KEY"));
 const pool = new pg.Pool({ connectionString: reqEnv("DATABASE_URL") });
+// ENCRYPTION_KEY is only needed when we (re)write a raw CoinRithm key. A
+// config-only re-seed never encrypts, so load the master key lazily — that path
+// requires only DATABASE_URL.
+let _masterKey = null;
+const masterKey = () => (_masterKey ??= loadMasterKey(reqEnv("ENCRYPTION_KEY")));
 
 try {
   for (const h of HOUSE) {
@@ -80,8 +90,31 @@ try {
       new Set([...(spec.capabilities ?? []), "indicators"]),
     );
     const cadenceSeconds = h.cadence;
-    const crkEnc = encrypt(reqEnv(`COINRITHM_KEY_${h.display.toUpperCase()}`), key);
+    const rawKey = process.env[`COINRITHM_KEY_${h.display.toUpperCase()}`]?.trim();
 
+    // CONFIG-ONLY path: no raw key -> refresh an EXISTING agent's definition
+    // (spec/prose/model/cadence) without touching its key or running state.
+    if (!rawKey) {
+      const { rowCount } = await pool.query(
+        `UPDATE agent_runtime.agents SET
+            display_name = $2, cadence_seconds = $3, model_provider = $4,
+            model_name = $5, model_base_url = $6, spec = $7::jsonb, prose = $8,
+            updated_at = now()
+         WHERE handle = $1`,
+        [
+          h.handle, h.display, cadenceSeconds, h.model.provider, h.model.name,
+          h.model.baseUrl, JSON.stringify(spec), body,
+        ],
+      );
+      console.log(
+        rowCount
+          ? `updated ${h.handle} (config-only; key + state unchanged, cadence ${cadenceSeconds}s, brain ${h.model.provider}/${h.model.name})`
+          : `skipped ${h.handle}: not seeded yet — set COINRITHM_KEY_${h.display.toUpperCase()} to create it`,
+      );
+      continue;
+    }
+
+    const crkEnc = encrypt(rawKey, masterKey());
     const { rows } = await pool.query(
       `INSERT INTO agent_runtime.agents
          (owner_user_id, handle, display_name, status, is_house, live, cadence_seconds,
