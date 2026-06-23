@@ -15,10 +15,21 @@ async function main(): Promise<void> {
 
   const control: Control = { stopped: false };
 
+  // Liveness heartbeat shared with the poll loop. The health endpoint reports
+  // UNHEALTHY when the loop hasn't ticked recently, so an orchestrator restarts a
+  // HUNG scheduler (a static "ok" can't tell a frozen loop from a healthy one).
+  const heartbeat = { lastTickAt: Date.now() };
+  const HEARTBEAT_STALE_MS = 180_000; // > the worst-case slow tick (90s model + overhead)
   if (config.healthPort) {
     createServer((_req, res) => {
-      res.writeHead(200, { "content-type": "text/plain" });
-      res.end("ok");
+      const ageMs = Date.now() - heartbeat.lastTickAt;
+      const ok = ageMs < HEARTBEAT_STALE_MS;
+      res.writeHead(ok ? 200 : 503, { "content-type": "text/plain" });
+      res.end(
+        ok
+          ? `ok · last tick ${Math.round(ageMs / 1000)}s ago`
+          : `stale · no tick in ${Math.round(ageMs / 1000)}s`,
+      );
     }).listen(config.healthPort, () => console.log(`[scheduler] health on :${config.healthPort}`));
   }
 
@@ -34,7 +45,7 @@ async function main(): Promise<void> {
   process.on("SIGTERM", () => shutdown("SIGTERM"));
   process.on("SIGINT", () => shutdown("SIGINT"));
 
-  await runScheduler(pool, config, control);
+  await runScheduler(pool, config, control, undefined, undefined, heartbeat);
   await pool.end();
   process.exit(0);
 }

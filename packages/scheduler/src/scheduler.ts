@@ -21,6 +21,7 @@ export async function runScheduler(
   control: Control,
   logFn: (line: string) => void = (l) => console.log(l),
   now: () => number = () => Date.now(),
+  heartbeat?: { lastTickAt: number },
 ): Promise<void> {
   // NVIDIA fleet budget scales with the key pool: each independent key has its
   // own ~RPM quota, so N keys => N * nvidiaRpm fleet-wide. Groq has its own bucket.
@@ -35,6 +36,10 @@ export async function runScheduler(
     groq: new RateBudget(config.groqRpm, now()),
   };
   while (!control.stopped) {
+    // Liveness heartbeat: the health endpoint reports UNHEALTHY if this stops
+    // advancing, so an orchestrator restarts a HUNG loop, not just a crashed
+    // process (a static "ok" can't tell a frozen loop from a healthy one).
+    if (heartbeat) heartbeat.lastTickAt = now();
     try {
       // Self-heal FIRST so a revived agent is also claimed this same tick: the
       // Arena must never be a graveyard when a visitor lands (a flaky-model streak
@@ -50,15 +55,21 @@ export async function runScheduler(
           // it's over budget this cadence, skip gracefully (transparent skip in
           // the feed) and run next cadence rather than 429-storm the key. BYO-key
           // agents (sharedKeyFor => null) are exempt.
-          const sk = sharedKeyFor(a.modelProvider, !!a.brainKeyEnc);
-          if (sk && !budgets[sk].tryAcquire(now())) {
-            await recordCycle(pool, a.id, {
-              decision: "skip",
-              skipReason: `${sk} rate budget`,
-            }).catch(() => {});
-            return;
+          try {
+            const sk = sharedKeyFor(a.modelProvider, !!a.brainKeyEnc);
+            if (sk && !budgets[sk].tryAcquire(now())) {
+              await recordCycle(pool, a.id, {
+                decision: "skip",
+                skipReason: `${sk} rate budget`,
+              }).catch(() => {});
+              return;
+            }
+            await runAgentOnce(pool, a, config);
+          } finally {
+            // Progress beat: a slow but healthy batch keeps ticking as agents
+            // finish, so only a genuine freeze (no completions) trips the check.
+            if (heartbeat) heartbeat.lastTickAt = now();
           }
-          await runAgentOnce(pool, a, config);
         });
       }
     } catch (e) {
