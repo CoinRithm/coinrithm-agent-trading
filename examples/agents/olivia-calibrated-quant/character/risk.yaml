@@ -1,5 +1,5 @@
 maxLeverage: 2
-perTradeMarginMusd: 250
+perTradeMarginMusd: 600
 maxConcurrentPositions: 2
 requireStopLoss: true
 watchlist:

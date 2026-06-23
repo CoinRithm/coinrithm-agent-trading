@@ -145,6 +145,28 @@ try {
     );
     console.log(`seeded ${h.handle} (id ${id}, cadence ${cadenceSeconds}s, brain ${h.model.provider}/${h.model.name})`);
   }
+
+  // House agents are meant to stay live. After refreshing definitions, revive any
+  // that a kill-switch (e.g. a flaky-model streak) disabled, and clear the
+  // consecutive-failure counter — surgically, without resetting PnL or schedule.
+  const revived = await pool.query(
+    `UPDATE agent_runtime.agents
+        SET status = 'active', disabled_reason = NULL, next_run_at = now(), updated_at = now()
+      WHERE is_house = true AND status <> 'active'
+      RETURNING handle`,
+  );
+  await pool.query(
+    `UPDATE agent_runtime.agent_state s
+        SET state = (s.state - 'disabledReason')
+                   || '{"disabled":false,"consecutiveModelFailures":0}'::jsonb
+       FROM agent_runtime.agents a
+      WHERE s.agent_id = a.id AND a.is_house = true`,
+  );
+  console.log(
+    revived.rowCount
+      ? `revived ${revived.rowCount} disabled house agent(s): ${revived.rows.map((r) => r.handle).join(", ")}`
+      : "all house agents already active",
+  );
   console.log("house agents seeded.");
 } finally {
   await pool.end();

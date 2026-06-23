@@ -15,7 +15,13 @@ const futuresOpen = z
     marginMusd: z.number().positive(),
     stopLossPrice: z.number().nullable().optional(),
     takeProfitPrice: z.number().nullable().optional(),
-    confidence: z.number().min(0).max(1).optional(),
+    confidence: z
+      .number()
+      .min(0)
+      .max(1)
+      .nullable()
+      .optional()
+      .transform((v) => v ?? undefined),
     rationaleSummary: z.string().optional(),
   })
   .strict();
@@ -25,7 +31,13 @@ const futuresClose = z
     type: z.literal("futures_close"),
     positionId: z.number(),
     fraction: z.number().positive().max(1).optional(),
-    confidence: z.number().min(0).max(1).optional(),
+    confidence: z
+      .number()
+      .min(0)
+      .max(1)
+      .nullable()
+      .optional()
+      .transform((v) => v ?? undefined),
     rationaleSummary: z.string().optional(),
   })
   .strict();
@@ -48,7 +60,13 @@ const spotOrder = z
     quantity: z.number().positive(),
     limitPrice: z.number().positive().optional(),
     stopPrice: z.number().positive().optional(),
-    confidence: z.number().min(0).max(1).optional(),
+    confidence: z
+      .number()
+      .min(0)
+      .max(1)
+      .nullable()
+      .optional()
+      .transform((v) => v ?? undefined),
     rationaleSummary: z.string().optional(),
   })
   .strict();
@@ -67,7 +85,13 @@ const pmOpen = z
     slug: z.string().min(1),
     outcomeExternalMarketId: z.string().min(1),
     stakeMusd: z.number().positive(),
-    confidence: z.number().min(0).max(1).optional(),
+    confidence: z
+      .number()
+      .min(0)
+      .max(1)
+      .nullable()
+      .optional()
+      .transform((v) => v ?? undefined),
     rationaleSummary: z.string().optional(),
   })
   .strict();
@@ -84,7 +108,13 @@ export const actionSchema = z.discriminatedUnion("type", [
 const decisionSchema = z
   .object({
     decision: z.enum(["skip", "act"]),
-    confidence: z.number().min(0).max(1).optional(),
+    confidence: z
+      .number()
+      .min(0)
+      .max(1)
+      .nullable()
+      .optional()
+      .transform((v) => v ?? undefined),
     reason: z.string().optional(),
     // The model's short analysis for this cycle. Allowed here so a model that
     // explains its thinking isn't fail-closed by .strict(); capped so a runaway

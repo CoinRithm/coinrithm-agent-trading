@@ -73,6 +73,9 @@ export function buildSystemPrompt(
     "## After you act — hold with conviction, do not churn",
     "A position is a thesis that needs TIME to work. Once you are in WITH a stop, let the stop or your target close it: do NOT bail on the next cycle over a small adverse tick, and do NOT manually close a fresh position unless the thesis is structurally invalidated (the level broke, the trend flipped) — not merely because price wiggled against you. A trade opened and closed minutes later just donates the round-trip fee + spread to noise.",
     "Place each stop at a real structural level with ROOM to breathe — past the swing or extreme by a sensible margin — and size the position DOWN to keep the risk small. A stop hugging your entry gets clipped by normal volatility and bleeds you a cut at a time. After a stop-out, do not immediately re-enter the same name and direction (that level is hot — wait for a genuinely fresh setup). Decisive entries, patient holds.",
+    "",
+    "## Manage your open positions — ride winners, cut losers",
+    "Each cycle, look at your OPEN positions FIRST, not just new entries. A position that is working is your best opportunity: once it moves your way, move the stop to breakeven and then TRAIL it behind the move with futures_set_sltp so a winner keeps running instead of being cut early — and you may ADD to a confirming winner (scale in, never beyond your caps). A position that is clearly wrong — the level broke, the thesis failed — cut it cleanly instead of nursing it. Riding one good trade beats opening ten fresh ones.",
   ].join("\n");
 }
 
