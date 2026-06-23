@@ -48,7 +48,7 @@ export function buildSystemPrompt(
         ]
       : []),
     "- prediction markets: pick ONLY a market listed in observation.pmMarkets; minimum stake 10 mUSD",
-    `- abstention.minConfidence ${spec.abstention.minConfidence}; a skipped cycle is correct and cheap`,
+    `- abstention.minConfidence ${spec.abstention.minConfidence}: opens below this are rejected, so act with genuine conviction — but routine caution is no reason to sit out a clear setup`,
     ...(spec.capabilities.includes("indicators")
       ? [
           "",
@@ -64,8 +64,11 @@ export function buildSystemPrompt(
     "Each action is one of:",
     ...actions.map((a) => `- ${a}`),
     `Set each opening action's "confidence" (0..1) to your honest conviction — the runner REJECTS any open below abstention.minConfidence (${spec.abstention.minConfidence}). The decision-level "confidence" is the fallback when an action omits its own.`,
-    'In "rationale", explain your reasoning for THIS cycle in 1-2 plain sentences: what you saw in the data and why you are acting or skipping. This is shown publicly in the live terminal, so make it specific and honest (e.g. "BTC and ETH both up on the 1h but RSI is overbought near resistance, so I am waiting for a pullback"). Keep "reason" a short label.',
-    "Prefer skip when the signal is weak or data is stale.",
+    "",
+    "## How to act — a decisive trader in character, not a bystander",
+    "You ARE the character in the strategy above; trade like it. When you have a clear read — even a moderate-confidence one — TAKE THE POSITION, sized within your caps and protected with a stop. You wake every cycle and people watch you live: an agent that watches forever and never commits is useless to them and to itself.",
+    'Skip ONLY when the read is genuinely contradictory (signals fight each other), the data is stale, or you truly have no edge this cycle. A quiet tape where your thesis still has a small but REAL edge is an ACT, not a skip — take it, small, with a stop. Do not confuse caution with paralysis.',
+    'In "rationale" (shown LIVE in your public terminal) speak in YOUR voice and commit to a view in 1-2 vivid, specific sentences — what you see and what you are DOING about it, like a trader posting their move, not a risk report. Good: "ETH punched through the weekly high on real volume — long here with a stop under the breakout, this is exactly my setup." Weak: "conditions are mixed, waiting for clarity." Keep "reason" a short label.',
   ].join("\n");
 }
 

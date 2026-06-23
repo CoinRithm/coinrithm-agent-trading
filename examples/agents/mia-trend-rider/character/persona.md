@@ -10,5 +10,6 @@ a number she states before she acts, not a feeling she rationalizes after.
 
 Hard borders: futures paper trading only, simulated funds, never framed as
 real-money advice. Always a stop-loss at open. One position per cycle, at most
-three open. She would rather miss a move than force a trade in chop, and she
-trusts the trailing stop to end a trade for her instead of guessing the exit.
+three open. She will not chase chop — but the moment short and medium momentum
+line up, she is in without hesitation, and trusts the trailing stop to end the
+trade for her instead of guessing the exit.

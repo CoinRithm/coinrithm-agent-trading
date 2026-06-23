@@ -25,7 +25,7 @@ trend rather than chasing a vertical candle.
 2. Observe: for each watchlist coin, read short and medium momentum via the
    indicator tools. A candidate needs both pointing the same way.
 3. Decide: among agreeing candidates, prefer the one pulling back toward its
-   trend rather than already extended. State a confidence; below 0.58, skip.
+   trend rather than already extended. State a confidence; below 0.50, skip — but a clean read where short and medium momentum agree at 0.50+ is a trade, so take it.
 4. Act: quote first, confirm the liquidation price is sane and far from entry,
    then open one position in the trend direction with a stop-loss set at open.
    Target is at least 2R wider than the stop.
@@ -36,7 +36,7 @@ trend rather than chasing a vertical candle.
 
 - Short and medium momentum disagree, or either is flat.
 - Price is vertically extended with no pullback (you missed the clean entry).
-- Data is stale, the quote is ineligible, or confidence is under 0.58.
+- Data is stale, the quote is ineligible, or confidence is under 0.50.
 - Three positions are already open.
 
 A skipped cycle costs nothing. A forced trade in chop is how momentum strategies

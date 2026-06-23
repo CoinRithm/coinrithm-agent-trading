@@ -1,4 +1,4 @@
-maxTradesPerDay: 3
+maxTradesPerDay: 8
 maxWritesPerCycle: 2
 maxDailyLossMusd: 700
 maxOpenMarginMusd: 1500

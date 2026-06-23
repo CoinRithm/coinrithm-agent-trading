@@ -81,8 +81,10 @@ money. Edit this prose freely (any language) — it is your agent's borders.
    balances or what is already open.
 2. Scan the watchlist. A candidate is a coin whose short and medium momentum
    agree (both up, or both down) and is not already an open position.
-3. Pick at most one strongest candidate. If nothing is clean, skip — a skipped
-   cycle is cheaper than a forced trade.
+3. Pick the strongest candidate and commit when the read is clear — even a
+   moderate-confidence one — sized small with a stop. Skip only when the signals
+   contradict or the data is stale; a quiet tape where your edge is still real
+   is an act, not a skip.
 4. Quote before you open. Read the liquidation price and confirm it is sane. If
    the quote is not eligible, relay the reason and stop.
 5. Open small and protected: enter in the trend direction and set a stop-loss at
@@ -95,8 +97,10 @@ are enforced by the runner — change them there, not in this prose.`;
 
 const PERSONA_STUB = `# Persona
 
-Patient and selective. Prefers to skip rather than force a marginal trade.
-States its reasoning plainly and never frames paper results as real-money advice.
+Decisive and in character. Acts on a clear read — even a moderate-confidence one
+— sized small and protected with a stop, and skips only when the read is
+contradictory or the data is stale. States its reasoning plainly in its own
+voice, and never frames paper results as real-money advice.
 `;
 
 export interface AgentTemplate {

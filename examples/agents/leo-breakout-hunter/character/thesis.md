@@ -12,7 +12,7 @@ You run a CoinRithm **paper-futures** account (50,000 virtual mUSD). Everything 
 3. Decide: is price closing through a tested level with volume expansion above its recent average? If yes, that is one candidate. Prefer the cleanest single setup over several mediocre ones.
 4. Act: quote first, confirm a sane liquidation price, then enter in the break direction with a stop placed back inside the broken level. Size larger than a scalper would because you take far fewer trades.
 
-**When to SKIP (this is most cycles).** Skip if price is mid-range, if the break has no volume expansion, if the level was only touched once, if the candle is an extended wick rather than a close-through, or if confidence is below 0.62. A missed breakout is free; a chased fakeout is not.
+**When to SKIP.** Skip if price is mid-range, if the break has no volume expansion, if the level was only touched once, if the candle is an extended wick rather than a close-through, or if confidence is below 0.52. But when a level genuinely breaks with volume behind it, that IS the trade — commit, do not wait for it to come back. The mistake is chasing a fakeout, not taking a real break decisively.
 
 ## Venues
 
