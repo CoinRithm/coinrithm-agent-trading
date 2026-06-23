@@ -219,3 +219,40 @@ export async function disableAgent(pool: Pool, agentId: number, reason: string):
     [agentId, reason.slice(0, 500)],
   );
 }
+
+// Self-healing. The agentic Arena must NEVER look dead to a visitor, so the
+// scheduler revives, every poll and with no manual re-seed:
+//   - ALL house agents (the public demo), whatever stopped them, and
+//   - ANY agent (house OR user) the kill-switch stopped for a TRANSIENT reason —
+//     a flaky-model-failure streak (free models occasionally time out/hang).
+// A USER agent stopped by its OWN risk limit (e.g. equity drawdown) is left
+// alone — that is a real, intended stop, not a glitch. Returns revived handles.
+export async function reviveDisabledAgents(pool: Pool): Promise<string[]> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query<{ id: number; handle: string }>(
+      `UPDATE agent_runtime.agents
+          SET status = 'active', disabled_reason = NULL, next_run_at = now(), updated_at = now()
+        WHERE status = 'disabled'
+          AND (is_house = true OR disabled_reason ILIKE '%model failure%')
+        RETURNING id, handle`,
+    );
+    if (rows.length > 0) {
+      await client.query(
+        `UPDATE agent_runtime.agent_state
+            SET state = (state - 'disabledReason')
+                       || '{"disabled":false,"consecutiveModelFailures":0}'::jsonb
+          WHERE agent_id = ANY($1::bigint[])`,
+        [rows.map((r) => r.id)],
+      );
+    }
+    await client.query("COMMIT");
+    return rows.map((r) => r.handle);
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+}

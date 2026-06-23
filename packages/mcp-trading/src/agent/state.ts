@@ -86,11 +86,20 @@ export function accrueRealized(state: RunState, closedTrades: Record<string, unk
   if (state.realizedPnlMusd > state.peakRealizedMusd) state.peakRealizedMusd = state.realizedPnlMusd;
 }
 
+// A transient model-failure streak (free models occasionally time out/hang) must
+// never disable an agent on a hair-trigger, so the model-failure kill-switch is
+// floored at this many consecutive failures regardless of an agent's own (lower)
+// setting. The scheduler additionally auto-revives any model-failure disable.
+const MODEL_FAILURE_FLOOR = 10;
+
 // Returns a disable reason if any kill-switch condition is tripped, else null.
 export function checkKillSwitch(spec: AgentSpec, state: RunState): string | null {
   const ks = spec.killSwitch;
-  if (ks.maxConsecutiveModelFailures > 0 && state.consecutiveModelFailures >= ks.maxConsecutiveModelFailures) {
-    return `consecutive model failures ${state.consecutiveModelFailures} >= ${ks.maxConsecutiveModelFailures}`;
+  if (ks.maxConsecutiveModelFailures > 0) {
+    const threshold = Math.max(ks.maxConsecutiveModelFailures, MODEL_FAILURE_FLOOR);
+    if (state.consecutiveModelFailures >= threshold) {
+      return `consecutive model failures ${state.consecutiveModelFailures} >= ${threshold}`;
+    }
   }
   if (ks.maxConsecutiveRejects > 0 && state.consecutiveRejectCycles >= ks.maxConsecutiveRejects) {
     return `consecutive reject cycles ${state.consecutiveRejectCycles} >= ${ks.maxConsecutiveRejects}`;

@@ -1,5 +1,5 @@
 import type { Pool } from "pg";
-import { claimDueAgents, recordCycle } from "./db.js";
+import { claimDueAgents, recordCycle, reviveDisabledAgents } from "./db.js";
 import { runAgentOnce } from "./runtime.js";
 import { withConcurrency } from "./concurrency.js";
 import { RateBudget, sharedKeyFor, type SharedKey } from "./rateBudget.js";
@@ -36,6 +36,12 @@ export async function runScheduler(
   };
   while (!control.stopped) {
     try {
+      // Self-heal FIRST so a revived agent is also claimed this same tick: the
+      // Arena must never be a graveyard when a visitor lands (a flaky-model streak
+      // or any house stop is undone automatically, no manual re-seed).
+      const revived = await reviveDisabledAgents(pool);
+      if (revived.length > 0)
+        logFn(`[scheduler] self-heal: revived ${revived.length} disabled agent(s): ${revived.join(", ")}`);
       const due = await claimDueAgents(pool, config.claimBatch);
       if (due.length > 0) {
         logFn(`[scheduler] running ${due.length}: ${due.map((a) => a.handle).join(", ")}`);
