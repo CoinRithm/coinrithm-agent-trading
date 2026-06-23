@@ -75,10 +75,18 @@ function mapAgent(r: RawAgent): AgentRow {
   };
 }
 
+// While a cycle runs, the agent row is "locked" by pushing next_run_at this far
+// out, so a slow run can't be re-claimed (overlap) before it finishes; on
+// COMPLETION persistCycleResult resets next_run_at to now()+cadence. Must exceed
+// the model timeout (providers DEFAULT_TIMEOUT_MS) + observe/act/persist overhead.
+const RUN_LOCK_SECONDS = 180;
+
 // Claim due active agents under a row lock so two scheduler replicas never
 // double-run the same agent. next_run_at is advanced inside the same transaction
-// BEFORE running, so a crash mid-run just skips to the next cadence (at-most-once
-// per window) rather than re-firing the same cycle.
+// BEFORE running (a RUN_LOCK_SECONDS lock), so a crash mid-run retries after the
+// lock window rather than re-firing the same cycle; a normal cycle reschedules to
+// now()+cadence on completion — sequential per agent, so a slow call just delays
+// the next cycle, never overlaps it.
 export async function claimDueAgents(pool: Pool, limit: number): Promise<AgentRow[]> {
   const client = await pool.connect();
   try {
@@ -97,7 +105,7 @@ export async function claimDueAgents(pool: Pool, limit: number): Promise<AgentRo
       const ids = rows.map((r) => r.id);
       await client.query(
         `UPDATE agent_runtime.agents
-            SET next_run_at = now() + make_interval(secs => cadence_seconds),
+            SET next_run_at = now() + make_interval(secs => GREATEST(cadence_seconds, ${RUN_LOCK_SECONDS})),
                 last_run_at = now(),
                 updated_at = now()
           WHERE id = ANY($1::bigint[])`,
@@ -184,6 +192,16 @@ export async function persistCycleResult(
       await client.query(
         "UPDATE agent_runtime.agents SET status = 'disabled', disabled_reason = $2, updated_at = now() WHERE id = $1",
         [agentId, args.disableReason.slice(0, 500)],
+      );
+    } else {
+      // Reschedule the NEXT cycle from COMPLETION: cadence after this run finished,
+      // not from claim — so a slow model just delays the next cycle instead of
+      // overlapping it (claimDueAgents set a RUN_LOCK_SECONDS lock; reset it here).
+      await client.query(
+        `UPDATE agent_runtime.agents
+            SET next_run_at = now() + make_interval(secs => cadence_seconds), updated_at = now()
+          WHERE id = $1 AND status = 'active'`,
+        [agentId],
       );
     }
     await client.query("COMMIT");

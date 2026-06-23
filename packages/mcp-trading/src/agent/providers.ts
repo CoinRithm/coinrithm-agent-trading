@@ -35,11 +35,15 @@ export interface ProviderEnv {
 // endpoint so an agent only needs `{ provider: nvidia, name: "<model id>" }`.
 const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
 
-// Cap any single model call. Our measured NIM latencies are a few seconds, but a
-// shared free key occasionally queues/hangs; without a cap one slow call would
-// run past the next cadence and bleed cycles together. On timeout the call aborts
-// -> the runner records a model failure -> it simply retries next cadence.
-const DEFAULT_TIMEOUT_MS = 30_000;
+// Cap any single model call so a hung provider can't block an agent forever — but
+// generously. The scheduler runs cycles SEQUENTIALLY per agent (it locks the row
+// while a cycle runs and schedules the next from COMPLETION, not from claim), so a
+// slow call no longer overlaps the next cadence; it just delays it. That lets the
+// cap be long enough for a large model (e.g. a 70B on a busy free key) to finish
+// and ACT, instead of being killed mid-thought and counted as a failure. On a real
+// timeout the call still aborts -> a model failure -> retried next cadence (and the
+// disable threshold is now far more tolerant of the odd flaky cycle).
+const DEFAULT_TIMEOUT_MS = 90_000;
 
 // Reasoning models (NVIDIA Nemotron) DEFAULT to emitting a long <think> chain:
 // measured ~30-60s/call and a JSON-leak risk. The documented toggle is a
