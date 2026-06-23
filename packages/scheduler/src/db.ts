@@ -220,13 +220,15 @@ export async function disableAgent(pool: Pool, agentId: number, reason: string):
   );
 }
 
-// Self-healing. The agentic Arena must NEVER look dead to a visitor, so the
-// scheduler revives, every poll and with no manual re-seed:
+// Self-healing. The agentic Arena must NEVER look dead to a visitor, so every
+// poll (no manual re-seed) the scheduler revives:
 //   - ALL house agents (the public demo), whatever stopped them, and
-//   - ANY agent (house OR user) the kill-switch stopped for a TRANSIENT reason —
-//     a flaky-model-failure streak (free models occasionally time out/hang).
-// A USER agent stopped by its OWN risk limit (e.g. equity drawdown) is left
-// alone — that is a real, intended stop, not a glitch. Returns revived handles.
+//   - ANY user agent the SYSTEM stopped on a RECOVERABLE fault — a flaky-model
+//     streak, rate-limit pressure, a reject run, or an unknown disable.
+// It deliberately does NOT revive a user agent stopped by its own DRAWDOWN limit
+// (a real, intended risk stop) or a SETUP error (a broken config that would just
+// re-fail). COALESCE so a null reason still counts as recoverable. Revived
+// handles are returned. Belt-and-suspenders with the engine's failure-floor.
 export async function reviveDisabledAgents(pool: Pool): Promise<string[]> {
   const client = await pool.connect();
   try {
@@ -235,7 +237,13 @@ export async function reviveDisabledAgents(pool: Pool): Promise<string[]> {
       `UPDATE agent_runtime.agents
           SET status = 'active', disabled_reason = NULL, next_run_at = now(), updated_at = now()
         WHERE status = 'disabled'
-          AND (is_house = true OR disabled_reason ILIKE '%model failure%')
+          AND (
+            is_house = true
+            OR (
+              COALESCE(disabled_reason, '') NOT ILIKE '%drawdown%'
+              AND COALESCE(disabled_reason, '') NOT ILIKE '%setup%'
+            )
+          )
         RETURNING id, handle`,
     );
     if (rows.length > 0) {
