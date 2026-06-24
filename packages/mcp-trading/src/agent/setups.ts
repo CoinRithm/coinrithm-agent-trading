@@ -26,11 +26,14 @@ function pct(n: number): string {
   return `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`;
 }
 
-// Classify ONE coin into at most one primary setup. Order = priority: a fresh
-// breakout/breakdown beats a standing trend beats a stretched/exhausted read.
-function classify(w: WatchEntry): SetupSignal | null {
+// Classify ONE coin into its setups. Usually one (the trend/breakout read), but a
+// TRENDING coin that is also RSI-extreme emits a SECOND, counter-trend "fade"
+// signal — the same structure is a momentum trade to a trend-follower and a
+// mean-reversion trade to a contrarian, so we surface both and let each agent pick
+// the one matching its style (fixes contrarians skipping "no setup fits me").
+function classify(w: WatchEntry): SetupSignal[] {
   const ind = w.indicators;
-  if (!ind) return null;
+  if (!ind) return [];
   const ch = w.change24h ?? 0;
   const rsi = ind.rsi14;
   const up = ind.ema20AboveEma50 === true && ind.aboveEma20 === true;
@@ -48,45 +51,43 @@ function classify(w: WatchEntry): SetupSignal | null {
   if (ind.brokeRecentLow === true) facts.push("broke 20-bar low");
   if (ind.atr14 != null && ind.asOfClose)
     facts.push(`ATR ${((100 * ind.atr14) / ind.asOfClose).toFixed(1)}% (stop ~1.5xATR)`);
+  const note = facts.join(" · ");
 
-  let kind: SetupSignal["kind"];
-  let bias: SetupSignal["bias"];
-  let strength: number;
+  const out: SetupSignal[] = [];
 
+  // Primary trend-following / breakout read.
   if (ind.brokeRecentHigh === true) {
-    kind = "breakout";
-    bias = "long";
-    strength = 0.8;
+    out.push({ symbol: w.symbol, kind: "breakout", bias: "long", strength: 0.8, note });
   } else if (ind.brokeRecentLow === true) {
-    kind = "breakdown";
-    bias = "short";
-    strength = 0.8;
+    out.push({ symbol: w.symbol, kind: "breakdown", bias: "short", strength: 0.8, note });
   } else if (up && ch >= LEAN_MOVE_PCT) {
-    kind = "uptrend";
-    bias = "long";
-    strength = ch >= STRONG_MOVE_PCT ? 0.75 : 0.6;
+    out.push({ symbol: w.symbol, kind: "uptrend", bias: "long", strength: ch >= STRONG_MOVE_PCT ? 0.75 : 0.6, note });
   } else if (down && ch <= -LEAN_MOVE_PCT) {
-    kind = "downtrend";
-    bias = "short";
-    strength = ch <= -STRONG_MOVE_PCT ? 0.75 : 0.6;
+    out.push({ symbol: w.symbol, kind: "downtrend", bias: "short", strength: ch <= -STRONG_MOVE_PCT ? 0.75 : 0.6, note });
   } else if (overbought) {
-    kind = "stretched";
-    bias = "fade-short";
-    strength = 0.55;
+    out.push({ symbol: w.symbol, kind: "stretched", bias: "fade-short", strength: 0.55, note });
   } else if (oversold) {
-    kind = "stretched";
-    bias = "fade-long";
-    strength = 0.55;
+    out.push({ symbol: w.symbol, kind: "stretched", bias: "fade-long", strength: 0.55, note });
   } else if (Math.abs(ch) >= STRONG_MOVE_PCT) {
     // A strong move with no clean EMA stack — still tradeable momentum.
-    kind = ch > 0 ? "uptrend" : "downtrend";
-    bias = ch > 0 ? "long" : "short";
-    strength = 0.55;
-  } else {
-    return null; // genuinely no structure on this coin this cycle
+    out.push({ symbol: w.symbol, kind: ch > 0 ? "uptrend" : "downtrend", bias: ch > 0 ? "long" : "short", strength: 0.55, note });
   }
 
-  return { symbol: w.symbol, kind, bias, strength, note: facts.join(" · ") };
+  // Secondary COUNTER-TREND fade: a standing trend that is ALSO RSI-extreme is a
+  // mean-reversion candidate. Only add it when the primary was the trend itself
+  // (so we don't double-list a pure stretched read).
+  const primaryIsTrend = out[0] && (out[0].kind === "uptrend" || out[0].kind === "downtrend" || out[0].kind === "breakout" || out[0].kind === "breakdown");
+  if (primaryIsTrend && (oversold || overbought)) {
+    out.push({
+      symbol: w.symbol,
+      kind: "stretched",
+      bias: oversold ? "fade-long" : "fade-short",
+      strength: 0.6,
+      note: `${note} — counter-trend fade (mean-reversion: ${oversold ? "oversold within downtrend" : "overbought within uptrend"})`,
+    });
+  }
+
+  return out;
 }
 
 // Scan the whole watchlist, return the flagged setups strongest-first. An empty
@@ -94,8 +95,7 @@ function classify(w: WatchEntry): SetupSignal | null {
 export function scanSetups(watch: WatchEntry[]): SetupSignal[] {
   const out: SetupSignal[] = [];
   for (const w of watch) {
-    const s = classify(w);
-    if (s && s.strength >= MIN_STRENGTH) out.push(s);
+    for (const s of classify(w)) if (s.strength >= MIN_STRENGTH) out.push(s);
   }
   return out.sort((a, b) => b.strength - a.strength);
 }

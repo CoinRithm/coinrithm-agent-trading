@@ -25,14 +25,26 @@ function entry(symbol: string, change24h: number, i: Partial<IndicatorSet>): Wat
 }
 
 describe("scanSetups", () => {
-  it("flags a clean downtrend as a short", () => {
+  it("flags a clean downtrend (mid RSI) as a single short", () => {
     const out = scanSetups([
-      entry("ETH", -3.6, { aboveEma20: false, ema20AboveEma50: false, rsi14: 34 }),
+      entry("ETH", -3.6, { aboveEma20: false, ema20AboveEma50: false, rsi14: 48 }),
     ]);
     expect(out).toHaveLength(1);
     expect(out[0]!.kind).toBe("downtrend");
     expect(out[0]!.bias).toBe("short");
-    expect(out[0]!.note).toContain("downtrend");
+  });
+
+  it("emits BOTH a short and a contrarian fade-long for a downtrend that is also oversold", () => {
+    const out = scanSetups([
+      entry("ETH", -3.6, { aboveEma20: false, ema20AboveEma50: false, rsi14: 34 }),
+    ]);
+    expect(out).toHaveLength(2);
+    // strongest first = the trend short
+    expect(out[0]!.bias).toBe("short");
+    // contrarian gets the fade
+    const fade = out.find((s) => s.bias === "fade-long");
+    expect(fade).toBeTruthy();
+    expect(fade!.note).toContain("counter-trend fade");
   });
 
   it("flags a breakout as a long with high strength", () => {
