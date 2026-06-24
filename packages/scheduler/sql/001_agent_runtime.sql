@@ -70,5 +70,16 @@ ALTER TABLE agent_runtime.agent_cycles ADD COLUMN IF NOT EXISTS rationale TEXT;
 ALTER TABLE agent_runtime.agent_cycles ADD COLUMN IF NOT EXISTS confidence DOUBLE PRECISION;
 ALTER TABLE agent_runtime.agent_cycles ADD COLUMN IF NOT EXISTS raw_model_output TEXT;
 
+-- Slice-2 metering columns (preflight-gate triggers + token usage). The data the
+-- future credit system + tier pricing read. Additive + idempotent.
+ALTER TABLE agent_runtime.agent_cycles ADD COLUMN IF NOT EXISTS trigger_codes TEXT[];
+ALTER TABLE agent_runtime.agent_cycles ADD COLUMN IF NOT EXISTS llm_call_made BOOLEAN;
+ALTER TABLE agent_runtime.agent_cycles ADD COLUMN IF NOT EXISTS tokens_in INTEGER;
+ALTER TABLE agent_runtime.agent_cycles ADD COLUMN IF NOT EXISTS tokens_out INTEGER;
+ALTER TABLE agent_runtime.agent_cycles ADD COLUMN IF NOT EXISTS estimated_cost_usd NUMERIC(12,6);
+ALTER TABLE agent_runtime.agent_cycles ADD COLUMN IF NOT EXISTS decision_type TEXT;
+ALTER TABLE agent_runtime.agent_cycles ADD COLUMN IF NOT EXISTS write_attempted INTEGER;
+ALTER TABLE agent_runtime.agent_cycles ADD COLUMN IF NOT EXISTS write_accepted INTEGER;
+
 CREATE INDEX IF NOT EXISTS agent_cycles_agent_ts_idx
   ON agent_runtime.agent_cycles (agent_id, ts DESC);

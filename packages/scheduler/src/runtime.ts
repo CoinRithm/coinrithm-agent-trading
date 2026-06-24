@@ -142,6 +142,15 @@ export async function runAgentOnce(pool: Pool, agent: AgentRow, config: Config):
         disabled: result.disabled,
         actions: result.planned,
         log: log.join("\n"),
+        // Slice-2 metering passthrough (gate triggers + token usage).
+        triggerCodes: result.triggerCodes,
+        llmCallMade: result.llmCallMade,
+        tokensIn: result.tokensIn,
+        tokensOut: result.tokensOut,
+        estimatedCostUsd: result.estimatedCostUsd,
+        decisionType: result.decisionType,
+        writeAttempted: result.writeAttempted,
+        writeAccepted: result.writeAccepted,
       },
       disableReason: result.disabled ? (result.disabledReason ?? "kill-switch") : undefined,
     });
