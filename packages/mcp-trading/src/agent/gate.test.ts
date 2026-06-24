@@ -5,11 +5,16 @@ import {
   RunState,
   SetupSignal,
   OpenPosition,
+  PmMarket,
   TriggerPolicy,
   DEFAULT_TRIGGER_POLICY,
 } from "./types.js";
 
-function obs(setups: SetupSignal[], openPositions: OpenPosition[] = []): Observation {
+function obs(
+  setups: SetupSignal[],
+  openPositions: OpenPosition[] = [],
+  pmMarkets: PmMarket[] = [],
+): Observation {
   return {
     asOf: "t",
     scopes: [],
@@ -18,7 +23,7 @@ function obs(setups: SetupSignal[], openPositions: OpenPosition[] = []): Observa
     openPositions,
     openOrders: [],
     pmPositions: [],
-    pmMarkets: [],
+    pmMarkets,
     watch: [],
     setups,
     syncCursor: null,
@@ -58,10 +63,27 @@ const pol = (p: Partial<TriggerPolicy> = {}): TriggerPolicy => ({ ...DEFAULT_TRI
 const POS: OpenPosition = { venue: "futures", id: 1, side: "short" };
 
 describe("evaluateGate", () => {
-  it("does NOT fire on a flat tape with no open position", () => {
+  it("does NOT fire on a flat tape with no open position (and no PM)", () => {
     const g = evaluateGate(obs([]), state(), pol(), 1000);
     expect(g.fire).toBe(false);
     expect(g.codes).toEqual([]);
+  });
+
+  it("wakes for PM periodically on a quiet price tape once the cooldown elapsed", () => {
+    const now = 100_000_000;
+    const pm: PmMarket[] = [{ source: "polymarket", slug: "x", outcomeExternalMarketId: "1", probability: 0.4 }];
+    const st = state({ lastLlmCallAt: now - 11 * 60_000 }); // 11 min > 10 min cooldown
+    const g = evaluateGate(obs([], [], pm), st, pol(), now);
+    expect(g.fire).toBe(true);
+    expect(g.codes).toContain("PM_PERIODIC");
+  });
+
+  it("does NOT wake for PM within the cooldown window", () => {
+    const now = 100_000_000;
+    const pm: PmMarket[] = [{ source: "polymarket", slug: "x", outcomeExternalMarketId: "1", probability: 0.4 }];
+    const st = state({ lastLlmCallAt: now - 2 * 60_000 }); // 2 min < 10 min cooldown
+    const g = evaluateGate(obs([], [], pm), st, pol(), now);
+    expect(g.fire).toBe(false);
   });
 
   it("fires on a fresh (not-held) entry setup", () => {

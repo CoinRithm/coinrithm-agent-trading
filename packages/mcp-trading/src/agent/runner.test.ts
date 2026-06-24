@@ -72,6 +72,7 @@ function deps(
     alwaysManageOpenPositions: true,
     maxLlmCallsPerHour: 0,
     debounceMinutes: 0,
+    pmEvalCooldownMinutes: 0,
   };
   return {
     client: client as unknown as CoinRithmClient,

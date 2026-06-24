@@ -74,8 +74,20 @@ export function evaluateGate(
     };
   }
 
-  // No trigger -> cheap heartbeat, no LLM call. THE cost/scale win.
+  // No price setup and no open position. Before skipping, periodically wake to
+  // evaluate PREDICTION MARKETS — they carry edge even when crypto prices are flat,
+  // so an agent on a quiet tape shouldn't go dark on PM. At most once per cooldown
+  // (gated on the last LLM call, which any fire resets), so it's not every cycle.
   if (codeList.length === 0) {
+    const pmAvailable = observation.pmMarkets.length > 0;
+    const sinceLastCall = state.lastLlmCallAt == null ? Infinity : nowMs - state.lastLlmCallAt;
+    if (
+      pmAvailable &&
+      policy.pmEvalCooldownMinutes > 0 &&
+      sinceLastCall >= policy.pmEvalCooldownMinutes * 60_000
+    ) {
+      return { fire: true, codes: ["PM_PERIODIC"], reason: "PM periodic eval (quiet price tape)" };
+    }
     return { fire: false, codes: [], reason: "no trigger (flat tape, no open position)" };
   }
 

@@ -68,6 +68,11 @@ export interface TriggerPolicy {
   alwaysManageOpenPositions: boolean; // an open position always fires the gate
   maxLlmCallsPerHour: number; // 0 = unlimited (entry triggers only; positions exempt)
   debounceMinutes: number; // 0 = off; suppress an identical entry-trigger set
+  // On a quiet PRICE tape (no price setup, no open position) the gate would skip
+  // forever — but PM markets carry tradeable edge regardless of crypto price. So
+  // wake the agent periodically to evaluate PM, at most once per this many minutes.
+  // 0 = off.
+  pmEvalCooldownMinutes: number;
 }
 export const DEFAULT_TRIGGER_POLICY: TriggerPolicy = {
   mode: "event_driven",
@@ -75,6 +80,7 @@ export const DEFAULT_TRIGGER_POLICY: TriggerPolicy = {
   alwaysManageOpenPositions: true,
   maxLlmCallsPerHour: 0,
   debounceMinutes: 0,
+  pmEvalCooldownMinutes: 10,
 };
 
 export interface RiskConfig {
