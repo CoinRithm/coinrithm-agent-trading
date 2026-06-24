@@ -52,6 +52,27 @@ export async function migrate(pool: Pool): Promise<void> {
   await pool.query(sql);
 }
 
+// Idempotent safety migration: move any HOUSE agent off Groq onto NVIDIA. Groq's
+// free 6k-TPM tier counts our ~6.5k-token prompt as OVER budget, so a Groq house
+// agent 413s every cycle (Olivia). Groq stays a BYO option — a user's own key has
+// its own quota — this only de-Groqs the HOUSE fleet, automatically on boot, so the
+// fix never waits on a manual re-seed. No-op once no house agent is on Groq.
+export async function migrateHouseAgentsOffGroq(pool: Pool): Promise<number> {
+  const { rowCount } = await pool.query(
+    `UPDATE agent_runtime.agents
+        SET model_provider = 'nvidia',
+            model_name = CASE
+              WHEN model_name ILIKE '%70b%' OR model_name ILIKE '%versatile%'
+                THEN 'meta/llama-3.1-70b-instruct'
+              ELSE 'nvidia/llama-3.3-nemotron-super-49b-v1'
+            END,
+            model_base_url = NULL,
+            updated_at = now()
+      WHERE is_house = true AND model_provider = 'groq'`,
+  );
+  return rowCount ?? 0;
+}
+
 interface RawAgent {
   id: string;
   handle: string;

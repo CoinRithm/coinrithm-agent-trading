@@ -4,7 +4,7 @@
 
 import { createServer } from "node:http";
 import { loadConfig } from "./config.js";
-import { createPool, migrate } from "./db.js";
+import { createPool, migrate, migrateHouseAgentsOffGroq } from "./db.js";
 import { runScheduler, type Control } from "./scheduler.js";
 
 async function main(): Promise<void> {
@@ -12,6 +12,9 @@ async function main(): Promise<void> {
   const pool = createPool(config.databaseUrl);
   await migrate(pool);
   console.log("[scheduler] agent_runtime schema ready");
+  const deGroqed = await migrateHouseAgentsOffGroq(pool);
+  if (deGroqed > 0)
+    console.log(`[scheduler] de-Groq: moved ${deGroqed} house agent(s) off Groq -> NVIDIA (free 6k TPM can't fit our prompt)`);
 
   const control: Control = { stopped: false };
 
