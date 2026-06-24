@@ -102,4 +102,58 @@ Sell the **infrastructure**, not the prompt: *"CoinRithm runs, monitors, evaluat
 - **Data enrichment** (news/PM labeling) — owner routine; runs where the DB is reachable.
 
 ---
-_Last updated by the agentic build session (2026-06-24)._
+
+## Overnight session log (2026-06-24) — shipped / blocked / next
+
+**Shipped + auto-deployed (~20 commits, all tested):** CI green (OpenAPI 3.1
+nullable), 5-min model timeout (run-lock + heartbeat raised to match), auto-de-Groq
+on boot (Olivia fixed, verified live on Nemotron), decisive new-agent defaults,
+PM odds passthrough + PM_PERIODIC trigger + price-thesis→crypto-PM link, Arena
+frontend polish (equal sidebars, disclaimer inline next to LIVE, recently-active
+above deploy CTA, rail trade-count + unrealized), **memory/journal** slice (rides
+in state JSON, no DB change), **held setups carry win/loss state** (add-to-winner
+with room, stop the open_margin_exceeds_cap re-open churn), **OKF v2 triggerPolicy
+parser** (first load-bearing v2 section). All 5 house agents verified healthy +
+trading on NVIDIA.
+
+**BLOCKED on access I don't have from a dev machine (precise owner unblock):**
+- **PM betting (#1 gap, groundwork done, agents still don't bet):** the model sees
+  PM markets + odds but won't bet — likely the discovered markets aren't
+  crypto-relevant (no edge) or carry no probability. PROBE-FIRST rule forbids
+  changing discovery blind. **Owner, run with a house key:**
+  `curl -H "Authorization: Bearer <crk_live_key>" "https://api.coinrithm.com/api/agent/pm/discover?limit=8"`
+  → if markets are non-crypto, bias `discoverPmMarkets` toward crypto/watchlist (q
+  param is a real WHERE filter); if crypto-but-no-probability, the observe
+  extraction needs fixing. Paste the result and I'll finish it.
+- **Slice 4 critic / anti-revenge:** needs the `newClosedTrades` shape (what
+  close-reason fields exist) to detect a stop-out. Probe `/api/agent/trades` with a
+  key first.
+- **Data enrichment (news/PM):** runs server-side where the DB is reachable
+  (`DATABASE_URL` is `127.0.0.1` on the aggregator host, not a dev machine).
+
+**Big remaining slices (better fresh, scoped here):** Slice 5 selective RAG (gives
+non-crypto PM the event context the model needs to bet) + Pro-gated web search;
+Monetization + payment flow (deployment overlay = effectivePolicy authority,
+Class→Loadout→Risk→Deploy UI, tiers, Agent Credits from the metering table, Stripe
+gates effectiveTier, lapse=pause).
+
+## FINAL deliverable (after the list) — Remotion social-video system
+
+Internal content tooling only (no auto-post). Generate MP4 + thumbnail + caption +
+alt-text + sources.json into `output/social/YYYY-MM-DD/`. Read-only DB; **every
+claim from a timestamped DB/API row** (no invented facts); keep paper-trading
+disclaimers on agent videos; no financial-advice language; skip on low-confidence
+or stale data. Three templates (vertical short, 15–30s, strong first 2s, big
+numbers, CoinRithm brand + footer): **MarketMoveVideo** (gainer/loser, BTC/ETH/SOL,
+liquidation shock), **AgentArenaVideo** (agent card, trigger/setup, quote/action/
+reject, PnL, paper footer), **NewsPulseVideo** (3 news cards w/ source+timestamp+
+asset). Content formats A–D (Daily Market Pulse, Agent Arena Update, Prediction
+Market Watch, News Pulse). Scripts: `social:preview`, `social:render:sample`,
+`social:render:daily` + a daily story-builder (query → select 3–5 → write JSON
+props → render → caption.md/alt-text.md/sources.json). Decide package location
+(`tools/social-video` vs a Remotion app) on inspection; mock the data shape if env
+is missing + document the queries. Ship in a clean slice with a README + JSON
+schema.
+
+---
+_Last updated by the agentic build session (2026-06-24 overnight)._
