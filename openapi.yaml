@@ -1952,16 +1952,13 @@ components:
         quantity: { type: number }
         orderType: { type: string, const: market }
         executionPrice:
-          type: number
-          nullable: true
+          type: ["number", "null"]
           description: Estimated fill price — live mid adjusted for spread+slippage; null when unavailable.
         estimatedCostMusd:
-          type: number
-          nullable: true
+          type: ["number", "null"]
           description: Gross notional (price × quantity). BUY = cash debited; SELL = proceeds.
         estimatedFeeMusd:
-          type: number
-          nullable: true
+          type: ["number", "null"]
           description: Estimated taker fee for this trade (mUSD), included in the affordability check.
         executionModel: { $ref: "#/components/schemas/ExecutionModel" }
         available:
