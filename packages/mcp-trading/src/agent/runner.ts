@@ -140,6 +140,31 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
   }
   state.seen = state.seen.slice(-500);
 
+  // Slice-3 reflection: journal closed-trade OUTCOMES (not just opens) so the agent
+  // remembers how its theses RESOLVED — a stop-out it should not revenge-trade, a
+  // winner its style works on. Defensive field reads (the /trades shape varies);
+  // a partial entry is harmless, a missing one is skipped.
+  for (const t of observation.newClosedTrades.slice(-5)) {
+    const o = asObj(t);
+    const sym = asStr(o.symbol) ?? asStr(o.coinSymbol) ?? asStr(o.coinId);
+    const pnl =
+      asNum(o.realizedPnlMusd) ??
+      asNum(o.pnlMusd) ??
+      asNum(o.realizedPnl) ??
+      asNum(o.pnl);
+    const side = asStr(o.side);
+    if (sym || pnl != null) {
+      const did =
+        `closed ${side ?? ""} ${sym ?? "position"}`.trim() +
+        (pnl != null
+          ? `: ${pnl >= 0 ? "+" : ""}${Math.round(pnl)}mUSD ${pnl >= 0 ? "WIN" : "LOSS"}`
+          : "");
+      state.journal = [...(state.journal ?? []), { at: observation.asOf, did }].slice(
+        -12,
+      );
+    }
+  }
+
   // Equity-aware drawdown: open mark-to-market losses trip the kill-switch too,
   // not only realized losses.
   const unrealized = observation.openPositions.reduce(
