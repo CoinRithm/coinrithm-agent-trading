@@ -233,6 +233,10 @@ export interface SetupSignal {
   bias: "long" | "short" | "fade-long" | "fade-short";
   strength: number; // 0..1 rough conviction the structure is real
   note: string; // compact factual one-liner the model reads
+  // If you ALREADY hold a position on this symbol, its side — so the model MANAGES
+  // it (trail / add-only-if-room / cut) instead of re-proposing an open that just
+  // hits the margin cap and wastes the cycle (DUPLICATE_INTENT_SUPPRESS).
+  held?: "long" | "short";
 }
 
 export interface Observation {

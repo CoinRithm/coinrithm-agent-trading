@@ -75,6 +75,22 @@ describe("scanSetups", () => {
     expect(scanSetups([{ symbol: "BTC", coinId: "btc", change24h: -3 }])).toHaveLength(0);
   });
 
+  it("tags setups as held when a position is already open on that symbol", () => {
+    const out = scanSetups(
+      [entry("BTC", -3.0, { aboveEma20: false, ema20AboveEma50: false, rsi14: 48 })],
+      [{ venue: "futures", id: 1, symbol: "BTC-PERP", side: "short" }],
+    );
+    expect(out[0]!.held).toBe("short");
+  });
+
+  it("leaves held undefined when no position matches the symbol", () => {
+    const out = scanSetups(
+      [entry("ETH", -3.0, { aboveEma20: false, ema20AboveEma50: false, rsi14: 48 })],
+      [{ venue: "futures", id: 1, symbol: "BTC-PERP", side: "short" }],
+    );
+    expect(out[0]!.held).toBeUndefined();
+  });
+
   it("sorts strongest-first across the watchlist", () => {
     const out = scanSetups([
       entry("ADA", -0.3, { rsi14: 30 }), // stretched ~0.55

@@ -288,7 +288,9 @@ export async function observe(
     watch,
     // Deterministic structure flags computed from the watch indicators — the
     // model acts on these instead of re-deciding "is there a setup?" from scratch.
-    setups: scanSetups(watch),
+    // openPositions are passed so setups on a held symbol are tagged "manage,
+    // don't re-open".
+    setups: scanSetups(watch, openPositions),
     syncCursor,
     newClosedTrades,
     polledBeforeWrite,
