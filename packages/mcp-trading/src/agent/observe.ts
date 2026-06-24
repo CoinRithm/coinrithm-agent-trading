@@ -129,7 +129,10 @@ export async function observe(
     {
       venue: "futures",
       updatedSince: state.cursor ?? undefined,
-      limit: state.cursor ? undefined : 1,
+      // Cap the sync poll: an unbounded fetch against a SHARED trade book (or an
+      // old cursor) could pull thousands of rows into the prompt. 50 newest is
+      // ample for the agent to react to its own fills/stops since last cycle.
+      limit: state.cursor ? 50 : 1,
     },
     trace,
   );
@@ -244,9 +247,14 @@ export async function observe(
         .flatMap((ev) => {
           const source = (asStr(ev.source) ?? "").toLowerCase();
           const slug = (asStr(ev.slug) ?? "").toLowerCase();
-          const title = asStr(ev.title) ?? asStr(ev.question);
+          // Keep titles SHORT: the model only needs to recognise the market.
+          // Untrimmed titles, one per outcome across many events, ballooned the
+          // prompt to ~69k tokens (413s on small-context free models).
+          const title = (asStr(ev.title) ?? asStr(ev.question) ?? "").slice(0, 80);
           const freshness = freshnessOf(ev); // freshness is event-level
-          const outcomes = asArr(ev.outcomes).map(asObj);
+          // At most a few outcomes per event so a wide multi-outcome market
+          // (e.g. dozens of price buckets) can't explode the prompt.
+          const outcomes = asArr(ev.outcomes).map(asObj).slice(0, 3);
           // A market with no outcomes array still round-trips a flat fallback row.
           const rows = outcomes.length > 0 ? outcomes : [ev];
           return rows.map((o) => ({
@@ -260,7 +268,9 @@ export async function observe(
             freshness,
           }));
         })
-        .filter((m) => m.source && m.slug && m.outcomeExternalMarketId);
+        .filter((m) => m.source && m.slug && m.outcomeExternalMarketId)
+        // Hard cap the PM block: a handful of fresh markets is plenty to pick from.
+        .slice(0, 12);
     }
   }
 

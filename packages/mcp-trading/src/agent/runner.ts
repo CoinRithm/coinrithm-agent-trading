@@ -150,10 +150,16 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
   }
 
   // DECIDE
-  const res = await provider.decide({
-    system: buildSystemPrompt(spec, mergedProse),
-    user: buildUserPrompt(observation),
-  });
+  const system = buildSystemPrompt(spec, mergedProse);
+  const user = buildUserPrompt(observation);
+  // Prompt-size visibility: a bloated observation (esp. PM/trades) was 413ing the
+  // small free models. ~chars/4 is a rough token estimate; the field counts show
+  // which part is heavy.
+  log(
+    `prompt ~${Math.round((system.length + user.length) / 4)} tok ` +
+      `(pm ${observation.pmMarkets.length}, trades ${observation.newClosedTrades.length}, watch ${observation.watch.length})`,
+  );
+  const res = await provider.decide({ system, user });
   if (!res.ok) {
     state.consecutiveModelFailures += 1;
     saveState(stateFile, state);
