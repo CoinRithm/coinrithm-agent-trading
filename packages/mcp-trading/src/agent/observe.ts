@@ -241,17 +241,17 @@ export async function observe(
   let pmPositions: PmPosition[] = [];
   let pmMarkets: PmMarket[] = [];
   if (wantPm) {
-    // Bias PM discovery toward CRYPTO markets the agent has a price view on (its
-    // watchlist) — the only PM edge a price agent reliably has. Symbols -> the names
-    // PM titles use; fall back to the general board when crypto markets are thin so
-    // the agent never goes empty.
-    const pmQuery = spec.risk.watchlist
-      .slice(0, 4)
-      .map((s) => PM_COIN_NAMES[s.toUpperCase()] ?? s)
-      .join(" ");
+    // Bias PM discovery toward CRYPTO markets the agent has a price view on — the
+    // only PM edge a price agent reliably has (probed 2026-06-24: the default board
+    // is World Cup / elections / F1, which an agent has no edge on). The discover
+    // `q` is an AND/phrase match, so query ONE coin — the agent's TOP watchlist coin,
+    // where its price view is sharpest — never the joined list (matches ~nothing).
+    // Fall back to Bitcoin (always plentiful) — NEVER the general non-crypto board.
+    const topCoin = (spec.risk.watchlist[0] ?? "").toUpperCase();
+    const pmQuery = PM_COIN_NAMES[topCoin] ?? spec.risk.watchlist[0] ?? "Bitcoin";
     const [pmPosR, pmDiscFirst] = await Promise.all([
       client.pmPositions(undefined, trace),
-      client.discoverPmMarkets({ q: pmQuery || undefined, limit: 12 }, trace),
+      client.discoverPmMarkets({ q: pmQuery, limit: 12 }, trace),
     ]);
     let pmDiscR = pmDiscFirst;
     const firstCount = pmDiscR.ok
@@ -261,8 +261,8 @@ export async function observe(
             asObj(pmDiscR.data).results,
         ).length
       : 0;
-    if (firstCount < 3) {
-      const fb = await client.discoverPmMarkets({ limit: 12 }, trace);
+    if (firstCount < 3 && pmQuery !== "Bitcoin") {
+      const fb = await client.discoverPmMarkets({ q: "Bitcoin", limit: 12 }, trace);
       if (fb.ok) pmDiscR = fb;
     }
     if (pmPosR.ok) {
@@ -310,7 +310,11 @@ export async function observe(
             // Carry the odds through: the model needs the outcome label + current
             // probability to spot a mispriced market and bet it (was stripped).
             outcomeName: asStr(o.name) ?? asStr(o.outcomeName) ?? undefined,
-            probability: asNum(o.probability) ?? undefined,
+            // Backend returns probability as 0..100 (percent) — normalise to 0..1
+            // to match the prompt's "0..1" framing (probed 2026-06-24).
+            probability: ((p) => (p == null ? undefined : p > 1 ? p / 100 : p))(
+              asNum(o.probability),
+            ),
             title,
             freshness,
           }));
