@@ -165,15 +165,30 @@ export function computeIndicators(candles: Candle[], opts: IndicatorOpts = {}): 
   const ema50 = ema(closes, emaSlow);
   // Breakout vs the window BEFORE the latest candle (exclude the current bar).
   const prior = recentHighLow(candles.slice(0, -1), breakoutLookback);
+  const atr14 = atr(candles, atrPeriod);
+  const bb = bollinger(closes, bbPeriod);
+  const r20 = recentHighLow(candles, breakoutLookback);
+  const rsi14 = rsi(closes, rsiPeriod);
+
+  // Round numbers the model sees/echoes to clean significant figures, so reasoning
+  // reads "recent20 low 6.29216" not "6.292164535198927" — and stays clean for both
+  // $62k coins and sub-cent ones. The booleans below use the RAW locals, so the
+  // trend/breakout reads are unaffected.
+  const sig = (n: number, figs = 6): number => {
+    if (!Number.isFinite(n) || n === 0) return n;
+    const f = Math.pow(10, figs - Math.ceil(Math.log10(Math.abs(n))));
+    return Math.round(n * f) / f;
+  };
+  const sigN = (n: number | null, figs = 6): number | null => (n == null ? null : sig(n, figs));
 
   return {
-    asOfClose: close,
-    rsi14: rsi(closes, rsiPeriod),
-    ema20,
-    ema50,
-    atr14: atr(candles, atrPeriod),
-    bollinger: bollinger(closes, bbPeriod),
-    recent20: recentHighLow(candles, breakoutLookback),
+    asOfClose: sig(close),
+    rsi14: rsi14 == null ? null : Math.round(rsi14 * 10) / 10,
+    ema20: sigN(ema20),
+    ema50: sigN(ema50),
+    atr14: sigN(atr14),
+    bollinger: bb == null ? null : { upper: sig(bb.upper), mid: sig(bb.mid), lower: sig(bb.lower) },
+    recent20: r20 == null ? null : { high: sig(r20.high), low: sig(r20.low) },
     aboveEma20: ema20 == null ? null : close > ema20,
     ema20AboveEma50: ema20 == null || ema50 == null ? null : ema20 > ema50,
     brokeRecentHigh: prior == null ? null : close >= prior.high,
