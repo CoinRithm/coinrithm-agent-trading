@@ -88,7 +88,10 @@ function mapAgent(r: RawAgent): AgentRow {
 // out, so a slow run can't be re-claimed (overlap) before it finishes; on
 // COMPLETION persistCycleResult resets next_run_at to now()+cadence. Must exceed
 // the model timeout (providers DEFAULT_TIMEOUT_MS) + observe/act/persist overhead.
-const RUN_LOCK_SECONDS = 180;
+// Must EXCEED the model timeout (providers DEFAULT_TIMEOUT_MS = 300s) + observe/
+// act/persist overhead, so a slow-but-alive cycle is never re-claimed (overlapped)
+// before it finishes. A crashed cycle retries after this window.
+const RUN_LOCK_SECONDS = 360;
 
 // Claim due active agents under a row lock so two scheduler replicas never
 // double-run the same agent. next_run_at is advanced inside the same transaction

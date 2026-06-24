@@ -19,7 +19,7 @@ async function main(): Promise<void> {
   // UNHEALTHY when the loop hasn't ticked recently, so an orchestrator restarts a
   // HUNG scheduler (a static "ok" can't tell a frozen loop from a healthy one).
   const heartbeat = { lastTickAt: Date.now() };
-  const HEARTBEAT_STALE_MS = 180_000; // > the worst-case slow tick (90s model + overhead)
+  const HEARTBEAT_STALE_MS = 360_000; // > the worst-case slow tick (300s model timeout + overhead)
   if (config.healthPort) {
     createServer((_req, res) => {
       const ageMs = Date.now() - heartbeat.lastTickAt;

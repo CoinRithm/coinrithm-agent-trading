@@ -56,7 +56,13 @@ const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai
 // and ACT, instead of being killed mid-thought and counted as a failure. On a real
 // timeout the call still aborts -> a model failure -> retried next cadence (and the
 // disable threshold is now far more tolerant of the odd flaky cycle).
-const DEFAULT_TIMEOUT_MS = 90_000;
+// 5 minutes. Sequential scheduling (the scheduler RUN-LOCKS an agent while a cycle
+// runs and reschedules the NEXT from completion) means a slow call never overlaps
+// the next cadence — it just delays it. So a generous timeout lets a busy free 70B
+// finish and ACT instead of being killed mid-thought and counted as a failure
+// (the recurring Leo/70B timeout). A real hang still aborts -> retried next cadence.
+// MUST stay below the scheduler's RUN_LOCK_SECONDS and HEARTBEAT_STALE_MS.
+const DEFAULT_TIMEOUT_MS = 300_000;
 
 // Reasoning models (NVIDIA Nemotron) DEFAULT to emitting a long <think> chain:
 // measured ~30-60s/call and a JSON-leak risk. The documented toggle is a
