@@ -27,7 +27,7 @@ export function buildSystemPrompt(
   }
   if (v.includes("pm")) {
     actions.push(
-      '{"type":"pm_open","source","slug","outcomeExternalMarketId","stakeMusd","confidence":0..1}  (ONLY a market from observation.pmMarkets; stakeMusd >= 10)',
+      '{"type":"pm_open","source","slug","outcomeExternalMarketId","stakeMusd","confidence":0..1}  (copy source + slug + outcomeExternalMarketId EXACTLY from ONE observation.pmMarkets entry; stakeMusd >= 10)',
     );
   }
   return [
@@ -47,8 +47,8 @@ export function buildSystemPrompt(
           `- deny-list (NEVER open these, even if on the watchlist): ${r.blocklist.join(", ")}`,
         ]
       : []),
-    "- prediction markets: each observation.pmMarkets entry carries `outcomeName` and `probability` (0..1, the market's CURRENT odds). BET (pm_open) an outcome when YOUR estimate of its true probability differs MATERIALLY from the market's — that gap is your edge (e.g. market 0.35 but you think it's really ~0.55 -> buy). Skip markets pinned near 0 or 1 (no edge left). Pick ONLY a listed market; min stake 10 mUSD.",
-    "- YOUR SHARPEST PM EDGE is the price view you JUST formed: crypto PM markets resolve on the very prices you analyse. If you are bearish BTC (shorting it), a 'BTC above $X by <date>' market priced high is a NO for you; if you are bullish ETH, an 'ETH above $Y' priced low is a YES. So when a flagged price setup gives you conviction, check observation.pmMarkets for a crypto market that same view prices wrong, and take the PM side too — don't leave that free edge on the table. (For non-crypto events you have no special information; skip unless the odds are obviously off.)",
+    "- prediction markets are a FIRST-CLASS venue for you — a pm_open is as real a trade as a futures/spot open, not an afterthought. Each observation.pmMarkets entry carries `outcomeName` and `probability` (0..1, the market's CURRENT odds). BET (pm_open) an outcome when YOUR estimate of its true probability differs MATERIALLY from the market's — that gap is your edge (e.g. market 0.35 but you think it's really ~0.55 -> buy). Skip only markets pinned near 0 or 1 (no edge left). Pick ONLY a listed market; min stake 10 mUSD.",
+    "- YOUR SHARPEST PM EDGE is the crypto price view you JUST formed: crypto PM markets resolve on the very prices you analyse, so you have a genuine information edge there that you do NOT have on coin futures alone. EVERY cycle you reach a price conviction, it is REQUIRED that you scan observation.pmMarkets for a crypto market that same view prices wrong and, if one is materially mispriced, open it with pm_open — treat that mispricing exactly like a flagged coin setup (an ACT, not a skip). If you are bearish BTC, a 'BTC above $X by <date>' priced high is a NO; if bullish ETH, an 'ETH above $Y' priced low is a YES. Leaving a clearly mispriced crypto market untraded is the same mistake as ignoring a flagged setup. (For non-crypto events you have no special edge; skip unless the odds are obviously off.)",
     `- abstention.minConfidence ${spec.abstention.minConfidence}: opens below this are rejected, so act with genuine conviction — but routine caution is no reason to sit out a clear setup`,
     ...(spec.capabilities.includes("indicators")
       ? [
@@ -74,7 +74,7 @@ export function buildSystemPrompt(
     "## Flagged setups this cycle — your wake-up list (observation.setups)",
     "A deterministic scan already checked every watchlist coin and put the ones with real, tradeable structure RIGHT NOW into observation.setups — each has symbol, kind, bias, strength, and a factual note (trend / RSI / breakout / ATR reads). This is your shortlist; you do NOT need to re-derive whether a setup exists.",
     '- If observation.setups is NON-EMPTY: act on the strongest one that fits YOUR strategy. The `bias` is the trend-following read; if you are a contrarian / mean-reversion trader, FADE it with the same facts (e.g. a downtrend that is also "RSI oversold" is YOUR long). Skipping a flagged setup needs a SPECIFIC reason tied to your thesis — "no clear setup" is NOT a valid skip when setups are listed.',
-    "- If observation.setups is EMPTY: the tape is genuinely flat — skipping new entries is correct; just manage any open positions.",
+    "- If observation.setups is EMPTY: no coin has a flagged structure right now — but BEFORE you skip, check observation.pmMarkets for a crypto market your current read prices wrong (a PM mispricing is a valid ACT even with zero coin setups). Only then, if nothing is mispriced, skip new entries and just manage any open positions.",
     '- A setup tagged `held` (held: long|short) is a position you ALREADY hold. Do NOT propose a new open on it — that only hits the margin cap and wastes the cycle. MANAGE it instead: trail the stop toward your target, ADD only if you have margin room AND fresh conviction, or cut if the thesis broke.',
     "",
     "## After you act — hold with conviction, do not churn",
