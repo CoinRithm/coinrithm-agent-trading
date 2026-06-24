@@ -52,6 +52,21 @@ describe("buildSpec — defaults and new blocks", () => {
     expect(spec.objective?.primary).toBe("realized_pnl");
     expect(spec.capabilities).toEqual(["indicators"]);
   });
+
+  it("parses a triggerPolicy block (OKF v2) and defaults it when omitted", () => {
+    const dflt = parseSkill(`---\n${FRONT}\n---\nbody`).spec;
+    expect(dflt.triggerPolicy?.mode).toBe("event_driven");
+    expect(dflt.triggerPolicy?.alwaysManageOpenPositions).toBe(true);
+    expect(dflt.triggerPolicy?.pmEvalCooldownMinutes).toBeGreaterThan(0);
+
+    const spec = parseSkill(
+      `---\n${FRONT}\ntriggerPolicy:\n  mode: always\n  maxLlmCallsPerHour: 4\n  debounceMinutes: 30\n  pmEvalCooldownMinutes: 0\n---\nbody`,
+    ).spec;
+    expect(spec.triggerPolicy?.mode).toBe("always");
+    expect(spec.triggerPolicy?.maxLlmCallsPerHour).toBe(4);
+    expect(spec.triggerPolicy?.debounceMinutes).toBe(30);
+    expect(spec.triggerPolicy?.pmEvalCooldownMinutes).toBe(0);
+  });
 });
 
 describe("loadAgent — folder $ref yields the same AgentSpec as all-inline", () => {

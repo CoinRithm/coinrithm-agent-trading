@@ -16,6 +16,7 @@ import {
   ObjectivePrimary,
   Capability,
   ALLOWED_CAPABILITIES,
+  DEFAULT_TRIGGER_POLICY,
   ResolvedAgent,
   ResolveIssue,
 } from "./types.js";
@@ -91,6 +92,7 @@ export function buildSpec(raw: Record<string, unknown>): AgentSpec {
   const abst = obj(raw.abstention);
   const sync = obj(raw.sync);
   const ks = obj(raw.killSwitch);
+  const trig = obj(raw.triggerPolicy);
 
   const venues = strArr(raw.venues).filter((v): v is Venue =>
     (VENUES as readonly string[]).includes(v),
@@ -155,6 +157,29 @@ export function buildSpec(raw: Record<string, unknown>): AgentSpec {
     capabilities: strArr(raw.capabilities).filter((c): c is Capability =>
       (ALLOWED_CAPABILITIES as readonly string[]).includes(c),
     ),
+    // OKF v2 (load-bearing): the gate reads this; omitted -> DEFAULT_TRIGGER_POLICY.
+    // This is the agent's INTENT — the platform deployment overlay may tighten it
+    // server-side, and it can never widen a hard cap (caps live in the runner).
+    triggerPolicy: {
+      mode: trig.mode === "always" ? "always" : DEFAULT_TRIGGER_POLICY.mode,
+      skipLlmWhenNoTrigger: bool(
+        trig.skipLlmWhenNoTrigger,
+        DEFAULT_TRIGGER_POLICY.skipLlmWhenNoTrigger,
+      ),
+      alwaysManageOpenPositions: bool(
+        trig.alwaysManageOpenPositions,
+        DEFAULT_TRIGGER_POLICY.alwaysManageOpenPositions,
+      ),
+      maxLlmCallsPerHour: num(
+        trig.maxLlmCallsPerHour,
+        DEFAULT_TRIGGER_POLICY.maxLlmCallsPerHour,
+      ),
+      debounceMinutes: num(trig.debounceMinutes, DEFAULT_TRIGGER_POLICY.debounceMinutes),
+      pmEvalCooldownMinutes: num(
+        trig.pmEvalCooldownMinutes,
+        DEFAULT_TRIGGER_POLICY.pmEvalCooldownMinutes,
+      ),
+    },
   };
 }
 
