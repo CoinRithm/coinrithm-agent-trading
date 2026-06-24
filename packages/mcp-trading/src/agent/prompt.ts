@@ -118,6 +118,7 @@ export function buildUserPrompt(
       pmMarkets: obs.pmMarkets,
       watch: obs.watch,
       setups: obs.setups,
+      marketMood: obs.marketMood,
       newClosedTrades: obs.newClosedTrades.slice(0, 20),
       polledBeforeWrite: obs.polledBeforeWrite,
     }),

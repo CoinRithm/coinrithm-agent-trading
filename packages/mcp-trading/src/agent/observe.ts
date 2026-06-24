@@ -179,6 +179,9 @@ export async function observe(
   // Watchlist market context.
   const watch: WatchEntry[] = [];
   let resolvedAny = false;
+  // Bounded RAG: the market-wide Fear & Greed regime, captured once from the first
+  // coin's /market context (it's market-wide, identical across coins).
+  let marketMood: { fearGreed: number; label: string } | undefined;
   const wantIndicators = spec.capabilities.includes("indicators");
   for (const symbol of spec.risk.watchlist) {
     const rs = await client.resolve(symbol, trace);
@@ -200,9 +203,17 @@ export async function observe(
       change1h: asNum(price.change1h),
       change24h: asNum(price.change24h),
       change7d: asNum(price.change7d),
+      // Community sentiment (already in the /market context, was stripped).
+      sentimentBullishPct: asNum(asObj(m.sentiment).bullishPct) ?? undefined,
       // Freshness lives under the response's `observation` block.
       freshness: freshnessOf(asObj(m.observation)),
     };
+    // Capture the market-wide Fear & Greed regime once (same across coins).
+    if (!marketMood) {
+      const fg = asObj(m.fearGreed);
+      const v = asNum(fg.value);
+      if (v != null) marketMood = { fearGreed: v, label: asStr(fg.label) ?? "" };
+    }
     // `indicators` capability: enrich the observation with computed TA so the
     // model reasons over structure (trend/momentum/volatility/breakout) instead
     // of price + %change alone. Backed by the candles endpoint's shared cache.
@@ -340,6 +351,7 @@ export async function observe(
     // openPositions are passed so setups on a held symbol are tagged "manage,
     // don't re-open".
     setups: scanSetups(watch, openPositions),
+    marketMood,
     syncCursor,
     newClosedTrades,
     polledBeforeWrite,
