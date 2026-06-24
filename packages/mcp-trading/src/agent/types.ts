@@ -220,6 +220,21 @@ export interface PmMarket {
   freshness?: Freshness;
 }
 
+// A deterministic "this cycle has tradeable structure" flag, computed from the
+// watch indicators BEFORE the model runs. content-engine's lesson (and the
+// preflight-gate design): don't ask a cautious free-tier brain "is something
+// happening?" — DETECT it deterministically and hand it over, so the model acts on
+// real structure instead of defaulting to "no clear setup". The `bias` is the
+// trend-following read; a contrarian/mean-reversion agent fades it using the same
+// facts in `note`.
+export interface SetupSignal {
+  symbol: string;
+  kind: "breakout" | "breakdown" | "uptrend" | "downtrend" | "stretched";
+  bias: "long" | "short" | "fade-long" | "fade-short";
+  strength: number; // 0..1 rough conviction the structure is real
+  note: string; // compact factual one-liner the model reads
+}
+
 export interface Observation {
   asOf: string; // server time the bundle was built
   scopes: string[];
@@ -230,6 +245,7 @@ export interface Observation {
   pmPositions: PmPosition[]; // open prediction-market positions
   pmMarkets: PmMarket[]; // discovered quote-ready PM candidates (only if pm venue)
   watch: WatchEntry[];
+  setups: SetupSignal[]; // deterministic per-cycle structure flags (see SetupSignal)
   syncCursor: string | null; // advanced from /trades
   newClosedTrades: Array<Record<string, unknown>>; // fired stops/liqs/settlements
   polledBeforeWrite: boolean; // whether this cycle synced /trades first

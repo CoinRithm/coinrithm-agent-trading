@@ -17,6 +17,7 @@ import {
 } from "./types.js";
 import { asObj, asArr, asNum, asStr } from "./extract.js";
 import { computeIndicators, Candle, IndicatorSet } from "./indicators.js";
+import { scanSetups } from "./setups.js";
 
 export interface ObserveOutput {
   observation: Observation;
@@ -69,6 +70,7 @@ function emptyObservation(state: RunState, scopes: string[] = []): Observation {
     pmPositions: [],
     pmMarkets: [],
     watch: [],
+    setups: [],
     syncCursor: state.cursor,
     newClosedTrades: [],
     polledBeforeWrite: false,
@@ -284,6 +286,9 @@ export async function observe(
     pmPositions,
     pmMarkets,
     watch,
+    // Deterministic structure flags computed from the watch indicators — the
+    // model acts on these instead of re-deciding "is there a setup?" from scratch.
+    setups: scanSetups(watch),
     syncCursor,
     newClosedTrades,
     polledBeforeWrite,

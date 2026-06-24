@@ -157,7 +157,7 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
   // which part is heavy.
   log(
     `prompt ~${Math.round((system.length + user.length) / 4)} tok ` +
-      `(pm ${observation.pmMarkets.length}, trades ${observation.newClosedTrades.length}, watch ${observation.watch.length})`,
+      `(pm ${observation.pmMarkets.length}, trades ${observation.newClosedTrades.length}, watch ${observation.watch.length}, setups ${observation.setups.length})`,
   );
   const res = await provider.decide({ system, user });
   if (!res.ok) {
