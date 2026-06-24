@@ -33,12 +33,14 @@ export type ProviderName =
   | "openai"
   | "groq"
   | "nvidia"
+  | "gemini"
   | "openai-compatible";
 export const PROVIDERS: readonly ProviderName[] = [
   "anthropic",
   "openai",
   "groq",
   "nvidia",
+  "gemini",
   "openai-compatible",
 ];
 

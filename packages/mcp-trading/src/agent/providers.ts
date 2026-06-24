@@ -28,12 +28,20 @@ export interface ProviderEnv {
   OPENAI_API_KEY?: string;
   GROQ_API_KEY?: string;
   NVIDIA_API_KEY?: string;
+  GEMINI_API_KEY?: string;
   MODEL_API_KEY?: string;
 }
 
 // NVIDIA NIM is OpenAI-compatible; the `nvidia` preset hard-wires the hosted
 // endpoint so an agent only needs `{ provider: nvidia, name: "<model id>" }`.
 const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
+
+// Gemini exposes an OpenAI-compatible surface, so the `gemini` preset hard-wires
+// its hosted endpoint — an agent only needs `{ provider: gemini, name: "gemini-2.0-flash" }`
+// plus a GEMINI_API_KEY. The free tier (no credit card, generous Flash quota) makes
+// it the easiest key a USER can bring for their OWN agent — and a per-user key means
+// each agent draws on its own quota, which is how the fleet actually scales.
+const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai";
 
 // Cap any single model call so a hung provider can't block an agent forever — but
 // generously. The scheduler runs cycles SEQUENTIALLY per agent (it locks the row
@@ -88,6 +96,8 @@ function envKey(provider: ProviderName, env: ProviderEnv): string | undefined {
       return env.GROQ_API_KEY;
     case "nvidia":
       return env.NVIDIA_API_KEY ?? env.MODEL_API_KEY;
+    case "gemini":
+      return env.GEMINI_API_KEY ?? env.MODEL_API_KEY;
     case "openai-compatible":
       return env.MODEL_API_KEY ?? env.OPENAI_API_KEY;
   }
@@ -101,6 +111,8 @@ function baseUrlFor(provider: ProviderName, configured?: string): string {
       return "https://api.groq.com/openai/v1";
     case "nvidia":
       return NVIDIA_BASE_URL;
+    case "gemini":
+      return GEMINI_BASE_URL;
     case "openai-compatible":
       return (configured ?? "").replace(/\/+$/, "");
     case "anthropic":
@@ -219,7 +231,9 @@ export function selectProvider(
           ? "GROQ_API_KEY"
           : provider === "nvidia"
             ? "NVIDIA_API_KEY"
-            : "OPENAI_API_KEY / MODEL_API_KEY";
+            : provider === "gemini"
+              ? "GEMINI_API_KEY"
+              : "OPENAI_API_KEY / MODEL_API_KEY";
     throw new Error(`missing model API key: set ${varName} in the environment (never in an agent file)`);
   }
   if (provider === "anthropic") return new AnthropicProvider(name, key, fetchFn);
