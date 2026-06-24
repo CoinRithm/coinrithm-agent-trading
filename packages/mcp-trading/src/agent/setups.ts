@@ -96,13 +96,28 @@ function classify(w: WatchEntry, openPositions: OpenPosition[]): SetupSignal[] {
     });
   }
 
-  // Position awareness (DUPLICATE_INTENT_SUPPRESS): if we already hold this symbol,
-  // tag every signal with the side held so the model MANAGES it (trail / add-if-
-  // room / cut) instead of re-proposing an open that just hits the margin cap.
+  // Position awareness: if we already hold this symbol, tag every signal with the
+  // side held AND the position's win/loss state right in the note — so the model
+  // ADDS to a winner (only with free margin), trails, or cuts a loser, instead of
+  // pointlessly re-opening the same size into the margin cap (the open_margin_
+  // exceeds_cap churn). A winner with room is the one case a same-side "open" is OK
+  // (scaling in); otherwise it's manage-only.
   const wb = baseSymbol(w.symbol);
   const pos = wb ? openPositions.find((p) => baseSymbol(p.symbol) === wb) : undefined;
   const held = pos && (pos.side === "long" || pos.side === "short") ? pos.side : undefined;
-  if (held) for (const s of out) s.held = held;
+  if (held) {
+    const u = pos?.unrealizedPnlMusd;
+    const tag =
+      u == null
+        ? ` [HELD ${held} — manage, do NOT re-open]`
+        : u >= 0
+          ? ` [HELD ${held}, +${Math.round(u)}mUSD WINNER — ADD only if you have free margin (scale into strength), else trail the stop; never re-open the same size]`
+          : ` [HELD ${held}, ${Math.round(u)}mUSD loser — trail or cut; do NOT average down or re-open]`;
+    for (const s of out) {
+      s.held = held;
+      s.note = s.note + tag;
+    }
+  }
 
   return out;
 }
