@@ -266,6 +266,10 @@ export async function observe(
               asStr(o.externalMarketId) ??
               asStr(o.outcomeExternalMarketId) ??
               "",
+            // Carry the odds through: the model needs the outcome label + current
+            // probability to spot a mispriced market and bet it (was stripped).
+            outcomeName: asStr(o.name) ?? asStr(o.outcomeName) ?? undefined,
+            probability: asNum(o.probability) ?? undefined,
             title,
             freshness,
           }));

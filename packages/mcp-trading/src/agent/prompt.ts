@@ -47,7 +47,7 @@ export function buildSystemPrompt(
           `- deny-list (NEVER open these, even if on the watchlist): ${r.blocklist.join(", ")}`,
         ]
       : []),
-    "- prediction markets: pick ONLY a market listed in observation.pmMarkets; minimum stake 10 mUSD",
+    "- prediction markets: each observation.pmMarkets entry carries `outcomeName` and `probability` (0..1, the market's CURRENT odds). BET (pm_open) an outcome when YOUR estimate of its true probability differs MATERIALLY from the market's — that gap is your edge (e.g. market 0.35 but you think it's really ~0.55 -> buy). Skip markets pinned near 0 or 1 (no edge left). Pick ONLY a listed market; min stake 10 mUSD.",
     `- abstention.minConfidence ${spec.abstention.minConfidence}: opens below this are rejected, so act with genuine conviction — but routine caution is no reason to sit out a clear setup`,
     ...(spec.capabilities.includes("indicators")
       ? [

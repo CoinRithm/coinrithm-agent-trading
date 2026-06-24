@@ -237,6 +237,11 @@ export interface PmMarket {
   source: string;
   slug: string;
   outcomeExternalMarketId: string;
+  // The outcome's label + the market's CURRENT probability (0..1). Without these
+  // the model sees a market exists but not its odds, so it can never decide the
+  // market is mispriced — the reason agents never bet PM. The edge = |model − market|.
+  outcomeName?: string;
+  probability?: number;
   title?: string;
   freshness?: Freshness;
 }
