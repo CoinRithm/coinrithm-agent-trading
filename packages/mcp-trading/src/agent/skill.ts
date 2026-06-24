@@ -27,8 +27,15 @@ import { checkCapabilityDrift } from "./capabilityGuard.js";
 // Safe defaults for the OPTIONAL policy blocks. A minimal self-host skill
 // (name/description/spec/trigger/model/venues/risk) runs under these. Hosted
 // mode requires them to be explicit (see skillValidator).
+// A daily TRADE-COUNT cap of 0 (or absent) means UNLIMITED. We don't throttle how often
+// an agent trades — the risk caps (daily loss, open margin, leverage, stops) are the real
+// guardrails. "Unlimited" is normalised to a large finite value so cap-merge arithmetic
+// (most-restrictive-wins) and JSON serialisation stay simple.
+export const UNLIMITED_TRADES_PER_DAY = 1_000_000;
+const normalizeTradeCap = (v: number): number => (v <= 0 ? UNLIMITED_TRADES_PER_DAY : v);
+
 const DEFAULT_LIMITS: LimitsConfig = {
-  maxTradesPerDay: 20,
+  maxTradesPerDay: UNLIMITED_TRADES_PER_DAY,
   maxWritesPerCycle: 2,
   maxDailyLossMusd: 5_000,
   maxOpenMarginMusd: 5_000,
@@ -117,7 +124,7 @@ export function buildSpec(raw: Record<string, unknown>): AgentSpec {
       blocklist: strArr(risk.blocklist),
     },
     limits: {
-      maxTradesPerDay: num(limits.maxTradesPerDay, DEFAULT_LIMITS.maxTradesPerDay),
+      maxTradesPerDay: normalizeTradeCap(num(limits.maxTradesPerDay, DEFAULT_LIMITS.maxTradesPerDay)),
       maxWritesPerCycle: num(limits.maxWritesPerCycle, DEFAULT_LIMITS.maxWritesPerCycle),
       maxDailyLossMusd: num(limits.maxDailyLossMusd, DEFAULT_LIMITS.maxDailyLossMusd),
       maxOpenMarginMusd: num(limits.maxOpenMarginMusd, DEFAULT_LIMITS.maxOpenMarginMusd),

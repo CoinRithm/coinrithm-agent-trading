@@ -32,6 +32,9 @@ const isObj = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 const isPosNum = (v: unknown): v is number =>
   typeof v === "number" && Number.isFinite(v) && v > 0;
+// maxTradesPerDay accepts 0 as the explicit "unlimited daily trades" sentinel.
+const isNonNegNum = (v: unknown): v is number =>
+  typeof v === "number" && Number.isFinite(v) && v >= 0;
 
 export function validateSkill(
   parsed: ParsedSkill,
@@ -148,7 +151,7 @@ export function validateSkill(
       add("skill_limits_required", "limits block is required in hosted mode");
     } else {
       const l = raw.limits;
-      if (!isPosNum(l.maxTradesPerDay)) add("skill_limits_trades", "limits.maxTradesPerDay must be a positive number");
+      if (!isNonNegNum(l.maxTradesPerDay)) add("skill_limits_trades", "limits.maxTradesPerDay must be a number >= 0 (0 = unlimited daily trades)");
       if (!isPosNum(l.maxWritesPerCycle)) add("skill_limits_writes", "limits.maxWritesPerCycle must be a positive number");
       if (!isPosNum(l.maxDailyLossMusd)) add("skill_limits_loss", "limits.maxDailyLossMusd must be a positive number");
       if (!isPosNum(l.maxOpenMarginMusd)) add("skill_limits_open", "limits.maxOpenMarginMusd must be a positive number");

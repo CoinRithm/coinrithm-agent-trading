@@ -1,18 +1,19 @@
 {
-  "configHash": "sha256:d0eabd9c1d8f3b37134328104aa4fa8a57a891e9751ba45c7f50913d5d458593",
+  "configHash": "sha256:1f6ecff6cdb4455a63d0cf234f6182308e20452e50f4a01af41f6441870d6302",
   "contentHashes": {
-    "agent.md": "sha256:aea5ee05f021d6bb6466077f42143191e29a94908399c08c4dc2f75f85fd972e",
-    "character/abstention.yaml": "sha256:a78f5b0df505b9d121e361b2d58f93e88b31e0a9be1f76d90361d13d3b84d7ab",
-    "character/limits.yaml": "sha256:c14d71016f95e48014b59ea1b4da03ec8b8600448f553ffc64e70a17641cb5d0",
-    "character/persona.md": "sha256:0a92062cef4b967dc88b382977d3a6a237ca00efcc2f7977d915f77301c613d2",
+    "agent.md": "sha256:c992b3886181f3896431a7c96818b06b752e756895c1a2c8c87b63292eed315a",
+    "character/abstention.yaml": "sha256:24df02b20cbc240248cc7888962a8194ecefa41cd52b56aa22cce2111ee939a8",
+    "character/limits.yaml": "sha256:6e0a8deeb2f97e34f65d6af6a12c7c604598a482f65063ef09f08e22a13b716c",
+    "character/persona.md": "sha256:a0fb3ca629ee3bb873c932ed4b725e7f91541e70df41f3411470b904ffb08a1a",
     "character/risk.yaml": "sha256:d08610a380abaed63d728664804bbed609ec41cfe7086f330ec65c2418ec4286",
     "character/sizing.yaml": "sha256:e6cbb950835d62979e5e11311fbb446e26e1355087ad33b6deb2e814d4aad339",
     "character/skills/risk-first-sizing.md": "sha256:03c06e062f75fecd35d27f4807aa4f6e0939d81efbb687b712474ebcf5ddbbeb",
     "character/skills/swing-trend.md": "sha256:31118cff53207e23bf97a6673862f16b8e97d61ed40011d072d980b3c60c4b24",
-    "character/thesis.md": "sha256:57f8205af98083585110b61c117c9376c16c61bdf069b4b6c627732b320ce90f",
+    "character/thesis.md": "sha256:3280d0bf58e5e61eeb344fcd3c9583633ad837813257a15a9b47b4a4f3fd42b4",
+    "functionality/coinrithm.yaml": "sha256:9bf7b8ea39bd4bc2ea14807c82b837beef80d2dad61acf0346c66c55ced78bcf",
     "journal/notes.md": "sha256:2121bfae825526a158b97e5cc58658476543cb51db05df341f10315502fbb411",
     "runtime.yaml": "sha256:bf074f710fa3edd8858ab7d682b3151b1571d725119790e5a80cef33ad3f92a2",
-    "safety/killSwitch.yaml": "sha256:73e3b22488dde56311d779cebb1f65091a59abd80792d6185ec4d4bba76ac5f4"
+    "safety/killSwitch.yaml": "sha256:661f453d01600b702db055753fe0162a1560685cb750d3a8cb13c6e3cc08b022"
   },
   "provenance": {
     "includeOrder": [
@@ -31,12 +32,14 @@
       "character/skills/risk-first-sizing.md",
       "character/thesis.md",
       "character/persona.md",
-      "journal/notes.md"
+      "journal/notes.md",
+      "functionality/coinrithm.yaml"
     ],
     "sources": {
       "abstention": "character/abstention.yaml",
       "capabilities": "agent.md",
       "description": "agent.md",
+      "functionality": "functionality/coinrithm.yaml",
       "include": "agent.md",
       "killSwitch": "safety/killSwitch.yaml",
       "limits": "character/limits.yaml",
@@ -54,7 +57,7 @@
   },
   "resolvedConfig": {
     "abstention": {
-      "minConfidence": 0.58,
+      "minConfidence": 0.52,
       "onInsufficientBalance": true,
       "onMissingQuote": true,
       "onStaleData": true,
@@ -69,15 +72,15 @@
       "risk-first-sizing"
     ],
     "killSwitch": {
-      "maxConsecutiveModelFailures": 3,
+      "maxConsecutiveModelFailures": 15,
       "maxConsecutiveRejects": 0,
       "maxDrawdownMusd": 2500,
       "onRateLimitPressure": true
     },
     "limits": {
-      "maxDailyLossMusd": 900,
+      "maxDailyLossMusd": 1500,
       "maxOpenMarginMusd": 4500,
-      "maxTradesPerDay": 4,
+      "maxTradesPerDay": 0,
       "maxWritesPerCycle": 1
     },
     "mode": "self-host",
@@ -121,12 +124,13 @@
     },
     "venues": [
       "futures",
-      "spot"
+      "spot",
+      "pm"
     ]
   },
   "resolvedSpec": {
     "abstention": {
-      "minConfidence": 0.58,
+      "minConfidence": 0.52,
       "onInsufficientBalance": true,
       "onMissingQuote": true,
       "onStaleData": true,
@@ -137,15 +141,15 @@
     ],
     "description": "Risk-managed swing futures agent that holds positions across cycles, sizes from stop distance, and optimizes risk-adjusted return on CoinRithm paper trading.",
     "killSwitch": {
-      "maxConsecutiveModelFailures": 3,
+      "maxConsecutiveModelFailures": 15,
       "maxConsecutiveRejects": 0,
       "maxDrawdownMusd": 2500,
       "onRateLimitPressure": true
     },
     "limits": {
-      "maxDailyLossMusd": 900,
+      "maxDailyLossMusd": 1500,
       "maxOpenMarginMusd": 4500,
-      "maxTradesPerDay": 4,
+      "maxTradesPerDay": 1000000,
       "maxWritesPerCycle": 1
     },
     "model": {
@@ -162,6 +166,7 @@
       ]
     },
     "risk": {
+      "blocklist": [],
       "maxConcurrentPositions": 3,
       "maxLeverage": 3,
       "perTradeMarginMusd": 1500,
@@ -181,9 +186,18 @@
       "cadence": "1h",
       "timezone": "UTC"
     },
+    "triggerPolicy": {
+      "alwaysManageOpenPositions": true,
+      "debounceMinutes": 0,
+      "maxLlmCallsPerHour": 0,
+      "mode": "event_driven",
+      "pmEvalCooldownMinutes": 10,
+      "skipLlmWhenNoTrigger": true
+    },
     "venues": [
       "futures",
-      "spot"
+      "spot",
+      "pm"
     ]
   },
   "resolverVersion": "1",

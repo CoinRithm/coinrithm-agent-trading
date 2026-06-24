@@ -89,6 +89,21 @@ describe("validateAction", () => {
     );
   });
 
+  it("blocks at a positive daily trade cap", () => {
+    const capped = { ...spec, limits: { ...spec.limits, maxTradesPerDay: 3 } };
+    expect(
+      validateAction(goodOpen, ctx({ spec: capped, writesToday: 3 })).code,
+    ).toBe("daily_trade_cap");
+  });
+
+  it("treats maxTradesPerDay <= 0 as UNLIMITED (house agents are never trade-count capped)", () => {
+    const uncapped = { ...spec, limits: { ...spec.limits, maxTradesPerDay: 0 } };
+    // far over any normal cap, but 0 means unlimited so the open still validates
+    expect(
+      validateAction(goodOpen, ctx({ spec: uncapped, writesToday: 999 })).valid,
+    ).toBe(true);
+  });
+
   it("rejects an open on a deny-listed symbol (deny wins over watchlist)", () => {
     const blockedSpec = {
       ...spec,

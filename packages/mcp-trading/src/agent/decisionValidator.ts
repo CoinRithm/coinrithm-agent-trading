@@ -62,7 +62,11 @@ export function validateAction(
       `maxWritesPerCycle ${spec.limits.maxWritesPerCycle} reached`,
     );
   }
-  if (ctx.writesToday >= spec.limits.maxTradesPerDay) {
+  // maxTradesPerDay <= 0 means UNLIMITED daily trade count — house agents are never
+  // throttled (we want an active Arena), and hosted agents only when the customer sets a
+  // positive cap. The risk caps below (daily loss, open margin, leverage, stops) are the
+  // real guardrails and always apply regardless of the trade-count cap.
+  if (spec.limits.maxTradesPerDay > 0 && ctx.writesToday >= spec.limits.maxTradesPerDay) {
     return fail(
       "daily_trade_cap",
       `maxTradesPerDay ${spec.limits.maxTradesPerDay} reached`,
