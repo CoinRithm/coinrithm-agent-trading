@@ -16,6 +16,7 @@ import {
   DEFAULT_TRIGGER_POLICY,
 } from "./types.js";
 import { evaluateGate, noteLlmCall, estimateCostUsd } from "./gate.js";
+import { baseSymbol } from "./setups.js";
 import { observe } from "./observe.js";
 import { buildSystemPrompt, buildUserPrompt } from "./prompt.js";
 import { parseDecision } from "./decision.js";
@@ -300,6 +301,36 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
   let anyExecFailed = false;
 
   for (const action of decision.actions) {
+    // Anti-churn critic: block re-opening a futures position we ALREADY hold unless
+    // it's a confirmed WINNER with room (a legit scale-in). Stops the re-open-a-
+    // loser / re-open-into-the-cap churn deterministically — before we even spend a
+    // quote — with a clear "duplicate_intent" instead of a cryptic cap reject. The
+    // runner caps remain the backstop; this is the cleaner, earlier stop.
+    if (action.type === "futures_open") {
+      const ab = baseSymbol(action.symbol);
+      const held = observation.openPositions.find(
+        (p) =>
+          p.venue === "futures" &&
+          p.side === action.side &&
+          baseSymbol(p.symbol) === ab,
+      );
+      if (held) {
+        const winning = (held.unrealizedPnlMusd ?? 0) > 0;
+        const hasRoom =
+          openCount < spec.risk.maxConcurrentPositions &&
+          openMarginMusd + action.marginMusd <= spec.limits.maxOpenMarginMusd;
+        if (!(winning && hasRoom)) {
+          planned.push({
+            action,
+            accepted: false,
+            code: "duplicate_intent",
+            reason: `already hold ${action.symbol} ${action.side}${winning ? " (no margin room to add)" : " — manage it, do not average down or re-open"}`,
+          });
+          log(`reject ${action.type}: duplicate_intent (hold ${action.symbol} ${action.side})`);
+          continue;
+        }
+      }
+    }
     const quote = await fetchQuote(client, action, observation, baseTrace);
     const ctx: DecisionContext = {
       spec,

@@ -28,7 +28,7 @@ function pct(n: number): string {
 
 // Normalize a symbol to its base asset so a watch "BTC" matches an open position
 // "BTC-PERP" / "BTCUSDT" when checking whether we already hold it.
-function baseSymbol(s: string | undefined): string {
+export function baseSymbol(s: string | undefined): string {
   return (s ?? "")
     .toUpperCase()
     .replace(/[-/]?(PERP|USDT|USDC|USD)$/i, "")
