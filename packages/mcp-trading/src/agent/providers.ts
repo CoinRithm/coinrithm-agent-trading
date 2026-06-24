@@ -15,7 +15,12 @@ export interface DecideInput {
 }
 
 export type DecideResult =
-  | { ok: true; text: string }
+  | {
+      ok: true;
+      text: string;
+      // Provider-reported token usage when available (for slice-2 metering).
+      usage?: { promptTokens: number; completionTokens: number };
+    }
   | { ok: false; error: string };
 
 export interface Provider {
@@ -152,9 +157,18 @@ class AnthropicProvider implements Provider {
         timeoutMs,
       );
       if (!res.ok) return { ok: false, error: `anthropic HTTP ${res.status}: ${await res.text()}` };
-      const json = (await res.json()) as { content?: Array<{ text?: string }> };
+      const json = (await res.json()) as {
+        content?: Array<{ text?: string }>;
+        usage?: { input_tokens?: number; output_tokens?: number };
+      };
       const text = json.content?.map((c) => c.text ?? "").join("") ?? "";
-      return text ? { ok: true, text } : { ok: false, error: "anthropic returned empty content" };
+      const usage = json.usage
+        ? {
+            promptTokens: json.usage.input_tokens ?? 0,
+            completionTokens: json.usage.output_tokens ?? 0,
+          }
+        : undefined;
+      return text ? { ok: true, text, usage } : { ok: false, error: "anthropic returned empty content" };
     } catch (err) {
       return { ok: false, error: callError(err, timeoutMs) };
     }
@@ -199,9 +213,16 @@ class OpenAiCompatProvider implements Provider {
       if (!res.ok) return { ok: false, error: `provider HTTP ${res.status}: ${await res.text()}` };
       const json = (await res.json()) as {
         choices?: Array<{ message?: { content?: string } }>;
+        usage?: { prompt_tokens?: number; completion_tokens?: number };
       };
       const text = json.choices?.[0]?.message?.content ?? "";
-      return text ? { ok: true, text } : { ok: false, error: "provider returned empty content" };
+      const usage = json.usage
+        ? {
+            promptTokens: json.usage.prompt_tokens ?? 0,
+            completionTokens: json.usage.completion_tokens ?? 0,
+          }
+        : undefined;
+      return text ? { ok: true, text, usage } : { ok: false, error: "provider returned empty content" };
     } catch (err) {
       return { ok: false, error: callError(err, timeoutMs) };
     }

@@ -58,6 +58,25 @@ export interface TriggerConfig {
   timezone?: string;
 }
 
+// Slice-2 preflight-gate policy: when does a cycle SPEND an LLM call? The gate
+// reads this (DEFAULT_TRIGGER_POLICY applied when the OKF omits it). This is OKF
+// INTENT — the platform deployment overlay may tighten it server-side later, and
+// the gate never lets it widen a hard cap (caps live in the runner).
+export interface TriggerPolicy {
+  mode: "event_driven" | "always"; // 'always' = call every cycle (legacy behaviour)
+  skipLlmWhenNoTrigger: boolean; // no trigger -> cheap heartbeat, no LLM call
+  alwaysManageOpenPositions: boolean; // an open position always fires the gate
+  maxLlmCallsPerHour: number; // 0 = unlimited (entry triggers only; positions exempt)
+  debounceMinutes: number; // 0 = off; suppress an identical entry-trigger set
+}
+export const DEFAULT_TRIGGER_POLICY: TriggerPolicy = {
+  mode: "event_driven",
+  skipLlmWhenNoTrigger: true,
+  alwaysManageOpenPositions: true,
+  maxLlmCallsPerHour: 0,
+  debounceMinutes: 0,
+};
+
 export interface RiskConfig {
   maxLeverage: number;
   perTradeMarginMusd: number;
@@ -135,6 +154,8 @@ export interface AgentSpec {
   killSwitch: KillSwitchConfig;
   objective?: ObjectiveConfig;
   capabilities: Capability[];
+  // Slice-2 gate policy (OKF intent). Omitted => DEFAULT_TRIGGER_POLICY.
+  triggerPolicy?: TriggerPolicy;
 }
 
 export interface ParsedSkill {
@@ -403,6 +424,12 @@ export interface RunState {
   realizedPnlTodayMusd: number; // today's realized PnL (reset by rollDay) — daily-loss cap
   consecutiveExecFailures: number; // validated-but-failed live writes in a row
   intentSeq: Record<string, number>; // per-intent counter -> stable idempotency keys
+  // Slice-2 gate state (optional; absent on older persisted state). Epoch-ms of
+  // recent LLM calls (for maxLlmCallsPerHour), the last call time + its trigger
+  // fingerprint (for debounce).
+  llmCallTimestamps?: number[];
+  lastLlmCallAt?: number;
+  lastTriggerFingerprint?: string;
 }
 
 export interface AgentTrace {
@@ -448,6 +475,16 @@ export interface CycleResult {
   disabled?: boolean;
   disabledReason?: string;
   live: boolean;
+  // ── Metering (slice 2): per-cycle usage accounting — the data the future credit
+  // system + tier pricing read. Recorded for EVERY cycle (incl. gated heartbeats).
+  triggerCodes?: string[]; // which gate triggers fired this cycle
+  llmCallMade?: boolean; // false on a gated no-trigger heartbeat
+  tokensIn?: number; // prompt tokens (provider-reported)
+  tokensOut?: number; // completion tokens
+  estimatedCostUsd?: number; // notional cost from a per-provider rate (0 for free tiers)
+  decisionType?: "act" | "skip" | "gate_skip" | "model_error";
+  writeAttempted?: number; // actions the model proposed
+  writeAccepted?: number; // actions that passed validation (+ executed when live)
 }
 
 // ───────────────────────── Resolver (folder-as-architecture) ────────────────

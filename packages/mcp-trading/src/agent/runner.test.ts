@@ -63,6 +63,16 @@ function deps(
   prov = provider(VALID_OPEN),
 ): RunnerDeps {
   const spec = parseSkill(renderFolderOfOne("a", "conservative")).spec;
+  // These tests exercise the post-gate decide/validate/act flow; the preflight
+  // gate has its own coverage (gate.test.ts), so run always-on here so a flat
+  // fixture (no flagged setup) still reaches DECIDE.
+  spec.triggerPolicy = {
+    mode: "always",
+    skipLlmWhenNoTrigger: false,
+    alwaysManageOpenPositions: true,
+    maxLlmCallsPerHour: 0,
+    debounceMinutes: 0,
+  };
   return {
     client: client as unknown as CoinRithmClient,
     provider: prov,

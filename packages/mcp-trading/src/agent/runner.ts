@@ -13,7 +13,9 @@ import {
   ProposedAction,
   QuoteEvidence,
   spotBuyCost,
+  DEFAULT_TRIGGER_POLICY,
 } from "./types.js";
+import { evaluateGate, noteLlmCall, estimateCostUsd } from "./gate.js";
 import { observe } from "./observe.js";
 import { buildSystemPrompt, buildUserPrompt } from "./prompt.js";
 import { parseDecision } from "./decision.js";
@@ -149,17 +151,57 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
     return { decision: "skip", skipReason: obs.skip, planned: [], live };
   }
 
+  // GATE (slice 2): only SPEND an LLM call when a deterministic trigger fires — a
+  // flagged entry setup or an open position to manage. No trigger => a cheap
+  // heartbeat (zero tokens). A heartbeat is neither a model reject nor a failure,
+  // so it touches NO kill-switch counter; it just records the cheap cycle.
+  const policy = spec.triggerPolicy ?? DEFAULT_TRIGGER_POLICY;
+  const nowMs = Date.now();
+  const gate = evaluateGate(observation, state, policy, nowMs);
+  const providerName = spec.model?.provider ?? "nvidia";
+  if (!gate.fire) {
+    saveState(stateFile, state);
+    log(`gate: skip (${gate.reason})`);
+    return {
+      decision: "skip",
+      skipReason: gate.reason,
+      planned: [],
+      live,
+      triggerCodes: gate.codes,
+      llmCallMade: false,
+      decisionType: "gate_skip",
+      tokensIn: 0,
+      tokensOut: 0,
+      estimatedCostUsd: 0,
+      writeAttempted: 0,
+      writeAccepted: 0,
+    };
+  }
+  noteLlmCall(state, gate.codes, nowMs);
+
   // DECIDE
   const system = buildSystemPrompt(spec, mergedProse);
   const user = buildUserPrompt(observation);
-  // Prompt-size visibility: a bloated observation (esp. PM/trades) was 413ing the
-  // small free models. ~chars/4 is a rough token estimate; the field counts show
-  // which part is heavy.
+  const tokensInEst = Math.round((system.length + user.length) / 4);
+  // Prompt-size + trigger visibility in the live terminal.
   log(
-    `prompt ~${Math.round((system.length + user.length) / 4)} tok ` +
-      `(pm ${observation.pmMarkets.length}, trades ${observation.newClosedTrades.length}, watch ${observation.watch.length}, setups ${observation.setups.length})`,
+    `prompt ~${tokensInEst} tok ` +
+      `(pm ${observation.pmMarkets.length}, trades ${observation.newClosedTrades.length}, watch ${observation.watch.length}, setups ${observation.setups.length}, triggers ${gate.codes.join("|") || "none"})`,
   );
   const res = await provider.decide({ system, user });
+  // Metering: prefer provider-reported usage; fall back to a chars/4 estimate.
+  const tokensIn = res.ok ? (res.usage?.promptTokens ?? tokensInEst) : tokensInEst;
+  const tokensOut = res.ok
+    ? (res.usage?.completionTokens ?? Math.round(res.text.length / 4))
+    : 0;
+  const estimatedCostUsd = estimateCostUsd(providerName, tokensIn, tokensOut);
+  const meter = {
+    triggerCodes: gate.codes,
+    llmCallMade: true,
+    tokensIn,
+    tokensOut,
+    estimatedCostUsd,
+  };
   if (!res.ok) {
     state.consecutiveModelFailures += 1;
     saveState(stateFile, state);
@@ -170,6 +212,10 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
       planned: [],
       modelFailed: true,
       live,
+      ...meter,
+      decisionType: "model_error",
+      writeAttempted: 0,
+      writeAccepted: 0,
     };
   }
   const parsed = parseDecision(res.text);
@@ -184,6 +230,10 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
       planned: [],
       modelFailed: true,
       live,
+      ...meter,
+      decisionType: "model_error",
+      writeAttempted: 0,
+      writeAccepted: 0,
     };
   }
   state.consecutiveModelFailures = 0;
@@ -207,6 +257,10 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
       rawModelOutput,
       planned: [],
       live,
+      ...meter,
+      decisionType: "skip",
+      writeAttempted: decision.actions.length,
+      writeAccepted: 0,
     };
   }
 
@@ -321,7 +375,18 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
   state.rateLimitHits = client.rateLimitHits ?? state.rateLimitHits;
   saveState(stateFile, state);
   if (live && anyExecuted) await exportRunEvidence(client, runId);
-  return { decision: "act", rationale, confidence, rawModelOutput, planned, live };
+  return {
+    decision: "act",
+    rationale,
+    confidence,
+    rawModelOutput,
+    planned,
+    live,
+    ...meter,
+    decisionType: "act",
+    writeAttempted: decision.actions.length,
+    writeAccepted: planned.filter((p) => p.accepted).length,
+  };
 }
 
 export interface LoopOptions {
