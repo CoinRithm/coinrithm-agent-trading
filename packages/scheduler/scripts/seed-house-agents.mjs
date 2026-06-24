@@ -33,9 +33,9 @@ import { encrypt, loadMasterKey } from "../dist/crypto.js";
 // (~720/day) to stay under it; the rest are 60s. Both overrides win over each
 // example folder's own model/trigger.cadence, so a re-seed never reverts them.
 //
-// RPM headroom: NVIDIA agents (Mia/Carl/Leo) = ~3 calls/min vs the 40 RPM shared
-// key; Groq agents (Olivia 60s + Sam 120s) = ~1.5 calls/min vs Groq's ~30 RPM —
-// both comfortable. Carl's Nemotron is only fast (~4s) once the kit forces
+// RPM headroom: NVIDIA agents (Mia/Carl/Leo/Sam) = ~4 calls/min vs the 40 RPM
+// shared key; Olivia is the lone Groq agent (60s) ~1 call/min, and one ~5k-token
+// call fits Groq's 6k TPM. Carl's Nemotron is only fast (~4s) once the kit forces
 // "detailed thinking off" (kit >= 57be052), so deploy that kit before seeding.
 const HOUSE = [
   {
@@ -59,9 +59,12 @@ const HOUSE = [
     cadence: 60,
   },
   {
+    // Moved OFF Groq to NVIDIA: two Groq agents sharing one 6k-TPM free key both
+    // 413/429'd (~10k tok/min > 6k). Sam on NVIDIA 70B trades reliably (like Leo)
+    // and leaves Olivia ALONE on Groq, where one ~5k-token call/min fits 6k TPM.
     handle: "sam-risk-managed-swinger", display: "Sam", owner: 61,
-    model: { provider: "groq", name: "llama-3.3-70b-versatile", baseUrl: null },
-    cadence: 120,
+    model: { provider: "nvidia", name: "meta/llama-3.1-70b-instruct", baseUrl: null },
+    cadence: 60,
   },
 ];
 
