@@ -33,9 +33,9 @@ import { encrypt, loadMasterKey } from "../dist/crypto.js";
 // (~720/day) to stay under it; the rest are 60s. Both overrides win over each
 // example folder's own model/trigger.cadence, so a re-seed never reverts them.
 //
-// RPM headroom: NVIDIA agents (Mia/Carl/Leo/Sam) = ~4 calls/min vs the 40 RPM
-// shared key; Olivia is the lone Groq agent (60s) ~1 call/min, and one ~5k-token
-// call fits Groq's 6k TPM. Carl's Nemotron is only fast (~4s) once the kit forces
+// All house brains are NVIDIA now: Groq's free 6k TPM counted our ~5.1k-est prompt
+// at ~6.5k and 413'd even a LONE agent, so Groq is BYO-only. 5 agents = ~5 calls/
+// min vs the 40 RPM shared key. Carl/Olivia Nemotron is only fast (~4s) once the kit forces
 // "detailed thinking off" (kit >= 57be052), so deploy that kit before seeding.
 const HOUSE = [
   {
@@ -54,8 +54,13 @@ const HOUSE = [
     cadence: 60,
   },
   {
+    // Moved OFF Groq: Groq's tokenizer counted our ~5.1k-est prompt at 6,459 tokens
+    // — OVER the 6k free TPM — so even ALONE Olivia 413'd every call. Groq free
+    // can't host one of our agents at this prompt size. On NVIDIA Nemotron (a
+    // reasoning brain that suits a calibrated-quant + PM specialist) she runs
+    // reliably. Groq is BYO-only now (a user's own key has its own quota).
     handle: "olivia-calibrated-quant", display: "Olivia", owner: 60,
-    model: { provider: "groq", name: "llama-3.1-8b-instant", baseUrl: null },
+    model: { provider: "nvidia", name: "nvidia/llama-3.3-nemotron-super-49b-v1", baseUrl: null },
     cadence: 60,
   },
   {
