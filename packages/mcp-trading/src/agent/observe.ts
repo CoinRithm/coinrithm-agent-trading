@@ -29,6 +29,27 @@ export interface ObserveOutput {
 // short cadence the hosted house agents run on. Probe-verified 2026-06-17.
 const INDICATOR_RANGE = "1D";
 
+// Watchlist symbols -> the coin NAMES prediction-market titles use, so an agent
+// discovers PM markets about the coins it actually has a price view on.
+const PM_COIN_NAMES: Record<string, string> = {
+  BTC: "Bitcoin",
+  ETH: "Ethereum",
+  SOL: "Solana",
+  XRP: "XRP",
+  DOGE: "Dogecoin",
+  ADA: "Cardano",
+  AVAX: "Avalanche",
+  LINK: "Chainlink",
+  BNB: "BNB",
+  MATIC: "Polygon",
+  DOT: "Polkadot",
+  LTC: "Litecoin",
+  SHIB: "Shiba",
+  TRX: "Tron",
+  UNI: "Uniswap",
+  SUI: "Sui",
+};
+
 // Fetch candles for one coin and reduce them to a compact indicator bundle.
 // Tolerant by design: any failure (HTTP error, malformed/sparse candles) returns
 // null so the cycle proceeds with price-only context rather than skipping.
@@ -220,10 +241,30 @@ export async function observe(
   let pmPositions: PmPosition[] = [];
   let pmMarkets: PmMarket[] = [];
   if (wantPm) {
-    const [pmPosR, pmDiscR] = await Promise.all([
+    // Bias PM discovery toward CRYPTO markets the agent has a price view on (its
+    // watchlist) — the only PM edge a price agent reliably has. Symbols -> the names
+    // PM titles use; fall back to the general board when crypto markets are thin so
+    // the agent never goes empty.
+    const pmQuery = spec.risk.watchlist
+      .slice(0, 4)
+      .map((s) => PM_COIN_NAMES[s.toUpperCase()] ?? s)
+      .join(" ");
+    const [pmPosR, pmDiscFirst] = await Promise.all([
       client.pmPositions(undefined, trace),
-      client.discoverPmMarkets({ limit: 8 }, trace),
+      client.discoverPmMarkets({ q: pmQuery || undefined, limit: 12 }, trace),
     ]);
+    let pmDiscR = pmDiscFirst;
+    const firstCount = pmDiscR.ok
+      ? asArr(
+          asObj(pmDiscR.data).data ??
+            asObj(pmDiscR.data).markets ??
+            asObj(pmDiscR.data).results,
+        ).length
+      : 0;
+    if (firstCount < 3) {
+      const fb = await client.discoverPmMarkets({ limit: 12 }, trace);
+      if (fb.ok) pmDiscR = fb;
+    }
     if (pmPosR.ok) {
       pmPositions = asArr(asObj(pmPosR.data).positions)
         .map(asObj)
