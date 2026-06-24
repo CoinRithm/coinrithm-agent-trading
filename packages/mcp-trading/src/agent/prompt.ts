@@ -48,6 +48,7 @@ export function buildSystemPrompt(
         ]
       : []),
     "- prediction markets: each observation.pmMarkets entry carries `outcomeName` and `probability` (0..1, the market's CURRENT odds). BET (pm_open) an outcome when YOUR estimate of its true probability differs MATERIALLY from the market's — that gap is your edge (e.g. market 0.35 but you think it's really ~0.55 -> buy). Skip markets pinned near 0 or 1 (no edge left). Pick ONLY a listed market; min stake 10 mUSD.",
+    "- YOUR SHARPEST PM EDGE is the price view you JUST formed: crypto PM markets resolve on the very prices you analyse. If you are bearish BTC (shorting it), a 'BTC above $X by <date>' market priced high is a NO for you; if you are bullish ETH, an 'ETH above $Y' priced low is a YES. So when a flagged price setup gives you conviction, check observation.pmMarkets for a crypto market that same view prices wrong, and take the PM side too — don't leave that free edge on the table. (For non-crypto events you have no special information; skip unless the odds are obviously off.)",
     `- abstention.minConfidence ${spec.abstention.minConfidence}: opens below this are rejected, so act with genuine conviction — but routine caution is no reason to sit out a clear setup`,
     ...(spec.capabilities.includes("indicators")
       ? [
