@@ -86,9 +86,24 @@ export function buildSystemPrompt(
   ].join("\n");
 }
 
-export function buildUserPrompt(obs: Observation): string {
-  return [
+export function buildUserPrompt(
+  obs: Observation,
+  journal?: Array<{ at: string; did: string }>,
+): string {
+  const lines: string[] = [
     "Decide for THIS cycle using only the observation below (data available now — no look-ahead).",
+  ];
+  // Slice-3 memory: the agent's own recent moves, so it manages with continuity —
+  // remembers the thesis behind each open position and does not re-open an idea it
+  // just acted on.
+  if (journal && journal.length > 0) {
+    lines.push(
+      "",
+      "## Your recent moves (memory, newest last) — manage these with continuity; do NOT churn by re-opening an idea you just acted on:",
+      ...journal.slice(-6).map((j) => `- ${j.did}`),
+    );
+  }
+  lines.push(
     "",
     "```json",
     // Compact (no pretty-print indentation — ~40% fewer tokens, still valid JSON)
@@ -109,5 +124,6 @@ export function buildUserPrompt(obs: Observation): string {
     "```",
     "",
     "Return ONLY the JSON decision object.",
-  ].join("\n");
+  );
+  return lines.join("\n");
 }

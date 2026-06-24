@@ -82,6 +82,25 @@ function cashConsumed(action: ProposedAction, quote?: QuoteEvidence): number {
   return 0;
 }
 
+// One-line, human-readable summary of an executed action for the agent's journal
+// (slice-3 memory). Compact so a few entries cost almost nothing in the prompt.
+function summarizeAction(a: ProposedAction): string {
+  switch (a.type) {
+    case "futures_open":
+      return `opened ${a.side} ${a.symbol} (x${a.leverage}, ${a.marginMusd}mUSD)`;
+    case "futures_close":
+      return `closed pos#${a.positionId}`;
+    case "futures_set_sltp":
+      return `trailed stop on pos#${a.positionId}`;
+    case "spot_order":
+      return `${a.side} ${a.symbol} (${a.orderType})`;
+    case "spot_cancel":
+      return `cancelled order#${a.orderId}`;
+    case "pm_open":
+      return `bet PM ${a.slug} ${a.stakeMusd}mUSD`;
+  }
+}
+
 export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
   const { client, provider, spec, mergedProse, state, live, stateFile } = deps;
   const log = deps.log ?? (() => {});
@@ -181,7 +200,7 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
 
   // DECIDE
   const system = buildSystemPrompt(spec, mergedProse);
-  const user = buildUserPrompt(observation);
+  const user = buildUserPrompt(observation, state.journal);
   const tokensInEst = Math.round((system.length + user.length) / 4);
   // Prompt-size + trigger visibility in the live terminal.
   log(
@@ -373,6 +392,13 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
   state.consecutiveExecFailures =
     anyExecFailed && !anyExecuted ? state.consecutiveExecFailures + 1 : 0;
   state.rateLimitHits = client.rateLimitHits ?? state.rateLimitHits;
+  // Slice-3 memory: journal the accepted move(s) + the thesis behind them so next
+  // cycle has continuity (manage with memory of WHY; don't re-open what we just did).
+  const moves = planned.filter((p) => p.accepted).map((p) => summarizeAction(p.action));
+  if (moves.length > 0) {
+    const did = `${moves.join("; ")}${rationale ? ` — ${rationale.slice(0, 90)}` : ""}`;
+    state.journal = [...(state.journal ?? []), { at: observation.asOf, did }].slice(-10);
+  }
   saveState(stateFile, state);
   if (live && anyExecuted) await exportRunEvidence(client, runId);
   return {

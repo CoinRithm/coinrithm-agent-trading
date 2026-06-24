@@ -441,6 +441,12 @@ export interface RunState {
   llmCallTimestamps?: number[];
   lastLlmCallAt?: number;
   lastTriggerFingerprint?: string;
+  // Slice-3 memory: a compact rolling journal of the agent's recent MOVES (its own
+  // trades + the thesis behind them, newest last). Injected back into the prompt so
+  // the agent has continuity — it manages a position remembering WHY it opened it,
+  // and doesn't re-open an idea it just acted on. Rides in the persisted state JSON
+  // (no DB change). Capped so it can't grow the prompt.
+  journal?: Array<{ at: string; did: string }>;
 }
 
 export interface AgentTrace {
