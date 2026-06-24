@@ -1,13 +1,13 @@
 ---
 spec: coinrithm.agent.v1
 name: Olivia
-description: A calibration-first CoinRithm paper futures agent that forecasts an
-  explicit win probability before acting, trades tiny and rarely at 2x, and
-  optimizes for being right as often as she claims.
+description: A calibration-first CoinRithm paper PREDICTION-MARKET agent. She prices
+  each market with an explicit probability and stakes only where her estimate beats
+  the market's implied odds by a clear margin, sized to conviction. Prediction
+  markets are her only venue — calibration is the whole game.
 extends:
   - runtime.yaml
 venues:
-  - futures
   - pm
 sync:
   requirePollBeforeWrite: true
