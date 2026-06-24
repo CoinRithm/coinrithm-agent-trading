@@ -6,22 +6,33 @@
 import { z } from "zod";
 import { Decision, ProposedAction } from "./types.js";
 
+// Small models (especially Llama 3.1 8B) frequently emit numbers as JSON strings
+// ("12345", "0.8", "62000"). Coerce a *clean* numeric string to a number before
+// validating; leave anything else untouched so genuine garbage ("abc", "pos#5")
+// still fails closed. This is why actions were being rejected with
+// "actions.0.positionId: Expected number, received string".
+const num = (inner: z.ZodTypeAny) =>
+  z.preprocess(
+    (v) => (typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v)) ? Number(v) : v),
+    inner,
+  );
+
+// Optional 0..1 confidence, tolerant of stringified/null input.
+const confidence = num(z.number().min(0).max(1))
+  .nullable()
+  .optional()
+  .transform((v) => v ?? undefined);
+
 const futuresOpen = z
   .object({
     type: z.literal("futures_open"),
     symbol: z.string().min(1),
     side: z.enum(["long", "short"]),
-    leverage: z.number().positive(),
-    marginMusd: z.number().positive(),
-    stopLossPrice: z.number().nullable().optional(),
-    takeProfitPrice: z.number().nullable().optional(),
-    confidence: z
-      .number()
-      .min(0)
-      .max(1)
-      .nullable()
-      .optional()
-      .transform((v) => v ?? undefined),
+    leverage: num(z.number().positive()),
+    marginMusd: num(z.number().positive()),
+    stopLossPrice: num(z.number()).nullable().optional(),
+    takeProfitPrice: num(z.number()).nullable().optional(),
+    confidence,
     rationaleSummary: z.string().optional(),
   })
   .strict();
@@ -29,15 +40,9 @@ const futuresOpen = z
 const futuresClose = z
   .object({
     type: z.literal("futures_close"),
-    positionId: z.number(),
-    fraction: z.number().positive().max(1).optional(),
-    confidence: z
-      .number()
-      .min(0)
-      .max(1)
-      .nullable()
-      .optional()
-      .transform((v) => v ?? undefined),
+    positionId: num(z.number()),
+    fraction: num(z.number().positive().max(1)).optional(),
+    confidence,
     rationaleSummary: z.string().optional(),
   })
   .strict();
@@ -45,9 +50,9 @@ const futuresClose = z
 const futuresSetSltp = z
   .object({
     type: z.literal("futures_set_sltp"),
-    positionId: z.number(),
-    stopLossPrice: z.number().nullable().optional(),
-    takeProfitPrice: z.number().nullable().optional(),
+    positionId: num(z.number()),
+    stopLossPrice: num(z.number()).nullable().optional(),
+    takeProfitPrice: num(z.number()).nullable().optional(),
   })
   .strict();
 
@@ -57,16 +62,10 @@ const spotOrder = z
     symbol: z.string().min(1),
     side: z.enum(["buy", "sell"]),
     orderType: z.enum(["market", "limit", "stop"]),
-    quantity: z.number().positive(),
-    limitPrice: z.number().positive().optional(),
-    stopPrice: z.number().positive().optional(),
-    confidence: z
-      .number()
-      .min(0)
-      .max(1)
-      .nullable()
-      .optional()
-      .transform((v) => v ?? undefined),
+    quantity: num(z.number().positive()),
+    limitPrice: num(z.number().positive()).optional(),
+    stopPrice: num(z.number().positive()).optional(),
+    confidence,
     rationaleSummary: z.string().optional(),
   })
   .strict();
@@ -74,7 +73,7 @@ const spotOrder = z
 const spotCancel = z
   .object({
     type: z.literal("spot_cancel"),
-    orderId: z.number(),
+    orderId: num(z.number()),
   })
   .strict();
 
@@ -84,14 +83,8 @@ const pmOpen = z
     source: z.string().min(1),
     slug: z.string().min(1),
     outcomeExternalMarketId: z.string().min(1),
-    stakeMusd: z.number().positive(),
-    confidence: z
-      .number()
-      .min(0)
-      .max(1)
-      .nullable()
-      .optional()
-      .transform((v) => v ?? undefined),
+    stakeMusd: num(z.number().positive()),
+    confidence,
     rationaleSummary: z.string().optional(),
   })
   .strict();
@@ -108,13 +101,7 @@ export const actionSchema = z.discriminatedUnion("type", [
 const decisionSchema = z
   .object({
     decision: z.enum(["skip", "act"]),
-    confidence: z
-      .number()
-      .min(0)
-      .max(1)
-      .nullable()
-      .optional()
-      .transform((v) => v ?? undefined),
+    confidence,
     reason: z.string().optional(),
     // The model's short analysis for this cycle. Allowed here so a model that
     // explains its thinking isn't fail-closed by .strict(); capped so a runaway
