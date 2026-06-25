@@ -17,6 +17,30 @@ describe("parseDecision", () => {
     if (r.ok) expect(r.decision.actions[0].type).toBe("futures_open");
   });
 
+  it("normalizes decision-verb synonyms (manage/trade -> act, hold/wait -> skip)", () => {
+    // Weak/instruct models answer with a natural-language verb instead of the
+    // strict enum, which used to fail-closed the WHOLE cycle (live: Carl /
+    // Nemotron returning "manage" repeatedly).
+    const manage = parseDecision(JSON.stringify({ decision: "manage", actions: [open] }));
+    expect(manage.ok).toBe(true);
+    if (manage.ok) {
+      expect(manage.decision.decision).toBe("act");
+      expect(manage.decision.actions[0].type).toBe("futures_open");
+    }
+    for (const verb of ["trade", "MANAGE", "adjust", "open"]) {
+      const r = parseDecision(JSON.stringify({ decision: verb, actions: [open] }));
+      expect(r.ok && r.decision.decision).toBe("act");
+    }
+    for (const verb of ["hold", "wait", "monitor", "NOTHING"]) {
+      const r = parseDecision(JSON.stringify({ decision: verb, actions: [] }));
+      expect(r.ok && r.decision.decision).toBe("skip");
+    }
+  });
+
+  it("still rejects an unrecognised decision verb (no silent coercion)", () => {
+    expect(parseDecision(JSON.stringify({ decision: "yolo", actions: [] })).ok).toBe(false);
+  });
+
   it("parses fenced JSON and a bare skip", () => {
     expect(parseDecision("```json\n{\"decision\":\"skip\"}\n```").ok).toBe(true);
   });

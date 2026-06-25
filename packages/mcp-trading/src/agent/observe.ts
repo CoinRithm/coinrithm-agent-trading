@@ -313,6 +313,10 @@ export async function observe(
             asStr(asObj(p.outcome).externalMarketId) ??
             asStr(p.outcomeExternalMarketId),
           stakeMusd: asNum(p.stakeMusd),
+          // Mark-to-market unrealized (field is `unrealizedPnl` on /positions/pm).
+          // Feeds the equity-drawdown kill-switch so a large PM book that marks
+          // down trips the stop too — not just futures.
+          unrealizedPnlMusd: asNum(p.unrealizedPnl) ?? asNum(p.unrealizedPnlMusd),
           status: asStr(p.status) ?? "open",
         }));
     }

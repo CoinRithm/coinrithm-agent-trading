@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { runCycle, RunnerDeps } from "./runner.js";
+import { runCycle, RunnerDeps, repairFuturesTakeProfit } from "./runner.js";
+import type { ProposedAction, QuoteEvidence } from "./types.js";
 import { parseSkill } from "./skill.js";
 import { renderFolderOfOne } from "./templates.js";
 import { newState } from "./state.js";
@@ -304,5 +305,70 @@ describe("runCycle", () => {
     const r = await runCycle(d);
     expect(r.planned[0].code).toBe("duplicate_intent");
     expect(client.openPmPosition).not.toHaveBeenCalled();
+  });
+});
+
+describe("repairFuturesTakeProfit (runner auto-clamps weak-model triggers)", () => {
+  const quote: QuoteEvidence = { eligible: true, entryPrice: 67000 };
+  const longOpen: ProposedAction = {
+    type: "futures_open",
+    symbol: "BTC",
+    side: "long",
+    leverage: 2,
+    marginMusd: 50,
+    stopLossPrice: 66000, // risk = 1000
+  };
+
+  it("repairs a MISSING take-profit to a valid R:R target above entry (long)", () => {
+    const r = repairFuturesTakeProfit(longOpen, quote);
+    expect(r.repaired).toBe(true);
+    // entry 67000 + 1.5 * risk(1000) = 68500
+    expect((r.action as { takeProfitPrice?: number }).takeProfitPrice).toBe(68500);
+  });
+
+  it("repairs a WRONG-SIDE take-profit (long TP below entry) to the correct side", () => {
+    const r = repairFuturesTakeProfit(
+      { ...longOpen, takeProfitPrice: 65000 },
+      quote,
+    );
+    expect(r.repaired).toBe(true);
+    expect((r.action as { takeProfitPrice?: number }).takeProfitPrice).toBe(68500);
+  });
+
+  it("repairs a short's wrong-side TP to below entry", () => {
+    const shortOpen: ProposedAction = {
+      ...longOpen,
+      side: "short",
+      stopLossPrice: 68000, // risk = 1000
+      takeProfitPrice: 69000, // above entry -> wrong for a short
+    };
+    const r = repairFuturesTakeProfit(shortOpen, quote);
+    expect(r.repaired).toBe(true);
+    // entry 67000 - 1.5 * 1000 = 65500
+    expect((r.action as { takeProfitPrice?: number }).takeProfitPrice).toBe(65500);
+  });
+
+  it("leaves a correctly-oriented take-profit untouched", () => {
+    const r = repairFuturesTakeProfit(
+      { ...longOpen, takeProfitPrice: 70000 },
+      quote,
+    );
+    expect(r.repaired).toBe(false);
+    expect((r.action as { takeProfitPrice?: number }).takeProfitPrice).toBe(70000);
+  });
+
+  it("does not fabricate a TP when no usable stop is present", () => {
+    const noStop = { ...longOpen };
+    delete (noStop as { stopLossPrice?: number }).stopLossPrice;
+    expect(repairFuturesTakeProfit(noStop, quote).repaired).toBe(false);
+  });
+
+  it("is a no-op for non-futures_open actions", () => {
+    const pm: ProposedAction = {
+      type: "pm_open",
+      ref: "pm1",
+      stakeMusd: 10,
+    } as ProposedAction;
+    expect(repairFuturesTakeProfit(pm, quote).repaired).toBe(false);
   });
 });

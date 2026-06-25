@@ -252,6 +252,7 @@ export interface PmPosition {
   slug?: string;
   outcomeExternalMarketId?: string;
   stakeMusd?: number;
+  unrealizedPnlMusd?: number;
   status?: string;
 }
 

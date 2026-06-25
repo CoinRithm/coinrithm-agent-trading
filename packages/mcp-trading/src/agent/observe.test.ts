@@ -140,6 +140,44 @@ describe("observe", () => {
     expect(p.leverage).toBe(2);
   });
 
+  it("SCHEMA CONTRACT: /positions/pm — eventSlug + nested outcome + unrealizedPnl survive observe (dup-guard + drawdown inputs)", async () => {
+    // Guards the recurring field-drift bug class: the dup-guard matches on
+    // (source,slug,outcomeExternalMarketId) and the kill-switch drawdown reads
+    // unrealizedPnlMusd. The REAL /positions/pm shape nests the outcome id and
+    // names the unrealized `unrealizedPnl` — if observe drifts off these keys
+    // again, this test fails instead of the bug going silent in production.
+    const pmSpec = {
+      ...spec,
+      venues: ["pm", "futures"] as ("spot" | "futures" | "pm")[],
+    };
+    const c = fakeClient({
+      discoverPmMarkets: async () => okData({ data: [] }),
+      pmPositions: async () =>
+        okData({
+          positions: [
+            {
+              id: 7,
+              status: "open",
+              source: "polymarket",
+              eventSlug: "bitcoin-up-or-down-on-june-25-2026",
+              outcome: { externalMarketId: "12345", label: "Down" },
+              side: "yes",
+              stakeMusd: 10,
+              unrealizedPnl: -3.5,
+            },
+          ],
+        }),
+    });
+    const { observation } = await observe(c, pmSpec, newState("r"));
+    const p = observation.pmPositions[0];
+    expect(p).toBeDefined();
+    expect(p.source).toBe("polymarket");
+    expect(p.slug).toBe("bitcoin-up-or-down-on-june-25-2026"); // from eventSlug
+    expect(p.outcomeExternalMarketId).toBe("12345"); // from nested outcome.externalMarketId
+    expect(p.stakeMusd).toBe(10);
+    expect(p.unrealizedPnlMusd).toBe(-3.5); // from unrealizedPnl -> kill-switch drawdown
+  });
+
   it("drops outcomes the backend flagged not-openable (eligible === false) and stamps contiguous refs", async () => {
     const pmSpec = {
       ...spec,

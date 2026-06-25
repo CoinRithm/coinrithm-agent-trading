@@ -84,6 +84,46 @@ function cashConsumed(action: ProposedAction, quote?: QuoteEvidence): number {
   return 0;
 }
 
+// Orienting a take-profit relative to side + mark is deterministic arithmetic —
+// the runner should OWN it, not trust a weak model to compute it (the same reason
+// pmN offloads the long-id copy). When a futures_open's takeProfitPrice is missing
+// or on the WRONG side (long TP <= mark / short TP >= mark), the server rejects the
+// WHOLE open (take_profit_not_*_mark) — the position never opens, so the model
+// can't "let winners run". Here we substitute a sensible R:R target off the stop so
+// the open succeeds with a valid TP. Only fires when a usable stop is present (so
+// risk is computable) and the TP is actually missing/wrong-side; a correct TP is
+// left untouched. Systemic fix for the whole free-tier 8B/instruct fleet.
+const DEFAULT_TP_RR = 1.5; // reward:risk of the substituted take-profit
+export function repairFuturesTakeProfit(
+  action: ProposedAction,
+  quote?: QuoteEvidence,
+): { action: ProposedAction; repaired: boolean } {
+  if (action.type !== "futures_open") return { action, repaired: false };
+  const entry = quote?.entryPrice;
+  const sl = action.stopLossPrice;
+  if (typeof entry !== "number" || !Number.isFinite(entry) || entry <= 0)
+    return { action, repaired: false };
+  if (typeof sl !== "number" || !Number.isFinite(sl) || sl <= 0)
+    return { action, repaired: false };
+  const isLong = action.side === "long";
+  const tp = action.takeProfitPrice;
+  const tpValid =
+    typeof tp === "number" &&
+    Number.isFinite(tp) &&
+    tp > 0 &&
+    (isLong ? tp > entry : tp < entry);
+  if (tpValid) return { action, repaired: false };
+  // Stop must be on the correct side to imply a positive risk distance; if it
+  // isn't, leave the action for the validator to reject (don't fabricate).
+  const risk = isLong ? entry - sl : sl - entry;
+  if (!(risk > 0)) return { action, repaired: false };
+  const target = isLong
+    ? entry + DEFAULT_TP_RR * risk
+    : entry - DEFAULT_TP_RR * risk;
+  if (!(target > 0)) return { action, repaired: false };
+  return { action: { ...action, takeProfitPrice: target }, repaired: true };
+}
+
 // One-line, human-readable summary of an executed action for the agent's journal
 // (slice-3 memory). Compact so a few entries cost almost nothing in the prompt.
 function summarizeAction(a: ProposedAction): string {
@@ -167,11 +207,18 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
   }
 
   // Equity-aware drawdown: open mark-to-market losses trip the kill-switch too,
-  // not only realized losses.
-  const unrealized = observation.openPositions.reduce(
-    (s, p) => s + (p.unrealizedPnlMusd ?? 0),
-    0,
-  );
+  // not only realized losses. Includes BOTH futures AND prediction-market books —
+  // a PM-only agent (or one with a large PM stake) was previously invisible to the
+  // drawdown stop, so a marking-down PM book could not trip it (P1b).
+  const unrealized =
+    observation.openPositions.reduce(
+      (s, p) => s + (p.unrealizedPnlMusd ?? 0),
+      0,
+    ) +
+    (observation.pmPositions ?? []).reduce(
+      (s, p) => s + (p.unrealizedPnlMusd ?? 0),
+      0,
+    );
   if (
     spec.killSwitch.maxDrawdownMusd > 0 &&
     state.peakRealizedMusd - (state.realizedPnlMusd + unrealized) >=
@@ -373,31 +420,48 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
     // quote — with a clear "duplicate_intent" instead of a cryptic cap reject. The
     // runner caps remain the backstop; this is the cleaner, earlier stop.
     if (action.type === "futures_open") {
-      const ab = baseSymbol(action.symbol);
+      // Bind the narrowed action to a const: `action` is a reassignable loop var
+      // (pm-resolve + the take-profit repair below both write to it), and a later
+      // reassignment would otherwise widen it back to the union inside this
+      // closure's control-flow analysis.
+      const fo = action;
+      const ab = baseSymbol(fo.symbol);
       const held = observation.openPositions.find(
         (p) =>
           p.venue === "futures" &&
-          p.side === action.side &&
+          p.side === fo.side &&
           baseSymbol(p.symbol) === ab,
       );
       if (held) {
         const winning = (held.unrealizedPnlMusd ?? 0) > 0;
         const hasRoom =
           openCount < spec.risk.maxConcurrentPositions &&
-          openMarginMusd + action.marginMusd <= spec.limits.maxOpenMarginMusd;
+          openMarginMusd + fo.marginMusd <= spec.limits.maxOpenMarginMusd;
         if (!(winning && hasRoom)) {
           planned.push({
             action,
             accepted: false,
             code: "duplicate_intent",
-            reason: `already hold ${action.symbol} ${action.side}${winning ? " (no margin room to add)" : " — manage it, do not average down or re-open"}`,
+            reason: `already hold ${fo.symbol} ${fo.side}${winning ? " (no margin room to add)" : " — manage it, do not average down or re-open"}`,
           });
-          log(`reject ${action.type}: duplicate_intent (hold ${action.symbol} ${action.side})`);
+          log(`reject ${action.type}: duplicate_intent (hold ${fo.symbol} ${fo.side})`);
           continue;
         }
       }
     }
     const quote = await fetchQuote(client, action, observation, baseTrace);
+    // Auto-clamp a missing/wrong-side futures take-profit to a valid R:R target
+    // off the stop, so the open isn't silently rejected server-side (the runner
+    // owns trigger orientation; weak models routinely mis-sign it).
+    {
+      const fixed = repairFuturesTakeProfit(action, quote);
+      if (fixed.repaired) {
+        action = fixed.action;
+        log(
+          `repaired ${action.type} take-profit -> ${(action as { takeProfitPrice?: number }).takeProfitPrice} (R:R off stop; model TP was missing/wrong-side)`,
+        );
+      }
+    }
     const ctx: DecisionContext = {
       spec,
       // Inherit the decision-level confidence so the per-action abstention gate

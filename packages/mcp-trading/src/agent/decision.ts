@@ -118,6 +118,50 @@ const decisionSchema = z
   })
   .strict();
 
+// Weak/instruct models routinely answer the decision verb with a natural-language
+// synonym ("manage", "trade", "hold", "wait") instead of the strict skip|act enum
+// — which fail-closed the ENTIRE cycle on a zod enum error (observed live: Carl /
+// Nemotron 49B returning "manage" repeatedly, burning whole cycles). Normalize the
+// common synonyms to the canonical enum before validation; anything unrecognised
+// still falls through to the enum error. ("act" with no actions is already treated
+// as a skip downstream, so mapping a manage-with-no-action to "act" is harmless.)
+const DECISION_ALIASES: Record<string, "skip" | "act"> = {
+  act: "act",
+  manage: "act",
+  trade: "act",
+  open: "act",
+  close: "act",
+  adjust: "act",
+  add: "act",
+  reduce: "act",
+  execute: "act",
+  enter: "act",
+  exit: "act",
+  rebalance: "act",
+  skip: "skip",
+  hold: "skip",
+  wait: "skip",
+  none: "skip",
+  nothing: "skip",
+  noop: "skip",
+  no_action: "skip",
+  pass: "skip",
+  monitor: "skip",
+  observe: "skip",
+  stay: "skip",
+};
+
+function normalizeDecisionVerb(obj: unknown): unknown {
+  if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+    const o = obj as Record<string, unknown>;
+    if (typeof o.decision === "string") {
+      const mapped = DECISION_ALIASES[o.decision.trim().toLowerCase()];
+      if (mapped) o.decision = mapped;
+    }
+  }
+  return obj;
+}
+
 // Pull a JSON object out of a model response that may be fenced or wrapped.
 function coerceJson(text: string): unknown {
   let s = text.trim();
@@ -138,7 +182,7 @@ export type ParseDecisionResult =
 export function parseDecision(text: string): ParseDecisionResult {
   let obj: unknown;
   try {
-    obj = coerceJson(text);
+    obj = normalizeDecisionVerb(coerceJson(text));
   } catch (err) {
     return { ok: false, error: `model output is not valid JSON: ${err instanceof Error ? err.message : String(err)}` };
   }
