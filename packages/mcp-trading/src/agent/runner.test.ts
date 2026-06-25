@@ -275,4 +275,32 @@ describe("runCycle", () => {
     expect(r.planned[0].code).toBe("pm_market_not_discovered");
     expect(client.openPmPosition).not.toHaveBeenCalled();
   });
+
+  it("PM: rejects re-betting a market+outcome already held (anti-churn)", async () => {
+    const client = baseClient({
+      pmPositions: async () =>
+        okData({
+          positions: [
+            {
+              id: 1,
+              source: "kalshi",
+              slug: "btc-up",
+              outcomeExternalMarketId: "yes-1",
+              stakeMusd: 20,
+              status: "open",
+            },
+          ],
+        }),
+    });
+    const pm = {
+      decision: "act",
+      confidence: 0.8,
+      actions: [{ type: "pm_open", source: "kalshi", slug: "btc-up", outcomeExternalMarketId: "yes-1", stakeMusd: 20, confidence: 0.8 }],
+    };
+    const d = deps({ live: true }, client, provider(pm));
+    d.spec.venues = ["spot", "futures", "pm"];
+    const r = await runCycle(d);
+    expect(r.planned[0].code).toBe("duplicate_intent");
+    expect(client.openPmPosition).not.toHaveBeenCalled();
+  });
 });

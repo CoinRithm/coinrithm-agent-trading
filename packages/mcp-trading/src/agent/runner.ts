@@ -344,6 +344,28 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
         continue;
       }
       action = resolved.action;
+      // Anti-churn for PM (the analog of the futures duplicate_intent guard):
+      // block re-betting a market+outcome we ALREADY hold an open position on.
+      // Without this a model re-bets the same mispriced market every cycle (one
+      // agent opened 25 identical bets) — pure churn. The model SEES its holdings
+      // in observation.pmPositions; this enforces it. Bet a DIFFERENT market instead.
+      const pm = resolved.action; // narrowed to pm_open (canonical triple filled)
+      const heldPm = observation.pmPositions.find(
+        (p) =>
+          (p.source ?? "").toLowerCase() === (pm.source ?? "").toLowerCase() &&
+          (p.slug ?? "").toLowerCase() === (pm.slug ?? "").toLowerCase() &&
+          p.outcomeExternalMarketId === pm.outcomeExternalMarketId,
+      );
+      if (heldPm) {
+        planned.push({
+          action,
+          accepted: false,
+          code: "duplicate_intent",
+          reason: `already hold a PM bet on ${pm.slug} / ${pm.outcomeExternalMarketId} — do not re-bet the same market+outcome (churn); pick a different market or skip`,
+        });
+        log(`reject pm_open: duplicate_intent (hold PM ${pm.slug})`);
+        continue;
+      }
     }
     // Anti-churn critic: block re-opening a futures position we ALREADY hold unless
     // it's a confirmed WINNER with room (a legit scale-in). Stops the re-open-a-
