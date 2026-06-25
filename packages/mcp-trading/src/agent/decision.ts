@@ -77,12 +77,19 @@ const spotCancel = z
   })
   .strict();
 
+// pm_open accepts EITHER a short ref (pm1…pmN, what the prompt now asks for) OR
+// the full {source,slug,outcomeExternalMarketId} triple (back-compat for models
+// that copy ids correctly). The id fields are optional here; the runner's
+// resolvePmRef() fills them from the ref (or rejects a bad/missing ref) BEFORE
+// the validator/act phase, which require the triple. Kept a plain `.strict()`
+// object (not refined) so it stays valid inside the discriminatedUnion.
 const pmOpen = z
   .object({
     type: z.literal("pm_open"),
-    source: z.string().min(1),
-    slug: z.string().min(1),
-    outcomeExternalMarketId: z.string().min(1),
+    ref: z.string().min(1).optional(),
+    source: z.string().min(1).optional(),
+    slug: z.string().min(1).optional(),
+    outcomeExternalMarketId: z.string().min(1).optional(),
     stakeMusd: num(z.number().positive()),
     confidence,
     rationaleSummary: z.string().optional(),

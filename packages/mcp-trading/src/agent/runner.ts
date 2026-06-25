@@ -21,6 +21,7 @@ import { observe } from "./observe.js";
 import { buildSystemPrompt, buildUserPrompt } from "./prompt.js";
 import { parseDecision } from "./decision.js";
 import { validateAction, DecisionContext } from "./decisionValidator.js";
+import { resolvePmRef } from "./resolvePm.js";
 import { fetchQuote, executeAction } from "./act.js";
 import { makeDecisionId, makeTrace, exportRunEvidence } from "./runEvidence.js";
 import {
@@ -325,7 +326,25 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
   let anyExecuted = false;
   let anyExecFailed = false;
 
-  for (const action of decision.actions) {
+  for (let action of decision.actions) {
+    // Resolve a short PM ref (pm1…pmN) to the canonical {source,slug,outcome} BEFORE
+    // any quote/validation. Small models copy a 3-char ref reliably but mis-copy the
+    // long outcomeExternalMarketId; an unknown/missing ref is rejected here with a
+    // clear code instead of crashing the validator on an undefined id.
+    if (action.type === "pm_open") {
+      const resolved = resolvePmRef(action, observation.pmMarkets);
+      if (!resolved.ok) {
+        planned.push({
+          action,
+          accepted: false,
+          code: resolved.code,
+          reason: resolved.reason,
+        });
+        log(`reject pm_open: ${resolved.code} (${resolved.reason})`);
+        continue;
+      }
+      action = resolved.action;
+    }
     // Anti-churn critic: block re-opening a futures position we ALREADY hold unless
     // it's a confirmed WINNER with room (a legit scale-in). Stops the re-open-a-
     // loser / re-open-into-the-cap churn deterministically — before we even spend a

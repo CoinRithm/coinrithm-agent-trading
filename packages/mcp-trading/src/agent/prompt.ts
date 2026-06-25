@@ -27,7 +27,7 @@ export function buildSystemPrompt(
   }
   if (v.includes("pm")) {
     actions.push(
-      '{"type":"pm_open","source","slug","outcomeExternalMarketId","stakeMusd","confidence":0..1}  (copy source + slug + outcomeExternalMarketId EXACTLY from ONE observation.pmMarkets entry; stakeMusd >= 10)',
+      '{"type":"pm_open","ref":"pmN","stakeMusd","confidence":0..1}  (set "ref" to the `ref` of the ONE observation.pmMarkets entry you are betting — e.g. "pm3" — copied EXACTLY; stakeMusd >= 10)',
     );
   }
   return [
@@ -47,7 +47,7 @@ export function buildSystemPrompt(
           `- deny-list (NEVER open these, even if on the watchlist): ${r.blocklist.join(", ")}`,
         ]
       : []),
-    "- prediction markets are a FIRST-CLASS venue for you — a pm_open is as real a trade as a futures/spot open, not an afterthought. Each observation.pmMarkets entry carries `outcomeName` and `probability` (0..1, the market's CURRENT odds). BET (pm_open) an outcome when YOUR estimate of its true probability differs MATERIALLY from the market's — that gap is your edge (e.g. market 0.35 but you think it's really ~0.55 -> buy). Skip only markets pinned near 0 or 1 (no edge left). Pick ONLY a listed market; min stake 10 mUSD.",
+    "- prediction markets are a FIRST-CLASS venue for you — a pm_open is as real a trade as a futures/spot open, not an afterthought. Each observation.pmMarkets entry carries a short `ref` (pm1, pm2, …), an `outcome` label, and `prob` (0..1, the market's CURRENT odds). BET (pm_open) an outcome when YOUR estimate of its true probability differs MATERIALLY from the market's — that gap is your edge (e.g. prob 0.35 but you think it's really ~0.55 -> buy). Skip only markets pinned near 0 or 1 (no edge left). Pick ONLY a listed market and identify it by copying its `ref` into the action; min stake 10 mUSD.",
     "- YOUR SHARPEST PM EDGE is the crypto price view you JUST formed: crypto PM markets resolve on the very prices you analyse, so you have a genuine information edge there that you do NOT have on coin futures alone. EVERY cycle you reach a price conviction, it is REQUIRED that you scan observation.pmMarkets for a crypto market that same view prices wrong and, if one is materially mispriced, open it with pm_open — treat that mispricing exactly like a flagged coin setup (an ACT, not a skip). If you are bearish BTC, a 'BTC above $X by <date>' priced high is a NO; if bullish ETH, an 'ETH above $Y' priced low is a YES. Leaving a clearly mispriced crypto market untraded is the same mistake as ignoring a flagged setup. (For non-crypto events you have no special edge; skip unless the odds are obviously off.)",
     `- abstention.minConfidence ${spec.abstention.minConfidence}: opens below this are rejected, so act with genuine conviction — but routine caution is no reason to sit out a clear setup`,
     ...(spec.capabilities.includes("indicators")
@@ -115,7 +115,17 @@ export function buildUserPrompt(
       openPositions: obs.openPositions,
       openOrders: obs.openOrders,
       pmPositions: obs.pmPositions,
-      pmMarkets: obs.pmMarkets,
+      // Compact display: the model picks a market by its short `ref` and never
+      // sees (or mis-copies) the long source/slug/outcomeExternalMarketId — the
+      // runner resolves the ref back to those. Also ~halves the PM block's tokens.
+      pmMarkets: obs.pmMarkets.map((m) => ({
+        ref: m.ref,
+        source: m.source,
+        title: m.title,
+        outcome: m.outcomeName,
+        prob: m.probability,
+        freshness: m.freshness?.status,
+      })),
       watch: obs.watch,
       setups: obs.setups,
       marketMood: obs.marketMood,

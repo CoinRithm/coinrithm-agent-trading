@@ -332,7 +332,11 @@ export async function observe(
         })
         .filter((m) => m.source && m.slug && m.outcomeExternalMarketId)
         // Hard cap the PM block: a handful of fresh markets is plenty to pick from.
-        .slice(0, 12);
+        .slice(0, 12)
+        // Stamp a short, stable per-cycle ref (pm1…pmN) the model copies instead of
+        // the long outcomeExternalMarketId. Assigned AFTER the slice so refs are a
+        // contiguous 1..N matching exactly what the prompt shows.
+        .map((m, i) => ({ ...m, ref: `pm${i + 1}` }));
     }
   }
 

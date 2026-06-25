@@ -244,6 +244,11 @@ export interface PmPosition {
 // A discovered, quote-ready prediction-market candidate the model may pick from
 // (PM markets are not coins, so they come from discovery, not the watchlist).
 export interface PmMarket {
+  // Short, stable per-cycle handle (pm1, pm2, …) the model copies instead of the
+  // long outcomeExternalMarketId. Small free models (Llama 3.1 8B) reliably copy a
+  // 3-char ref but mis-copy a 40-char hex/uuid id → pm_market_not_discovered. The
+  // runner resolves the ref back to {source,slug,outcomeExternalMarketId} pre-validation.
+  ref?: string;
   source: string;
   slug: string;
   outcomeExternalMarketId: string;
@@ -335,6 +340,11 @@ export type ProposedAction =
   | { type: "spot_cancel"; orderId: number }
   | {
       type: "pm_open";
+      // The model may identify the market by a short ref (pm1…pmN, preferred) OR
+      // the full id triple. The runner's resolvePmRef() fills in the triple from
+      // the ref before validation, so source/slug/outcomeExternalMarketId are
+      // present by the time the validator / act phase read them.
+      ref?: string;
       source: string;
       slug: string;
       outcomeExternalMarketId: string;

@@ -49,6 +49,10 @@ describe("parseDecision", () => {
     expect(
       parseDecision(JSON.stringify({ decision: "act", actions: [{ type: "pm_open", source: "kalshi", slug: "x", outcomeExternalMarketId: "y", stakeMusd: 10 }] })).ok,
     ).toBe(true);
+    // ref-only pm_open (the new short-ref form) parses — the runner resolves the ref.
+    expect(
+      parseDecision(JSON.stringify({ decision: "act", actions: [{ type: "pm_open", ref: "pm3", stakeMusd: 10 }] })).ok,
+    ).toBe(true);
   });
 
   it("coerces stringified numbers from small models (the Arena positionId bug)", () => {
