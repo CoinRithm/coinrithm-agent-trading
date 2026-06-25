@@ -1,5 +1,5 @@
 import { Pool } from "pg";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -48,8 +48,16 @@ export function createPool(databaseUrl: string): Pool {
 
 export async function migrate(pool: Pool): Promise<void> {
   const here = dirname(fileURLToPath(import.meta.url));
-  const sql = readFileSync(join(here, "..", "sql", "001_agent_runtime.sql"), "utf8");
-  await pool.query(sql);
+  const sqlDir = join(here, "..", "sql");
+  // Run every numbered migration in lexical order (001, 002, …). All are
+  // idempotent (CREATE … IF NOT EXISTS / ADD COLUMN IF NOT EXISTS), so a full
+  // replay on every boot is safe and keeps new migrations from being forgotten.
+  const files = readdirSync(sqlDir)
+    .filter((f) => /^\d+_.*\.sql$/.test(f))
+    .sort();
+  for (const f of files) {
+    await pool.query(readFileSync(join(sqlDir, f), "utf8"));
+  }
 }
 
 // Idempotent safety migration: move any HOUSE agent off Groq onto NVIDIA. Groq's
@@ -71,6 +79,32 @@ export async function migrateHouseAgentsOffGroq(pool: Pool): Promise<number> {
       WHERE is_house = true AND model_provider = 'groq'`,
   );
   return rowCount ?? 0;
+}
+
+// --- Tier usage (the metering the tier gate reads; see tiers.ts) ---
+
+// Non-disabled agents an owner currently runs — the deploy gate's agent-cap input.
+export async function agentCountByOwner(pool: Pool, ownerUserId: number): Promise<number> {
+  const { rows } = await pool.query<{ n: string }>(
+    `SELECT COUNT(*) AS n
+       FROM agent_runtime.agents
+      WHERE owner_user_id = $1 AND status <> 'disabled'`,
+    [ownerUserId],
+  );
+  return Number(rows[0]?.n ?? 0);
+}
+
+// Sum of metered model cost for an owner's agents since `since` — the run-budget
+// gate's input. Reads agent_cycles.estimated_cost_usd populated per cycle.
+export async function costByOwnerSince(pool: Pool, ownerUserId: number, since: Date): Promise<number> {
+  const { rows } = await pool.query<{ total: string | null }>(
+    `SELECT COALESCE(SUM(c.estimated_cost_usd), 0)::float8 AS total
+       FROM agent_runtime.agent_cycles c
+       JOIN agent_runtime.agents a ON a.id = c.agent_id
+      WHERE a.owner_user_id = $1 AND c.ts >= $2`,
+    [ownerUserId, since],
+  );
+  return Number(rows[0]?.total ?? 0);
 }
 
 interface RawAgent {
