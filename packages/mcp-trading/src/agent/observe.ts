@@ -284,9 +284,17 @@ export async function observe(
         .filter((p) => (asStr(p.status) ?? "open") === "open")
         .map((p) => ({
           id: Number(asNum(p.id) ?? p.id),
+          // The /positions/pm API returns `eventSlug` and the outcome id NESTED at
+          // outcome.externalMarketId — NOT `slug` / `outcomeExternalMarketId`.
+          // Reading the wrong keys left both undefined, which silently broke the
+          // PM anti-churn guard (it could never match a held position) AND the
+          // model's view of what it holds. Tolerant fallbacks keep older/mocked
+          // shapes working.
           source: asStr(p.source),
-          slug: asStr(p.slug),
-          outcomeExternalMarketId: asStr(p.outcomeExternalMarketId),
+          slug: asStr(p.eventSlug) ?? asStr(p.slug),
+          outcomeExternalMarketId:
+            asStr(asObj(p.outcome).externalMarketId) ??
+            asStr(p.outcomeExternalMarketId),
           stakeMusd: asNum(p.stakeMusd),
           status: asStr(p.status) ?? "open",
         }));

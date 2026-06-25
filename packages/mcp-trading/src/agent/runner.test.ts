@@ -278,14 +278,16 @@ describe("runCycle", () => {
 
   it("PM: rejects re-betting a market+outcome already held (anti-churn)", async () => {
     const client = baseClient({
+      // REAL /api/agent/positions/pm shape: eventSlug + nested outcome.externalMarketId
+      // (probed 2026-06-25). The guard must read these, not slug/outcomeExternalMarketId.
       pmPositions: async () =>
         okData({
           positions: [
             {
               id: 1,
               source: "kalshi",
-              slug: "btc-up",
-              outcomeExternalMarketId: "yes-1",
+              eventSlug: "btc-up",
+              outcome: { externalMarketId: "yes-1", label: "Yes" },
               stakeMusd: 20,
               status: "open",
             },
