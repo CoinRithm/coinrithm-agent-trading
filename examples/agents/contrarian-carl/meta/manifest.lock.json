@@ -1,11 +1,11 @@
 {
-  "configHash": "sha256:47a6c3b97c83a6ce0414ee2238aee6843da696decd9d1574705d55eb47bb8007",
+  "configHash": "sha256:473844e11bae1e1ca71f22e90dcff84ab7840e1b63fb9687c35947f1ab7b024f",
   "contentHashes": {
     "agent.md": "sha256:a196f1a428814ff05d78475d36f457174704e6d36dfcfd729ddcb7ecf90f8bf4",
     "character/abstention.yaml": "sha256:24df02b20cbc240248cc7888962a8194ecefa41cd52b56aa22cce2111ee939a8",
-    "character/limits.yaml": "sha256:ecb5cd360c9347c8534757dbf2872c69d93c081a795a3619bf62c7f21337e7f3",
+    "character/limits.yaml": "sha256:8c0a6e0cc44d89b29d733008a4517af3fbcaf187173094dbbbbaef0044900a3d",
     "character/persona.md": "sha256:ff7c2ed3da396a5b52d66244026b210a20bf1b1b3066e92ab9c47f1a7cf27087",
-    "character/risk.yaml": "sha256:e061505ea637c58a42a533b88af830cb3b34f0a12e0443d08b4fe5359be62abe",
+    "character/risk.yaml": "sha256:7a945bcc3fca6e676e3386619ee134e3a51939bcaa3a98eb2b6eea59d5bf0275",
     "character/sizing.yaml": "sha256:39ef3114d43ae621ef15e7b3379988f82ff197097f781ca3be96cf61923e1d49",
     "character/skills/blowoff-fade.md": "sha256:f6a55feaa353e11300c9536c70e96caf1ec117047842a1047f7e6ff1e3aae432",
     "character/skills/oversold-bounce.md": "sha256:a624febb2af2b6a5824abea373b223d268ee2d40cd56998f0a0284cccf235547",
@@ -79,7 +79,7 @@
     },
     "limits": {
       "maxDailyLossMusd": 1200,
-      "maxOpenMarginMusd": 1800,
+      "maxOpenMarginMusd": 3600,
       "maxTradesPerDay": 0,
       "maxWritesPerCycle": 2
     },
@@ -98,7 +98,7 @@
       ]
     },
     "risk": {
-      "maxConcurrentPositions": 2,
+      "maxConcurrentPositions": 4,
       "maxLeverage": 2,
       "perTradeMarginMusd": 900,
       "requireStopLoss": true,
@@ -148,7 +148,7 @@
     },
     "limits": {
       "maxDailyLossMusd": 1200,
-      "maxOpenMarginMusd": 1800,
+      "maxOpenMarginMusd": 3600,
       "maxTradesPerDay": 1000000,
       "maxWritesPerCycle": 2
     },
@@ -167,7 +167,7 @@
     },
     "risk": {
       "blocklist": [],
-      "maxConcurrentPositions": 2,
+      "maxConcurrentPositions": 4,
       "maxLeverage": 2,
       "perTradeMarginMusd": 900,
       "requireStopLoss": true,
