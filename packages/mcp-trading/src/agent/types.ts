@@ -143,7 +143,11 @@ export interface ObjectiveConfig {
 // slice. `websearch` = external lookups (an injection surface + a cost — it can
 // inform reasoning but NEVER widen a cap, since caps live in the runner);
 // `indicators` = runner-computed RSI/MACD/etc. fed into the observation.
-export const ALLOWED_CAPABILITIES = ["websearch", "indicators"] as const;
+export const ALLOWED_CAPABILITIES = [
+  "websearch",
+  "indicators",
+  "news",
+] as const;
 export type Capability = (typeof ALLOWED_CAPABILITIES)[number];
 
 export interface AgentSpec {
@@ -280,6 +284,18 @@ export interface SetupSignal {
   held?: "long" | "short";
 }
 
+// A compact, enrichment-gated news item fed into the decide context (only with
+// the `news` capability). Importance 0..10 (>=8 = market-moving); the market
+// catalyst layer the price chart can't show.
+export interface NewsItem {
+  title: string;
+  source?: string;
+  sentiment?: string; // bullish | bearish | neutral
+  importance?: number; // 0..10
+  ageHours?: number;
+  coins?: string[]; // related coin slugs
+}
+
 export interface Observation {
   asOf: string; // server time the bundle was built
   scopes: string[];
@@ -297,6 +313,7 @@ export interface Observation {
   syncCursor: string | null; // advanced from /trades
   newClosedTrades: Array<Record<string, unknown>>; // fired stops/liqs/settlements
   polledBeforeWrite: boolean; // whether this cycle synced /trades first
+  news?: NewsItem[]; // recent high-importance watchlist news (only with `news` capability)
 }
 
 // ───────────────────────── Model decision + actions ─────────────────────────

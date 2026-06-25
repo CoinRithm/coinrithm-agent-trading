@@ -157,6 +157,17 @@ export class CoinRithmClient {
   ) {
     return this.request("GET", "/api/agent/pm/discover", { query, trace });
   }
+  agentNews(
+    query: {
+      coins: string;
+      limit?: number;
+      hours?: number;
+      minImportance?: number;
+    },
+    trace?: AgentTrace,
+  ) {
+    return this.request("GET", "/api/agent/news", { query, trace });
+  }
   pmPositions(query?: { updatedSince?: string }, trace?: AgentTrace) {
     return this.request("GET", "/api/agent/positions/pm", { query, trace });
   }

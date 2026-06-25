@@ -133,6 +133,58 @@ describe("observe", () => {
     expect(observation.pmMarkets.map((m) => m.ref)).toEqual(["pm1", "pm2"]);
   });
 
+  // ── news capability ─────────────────────────────────────────────────────────
+  it("fetches and compacts watchlist news when the `news` capability is set", async () => {
+    const newsSpec = {
+      ...spec,
+      capabilities: [...spec.capabilities, "news"] as typeof spec.capabilities,
+    };
+    let calledWith: { coins?: string } | null = null;
+    const c = fakeClient({
+      agentNews: async (q: { coins?: string }) => {
+        calledWith = q;
+        return okData({
+          coins: ["bitcoin"],
+          items: [
+            {
+              title: "BTC ETF inflows hit record",
+              source: "Coindesk",
+              sentiment: "bullish",
+              importance: 9,
+              ageMinutes: 30,
+              coins: ["bitcoin"],
+            },
+          ],
+        });
+      },
+    });
+    const { observation } = await observe(c, newsSpec, newState("r"));
+    expect(calledWith).not.toBeNull();
+    expect(typeof (calledWith as { coins?: string } | null)?.coins).toBe(
+      "string",
+    );
+    expect(observation.news?.length).toBe(1);
+    expect(observation.news?.[0]).toMatchObject({
+      title: "BTC ETF inflows hit record",
+      sentiment: "bullish",
+      importance: 9,
+      ageHours: 0.5,
+    });
+  });
+
+  it("does not fetch news without the `news` capability", async () => {
+    let called = false;
+    const c = fakeClient({
+      agentNews: async () => {
+        called = true;
+        return okData({ items: [] });
+      },
+    });
+    const { observation } = await observe(c, spec, newState("r"));
+    expect(called).toBe(false);
+    expect(observation.news).toBeUndefined();
+  });
+
   // ── indicators capability ──────────────────────────────────────────────────
   const candlesPayload = (n: number) => {
     const candles = [];

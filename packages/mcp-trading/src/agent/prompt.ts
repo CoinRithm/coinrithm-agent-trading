@@ -59,6 +59,16 @@ export function buildSystemPrompt(
           "- a null field = not enough data; ignore it. These INFORM your decision; they never widen a cap.",
         ]
       : []),
+    ...(spec.capabilities.includes("news")
+      ? [
+          "",
+          "## Market news (observation.news) — catalysts the price chart can't show",
+          "Each item has `importance` (0..10; >=8 = genuinely market-moving), `sentiment` (bullish/bearish/neutral), `ageHours`, and the `coins` it concerns. Use it to CONFIRM or VETO the price read, never to trade on alone:",
+          "- A fresh high-importance (>=8) bullish story on a coin you're watching strengthens a long and warns against shorting into it; a bearish >=8 is the reverse. A surprise catalyst can matter more than the chart.",
+          "- Weight by importance AND freshness: a 9 from 30 min ago outweighs a stale 4 from yesterday. Old or low-importance news is noise — don't over-react.",
+          "- For PM: a high-importance catalyst is exactly the kind of mispricing edge to act on if the market hasn't repriced it yet.",
+        ]
+      : []),
     "",
     "## Output contract — return ONLY this JSON object, nothing else:",
     '{"decision":"skip"|"act","confidence":0..1,"reason":"short","rationale":"1-2 sentences","actions":[]}',
@@ -128,6 +138,7 @@ export function buildUserPrompt(
       })),
       watch: obs.watch,
       setups: obs.setups,
+      news: obs.news,
       marketMood: obs.marketMood,
       newClosedTrades: obs.newClosedTrades.slice(0, 20),
       polledBeforeWrite: obs.polledBeforeWrite,

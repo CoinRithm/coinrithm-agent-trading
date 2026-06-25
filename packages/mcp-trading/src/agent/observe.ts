@@ -11,6 +11,7 @@ import {
   SpotOrder,
   PmPosition,
   PmMarket,
+  NewsItem,
   WatchEntry,
   AgentTrace,
   Freshness,
@@ -183,6 +184,7 @@ export async function observe(
   // coin's /market context (it's market-wide, identical across coins).
   let marketMood: { fearGreed: number; label: string } | undefined;
   const wantIndicators = spec.capabilities.includes("indicators");
+  const wantNews = spec.capabilities.includes("news");
   for (const symbol of spec.risk.watchlist) {
     const rs = await client.resolve(symbol, trace);
     const match = asObj(asObj(rs.data).match);
@@ -347,6 +349,37 @@ export async function observe(
     }
   }
 
+  // News context (only with the `news` capability): recent high-importance news
+  // for the watchlist coins, fed into the decide prompt as a market-catalyst
+  // layer the price chart can't show. One cached call; degrades to no news on
+  // failure (never blocks a cycle).
+  let news: NewsItem[] | undefined;
+  if (wantNews && spec.risk.watchlist.length > 0) {
+    const nr = await client.agentNews(
+      { coins: spec.risk.watchlist.join(","), limit: 8, hours: 48 },
+      trace,
+    );
+    if (nr.ok) {
+      news = asArr(asObj(nr.data).items)
+        .map(asObj)
+        .map((it) => ({
+          title: (asStr(it.title) ?? "").slice(0, 160),
+          source: asStr(it.source) ?? undefined,
+          sentiment: asStr(it.sentiment) ?? undefined,
+          importance: asNum(it.importance) ?? undefined,
+          ageHours: ((a) =>
+            a == null ? undefined : Math.round((a / 60) * 10) / 10)(
+            asNum(it.ageMinutes),
+          ),
+          coins: asArr(it.coins)
+            .map((c) => asStr(c))
+            .filter((c): c is string => !!c),
+        }))
+        .filter((n) => n.title.length > 0)
+        .slice(0, 6);
+    }
+  }
+
   const observation: Observation = {
     asOf: syncCursor ?? new Date().toISOString(),
     scopes,
@@ -357,6 +390,7 @@ export async function observe(
     pmPositions,
     pmMarkets,
     watch,
+    news,
     // Deterministic structure flags computed from the watch indicators — the
     // model acts on these instead of re-deciding "is there a setup?" from scratch.
     // openPositions are passed so setups on a held symbol are tagged "manage,
