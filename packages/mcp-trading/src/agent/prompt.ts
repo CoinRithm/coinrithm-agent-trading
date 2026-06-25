@@ -103,6 +103,19 @@ export function buildUserPrompt(
   const lines: string[] = [
     "Decide for THIS cycle using only the observation below (data available now — no look-ahead).",
   ];
+  // Flat-state steer: when the agent holds NOTHING, weaker models (Llama 3.1 8B)
+  // still emit futures_close / futures_set_sltp / spot_cancel with a hallucinated
+  // positionId/orderId — which fails the whole cycle's strict parse (one bad id
+  // zeroes the cycle). There is nothing to manage when flat, so say so plainly and
+  // point the model at OPENING. (Observed: an 8B agent dead 36/60 cycles this way.)
+  if (
+    (obs.openPositions?.length ?? 0) === 0 &&
+    (obs.pmPositions?.length ?? 0) === 0
+  ) {
+    lines.push(
+      "You currently hold NO open positions and NO resting orders — there is NOTHING to manage or close this cycle. Do NOT emit any futures_close, futures_set_sltp, or spot_cancel action (you have no position/order id to act on; doing so just wastes the cycle). Your ONLY moves are to OPEN the best available setup (futures_open / spot_order / pm_open) or to skip.",
+    );
+  }
   // Slice-3 memory: the agent's own recent moves, so it manages with continuity —
   // remembers the thesis behind each open position and does not re-open an idea it
   // just acted on.
