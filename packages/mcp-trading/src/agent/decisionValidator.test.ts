@@ -136,6 +136,55 @@ describe("validateAction", () => {
     expect(validateAction(noSl, ctx()).code).toBe("missing_stop_loss");
   });
 
+  it("rejects a long take-profit below entry (take_profit_wrong_side)", () => {
+    // entry 67000; long TP must be ABOVE it. Server would reject the whole open.
+    expect(
+      validateAction({ ...goodOpen, takeProfitPrice: 65000 }, ctx()).code,
+    ).toBe("take_profit_wrong_side");
+  });
+
+  it("rejects a short take-profit above entry (take_profit_wrong_side)", () => {
+    const shortOpen: ProposedAction = {
+      ...goodOpen,
+      side: "short",
+      stopLossPrice: 70000, // short SL must be above entry to clear the SL check
+      takeProfitPrice: 68000, // above entry -> wrong side for a short
+    };
+    expect(validateAction(shortOpen, ctx()).code).toBe("take_profit_wrong_side");
+  });
+
+  it("accepts a correctly-oriented long take-profit (above entry)", () => {
+    expect(
+      validateAction({ ...goodOpen, takeProfitPrice: 71000 }, ctx()).valid,
+    ).toBe(true);
+  });
+
+  it("rejects SL/TP on a futures_open for a symbol already held (add_cannot_carry_sltp)", () => {
+    const obsHeld: Observation = {
+      ...observation,
+      openPositions: [
+        { venue: "futures", id: 9, status: "open", symbol: "BTC", marginMusd: 50 },
+      ],
+    };
+    // goodOpen targets BTC and carries stopLossPrice -> the server treats it as an
+    // ADD and rejects (sl_tp_not_supported_on_add); the client guard pre-empts it.
+    expect(validateAction(goodOpen, ctx({ observation: obsHeld })).code).toBe(
+      "add_cannot_carry_sltp",
+    );
+  });
+
+  it("does NOT add-guard an open for a symbol not already held", () => {
+    const obsHeldOther: Observation = {
+      ...observation,
+      openPositions: [
+        { venue: "futures", id: 9, status: "open", symbol: "ETH", marginMusd: 50 },
+      ],
+    };
+    expect(
+      validateAction(goodOpen, ctx({ observation: obsHeldOther })).valid,
+    ).toBe(true);
+  });
+
   it("rejects too many writes this cycle", () => {
     expect(validateAction(goodOpen, ctx({ writesThisCycle: 1 })).code).toBe(
       "write_budget_exceeded",

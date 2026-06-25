@@ -137,16 +137,33 @@ export async function observe(
   const openPositions: OpenPosition[] = asArr(asObj(posR.data).positions)
     .map(asObj)
     .filter((p) => (asStr(p.status) ?? "open") === "open")
-    .map((p) => ({
-      venue: "futures" as const,
-      id: Number(asNum(p.id) ?? p.id),
-      coinId: asStr(p.coinId),
-      symbol: asStr(p.symbol),
-      side: asStr(p.side),
-      status: asStr(p.status) ?? "open",
-      marginMusd: asNum(p.marginMusd),
-      unrealizedPnlMusd: asNum(p.unrealizedPnlMusd),
-    }));
+    .map((p) => {
+      // /positions/futures returns the coin NESTED ({ucid,symbol,name}); the old
+      // p.coinId/p.symbol reads were undefined (same field-drift class as the PM
+      // dup-guard bug) — the model couldn't tell which coin a position was on.
+      // It ALSO dropped every per-position price the backend already returns, so
+      // the model proposed SL/TP blind to mark + liquidation (→ the
+      // take_profit_not_*_mark + stop_loss_not_above_liquidation reject waves)
+      // and could not tell a winner from a small loser before a manual close.
+      // Tolerant fallbacks keep older/mocked shapes working.
+      const coin = asObj(p.coin);
+      return {
+        venue: "futures" as const,
+        id: Number(asNum(p.id) ?? p.id),
+        coinId: asStr(coin.ucid) ?? asStr(p.coinId),
+        symbol: asStr(coin.symbol) ?? asStr(p.symbol),
+        side: asStr(p.side),
+        status: asStr(p.status) ?? "open",
+        leverage: asNum(p.leverage),
+        marginMusd: asNum(p.marginMusd),
+        unrealizedPnlMusd: asNum(p.unrealizedPnlMusd),
+        entryPrice: asNum(p.entryPrice),
+        markPrice: asNum(p.markPrice),
+        liquidationPrice: asNum(p.liquidationPrice),
+        stopLossPrice: asNum(p.stopLossPrice),
+        takeProfitPrice: asNum(p.takeProfitPrice),
+      };
+    });
 
   // Sync poll: /trades since the persisted cursor.
   const tradesR = await client.trades(

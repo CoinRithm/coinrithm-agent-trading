@@ -108,6 +108,27 @@ export function validateAction(
         `${action.symbol} did not resolve to a coin`,
       );
 
+    // A futures_open on a symbol you ALREADY hold is treated as an ADD by the
+    // server, which REJECTS any SL/TP on an add (sl_tp_not_supported_on_add) and
+    // fails the whole open — the single biggest rejection class (e.g. Sam 61/61).
+    // Catch it here with an actionable reason: manage triggers on the held
+    // position via futures_set_sltp instead of re-opening with SL/TP. (Relies on
+    // the observation now carrying a populated `symbol` per position.)
+    if (action.stopLossPrice != null || action.takeProfitPrice != null) {
+      const heldSame = (observation.openPositions ?? []).find(
+        (p) =>
+          p.venue === "futures" &&
+          (p.status ?? "open") === "open" &&
+          (p.symbol ?? "").toUpperCase() === action.symbol.toUpperCase(),
+      );
+      if (heldSame) {
+        return fail(
+          "add_cannot_carry_sltp",
+          `already hold a ${action.symbol} futures position (#${heldSame.id}); the server rejects SL/TP on an add — manage triggers with futures_set_sltp on positionId ${heldSame.id}`,
+        );
+      }
+    }
+
     if (action.leverage > spec.risk.maxLeverage) {
       return fail(
         "leverage_exceeds_cap",
@@ -186,6 +207,36 @@ export function validateAction(
           return fail(
             "stop_loss_wrong_side",
             `short stop ${sl} must be above entry ${e}`,
+          );
+        }
+      }
+    }
+    // Take-profit must sit on the PROFIT side of entry, mirroring the server rule
+    // (long: TP above mark; short: below). A wrong-side TP makes the server reject
+    // the ENTIRE open (take_profit_not_above_mark / take_profit_not_below_mark) so
+    // NO trade is placed at all — the biggest silent missed-trade failure after
+    // the add case. Catch it here so the model gets a clear, self-correctable
+    // reason (and, with markPrice now in the observation, stops producing it).
+    {
+      const tp = action.takeProfitPrice;
+      const e = ctx.quote?.entryPrice;
+      if (
+        tp != null &&
+        Number.isFinite(tp) &&
+        tp > 0 &&
+        typeof e === "number" &&
+        Number.isFinite(e)
+      ) {
+        if (action.side === "long" && tp <= e) {
+          return fail(
+            "take_profit_wrong_side",
+            `long take-profit ${tp} must be above entry ${e}`,
+          );
+        }
+        if (action.side === "short" && tp >= e) {
+          return fail(
+            "take_profit_wrong_side",
+            `short take-profit ${tp} must be below entry ${e}`,
           );
         }
       }

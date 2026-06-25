@@ -98,6 +98,48 @@ describe("observe", () => {
     ).toBe(true);
   });
 
+  it("maps the REAL /positions/futures shape: nested coin + per-position prices (were undefined/dropped)", async () => {
+    // REAL shape (probed 2026-06-25): coin is NESTED ({ucid,symbol,name}); open
+    // positions also carry markPrice/liquidationPrice/sl/tp. observe used to read
+    // p.coinId/p.symbol (undefined) and drop all prices, blinding the model.
+    const fSpec = {
+      ...spec,
+      venues: ["futures"] as ("spot" | "futures" | "pm")[],
+    };
+    const c = fakeClient({
+      futuresPositions: async () =>
+        okData({
+          positions: [
+            {
+              id: 52,
+              status: "open",
+              coin: { ucid: "1", symbol: "BTC", name: "Bitcoin" },
+              side: "long",
+              leverage: 2,
+              entryPrice: 67000,
+              marginMusd: 15,
+              liquidationPrice: 33500,
+              stopLossPrice: 64000,
+              takeProfitPrice: 71000,
+              markPrice: 67500,
+              unrealizedPnlMusd: 1.2,
+            },
+          ],
+        }),
+    });
+    const { observation } = await observe(c, fSpec, newState("r"));
+    const p = observation.openPositions[0];
+    expect(p).toBeDefined();
+    expect(p.coinId).toBe("1"); // was undefined (read p.coinId, API returns coin.ucid)
+    expect(p.symbol).toBe("BTC"); // was undefined (read p.symbol, API returns coin.symbol)
+    expect(p.entryPrice).toBe(67000);
+    expect(p.markPrice).toBe(67500);
+    expect(p.liquidationPrice).toBe(33500);
+    expect(p.stopLossPrice).toBe(64000);
+    expect(p.takeProfitPrice).toBe(71000);
+    expect(p.leverage).toBe(2);
+  });
+
   it("drops outcomes the backend flagged not-openable (eligible === false) and stamps contiguous refs", async () => {
     const pmSpec = {
       ...spec,

@@ -222,8 +222,18 @@ export interface OpenPosition {
   symbol?: string;
   side?: string;
   status?: string;
+  leverage?: number;
   marginMusd?: number;
   unrealizedPnlMusd?: number;
+  // Per-position prices the backend already returns on /positions/futures.
+  // Surfaced so the model can orient triggers (take-profit vs markPrice,
+  // stop-loss vs liquidationPrice) and tell a winner from a loser, instead of
+  // proposing blind triggers the server rejects.
+  entryPrice?: number;
+  markPrice?: number;
+  liquidationPrice?: number;
+  stopLossPrice?: number;
+  takeProfitPrice?: number;
 }
 
 export interface SpotOrder {
