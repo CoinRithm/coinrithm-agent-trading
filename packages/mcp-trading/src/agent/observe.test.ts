@@ -98,6 +98,41 @@ describe("observe", () => {
     ).toBe(true);
   });
 
+  it("drops outcomes the backend flagged not-openable (eligible === false) and stamps contiguous refs", async () => {
+    const pmSpec = {
+      ...spec,
+      venues: ["pm", "futures"] as ("spot" | "futures" | "pm")[],
+    };
+    const c = fakeClient({
+      pmPositions: async () => okData({ positions: [] }),
+      discoverPmMarkets: async () =>
+        okData({
+          data: [
+            {
+              source: "polymarket",
+              slug: "btc-bucket",
+              title: "BTC price bucket",
+              freshness: { status: "fresh" },
+              eligible: true,
+              outcomes: [
+                { externalMarketId: "a", name: "60-65k", probability: 40, eligible: true },
+                { externalMarketId: "b", name: "65-70k", probability: 35, eligible: true },
+                { externalMarketId: "z", name: "0% tail", probability: 0, eligible: false },
+              ],
+            },
+          ],
+        }),
+    });
+    const { observation } = await observe(c, pmSpec, newState("r"));
+    // The eligible:false outcome is dropped; the two openable ones remain.
+    expect(observation.pmMarkets.length).toBe(2);
+    expect(
+      observation.pmMarkets.some((m) => m.outcomeExternalMarketId === "z"),
+    ).toBe(false);
+    // Refs are contiguous pm1..pmN over the surviving rows.
+    expect(observation.pmMarkets.map((m) => m.ref)).toEqual(["pm1", "pm2"]);
+  });
+
   // ── indicators capability ──────────────────────────────────────────────────
   const candlesPayload = (n: number) => {
     const candles = [];

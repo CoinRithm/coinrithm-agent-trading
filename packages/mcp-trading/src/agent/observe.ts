@@ -307,8 +307,15 @@ export async function observe(
           const title = (asStr(ev.title) ?? asStr(ev.question) ?? "").slice(0, 80);
           const freshness = freshnessOf(ev); // freshness is event-level
           // At most a few outcomes per event so a wide multi-outcome market
-          // (e.g. dozens of price buckets) can't explode the prompt.
-          const outcomes = asArr(ev.outcomes).map(asObj).slice(0, 3);
+          // (e.g. dozens of price buckets) can't explode the prompt. Drop
+          // outcomes the backend flagged NOT openable (eligible === false) so the
+          // model never bets a market that would fail the binary entry gate at
+          // quote. Back-compat: an older backend omits `eligible` (undefined) →
+          // the outcome is kept (current behaviour).
+          const outcomes = asArr(ev.outcomes)
+            .map(asObj)
+            .filter((o) => o.eligible !== false)
+            .slice(0, 3);
           // A market with no outcomes array still round-trips a flat fallback row.
           const rows = outcomes.length > 0 ? outcomes : [ev];
           return rows.map((o) => ({
