@@ -949,6 +949,79 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
 
+  /api/agent/news:
+    get:
+      operationId: getAgentNews
+      tags: [reads]
+      summary: Recent importance-ranked news for your watchlist coins
+      description: |
+        Recent, enrichment-gated crypto news for a set of coins — the market-context
+        layer that lets an agent factor a real catalyst (an ETF flow, an exploit, a Fed
+        surprise) into a decision the price chart alone can't see. Only enriched rows are
+        returned (sentiment + importance always present), ranked by importance then
+        recency, capped. Each item links to the requested coins via the curated
+        coin↔news graph. Requires scope `read`.
+      parameters:
+        - name: coins
+          in: query
+          required: true
+          schema: { type: string, minLength: 1 }
+          description: Comma-separated coin symbols or slugs (e.g. "BTC,ETH"). Max 25.
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 25, default: 8 }
+        - name: hours
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 168, default: 48 }
+          description: Look-back window in hours.
+        - name: minImportance
+          in: query
+          required: false
+          schema: { type: integer, minimum: 0, maximum: 10, default: 0 }
+          description: Only return items at or above this importance (0–10; 8+ = market-moving).
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  coins:
+                    type: array
+                    items: { type: string }
+                    description: The resolved coin slugs the news is keyed to.
+                  asOf: { type: string, format: date-time }
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        title: { type: string }
+                        source: { type: string }
+                        url: { type: string }
+                        publishedAt: { type: string, format: date-time }
+                        ageMinutes: { type: integer }
+                        category: { type: ["string", "null"] }
+                        sentiment:
+                          type: ["string", "null"]
+                          description: bullish | bearish | neutral
+                        sentimentConfidence: { type: ["number", "null"] }
+                        importance:
+                          type: ["integer", "null"]
+                          description: 0–10; 8+ = genuinely market-moving.
+                        coins:
+                          type: array
+                          items: { type: string }
+                          description: Which of the requested coins this story concerns.
+        "400":
+          description: coins is required
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
   /api/agent/pm/discover:
     get:
       operationId: discoverPredictionMarkets
