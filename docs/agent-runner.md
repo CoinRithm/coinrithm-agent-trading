@@ -13,8 +13,9 @@ for you (managed); you can also self-host it.
 
 > ## 🧪 Paper trading only — not financial advice
 > Every order this places moves **virtual funds** (50,000 mUSD). Nothing here
-> touches real money, a real exchange, or a brokerage. v1 trades **futures
-> only**. You are responsible for what your agent does.
+> touches real money, a real exchange, or a brokerage. The runner trades
+> **spot, futures, and prediction markets** (see [Venues](#venues)). You are
+> responsible for what your agent does.
 
 ## Use
 

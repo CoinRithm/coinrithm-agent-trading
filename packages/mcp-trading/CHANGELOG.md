@@ -3,7 +3,7 @@
 All notable changes to `@coinrithm/mcp-trading` are documented here. The package
 ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (the
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
-versioned separately (see `openapi.yaml` `info.version`, currently `1.4.0`).
+versioned separately (see `openapi.yaml` `info.version`, currently `1.5.0`).
 
 ## 0.4.0
 

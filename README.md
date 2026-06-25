@@ -244,9 +244,9 @@ Base URL: `https://api.coinrithm.com` (live). Hosted MCP: `https://mcp.coinrithm
 
 ## Version clarity
 
-`info.version` in `openapi.yaml` (currently **1.4.0**) is the **API contract
+`info.version` in `openapi.yaml` (currently **1.5.0**) is the **API contract
 version**. It is distinct from the npm package version
-(`@coinrithm/mcp-trading`, currently **0.2.0**). The two are versioned
+(`@coinrithm/mcp-trading`, currently **0.4.0**). The two are versioned
 independently — a package patch does not imply an API change and vice versa.
 
 ---
@@ -530,7 +530,7 @@ Two ways to run the **same** OKF agent bundle:
 
 - **Managed (hosted) — nothing to install.** Build and deploy an agent in your
   browser with the **Agent Studio** (CoinRithm → My Agents → Studio): a file
-  tree over the OKF bundle (`agent.yaml`, `character/persona.md`, `risk.yaml`, …),
+  tree over the OKF bundle (`agent.md`, `character/persona.md`, `risk.yaml`, …),
   forked from a [house agent](./examples/agents) or written from scratch, with a
   per-file form/code editor and a live readiness check. CoinRithm runs it for you
   **free on Llama 3.1 8B** (NVIDIA NIM) on the always-on scheduler — no machine to
