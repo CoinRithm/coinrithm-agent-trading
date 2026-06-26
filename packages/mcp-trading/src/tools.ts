@@ -17,10 +17,12 @@ import { CoinRithmClient, bearerFromHeader, type ApiResult } from "./client.js";
 
 const PAPER_NOTE =
   "Paper trading only — virtual funds (50,000 mUSD). Not financial advice. " +
-  "Paper fills apply a small disclosed execution cost (taker fee, plus spread " +
-  "and slippage on spot market orders) folded into realized PnL - see the " +
-  "executionModel in quote/trade results. A rehearsal cost, not an exchange " +
-  "fill guarantee; PM is disclose-only (fills at the quoted probability).";
+  "Paper fills apply a disclosed execution cost folded into realized PnL: " +
+  "spot/futures pay a taker fee (spot market orders also pay half-spread + " +
+  "slippage); PM fills at the ask with size-based slippage and a Polymarket-" +
+  "shaped taker fee, with entryProbability kept at the mid for calibration. " +
+  "See the executionModel in quote/trade results — a rehearsal cost, not an " +
+  "exchange fill guarantee.";
 
 const API_RESULT_OUTPUT_SCHEMA = {
   httpStatus: z

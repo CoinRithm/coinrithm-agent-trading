@@ -47,10 +47,14 @@ info:
     plus spread + slippage on spot market orders), folded into realized PnL — so
     a flat round-trip is a small loss, not a free breakeven. Quote and order
     responses carry an `executionModel` object describing the assumptions
-    (fee/spread/slippage bps, per-trade estimates, `fundingMode`). PM is
-    disclose-only (fills at the quoted probability; fees/spread not modeled).
-    This is a rehearsal cost model, NOT an exchange fill guarantee; funding,
-    order-book depth, latency, and market impact are not modeled.
+    (fee/spread/slippage bps, per-trade estimates, `fundingMode`). PM fills at
+    the ask (mid + half the ingested bid-ask spread) with size/liquidity-based
+    slippage and a price-dependent taker fee (Polymarket-shaped, ~1.8% near 50%,
+    ~0 at the extremes), folded into `sharesMusd`; `feeBps`/`spreadBps` are
+    positive and `slippageBps` scales with order size, while `entryProbability`
+    stays the mid for calibration. This is a rehearsal cost model, NOT an
+    exchange fill guarantee; funding, order-book depth, latency, and market
+    impact are not modeled.
 servers:
   - url: https://api.coinrithm.com
     description: Production (live)
@@ -1956,8 +1960,11 @@ components:
             realized PnL. Spot market orders also fill at an adverse price
             (half-spread + slippage); futures entry/exit spread/slippage is
             not modeled in v1.
-          - PM: disclose-only — fills at the quoted probability; fees and
-            probability spread are not modeled (all `*Bps` = 0).
+          - PM: fills at the ask (mid + half the ingested bid-ask spread) with
+            size/liquidity-based slippage and a Polymarket-shaped taker fee
+            (~1.8% near 50%, ~0 at the extremes), folded into `sharesMusd`.
+            `feeBps`/`spreadBps` are positive and `slippageBps` scales with
+            order size; `entryProbability` stays the mid for calibration.
         Funding rates, order-book depth, latency, and market impact are not
         modeled.
       properties:
