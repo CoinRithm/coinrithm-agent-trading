@@ -162,7 +162,13 @@ class AnthropicProvider implements Provider {
         },
         timeoutMs,
       );
-      if (!res.ok) return { ok: false, error: `anthropic HTTP ${res.status}: ${await res.text()}` };
+      if (!res.ok)
+        return {
+          ok: false,
+          // Cap the upstream body: it lands in agent_cycles.skip_reason, so an
+          // unbounded provider error page must not bloat the ledger row.
+          error: `anthropic HTTP ${res.status}: ${(await res.text()).slice(0, 2000)}`,
+        };
       const json = (await res.json()) as {
         content?: Array<{ text?: string }>;
         usage?: { input_tokens?: number; output_tokens?: number };
@@ -216,7 +222,13 @@ class OpenAiCompatProvider implements Provider {
         },
         timeoutMs,
       );
-      if (!res.ok) return { ok: false, error: `provider HTTP ${res.status}: ${await res.text()}` };
+      if (!res.ok)
+        return {
+          ok: false,
+          // Cap the upstream body: it lands in agent_cycles.skip_reason, so an
+          // unbounded provider error page must not bloat the ledger row.
+          error: `provider HTTP ${res.status}: ${(await res.text()).slice(0, 2000)}`,
+        };
       const json = (await res.json()) as {
         choices?: Array<{ message?: { content?: string } }>;
         usage?: { prompt_tokens?: number; completion_tokens?: number };

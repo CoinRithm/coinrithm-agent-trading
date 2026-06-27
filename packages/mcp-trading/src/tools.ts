@@ -846,7 +846,9 @@ export function registerTools(
         "estimate, max payout, eligibility, freshness, and decisionSupport " +
         "(market quality/liquidity/volume/spread tiers + flags) so you can " +
         "quote and gauge tradability in one call. Never mutates state. " +
-        "stakeMusd must be > 0 (min to open is 10). " +
+        "stakeMusd must be > 0 (min to open is 10). Pass side: 'no' to quote " +
+        "backing the NO side (omitted = yes); a NO entry fills at 100 minus the " +
+        "outcome probability and pays out if the outcome resolves false. " +
         PAPER_NOTE,
       inputSchema: {
         source: z.string().describe("Source slug (e.g. kalshi, polymarket)."),
@@ -854,6 +856,14 @@ export function registerTools(
         outcomeExternalMarketId: z
           .string()
           .describe("Case-sensitive outcome / market id."),
+        side: z
+          .enum(["yes", "no"])
+          .optional()
+          .describe(
+            "Which side of the binary outcome to back. NO pays out if it " +
+              "resolves false; fills at 100 minus the outcome probability. " +
+              "Omitted = yes.",
+          ),
         stakeMusd: z.number().positive().describe("mUSD to stake (> 0)."),
         agentTrace: AGENT_TRACE_SCHEMA,
       },
@@ -861,12 +871,12 @@ export function registerTools(
       annotations: readOnlyAnnotations("Prediction-market quote"),
     },
     async (
-      { source, slug, outcomeExternalMarketId, stakeMusd, agentTrace },
+      { source, slug, outcomeExternalMarketId, side, stakeMusd, agentTrace },
       extra,
     ) =>
       present(
         await client.pmQuote(
-          { source, slug, outcomeExternalMarketId, stakeMusd, agentTrace },
+          { source, slug, outcomeExternalMarketId, side, stakeMusd, agentTrace },
           requestKey(extra),
         ),
       ),
@@ -1191,7 +1201,9 @@ export function registerTools(
         "Open a mock prediction-market position (binary outcomes only). Requires " +
         "the trade:pm scope. Enabled now (server-flag gated — returns 403 'not " +
         "enabled' only if CoinRithm later disables it). idempotencyKey is " +
-        "REQUIRED. stakeMusd >= 10. Quote first and CONFIRM with the user. " +
+        "REQUIRED. stakeMusd >= 10. Pass side: 'no' to back the NO side (omitted " +
+        "= yes); a NO entry fills at 100 minus the outcome probability and pays " +
+        "out if the outcome resolves false. Quote first and CONFIRM with the user. " +
         PAPER_NOTE,
       inputSchema: {
         source: z
@@ -1201,6 +1213,14 @@ export function registerTools(
         outcomeExternalMarketId: z
           .string()
           .describe("Case-sensitive outcome or market id returned by discovery."),
+        side: z
+          .enum(["yes", "no"])
+          .optional()
+          .describe(
+            "Which side of the binary outcome to back. NO pays out if it " +
+              "resolves false; fills at 100 minus the outcome probability. " +
+              "Omitted = yes.",
+          ),
         stakeMusd: z.number().min(10).describe("mUSD stake (>= 10)."),
         idempotencyKey: z
           .string()
@@ -1218,6 +1238,7 @@ export function registerTools(
         source,
         slug,
         outcomeExternalMarketId,
+        side,
         stakeMusd,
         idempotencyKey,
         agentTrace,
@@ -1230,6 +1251,7 @@ export function registerTools(
             source,
             slug,
             outcomeExternalMarketId,
+            side,
             stakeMusd,
             idempotencyKey,
             agentTrace,

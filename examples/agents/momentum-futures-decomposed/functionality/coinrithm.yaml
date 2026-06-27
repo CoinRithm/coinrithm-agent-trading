@@ -2,9 +2,9 @@ api:
   kind: coinrithm-agent-api
   baseUrl: https://api.coinrithm.com
   mcpUrl: https://mcp.coinrithm.com/mcp
-  openapiVersion: 1.4.0
+  openapiVersion: 1.5.0
   mcpPackage: "@coinrithm/mcp-trading"
-  mcpVersion: 0.2.0
+  mcpVersion: 0.4.0
 venues:
   - spot
   - futures

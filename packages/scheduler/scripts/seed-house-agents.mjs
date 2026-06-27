@@ -164,9 +164,13 @@ try {
       RETURNING handle`,
   );
   await pool.query(
+    // Zero EVERY kill-switch counter (model failures, reject cycles, exec
+    // failures, rate-limit hits) — not just model failures — so a house agent
+    // disabled by a reject/rate-limit streak does not revive and immediately
+    // re-trip the same gate. Mirrors reviveDisabledAgents in db.ts.
     `UPDATE agent_runtime.agent_state s
         SET state = (s.state - 'disabledReason')
-                   || '{"disabled":false,"consecutiveModelFailures":0}'::jsonb
+                   || '{"disabled":false,"consecutiveModelFailures":0,"consecutiveRejectCycles":0,"consecutiveExecFailures":0,"rateLimitHits":0}'::jsonb
        FROM agent_runtime.agents a
       WHERE s.agent_id = a.id AND a.is_house = true`,
   );

@@ -292,6 +292,22 @@ export async function persistCycleResult(
   }
 }
 
+// Reschedule an agent's NEXT cycle to now()+cadence WITHOUT recording a cycle.
+// claimDueAgents advances next_run_at by GREATEST(cadence, RUN_LOCK_SECONDS) at
+// claim time so a slow run is never re-claimed mid-flight; the COMPLETION path
+// (persistCycleResult) resets that lock to now()+cadence. A graceful skip (e.g.
+// over the shared-key rate budget) never reaches persistCycleResult, so without
+// this it would inherit the full RUN_LOCK lock — a 60s agent locked out 360s.
+// Mirror the persistCycleResult reschedule so the agent runs again next cadence.
+export async function rescheduleToCadence(pool: Pool, agentId: number): Promise<void> {
+  await pool.query(
+    `UPDATE agent_runtime.agents
+        SET next_run_at = now() + make_interval(secs => cadence_seconds), updated_at = now()
+      WHERE id = $1 AND status = 'active'`,
+    [agentId],
+  );
+}
+
 export async function disableAgent(pool: Pool, agentId: number, reason: string): Promise<void> {
   await pool.query(
     "UPDATE agent_runtime.agents SET status = 'disabled', disabled_reason = $2, updated_at = now() WHERE id = $1",
@@ -326,10 +342,15 @@ export async function reviveDisabledAgents(pool: Pool): Promise<string[]> {
         RETURNING id, handle`,
     );
     if (rows.length > 0) {
+      // Zero EVERY kill-switch counter, not just model failures: the kill-switch
+      // trips on consecutiveRejectCycles, rateLimitHits, and consecutiveExecFailures
+      // too, so clearing only model failures lets a reject-disabled (or
+      // rate-limit-disabled) agent revive and immediately re-trip the same gate
+      // every poll — a revive/disable thrash. Reset them all on revive.
       await client.query(
         `UPDATE agent_runtime.agent_state
             SET state = (state - 'disabledReason')
-                       || '{"disabled":false,"consecutiveModelFailures":0}'::jsonb
+                       || '{"disabled":false,"consecutiveModelFailures":0,"consecutiveRejectCycles":0,"consecutiveExecFailures":0,"rateLimitHits":0}'::jsonb
           WHERE agent_id = ANY($1::bigint[])`,
         [rows.map((r) => r.id)],
       );

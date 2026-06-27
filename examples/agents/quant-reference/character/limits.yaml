@@ -1,0 +1,8 @@
+# Throughput + loss limits enforced by the runner. A risk-adjusted agent trades
+# selectively (most cycles end in a reasoned skip), so one write per cycle is
+# plenty; daily trade COUNT is unlimited (0) — the risk caps below, not a count,
+# are the real guardrails.
+maxTradesPerDay: 0  # 0 = unlimited daily trades; loss/margin caps still bind
+maxWritesPerCycle: 1
+maxDailyLossMusd: 2000
+maxOpenMarginMusd: 1500

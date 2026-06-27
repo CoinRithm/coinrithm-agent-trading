@@ -5,8 +5,10 @@
 // shared NVIDIA key's ~40 RPM budget — 429-storming every free agent, including
 // the house agents shown on the public Arena. This bucket caps fleet-wide model
 // calls/min for agents on the shared key. An agent that can't get a token this
-// cadence skips gracefully (and runs next cadence — its next_run_at was already
-// advanced at claim time). BYO-key and non-nvidia agents are exempt: they have
+// cadence skips gracefully and runs next cadence — the scheduler calls
+// rescheduleToCadence on the skip path so next_run_at is reset from the claim-time
+// RUN_LOCK back to now()+cadence (otherwise a 60s agent would be locked out for
+// the full RUN_LOCK_SECONDS). BYO-key and non-nvidia agents are exempt: they have
 // their own budget and never draw from the shared pool.
 //
 // Pure + deterministic: the caller injects `nowMs` so the refill is testable

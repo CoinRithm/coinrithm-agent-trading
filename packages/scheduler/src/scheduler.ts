@@ -1,5 +1,10 @@
 import type { Pool } from "pg";
-import { claimDueAgents, recordCycle, reviveDisabledAgents } from "./db.js";
+import {
+  claimDueAgents,
+  recordCycle,
+  rescheduleToCadence,
+  reviveDisabledAgents,
+} from "./db.js";
 import { runAgentOnce } from "./runtime.js";
 import { withConcurrency } from "./concurrency.js";
 import { RateBudget, sharedKeyFor, type SharedKey } from "./rateBudget.js";
@@ -62,6 +67,10 @@ export async function runScheduler(
                 decision: "skip",
                 skipReason: `${sk} rate budget`,
               }).catch(() => {});
+              // This skip never reached persistCycleResult, so reset the
+              // RUN_LOCK that claimDueAgents set back to now()+cadence — else a
+              // 60s agent stays locked out for the full RUN_LOCK_SECONDS (360s).
+              await rescheduleToCadence(pool, a.id).catch(() => {});
               return;
             }
             await runAgentOnce(pool, a, config);

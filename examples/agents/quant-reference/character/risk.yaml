@@ -1,0 +1,12 @@
+# Hard runner caps — the model only proposes a stake WITHIN these (DECISIONS D3:
+# caps live in the runner, never the prose). Risk-adjusted, not raw-PnL: modest
+# leverage, every entry carries a stop, few concurrent positions.
+maxLeverage: 3
+perTradeMarginMusd: 500
+maxConcurrentPositions: 3
+requireStopLoss: true
+watchlist:
+  - BTC
+  - ETH
+  - SOL
+  - LINK

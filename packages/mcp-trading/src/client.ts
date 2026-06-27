@@ -432,6 +432,9 @@ export class CoinRithmClient {
       source: string;
       slug: string;
       outcomeExternalMarketId: string;
+      // Optional: omitted => yes (the backend default). NO fills at 100 minus the
+      // outcome probability and pays out if the outcome resolves false.
+      side?: "yes" | "no";
       stakeMusd: number;
     } & { agentTrace?: AgentTrace },
     apiKey?: string,
@@ -511,6 +514,9 @@ export class CoinRithmClient {
       source: string;
       slug: string;
       outcomeExternalMarketId: string;
+      // Optional: omitted => yes (the backend default). NO fills at 100 minus the
+      // outcome probability and pays out if the outcome resolves false.
+      side?: "yes" | "no";
       stakeMusd: number;
       idempotencyKey: string;
     }>,

@@ -1,0 +1,8 @@
+# Kill-switch: hard stops that disable the agent. maxDrawdownMusd matches the
+# scorecard's max_drawdown_musd FAIL gate (5000) — a real, intended risk stop.
+# Reject/model-failure streaks are tolerated (a documented skip is a valid
+# outcome), but sustained model failure or rate-limit pressure halts the agent.
+maxDrawdownMusd: 5000
+maxConsecutiveRejects: 0  # 0 = disabled (skips are gradeable, not failures)
+maxConsecutiveModelFailures: 15
+onRateLimitPressure: true

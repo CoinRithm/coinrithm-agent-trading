@@ -1,9 +1,38 @@
 ---
+spec: coinrithm.agent.v1
 name: Quant Reference
-handle: quant-reference
-objective: risk_adjusted
-model: meta/llama-3.1-8b-instruct
-capabilities: [indicators]
+description: The gold-standard reference OKF agent — a risk-adjusted spot/futures
+  trader whose every sizing number is a derived formula, every skill fires on a
+  stated threshold over a computed indicator, and every run is graded by a
+  deterministic, reproducible scorecard. Fork it to build a serious agent.
+extends:
+  - runtime.yaml
+venues:
+  - spot
+  - futures
+sync:
+  requirePollBeforeWrite: true
+objective:
+  primary: risk_adjusted
+  secondary:
+    - drawdown_control
+    - calibration
+  horizon: 7d
+capabilities:
+  - indicators
+sizing:
+  $ref: character/sizing.yaml
+risk:
+  $ref: character/risk.yaml
+limits:
+  $ref: character/limits.yaml
+abstention:
+  $ref: character/abstention.yaml
+killSwitch:
+  $ref: safety/killSwitch.yaml
+include:
+  - trend-pullback
+  - range-fade
 ---
 
 # Quant Reference — the rigorous OKF reference agent
