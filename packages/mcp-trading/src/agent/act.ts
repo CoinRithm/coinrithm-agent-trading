@@ -96,6 +96,10 @@ export async function executeAction(
       positionId: action.positionId,
       stopLossPrice: action.stopLossPrice ?? undefined,
       takeProfitPrice: action.takeProfitPrice ?? undefined,
+      // Deterministic key (sltp:<posId>) so a retried cycle can't double-send,
+      // consistent with the open/close/place ops. Server-side this op is also
+      // idempotent (absolute-value set), so the key is belt-and-braces.
+      idempotencyKey,
       agentTrace: trace,
     });
   }
@@ -114,7 +118,10 @@ export async function executeAction(
     });
   }
   if (action.type === "spot_cancel") {
-    return client.cancelSpotOrder(action.orderId, trace);
+    // Deterministic key (cancel:<orderId>) so a retried cycle can't double-send,
+    // consistent with the open/place ops. Server-side a re-cancel is a no-op, so
+    // the key is belt-and-braces.
+    return client.cancelSpotOrder(action.orderId, idempotencyKey, trace);
   }
   if (action.type === "pm_open") {
     return client.openPmPosition({

@@ -6,8 +6,6 @@ api:
   mcpPackage: "@coinrithm/mcp-trading"
   mcpVersion: 0.4.0
 venues:
-  - spot
   - futures
-  - pm
 note: Reference pin. The runner warns if this lags the live API; it does not
   block self-host.

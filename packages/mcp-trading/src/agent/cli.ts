@@ -224,23 +224,57 @@ export function cmdInspect(path: string, json = false): CmdResult {
   return { ok: v.valid, code: 0, lines, data: output };
 }
 
+// Is a process still alive? signal 0 probes without sending — ESRCH means it's
+// gone, EPERM means it exists but we can't signal it (still alive). Unknown PIDs
+// (NaN / non-positive) are treated as alive so we never reclaim a malformed lock.
+function pidIsAlive(pid: number): boolean {
+  if (!Number.isInteger(pid) || pid <= 0) return true;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code !== "ESRCH";
+  }
+}
+
 // Acquire an exclusive per-agent run lock (O_EXCL). Returns a release fn, or
-// null if another runner already holds it — so two runners can't race one
-// state file and bypass the daily / write caps.
-function acquireLock(stateFile: string): (() => void) | null {
+// null if another LIVE runner already holds it — so two runners can't race one
+// state file and bypass the daily / write caps. Stale-aware: if the existing
+// lock names a PID that is no longer alive (the prior runner was Ctrl-C'd /
+// killed without unwinding its finally), the orphaned lock is reclaimed instead
+// of trapping every subsequent `run` until a manual delete.
+export function acquireLock(stateFile: string): (() => void) | null {
   const lock = `${stateFile}.lock`;
   let fd: number;
   try {
     fd = openSync(lock, "wx");
   } catch {
-    return null;
+    // Lock exists. Reclaim it only if its owner PID is provably dead.
+    let ownerAlive = true;
+    try {
+      const prior = JSON.parse(readFileSync(lock, "utf8")) as { pid?: number };
+      ownerAlive = pidIsAlive(Number(prior?.pid));
+    } catch {
+      // Unreadable / unparseable lock — treat as held (conservative).
+      return null;
+    }
+    if (ownerAlive) return null;
+    try {
+      unlinkSync(lock);
+      fd = openSync(lock, "wx"); // re-acquire; if we lose a race, bail out.
+    } catch {
+      return null;
+    }
   }
   try {
     writeFileSync(fd, JSON.stringify({ pid: process.pid }));
   } catch {
     /* best effort */
   }
+  let released = false;
   return () => {
+    if (released) return;
+    released = true;
     try {
       closeSync(fd);
     } catch {
@@ -282,6 +316,19 @@ export async function cmdRun(
   if (!release) {
     return fail([`another runner holds ${stateFile}.lock — only one runner per agent at a time`]);
   }
+  // A self-host `run` is a cadence-paced loop users stop with Ctrl-C. Node exits
+  // on SIGINT/SIGTERM WITHOUT unwinding the finally across the awaited loop, so
+  // free the lock from a signal handler too (otherwise every later run is
+  // trapped on the orphaned .lock). Removed in the finally so repeated in-proc
+  // runs (tests) don't leak listeners; re-exit preserves normal Ctrl-C exit.
+  const onSignal = (sig: NodeJS.Signals) => {
+    release();
+    process.removeListener("SIGINT", onSignal);
+    process.removeListener("SIGTERM", onSignal);
+    process.kill(process.pid, sig);
+  };
+  process.on("SIGINT", onSignal);
+  process.on("SIGTERM", onSignal);
   try {
     let state;
     try {
@@ -324,6 +371,8 @@ export async function cmdRun(
     lines.push(`done: ${results.length} cycle(s)${wrote ? "" : ", no writes"}`);
     return { ok: true, code: 0, lines, data: results };
   } finally {
+    process.removeListener("SIGINT", onSignal);
+    process.removeListener("SIGTERM", onSignal);
     release();
   }
 }

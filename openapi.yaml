@@ -1036,6 +1036,12 @@ paths:
         Polymarket by default. Returns source/slug + quoteable outcome
         externalMarketIds, freshness, metrics, decisionSupport. Requires scope
         `read`. Call pm/quote with a returned externalMarketId before pm/open.
+
+        Results are ordered openable-markets-first (then effectively-decided
+        `pinned` markets last). Each market carries `eligible` /
+        `eligibleBlockReasons` (and each outcome an `eligible`) so an agent can
+        skip multi-outcome / non-binary / non-openable books before wasting a
+        quote.
       parameters:
         - name: limit
           in: query
@@ -2323,6 +2329,18 @@ components:
             True when the market is effectively decided (leading outcome at/
             above the pinned-probability threshold). Deranked in this listing —
             agents can skip these without recomputing.
+        eligible:
+          type: [boolean, "null"]
+          description: |
+            Can an agent open this binary book right now (shared mock-entry
+            gate)? null when scalars are unavailable. Eligible markets are
+            listed first.
+        eligibleBlockReasons:
+          type: array
+          items: { type: string }
+          description: |
+            Structured reasons the market is not openable (e.g. multi-outcome /
+            non-binary / settled). Empty when eligible or unknown.
         outcomes:
           type: array
           items: { $ref: "#/components/schemas/PmDiscoveryOutcome" }
@@ -2341,6 +2359,11 @@ components:
         name: { type: string }
         probability: { type: number, description: "0..100" }
         tokenId: { type: string, nullable: true }
+        eligible:
+          type: [boolean, "null"]
+          description: |
+            Per-outcome openability (structural + 0<p<100 live yes fill). null
+            when scalars are unavailable.
     PmDiscoveryQuoteHint:
       type: object
       properties:
@@ -2450,7 +2473,13 @@ components:
         sharesMusd: { type: number }
         maxPayout: { type: number, description: "equals sharesMusd" }
         shape: { type: string }
-        marketsCount: { type: integer, nullable: true }
+        marketsCount:
+          type: integer
+          nullable: true
+          description: |
+            True total markets on the event (stored value); may exceed the
+            number of hydrated/snapshot outcomes for capped multi-outcome books.
+            null when unknown.
         entryOutcomesSnapshot:
           description: |
             Snapshot of the event's outcomes (names + probabilities) frozen at
@@ -2479,13 +2508,23 @@ components:
       type: object
       description: |
         Data-freshness descriptor. Futures + spot use ageSeconds; PM uses
-        ageMinutes. `status` is a freshness label (verify exact enum against live
-        data).
+        ageMinutes. `status` is a freshness label; `basis` (PM only) names which
+        timestamp the age was measured against.
       properties:
         asOf: { type: string, format: date-time, nullable: true }
         ageSeconds: { type: number, nullable: true, description: "futures / spot" }
         ageMinutes: { type: number, nullable: true, description: "PM" }
-        status: { type: string, nullable: true }
+        status:
+          type: [string, "null"]
+          enum: [fresh, lagging, stale, unknown, null]
+          description: |
+            fresh | lagging (PM only) | stale | unknown. PM lagging>=45m &
+            stale>=2h; spot/futures stale>120s.
+        basis:
+          type: [string, "null"]
+          enum: [latest_snapshot, source_update, processed, event_update, unknown]
+          description: |
+            PM only — which timestamp the age was measured against.
 
     AgentObservation:
       type: object

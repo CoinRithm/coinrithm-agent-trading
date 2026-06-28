@@ -39,7 +39,10 @@ sync:
 killSwitch:
   maxDrawdownMusd: 300
   maxConsecutiveRejects: 0
-  maxConsecutiveModelFailures: 3
+  # The runner floors model-failure disables at 10 (free models are flaky; the
+  # floor prevents hair-trigger disables), so values below 10 are silently
+  # raised to 10. Set to the effective floor so the declared value matches.
+  maxConsecutiveModelFailures: 10
   onRateLimitPressure: true
 objective:
   primary: realized_pnl

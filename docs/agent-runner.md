@@ -122,7 +122,10 @@ cause an unintended or oversized trade:
 - **Fail-closed everywhere.** Any failed read, network error, model error, bad
   JSON, stale data, or `401/403/409/422` results in **skip**, never a write.
 - **Kill-switch.** Drawdown (realized + unrealized), consecutive model failures,
-  consecutive reject cycles, or rate-limit pressure disable the agent.
+  consecutive reject cycles, or rate-limit pressure disable the agent. The
+  model-failure threshold is floored at **10** (free models are flaky; the floor
+  prevents hair-trigger disables), so a `maxConsecutiveModelFailures` below 10 is
+  silently raised to 10.
 - **No double-trade.** Idempotency keys are deterministic per intent and advance
   only on confirmed success; a corrupt state file refuses to run; a per-agent
   lock prevents two runners racing one state file.

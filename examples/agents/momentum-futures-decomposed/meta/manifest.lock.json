@@ -1,5 +1,5 @@
 {
-  "configHash": "sha256:7790167977decfffa64e7c427009b0f16a15830fc21d45fa5f3f3a137e487ee9",
+  "configHash": "sha256:4390a05bc7378da2bce6d0227e5e80f204fba475f4fea85e5273626d2b295d2f",
   "contentHashes": {
     "agent.md": "sha256:778dd0eddae2236fe22f7af2452895d09c3150406357718576004edb5dd1e834",
     "character/abstention.yaml": "sha256:2440bba7a71f3ef5589c1390113f73b1862d316564373105c1faf731d69c588d",
@@ -7,9 +7,9 @@
     "character/persona.md": "sha256:4677ce1c64c1b2da6314edc8bb139b7c98a09c860bde7a129850db6a215d9b8f",
     "character/risk.yaml": "sha256:e93242b35aefaa5a3b025e8b5eb4dbc2c294ec666a88bc50a3a88e4fbaf65cd3",
     "character/thesis.md": "sha256:85606dbc8e3af8e19ba55bbb1c23035b7795691ec4dcf79632aaed2f8483c560",
-    "functionality/coinrithm.yaml": "sha256:9bf7b8ea39bd4bc2ea14807c82b837beef80d2dad61acf0346c66c55ced78bcf",
+    "functionality/coinrithm.yaml": "sha256:5722480520800ac3a178c4161022c8408520df89a68bf273d2a011fd260e52e6",
     "runtime.yaml": "sha256:a2dde8ea84ccfc8be5e4b731f3cb77b6ffa67b74fc778649a2990ea287b11013",
-    "safety/killSwitch.yaml": "sha256:4c50679df368595371bb4ab73928e561eec993998c3d6234588c6c329462ec6b"
+    "safety/killSwitch.yaml": "sha256:d7d3cf9d3920ab2083f4a0d0ccd6fc0c2c9284977d4e864b9ace437b0d4e30c9"
   },
   "provenance": {
     "includeOrder": [],
@@ -52,7 +52,7 @@
     },
     "description": "Trend-following CoinRithm paper-trading agent (momentum-futures, conservative).",
     "killSwitch": {
-      "maxConsecutiveModelFailures": 3,
+      "maxConsecutiveModelFailures": 10,
       "maxConsecutiveRejects": 0,
       "maxDrawdownMusd": 300,
       "onRateLimitPressure": true
@@ -116,7 +116,7 @@
     "capabilities": [],
     "description": "Trend-following CoinRithm paper-trading agent (momentum-futures, conservative).",
     "killSwitch": {
-      "maxConsecutiveModelFailures": 3,
+      "maxConsecutiveModelFailures": 10,
       "maxConsecutiveRejects": 0,
       "maxDrawdownMusd": 300,
       "onRateLimitPressure": true

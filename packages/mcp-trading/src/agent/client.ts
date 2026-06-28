@@ -203,6 +203,7 @@ export class CoinRithmClient {
     positionId: number;
     stopLossPrice?: number | null;
     takeProfitPrice?: number | null;
+    idempotencyKey?: string;
     agentTrace?: AgentTrace;
   }) {
     return this.request("POST", "/api/agent/futures/sl-tp", { body });
@@ -219,8 +220,11 @@ export class CoinRithmClient {
   }) {
     return this.request("POST", "/api/agent/spot/order", { body });
   }
-  cancelSpotOrder(orderId: number, trace?: AgentTrace) {
-    return this.request("POST", `/api/agent/spot/order/${orderId}/cancel`, { trace });
+  cancelSpotOrder(orderId: number, idempotencyKey?: string, trace?: AgentTrace) {
+    return this.request("POST", `/api/agent/spot/order/${orderId}/cancel`, {
+      body: idempotencyKey !== undefined ? { idempotencyKey } : undefined,
+      trace,
+    });
   }
   openPmPosition(body: {
     source: string;
