@@ -514,7 +514,12 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
       decisionId,
       spec,
       meta.confidence ?? decision.confidence,
-      meta.rationaleSummary,
+      // Fall back to the cycle's decision rationale so EVERY executed trade
+      // carries the agent's own reasoning — the model already writes `rationale`
+      // (1-2 sentences, shown in the live terminal); a per-action
+      // `rationaleSummary` is rare. This becomes the trade's "why" on the Arena
+      // live floor. Sanitized short reasoning only — never raw chain-of-thought.
+      meta.rationaleSummary ?? decision.rationale,
     );
     const r = await executeAction(client, action, observation, trace, idem);
     planned.push({
