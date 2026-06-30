@@ -143,6 +143,52 @@ function summarizeAction(a: ProposedAction): string {
   }
 }
 
+// Tokens that identify the MARKET an action is on, for checking a rationale is
+// actually about it. close/sltp/cancel reference a position/order id (not a market
+// name) so they return none and keep their position-management rationale as-is.
+function actionMarketTokens(a: ProposedAction): string[] {
+  switch (a.type) {
+    case "futures_open":
+    case "spot_order":
+      return [a.symbol, baseSymbol(a.symbol)];
+    case "pm_open":
+      return [a.source, ...a.slug.split("-").filter((w) => w.length >= 4)];
+    default:
+      return [];
+  }
+}
+
+// Does the decision rationale plausibly name this action's market? Lenient: any
+// market token present counts. An empty token set (close/sltp/cancel) returns true.
+function rationaleMatchesAction(rationale: string, a: ProposedAction): boolean {
+  const toks = actionMarketTokens(a).filter((t) => t && t.length >= 2);
+  if (toks.length === 0) return true;
+  const lower = rationale.toLowerCase();
+  return toks.some((t) => lower.includes(t.toLowerCase()));
+}
+
+// The per-trade "why" shown on the Arena floor, kept HONEST about the market it's
+// on. Prefer the model's per-action summary. Else the decision-level rationale —
+// but a MULTI-action decision commits that rationale to its PRIMARY idea, which can
+// contradict a secondary action's market ("reasoning didn't match the selected
+// market"), so attach it only when it names this action's market; otherwise a
+// faithful one-line summary of the move. A single-action decision's rationale IS
+// about that action, so it is always kept (the common case, unchanged).
+export function rationaleForAction(
+  a: ProposedAction,
+  decisionRationale: string | undefined,
+  perActionSummary: string | undefined,
+  totalActions: number,
+): string | undefined {
+  const perAction = perActionSummary?.trim();
+  if (perAction) return perAction;
+  if (!decisionRationale) return summarizeAction(a);
+  if (totalActions <= 1) return decisionRationale;
+  return rationaleMatchesAction(decisionRationale, a)
+    ? decisionRationale
+    : summarizeAction(a);
+}
+
 export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
   const { client, provider, spec, mergedProse, state, live, stateFile } = deps;
   const log = deps.log ?? (() => {});
@@ -200,9 +246,10 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
         (pnl != null
           ? `: ${pnl >= 0 ? "+" : ""}${Math.round(pnl)}mUSD ${pnl >= 0 ? "WIN" : "LOSS"}`
           : "");
-      state.journal = [...(state.journal ?? []), { at: observation.asOf, did }].slice(
-        -12,
-      );
+      state.journal = [
+        ...(state.journal ?? []),
+        { at: observation.asOf, did },
+      ].slice(-12);
     }
   }
 
@@ -283,7 +330,9 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
   );
   const res = await provider.decide({ system, user });
   // Metering: prefer provider-reported usage; fall back to a chars/4 estimate.
-  const tokensIn = res.ok ? (res.usage?.promptTokens ?? tokensInEst) : tokensInEst;
+  const tokensIn = res.ok
+    ? (res.usage?.promptTokens ?? tokensInEst)
+    : tokensInEst;
   const tokensOut = res.ok
     ? (res.usage?.completionTokens ?? Math.round(res.text.length / 4))
     : 0;
@@ -444,7 +493,9 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
             code: "duplicate_intent",
             reason: `already hold ${fo.symbol} ${fo.side}${winning ? " (no margin room to add)" : " — manage it, do not average down or re-open"}`,
           });
-          log(`reject ${action.type}: duplicate_intent (hold ${fo.symbol} ${fo.side})`);
+          log(
+            `reject ${action.type}: duplicate_intent (hold ${fo.symbol} ${fo.side})`,
+          );
           continue;
         }
       }
@@ -514,12 +565,17 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
       decisionId,
       spec,
       meta.confidence ?? decision.confidence,
-      // Fall back to the cycle's decision rationale so EVERY executed trade
-      // carries the agent's own reasoning — the model already writes `rationale`
-      // (1-2 sentences, shown in the live terminal); a per-action
-      // `rationaleSummary` is rare. This becomes the trade's "why" on the Arena
-      // live floor. Sanitized short reasoning only — never raw chain-of-thought.
-      meta.rationaleSummary ?? decision.rationale,
+      // The trade's "why" on the Arena live floor. Prefer the model's per-action
+      // summary; else the decision rationale, but kept HONEST about this action's
+      // market (a multi-action decision's rationale can be about a DIFFERENT market
+      // than a secondary trade — see rationaleForAction). Sanitized short reasoning
+      // only — never raw chain-of-thought.
+      rationaleForAction(
+        action,
+        decision.rationale,
+        meta.rationaleSummary,
+        decision.actions.length,
+      ),
     );
     const r = await executeAction(client, action, observation, trace, idem);
     planned.push({
@@ -560,10 +616,15 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
   state.rateLimitHits = client.rateLimitHits ?? state.rateLimitHits;
   // Slice-3 memory: journal the accepted move(s) + the thesis behind them so next
   // cycle has continuity (manage with memory of WHY; don't re-open what we just did).
-  const moves = planned.filter((p) => p.accepted).map((p) => summarizeAction(p.action));
+  const moves = planned
+    .filter((p) => p.accepted)
+    .map((p) => summarizeAction(p.action));
   if (moves.length > 0) {
     const did = `${moves.join("; ")}${rationale ? ` — ${rationale.slice(0, 90)}` : ""}`;
-    state.journal = [...(state.journal ?? []), { at: observation.asOf, did }].slice(-10);
+    state.journal = [
+      ...(state.journal ?? []),
+      { at: observation.asOf, did },
+    ].slice(-10);
   }
   saveState(stateFile, state);
   if (live && anyExecuted) await exportRunEvidence(client, runId);
