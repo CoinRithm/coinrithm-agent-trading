@@ -233,7 +233,8 @@ export async function observe(
     if (!marketMood) {
       const fg = asObj(m.fearGreed);
       const v = asNum(fg.value);
-      if (v != null) marketMood = { fearGreed: v, label: asStr(fg.label) ?? "" };
+      if (v != null)
+        marketMood = { fearGreed: v, label: asStr(fg.label) ?? "" };
     }
     // `indicators` capability: enrich the observation with computed TA so the
     // model reasons over structure (trend/momentum/volatility/breakout) instead
@@ -281,7 +282,8 @@ export async function observe(
     // where its price view is sharpest — never the joined list (matches ~nothing).
     // Fall back to Bitcoin (always plentiful) — NEVER the general non-crypto board.
     const topCoin = (spec.risk.watchlist[0] ?? "").toUpperCase();
-    const pmQuery = PM_COIN_NAMES[topCoin] ?? spec.risk.watchlist[0] ?? "Bitcoin";
+    const pmQuery =
+      PM_COIN_NAMES[topCoin] ?? spec.risk.watchlist[0] ?? "Bitcoin";
     const [pmPosR, pmDiscFirst] = await Promise.all([
       client.pmPositions(undefined, trace),
       client.discoverPmMarkets({ q: pmQuery, limit: 12 }, trace),
@@ -295,7 +297,10 @@ export async function observe(
         ).length
       : 0;
     if (firstCount < 3 && pmQuery !== "Bitcoin") {
-      const fb = await client.discoverPmMarkets({ q: "Bitcoin", limit: 12 }, trace);
+      const fb = await client.discoverPmMarkets(
+        { q: "Bitcoin", limit: 12 },
+        trace,
+      );
       if (fb.ok) pmDiscR = fb;
     }
     if (pmPosR.ok) {
@@ -319,7 +324,8 @@ export async function observe(
           // Mark-to-market unrealized (field is `unrealizedPnl` on /positions/pm).
           // Feeds the equity-drawdown kill-switch so a large PM book that marks
           // down trips the stop too — not just futures.
-          unrealizedPnlMusd: asNum(p.unrealizedPnl) ?? asNum(p.unrealizedPnlMusd),
+          unrealizedPnlMusd:
+            asNum(p.unrealizedPnl) ?? asNum(p.unrealizedPnlMusd),
           status: asStr(p.status) ?? "open",
         }));
       // Settlement-feedback loop: the SAME /positions/pm response carries an
@@ -352,6 +358,21 @@ export async function observe(
     }
     if (pmDiscR.ok) {
       const dd = asObj(pmDiscR.data);
+      // Anti-churn: exclude markets the agent ALREADY holds an open position in
+      // from the candidate list BEFORE it reaches the prompt — so the model never
+      // sees (and re-picks) a held market only to have the runner/server reject it
+      // as a duplicate, burning a whole cycle. Keyed source|slug|outcomeExternalMarketId
+      // (lower-cased to match the discover rows below). The runner preflight guard
+      // (duplicate_intent) + server dedup (duplicate_open) remain the backstops.
+      // Side-agnostic = no re-bet/hedge on a held outcome, matching the runner policy.
+      const heldPmKeys = new Set(
+        pmPositions
+          .filter((p) => (p.status ?? "open") === "open")
+          .map(
+            (p) =>
+              `${(p.source ?? "").toLowerCase()}|${(p.slug ?? "").toLowerCase()}|${p.outcomeExternalMarketId ?? ""}`,
+          ),
+      );
       // Real /api/agent/pm/discover payload: { data: [event], pagination, meta }.
       // Each EVENT carries source/slug/title/freshness at the top level and the
       // quoteable id NESTED at outcomes[].externalMarketId — so expand one
@@ -365,7 +386,10 @@ export async function observe(
           // Keep titles SHORT: the model only needs to recognise the market.
           // Untrimmed titles, one per outcome across many events, ballooned the
           // prompt to ~69k tokens (413s on small-context free models).
-          const title = (asStr(ev.title) ?? asStr(ev.question) ?? "").slice(0, 80);
+          const title = (asStr(ev.title) ?? asStr(ev.question) ?? "").slice(
+            0,
+            80,
+          );
           const freshness = freshnessOf(ev); // freshness is event-level
           // At most a few outcomes per event so a wide multi-outcome market
           // (e.g. dozens of price buckets) can't explode the prompt. Drop
@@ -399,6 +423,15 @@ export async function observe(
           }));
         })
         .filter((m) => m.source && m.slug && m.outcomeExternalMarketId)
+        // Drop already-held markets (see heldPmKeys above) so the model only sees
+        // markets it can actually open — done BEFORE the slice so held positions
+        // don't consume the limited candidate slots.
+        .filter(
+          (m) =>
+            !heldPmKeys.has(
+              `${m.source.toLowerCase()}|${m.slug.toLowerCase()}|${m.outcomeExternalMarketId}`,
+            ),
+        )
         // Hard cap the PM block: a handful of fresh markets is plenty to pick from.
         .slice(0, 12)
         // Stamp a short, stable per-cycle ref (pm1…pmN) the model copies instead of

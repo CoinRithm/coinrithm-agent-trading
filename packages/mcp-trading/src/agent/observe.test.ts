@@ -98,6 +98,59 @@ describe("observe", () => {
     ).toBe(true);
   });
 
+  it("excludes PM markets the agent already holds an open position in (anti-churn candidate filter)", async () => {
+    const pmSpec = {
+      ...spec,
+      venues: ["pm", "futures"] as ("spot" | "futures" | "pm")[],
+    };
+    const c = fakeClient({
+      // Held: Kalshi BTC-UP / yes-1 (API shape: source, eventSlug, outcome.externalMarketId).
+      pmPositions: async () =>
+        okData({
+          positions: [
+            {
+              id: 7,
+              status: "open",
+              source: "Kalshi",
+              eventSlug: "BTC-UP",
+              outcome: { externalMarketId: "yes-1" },
+              stakeMusd: 10,
+            },
+          ],
+        }),
+      discoverPmMarkets: async () =>
+        okData({
+          data: [
+            {
+              source: "Kalshi",
+              slug: "BTC-UP",
+              title: "BTC up?",
+              freshness: { status: "fresh" },
+              outcomes: [
+                { externalMarketId: "yes-1", name: "Yes" }, // held -> filtered out
+                { externalMarketId: "no-1", name: "No" }, // not held -> kept
+              ],
+            },
+          ],
+        }),
+    });
+    const { observation } = await observe(c, pmSpec, newState("r"));
+    // Only the un-held outcome survives as a candidate, refs stay contiguous (pm1).
+    expect(observation.pmMarkets.length).toBe(1);
+    expect(observation.pmMarkets[0]).toMatchObject({
+      source: "kalshi",
+      slug: "btc-up",
+      outcomeExternalMarketId: "no-1",
+      ref: "pm1",
+    });
+    // The held position is still surfaced to the model as holdings context.
+    expect(
+      observation.pmPositions.some(
+        (p) => p.outcomeExternalMarketId === "yes-1",
+      ),
+    ).toBe(true);
+  });
+
   it("maps the REAL /positions/futures shape: nested coin + per-position prices (were undefined/dropped)", async () => {
     // REAL shape (probed 2026-06-25): coin is NESTED ({ucid,symbol,name}); open
     // positions also carry markPrice/liquidationPrice/sl/tp. observe used to read
@@ -272,9 +325,24 @@ describe("observe", () => {
               freshness: { status: "fresh" },
               eligible: true,
               outcomes: [
-                { externalMarketId: "a", name: "60-65k", probability: 40, eligible: true },
-                { externalMarketId: "b", name: "65-70k", probability: 35, eligible: true },
-                { externalMarketId: "z", name: "0% tail", probability: 0, eligible: false },
+                {
+                  externalMarketId: "a",
+                  name: "60-65k",
+                  probability: 40,
+                  eligible: true,
+                },
+                {
+                  externalMarketId: "b",
+                  name: "65-70k",
+                  probability: 35,
+                  eligible: true,
+                },
+                {
+                  externalMarketId: "z",
+                  name: "0% tail",
+                  probability: 0,
+                  eligible: false,
+                },
               ],
             },
           ],
