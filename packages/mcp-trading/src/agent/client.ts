@@ -168,6 +168,12 @@ export class CoinRithmClient {
   ) {
     return this.request("GET", "/api/agent/news", { query, trace });
   }
+  // GET /api/agent/positions/pm. Response (data: unknown — parsed defensively in
+  // observe): { positions: [...open + unrealized mark...], recentlyResolved: [...
+  // the caller's OWN bets that settled win/loss/void with realized pnl since the
+  // delta cursor; settlement-feedback loop...], updatedSince, asOf }. The
+  // `recentlyResolved` array is ADDITIVE (older backends omit it → observe degrades
+  // to []); the open `positions` shape is unchanged.
   pmPositions(query?: { updatedSince?: string }, trace?: AgentTrace) {
     return this.request("GET", "/api/agent/positions/pm", { query, trace });
   }

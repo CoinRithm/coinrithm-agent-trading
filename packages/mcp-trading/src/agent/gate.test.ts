@@ -23,6 +23,7 @@ function obs(
     openPositions,
     openOrders: [],
     pmPositions: [],
+    pmResolutions: [],
     pmMarkets,
     watch: [],
     setups,

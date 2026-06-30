@@ -256,6 +256,24 @@ export interface PmPosition {
   status?: string;
 }
 
+// A recently-RESOLVED prediction-market position (the settlement-feedback loop):
+// one of the agent's OWN bets that reached a terminal status (win/loss/void) since
+// the last cycle, with its realized pnl. Reflective context for the observe phase
+// — the agent reflects on what its predictions actually resolved to and adapts. It
+// is NOT a new action; the runner never bets off it. Sourced from
+// /positions/pm's additive `recentlyResolved` array (delivered ~once per
+// resolution; dedupe is the consumer's job, but a short capped window is fine to
+// re-show). Paper-only, like everything else here.
+export interface PmResolution {
+  id: number;
+  eventTitle?: string;
+  slug?: string;
+  side?: string; // yes | no
+  status?: string; // settled_win | settled_loss | void_refunded
+  pnlMusd?: number;
+  stakeMusd?: number;
+}
+
 // A discovered, quote-ready prediction-market candidate the model may pick from
 // (PM markets are not coins, so they come from discovery, not the watchlist).
 export interface PmMarket {
@@ -315,6 +333,7 @@ export interface Observation {
   openPositions: OpenPosition[]; // open FUTURES positions
   openOrders: SpotOrder[]; // resting SPOT orders
   pmPositions: PmPosition[]; // open prediction-market positions
+  pmResolutions: PmResolution[]; // recently-settled PM bets (settlement-feedback loop; reflective context, not an action)
   pmMarkets: PmMarket[]; // discovered quote-ready PM candidates (only if pm venue)
   watch: WatchEntry[];
   setups: SetupSignal[]; // deterministic per-cycle structure flags (see SetupSignal)

@@ -178,6 +178,83 @@ describe("observe", () => {
     expect(p.unrealizedPnlMusd).toBe(-3.5); // from unrealizedPnl -> kill-switch drawdown
   });
 
+  it("SETTLEMENT FEEDBACK: surfaces /positions/pm recentlyResolved as pmResolutions (win/loss/void + pnl)", async () => {
+    // The settlement-feedback loop: the /positions/pm response now carries an
+    // additive `recentlyResolved` array. observe must lift it into
+    // observation.pmResolutions so the model can reflect on its settled bets.
+    const pmSpec = {
+      ...spec,
+      venues: ["pm", "futures"] as ("spot" | "futures" | "pm")[],
+    };
+    const c = fakeClient({
+      discoverPmMarkets: async () => okData({ data: [] }),
+      pmPositions: async () =>
+        okData({
+          positions: [],
+          recentlyResolved: [
+            {
+              id: 11,
+              eventTitle: "Will BTC top $80k in June?",
+              eventSlug: "btc-80k-june",
+              side: "yes",
+              status: "settled_win",
+              pnlMusd: 320.5,
+              payoutMusd: 345.5,
+              stakeMusd: 25,
+              settledAt: "2026-06-30T00:00:00.000Z",
+            },
+            {
+              id: 12,
+              eventTitle: "ETH flips SOL by Friday?",
+              side: "no",
+              status: "settled_loss",
+              pnlMusd: -100,
+              stakeMusd: 100,
+            },
+            {
+              id: 13,
+              eventTitle: "Tie game?",
+              side: "yes",
+              status: "void_refunded",
+              pnlMusd: null,
+              stakeMusd: 10,
+            },
+          ],
+        }),
+    });
+    const { observation } = await observe(c, pmSpec, newState("r"));
+    expect(observation.pmResolutions).toHaveLength(3);
+    const win = observation.pmResolutions.find((r) => r.id === 11);
+    expect(win).toMatchObject({
+      id: 11,
+      eventTitle: "Will BTC top $80k in June?",
+      slug: "btc-80k-june",
+      side: "yes",
+      status: "settled_win",
+      pnlMusd: 320.5,
+      stakeMusd: 25,
+    });
+    const loss = observation.pmResolutions.find((r) => r.id === 12);
+    expect(loss?.status).toBe("settled_loss");
+    expect(loss?.pnlMusd).toBe(-100);
+    const voided = observation.pmResolutions.find((r) => r.id === 13);
+    expect(voided?.status).toBe("void_refunded");
+  });
+
+  it("SETTLEMENT FEEDBACK: degrades pmResolutions to [] when the backend omits recentlyResolved (back-compat)", async () => {
+    const pmSpec = {
+      ...spec,
+      venues: ["pm", "futures"] as ("spot" | "futures" | "pm")[],
+    };
+    const c = fakeClient({
+      discoverPmMarkets: async () => okData({ data: [] }),
+      // Older backend: positions only, no recentlyResolved key.
+      pmPositions: async () => okData({ positions: [] }),
+    });
+    const { observation } = await observe(c, pmSpec, newState("r"));
+    expect(observation.pmResolutions).toEqual([]);
+  });
+
   it("drops outcomes the backend flagged not-openable (eligible === false) and stamps contiguous refs", async () => {
     const pmSpec = {
       ...spec,

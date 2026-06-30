@@ -10,6 +10,7 @@ import {
   OpenPosition,
   SpotOrder,
   PmPosition,
+  PmResolution,
   PmMarket,
   NewsItem,
   WatchEntry,
@@ -90,6 +91,7 @@ function emptyObservation(state: RunState, scopes: string[] = []): Observation {
     openPositions: [],
     openOrders: [],
     pmPositions: [],
+    pmResolutions: [],
     pmMarkets: [],
     watch: [],
     setups: [],
@@ -269,6 +271,7 @@ export async function observe(
 
   // PM open positions + discovered quote-ready candidates — only if pm enabled.
   let pmPositions: PmPosition[] = [];
+  let pmResolutions: PmResolution[] = [];
   let pmMarkets: PmMarket[] = [];
   if (wantPm) {
     // Bias PM discovery toward CRYPTO markets the agent has a price view on — the
@@ -319,6 +322,33 @@ export async function observe(
           unrealizedPnlMusd: asNum(p.unrealizedPnl) ?? asNum(p.unrealizedPnlMusd),
           status: asStr(p.status) ?? "open",
         }));
+      // Settlement-feedback loop: the SAME /positions/pm response carries an
+      // additive `recentlyResolved` array — the agent's OWN bets that settled
+      // win/loss/void since last cycle, with realized pnl. Surface it as reflective
+      // context so the model learns from how its predictions actually resolved
+      // (reinforce what worked, avoid what didn't). NOT an action — the runner never
+      // bets off this. Fail-safe: an absent/old backend omits the key → [] (the
+      // ?? [] in asArr + the guarded map), so this never breaks the open feed.
+      pmResolutions = asArr(asObj(pmPosR.data).recentlyResolved)
+        .map(asObj)
+        .map((r) => ({
+          id: Number(asNum(r.id) ?? r.id),
+          // The backend nests the outcome label/title; carry the human-readable
+          // title (or fall back to the slug) so the prompt can name the market.
+          eventTitle:
+            asStr(r.eventTitle) ?? asStr(asObj(r.event).title) ?? undefined,
+          slug: asStr(r.eventSlug) ?? asStr(r.slug),
+          side: asStr(r.side),
+          status: asStr(r.status),
+          pnlMusd: asNum(r.pnlMusd),
+          stakeMusd: asNum(r.stakeMusd),
+        }))
+        // A resolution with no id is unusable for the model's reflection; drop it.
+        .filter((r) => Number.isFinite(r.id))
+        // Bound the block: a short recent window is enough reflective context, and
+        // the backend already caps at ~25; cap again so a noisy response can't bloat
+        // the prompt.
+        .slice(0, 25);
     }
     if (pmDiscR.ok) {
       const dd = asObj(pmDiscR.data);
@@ -417,6 +447,7 @@ export async function observe(
     openPositions,
     openOrders,
     pmPositions,
+    pmResolutions,
     pmMarkets,
     watch,
     news,

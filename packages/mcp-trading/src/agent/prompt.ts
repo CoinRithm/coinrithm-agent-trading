@@ -3,7 +3,39 @@
 // The model only PROPOSES — the runner re-checks every action against the caps,
 // so the prompt states the caps but never relies on the model to honor them.
 
-import { AgentSpec, Observation } from "./types.js";
+import { AgentSpec, Observation, PmResolution } from "./types.js";
+
+// Format the settlement-feedback block: a concise, natural-language recap of the
+// agent's OWN PM bets that resolved since the last cycle, so the model can REFLECT
+// (reinforce what worked, avoid what didn't). Capped + compact — this is context,
+// not a new action. Returns [] when there is nothing to show. Example line:
+//   - "Will BTC top $80k?" — YES, WON +320 mUSD; "ETH flips SOL by Fri?" — NO,
+//     LOST -100 mUSD; "Election tie?" — VOID (stake refunded).
+export function formatPmResolutions(resolutions: PmResolution[]): string[] {
+  if (!resolutions || resolutions.length === 0) return [];
+  // Cap defensively (the backend + observe already cap at ~25); a handful is the
+  // useful reflective window and keeps the prompt small.
+  const items = resolutions.slice(0, 12).map((r) => {
+    const title = (r.eventTitle ?? r.slug ?? "(market)").slice(0, 70);
+    const side = (r.side ?? "").toUpperCase();
+    const sidePart = side ? `${side}, ` : "";
+    if (r.status === "void_refunded") {
+      return `"${title}" — ${sidePart}VOID (stake refunded)`;
+    }
+    const outcome = r.status === "settled_win" ? "WON" : "LOST";
+    const pnl =
+      typeof r.pnlMusd === "number"
+        ? ` ${r.pnlMusd >= 0 ? "+" : ""}${Math.round(r.pnlMusd)} mUSD`
+        : "";
+    return `"${title}" — ${sidePart}${outcome}${pnl}`;
+  });
+  return [
+    "",
+    "## Your prediction markets that just resolved (settlement feedback — learn from these)",
+    "These are YOUR OWN PM bets that settled since last cycle. Reflect: where your read was RIGHT, lean into that edge; where it was WRONG, adjust. This is context to learn from, NOT a position to manage (they are closed).",
+    `Resolved since last cycle: ${items.join("; ")}.`,
+  ];
+}
 
 export function buildSystemPrompt(
   spec: AgentSpec,
@@ -128,6 +160,9 @@ export function buildUserPrompt(
       ...journal.slice(-6).map((j) => `- ${j.did}`),
     );
   }
+  // Settlement-feedback loop: surface the agent's recently-RESOLVED PM bets so the
+  // model can reflect and adapt. Reflective context only — never a new action.
+  lines.push(...formatPmResolutions(obs.pmResolutions ?? []));
   lines.push(
     "",
     "```json",
