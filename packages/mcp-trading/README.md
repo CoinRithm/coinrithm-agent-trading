@@ -57,7 +57,9 @@ COINRITHM_API_KEY=crk_live_… ANTHROPIC_API_KEY=sk-ant-… \
 
 Full guide (env vars, fail-closed guarantees, folder layout):
 **[docs/agent-runner.md](https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/docs/agent-runner.md)**.
-The CoinRithm hosted scheduler runs this same engine for you (later).
+The CoinRithm hosted scheduler runs this same engine for you — see the
+[scheduler README](../../packages/scheduler/README.md) for the built,
+DB-driven runtime.
 
 ## Two ways to run
 

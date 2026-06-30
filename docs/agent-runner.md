@@ -138,7 +138,9 @@ which an agent may use in `venues:`. Every venue is gated by the same caps:
 notional / PM stake), opens are quote-gated (eligible + fresh), and a `pm_open`
 may only target a market that **discovery surfaced this cycle** (no hallucinated
 markets). The **hosted** scheduler (running this same agent spec for you,
-managed) is a later step — this is the self-host path.
+managed) is built and available — see `packages/scheduler/` and its README for
+the DB-driven, stateless, at-most-once-per-window runtime. This doc covers the
+self-host path.
 
 ## Develop
 
