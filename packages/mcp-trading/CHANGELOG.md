@@ -5,6 +5,42 @@ ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (t
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
 versioned separately (see `openapi.yaml` `info.version`, currently `1.5.0`).
 
+## 0.5.0
+
+Agent-runner quality + reliability release. `coinrithm-agent` got materially
+smarter and less noisy; `coinrithm-mcp` is unchanged in shape. Bundles the work
+since 0.4.0.
+
+- **Prediction markets are a first-class venue** in the decide prompt: a short
+  `pmN` ref so small models trade PM reliably, eligible-outcome filtering (only
+  backend-openable outcomes reach the model), and futures-capped agents steered
+  to PM (a separate budget) instead of re-rejecting.
+- **PM anti-churn — now actually effective.** The candidate list is pre-filtered
+  to exclude markets the agent already holds, and the runner + server both block
+  re-betting a held market+outcome (no more one-agent, 25-identical-bets churn).
+  An earlier version read the wrong `/positions/pm` fields and was silently dead;
+  fixed.
+- **Settlement-feedback learning loop.** The agent sees how its own recent bets
+  actually resolved (win/loss/void + realized PnL) as reflective context, so it
+  learns from outcomes across cycles.
+- **Per-trade reasoning stays honest about the market.** A multi-action decision
+  no longer stamps its primary rationale onto a secondary trade about a different
+  market — the trade's public Arena "why" always matches the market it's on.
+- **Futures reliability.** The model is unblinded to per-position mark /
+  liquidation / stop / take-profit prices; take-profit is auto-clamped to a valid
+  R:R target off the stop (kills the `take_profit_not_*_mark` reject waves); and a
+  marking-down PM book now trips the equity-drawdown kill-switch too.
+- **News capability.** Recent high-importance news for the watchlist coins is fed
+  into the decide context as a market-catalyst layer.
+- **Robustness + contract accuracy.** Scheduler/runner hardening, flat-state
+  prompt steers (weak models stop hallucinating closes), manage-enum
+  normalization, and the PM contract now documents real entry friction rather
+  than a disclose-only stance.
+- **Security.** `hono` bumped to 4.12.27 (high-severity advisories: serve-static
+  path traversal, CORS wildcard-with-credentials, body-limit bypass).
+- **Docs.** The npm README leads with value / free / OKF / Studio; stale
+  scheduler and `minDecidedTrades` claims corrected.
+
 ## 0.4.0
 
 - **Deterministic scorecard engine (`computeScorecard`).** The reproducible-
