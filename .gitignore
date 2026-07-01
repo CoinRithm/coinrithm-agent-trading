@@ -8,3 +8,4 @@ dist/
 examples/**/.*.state.json
 __pycache__/
 *.pyc
+tools/mcp-publisher/
