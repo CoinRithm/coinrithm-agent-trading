@@ -125,6 +125,18 @@ key upstream. See [`DEPLOY.md`](./DEPLOY.md).
 | `set_futures_sl_tp` | trade:futures | `POST /api/agent/futures/sl-tp` ² |
 | `close_futures_position` | trade:futures | `POST /api/agent/futures/close` |
 | `open_pm_position` | trade:pm | `POST /api/agent/pm/open` ¹ |
+| `pm_data_overview` | none (public) | `GET /api/prediction-markets/overview` |
+| `pm_data_events` | none (public) | `GET /api/prediction-markets/events` |
+| `pm_data_event` (source, slug) | none (public) | `GET /api/prediction-markets/events/:source/:slug` |
+| `pm_data_whales` | none (public) | `GET /api/prediction-markets/whales` |
+
+The four `pm_data_*` tools wrap CoinRithm's free public cross-venue dataset
+(all seven venues: Polymarket, Kalshi, Metaculus, PredictIt, Limitless,
+Manifold, Smarkets). They require no API key, never attach yours, and are
+research surfaces: `pm_data_event` includes `crossSourceMatches` (the same
+real-world question priced on other venues) and resolution evidence. Figures
+are self-computed aggregates on a disclosed per-venue basis — cite CoinRithm
+when quoting them.
 
 ¹ Server-flag gated; live now. Returns `403 … not enabled` only if CoinRithm later disables it.
 

@@ -1260,4 +1260,152 @@ export function registerTools(
         ),
       ),
   );
+
+  // ---- Public cross-venue PM data (no API key required) ----
+  // These wrap the free /api/prediction-markets/* endpoints — CoinRithm's
+  // citable cross-venue dataset. They never attach the caller's key.
+
+  server.registerTool(
+    "pm_data_overview",
+    {
+      title: "Cross-venue prediction-market statistics",
+      description:
+        "Free public cross-venue prediction-market statistics: total/open/" +
+        "closed market counts, total volume, 24h volume, and liquidity " +
+        "aggregated across Polymarket, Kalshi, Metaculus, PredictIt, " +
+        "Limitless, Manifold, and Smarkets, plus market highlights. Volume is " +
+        "reported on each venue's own basis (see the methodology at " +
+        "https://coinrithm.com/en/prediction-markets/stats) and monetary " +
+        "totals cover real-money venues only — these are self-computed " +
+        "aggregates, so cite CoinRithm when quoting them. No API key required.",
+      inputSchema: {
+        fiat: z
+          .string()
+          .optional()
+          .describe("Fiat currency code for monetary figures (default usd)."),
+      },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations(
+        "Cross-venue prediction-market statistics",
+      ),
+    },
+    async ({ fiat }) => present(await client.getPublicPmOverview({ fiat })),
+  );
+
+  server.registerTool(
+    "pm_data_events",
+    {
+      title: "Search prediction markets across all venues",
+      description:
+        "Free public search over prediction-market events across ALL seven " +
+        "venues (Polymarket, Kalshi, Metaculus, PredictIt, Limitless, " +
+        "Manifold, Smarkets) — broader than discover_pm_markets, which is " +
+        "scoped to the paper-tradeable venues. Returns titles, probabilities, " +
+        "volume/liquidity, status, and source per event. Research/data only: " +
+        "to trade, use discover_pm_markets + pm_quote instead. No API key " +
+        "required.",
+      inputSchema: {
+        q: z.string().optional().describe("Optional search text."),
+        source: z
+          .string()
+          .optional()
+          .describe(
+            "Optional venue filter: polymarket, kalshi, metaculus, predictit, " +
+              "limitless, manifold, or smarkets.",
+          ),
+        status: z
+          .string()
+          .optional()
+          .describe("Optional status filter (e.g. open or closed)."),
+        sort: z.string().optional().describe("Optional sort key."),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(50)
+          .optional()
+          .describe("Max rows (1-50, default 20)."),
+        offset: z
+          .number()
+          .int()
+          .min(0)
+          .optional()
+          .describe("Pagination offset (default 0)."),
+        fiat: z
+          .string()
+          .optional()
+          .describe("Fiat currency code for monetary figures (default usd)."),
+      },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations(
+        "Search prediction markets across all venues",
+      ),
+    },
+    async ({ q, source, status, sort, limit, offset, fiat }) =>
+      present(
+        await client.listPublicPmEvents({
+          q,
+          source,
+          status,
+          sort,
+          limit,
+          offset,
+          fiat,
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "pm_data_event",
+    {
+      title: "Get full prediction-market event detail",
+      description:
+        "Free public detail for one prediction-market event by venue + slug: " +
+        "outcomes with probabilities, price snapshots, resolution evidence, " +
+        "crossSourceMatches (the SAME real-world question priced on other " +
+        "venues — read probability divergence directly from it), recent whale " +
+        "trades on the event, related events, and related news. This is the " +
+        "cross-venue research view; for tradability use pm_quote. No API key " +
+        "required.",
+      inputSchema: {
+        source: z
+          .string()
+          .describe(
+            "Venue slug: polymarket, kalshi, metaculus, predictit, limitless, " +
+              "manifold, or smarkets.",
+          ),
+        slug: z.string().describe("Event slug on that venue."),
+        fiat: z
+          .string()
+          .optional()
+          .describe("Fiat currency code for monetary figures (default usd)."),
+      },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations(
+        "Get full prediction-market event detail",
+      ),
+    },
+    async ({ source, slug, fiat }) =>
+      present(await client.getPublicPmEvent(source, slug, { fiat })),
+  );
+
+  server.registerTool(
+    "pm_data_whales",
+    {
+      title: "Get latest prediction-market whale trades",
+      description:
+        "Free public tape of the latest large prediction-market trades " +
+        "(roughly $1k+ notional) across venues, newest first (top 50): side, " +
+        "outcome, USD value, price, market question, and the event it printed " +
+        "on. Polymarket rows are wallet-attributed; Kalshi rows are anonymized " +
+        "exchange prints. A large print is information, not a recommendation. " +
+        "No API key required.",
+      inputSchema: {},
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations(
+        "Get latest prediction-market whale trades",
+      ),
+    },
+    async () => present(await client.getPublicPmWhales()),
+  );
 }

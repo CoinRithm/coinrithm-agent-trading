@@ -216,6 +216,78 @@ export class CoinRithmClient {
     };
   }
 
+  // Public, keyless GET against the free cross-venue data API
+  // (/api/prediction-markets/*). No Authorization header is ever attached:
+  // these endpoints require no key, and the caller's trading key must not
+  // leak into them. No ledger headers exist on this surface either.
+  private async publicRequest(
+    path: string,
+    query?: Record<string, string | number | undefined>,
+  ): Promise<ApiResult> {
+    const url = new URL(this.baseUrl + path);
+    if (query) {
+      for (const [k, v] of Object.entries(query)) {
+        if (v !== undefined && v !== null && v !== "") {
+          url.searchParams.set(k, String(v));
+        }
+      }
+    }
+
+    let res: Response;
+    try {
+      res = await fetch(url.toString(), {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      });
+    } catch (err) {
+      log(`network error calling GET ${path}:`, err);
+      return {
+        ok: false,
+        status: 0,
+        data: {
+          error: "network_error",
+          message: err instanceof Error ? err.message : String(err),
+        },
+      };
+    }
+
+    const text = await res.text();
+    let data: unknown = text;
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        // leave as text
+      }
+    }
+    return { ok: res.ok, status: res.status, data };
+  }
+
+  // ---- public PM data (no key required) ----
+  getPublicPmOverview(query?: { fiat?: string }) {
+    return this.publicRequest("/api/prediction-markets/overview", query);
+  }
+  listPublicPmEvents(query?: {
+    q?: string;
+    source?: string;
+    status?: string;
+    sort?: string;
+    limit?: number;
+    offset?: number;
+    fiat?: string;
+  }) {
+    return this.publicRequest("/api/prediction-markets/events", query);
+  }
+  getPublicPmEvent(source: string, slug: string, query?: { fiat?: string }) {
+    return this.publicRequest(
+      `/api/prediction-markets/events/${encodeURIComponent(source)}/${encodeURIComponent(slug)}`,
+      query,
+    );
+  }
+  getPublicPmWhales() {
+    return this.publicRequest("/api/prediction-markets/whales");
+  }
+
   // Every method takes an optional trailing `apiKey` (the per-request key for
   // the multi-user HTTP path). When omitted, the constructor key (stdio) is used.
 
