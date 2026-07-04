@@ -1363,10 +1363,14 @@ export function registerTools(
         "Free public detail for one prediction-market event by venue + slug: " +
         "outcomes with probabilities, price snapshots, resolution evidence, " +
         "crossSourceMatches (the SAME real-world question priced on other " +
-        "venues — read probability divergence directly from it), recent whale " +
-        "trades on the event, related events, and related news. This is the " +
-        "cross-venue research view; for tradability use pm_quote. No API key " +
-        "required.",
+        "venues — read probability divergence directly from it), " +
+        "referenceProbability when present (CoinRithm's canonical cross-venue " +
+        "number: the liquidity-weighted median Yes probability across matched " +
+        "real-money venues, with venueCount and spreadPoints — quote all " +
+        "three together, venues disagree and the spread says by how much), " +
+        "recent whale trades on the event, related events, and related news. " +
+        "This is the cross-venue research view; for tradability use pm_quote. " +
+        "No API key required.",
       inputSchema: {
         source: z
           .string()
