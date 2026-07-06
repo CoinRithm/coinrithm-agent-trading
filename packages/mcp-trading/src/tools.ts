@@ -1301,9 +1301,12 @@ export function registerTools(
         "venues (Polymarket, Kalshi, Metaculus, PredictIt, Limitless, " +
         "Manifold, Smarkets) — broader than discover_pm_markets, which is " +
         "scoped to the paper-tradeable venues. Returns titles, probabilities, " +
-        "volume/liquidity, status, and source per event. Research/data only: " +
-        "to trade, use discover_pm_markets + pm_quote instead. No API key " +
-        "required.",
+        "volume/liquidity, status, and source per event, plus " +
+        "referenceProbability when present (CoinRithm's canonical cross-venue " +
+        "number for open events matched across venues — probability, " +
+        "venueCount, spreadPoints, and outcomeName for multi-outcome " +
+        "leaders). Research/data only: to trade, use discover_pm_markets + " +
+        "pm_quote instead. No API key required.",
       inputSchema: {
         q: z.string().optional().describe("Optional search text."),
         source: z
