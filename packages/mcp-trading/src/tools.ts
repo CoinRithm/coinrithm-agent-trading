@@ -1368,7 +1368,9 @@ export function registerTools(
         "number: the liquidity-weighted median Yes probability across matched " +
         "real-money venues, with venueCount and spreadPoints — quote all " +
         "three together, venues disagree and the spread says by how much), " +
-        "recent whale trades on the event, related events, and related news. " +
+        "recent whale trades on the event, related events, related news, and " +
+        "volumeHistory when present (daily volume points captured since " +
+        "2026-07-02 — read the event's volume trend directly from it). " +
         "This is the cross-venue research view; for tradability use pm_quote. " +
         "No API key required.",
       inputSchema: {
