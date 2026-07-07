@@ -65,6 +65,37 @@ async function main(): Promise<void> {
     res.json({ ok: true, service: "coinrithm-mcp", transport: "streamable-http" });
   });
 
+  // Self-describing landing for humans and validate-before-recommend agents.
+  // GET / and GET /mcp used to 404, which reads as a dead service to anyone
+  // probing the published URL (GEO audit 2026-07-07). The MCP endpoint itself
+  // is POST-only streamable HTTP — say so instead of 404ing.
+  app.get("/", (_req, res) => {
+    res.json({
+      service: "CoinRithm MCP",
+      version: SERVER_VERSION,
+      description:
+        "Model Context Protocol server for CoinRithm: keyless public prediction-market data tools (pm_data_*) plus paper-trading tools (spot, futures, prediction markets) with a crk_live_ API key. Paper only — never real money.",
+      endpoint: { url: "https://mcp.coinrithm.com/mcp", method: "POST", transport: "streamable-http" },
+      connect:
+        "Point any MCP client at the endpoint above. Data tools need no key; trading tools take Authorization: Bearer crk_live_… (mint one at coinrithm.com → Settings → API Keys).",
+      localAlternative: "npx -y @coinrithm/mcp-trading",
+      docs: {
+        quickstart: "https://www.coinrithm.com/en/agentic-trading",
+        openapi: "https://www.coinrithm.com/openapi.yaml",
+        repo: "https://github.com/CoinRithm/coinrithm-agent-trading",
+        dataApi: "https://www.coinrithm.com/en/prediction-markets/api",
+      },
+    });
+  });
+
+  app.get("/mcp", (_req, res) => {
+    res.status(405).json({
+      error: "method_not_allowed",
+      message:
+        "This is a POST-only streamable-HTTP MCP endpoint. Connect with an MCP client, or GET / for service info.",
+    });
+  });
+
   app.post("/mcp", async (req: AuthedRequest, res) => {
     // Per-request auth: read THIS caller's key from the Authorization header,
     // or from Smithery's non-reserved forwarding header.
