@@ -368,7 +368,9 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
     return {
       decision: "skip",
       skipReason: `model output invalid: ${parsed.error}`,
-      rawModelOutput: res.text.slice(0, 8000),
+      // Never persist raw model text (no-CoT privacy policy) — the parse error
+      // in skipReason is the diagnostic; the malformed output is not stored.
+      rawModelOutput: undefined,
       planned: [],
       modelFailed: true,
       live,
@@ -381,11 +383,15 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
   state.consecutiveModelFailures = 0;
   const decision = parsed.decision;
   // Reasoning captured for the Arena terminal (keystone transparency): the
-  // model's own analysis this cycle + decision confidence + the full raw text
-  // (capped) for debugging. Shared across the skip + act return paths.
+  // model's PARSED, sanitized short analysis + decision confidence. We do NOT
+  // persist the full raw model text — a response can carry prose reasoning
+  // around the JSON, and the privacy promise (frontend copy + CLAUDE.md
+  // data-retention) is that raw model reasoning traces are NEVER stored, only
+  // the sanitized rationale summary. Shared across the skip + act return paths.
   const rationale = decision.rationale;
   const confidence = decision.confidence;
-  const rawModelOutput = res.text.slice(0, 8000);
+  // undefined (not the raw text) → db.ts stores NULL for raw_model_output.
+  const rawModelOutput = undefined;
 
   if (decision.decision === "skip" || decision.actions.length === 0) {
     state.consecutiveRejectCycles += 1;

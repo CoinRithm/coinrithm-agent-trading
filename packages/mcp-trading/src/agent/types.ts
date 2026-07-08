@@ -546,8 +546,10 @@ export interface CycleResult {
   decision: "skip" | "act";
   skipReason?: string;
   // Reasoning surfaced to the Arena terminal (keystone transparency). rationale
-  // = the model's short analysis this cycle; confidence = decision-level 0..1;
-  // rawModelOutput = the full pre-parse model text (capped) for debugging.
+  // = the model's PARSED, sanitized short analysis this cycle; confidence =
+  // decision-level 0..1. rawModelOutput is DEPRECATED and always left undefined:
+  // the full raw model text is NEVER persisted (no-CoT privacy policy — matches
+  // the frontend promise + CLAUDE.md data-retention). Kept only for type stability.
   rationale?: string;
   confidence?: number;
   rawModelOutput?: string;

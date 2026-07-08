@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS agent_runtime.agent_cycles (
   skip_reason  TEXT,
   rationale    TEXT,                                -- model's short analysis this cycle (keystone transparency)
   confidence   DOUBLE PRECISION,                    -- decision-level confidence 0..1
-  raw_model_output TEXT,                            -- full pre-parse model text (capped) for debugging
+  raw_model_output TEXT,                            -- DEPRECATED, always NULL: raw model text is NEVER persisted (no-CoT privacy policy). Kept for schema stability; use `rationale` (sanitized).
   model_failed BOOLEAN NOT NULL DEFAULT false,
   disabled     BOOLEAN NOT NULL DEFAULT false,
   actions      JSONB,                               -- planned actions (+ accept/reject + executed)
