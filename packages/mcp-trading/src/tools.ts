@@ -1297,9 +1297,9 @@ export function registerTools(
     {
       title: "Search prediction markets across all venues",
       description:
-        "Free public search over prediction-market events across ALL seven " +
-        "venues (Polymarket, Kalshi, Metaculus, PredictIt, Limitless, " +
-        "Manifold, Smarkets) — broader than discover_pm_markets, which is " +
+        "Free public search over prediction-market events across ALL eight " +
+        "venues (Polymarket, Kalshi, Rothera, Limitless, Smarkets, " +
+        "Manifold, Metaculus, PredictIt) — broader than discover_pm_markets, which is " +
         "scoped to the paper-tradeable venues. Returns titles, probabilities, " +
         "volume/liquidity, status, and source per event, plus " +
         "referenceProbability when present (CoinRithm's canonical cross-venue " +
