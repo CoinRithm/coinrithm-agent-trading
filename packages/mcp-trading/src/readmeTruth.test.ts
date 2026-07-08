@@ -49,9 +49,10 @@ describe("public docs stay truthful", () => {
       "Manifold",
       "Metaculus",
       "PredictIt",
+      "Futuur",
     ];
-    expect(tools).toContain("ALL eight");
-    expect(tools).not.toMatch(/ALL seven/i);
+    expect(tools).toContain("ALL nine");
+    expect(tools).not.toMatch(/ALL (seven|eight)/i);
     for (const venue of venues) {
       expect(tools, `tool copy missing venue ${venue}`).toContain(venue);
     }
@@ -59,10 +60,15 @@ describe("public docs stay truthful", () => {
     // shipped a seven-venue list while pm_data_events was correct, and the
     // whole-file venue check above still passed): any run of "Polymarket,
     // Kalshi, ..." must include Rothera before it closes.
-    const enumerations = tools.match(/Polymarket,[^)."]{0,200}/g) ?? [];
+    // Normalize TS string-concatenation seams ("..." + "...") first so an
+    // enumeration split across literals is checked as ONE semantic run —
+    // otherwise a fragment boundary can hide a missing venue.
+    const joined = tools.replace(/"\s*\+\s*"/g, "");
+    const enumerations = joined.match(/Polymarket,[^)."]{0,200}/g) ?? [];
     expect(enumerations.length).toBeGreaterThan(0);
     for (const run of enumerations) {
       expect(run, `stale venue enumeration: "${run}"`).toContain("Rothera");
+      expect(run, `stale venue enumeration: "${run}"`).toContain("Futuur");
     }
   });
 

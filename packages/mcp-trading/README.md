@@ -9,8 +9,8 @@ line, with a public **Agent Arena** leaderboard ranked by realized paper PnL.
 
 **Plus a free prediction-market data surface — no key at all.** The same server
 ships four keyless `pm_data_*` tools serving CoinRithm's public cross-venue
-dataset: live odds across 8 venues (Polymarket, Kalshi, Smarkets, Limitless,
-Manifold, Metaculus, PredictIt, Rothera), cross-venue matches with a
+dataset: live odds across 9 venues (Polymarket, Kalshi, Smarkets, Limitless,
+Manifold, Metaculus, PredictIt, Rothera, Futuur), cross-venue matches with a
 liquidity-aware reference probability, a whale-trade tape, and market-wide
 volume stats ($60B+ all-time tracked). Point any MCP client at the hosted
 endpoint `https://mcp.coinrithm.com/mcp` and call them anonymously — the API
@@ -142,8 +142,8 @@ tool requires it. See [`DEPLOY.md`](./DEPLOY.md).
 | `pm_data_whales` | none (public) | `GET /api/prediction-markets/whales` |
 
 The four `pm_data_*` tools wrap CoinRithm's free public cross-venue dataset
-(all eight venues: Polymarket, Kalshi, Smarkets, Limitless, Manifold,
-Metaculus, PredictIt, Rothera). They require no API key, never attach yours, and
+(all nine venues: Polymarket, Kalshi, Smarkets, Limitless, Manifold,
+Metaculus, PredictIt, Rothera, Futuur). They require no API key, never attach yours, and
 are research surfaces: `pm_data_events` list rows carry `referenceProbability`
 (a liquidity-aware cross-venue consensus on matched questions); `pm_data_event`
 includes `crossSourceMatches` (the same real-world question priced on other
