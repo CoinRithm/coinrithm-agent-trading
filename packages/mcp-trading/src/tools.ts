@@ -1272,8 +1272,8 @@ export function registerTools(
       description:
         "Free public cross-venue prediction-market statistics: total/open/" +
         "closed market counts, total volume, 24h volume, and liquidity " +
-        "aggregated across all nine venues (Polymarket, Kalshi, Rothera, " +
-        "Limitless, Smarkets, Manifold, Metaculus, PredictIt, Futuur), plus market " +
+        "aggregated across all ten venues (Polymarket, Kalshi, Rothera, " +
+        "Limitless, Smarkets, Manifold, Metaculus, PredictIt, Futuur, Myriad), plus market " +
         "highlights. Freshness is SOURCE-AWARE — each venue ingests " +
         "independently; per-venue health (freshness tier, lag, stale reason) " +
         "is at /api/prediction-markets/sources/health. Volume is " +
@@ -1300,9 +1300,9 @@ export function registerTools(
     {
       title: "Search prediction markets across all venues",
       description:
-        "Free public search over prediction-market events across ALL nine " +
+        "Free public search over prediction-market events across ALL ten " +
         "venues (Polymarket, Kalshi, Rothera, Limitless, Smarkets, " +
-        "Manifold, Metaculus, PredictIt, Futuur) — broader than discover_pm_markets, which is " +
+        "Manifold, Metaculus, PredictIt, Futuur, Myriad) — broader than discover_pm_markets, which is " +
         "scoped to the paper-tradeable venues. Returns titles, probabilities, " +
         "volume/liquidity, status, and source per event, plus " +
         "referenceProbability when present (CoinRithm's canonical cross-venue " +

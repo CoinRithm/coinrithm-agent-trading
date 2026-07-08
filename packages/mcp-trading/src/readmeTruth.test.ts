@@ -50,9 +50,10 @@ describe("public docs stay truthful", () => {
       "Metaculus",
       "PredictIt",
       "Futuur",
+      "Myriad",
     ];
-    expect(tools).toContain("ALL nine");
-    expect(tools).not.toMatch(/ALL (seven|eight)/i);
+    expect(tools).toContain("ALL ten");
+    expect(tools).not.toMatch(/ALL (seven|eight|nine)/i);
     for (const venue of venues) {
       expect(tools, `tool copy missing venue ${venue}`).toContain(venue);
     }
@@ -69,6 +70,7 @@ describe("public docs stay truthful", () => {
     for (const run of enumerations) {
       expect(run, `stale venue enumeration: "${run}"`).toContain("Rothera");
       expect(run, `stale venue enumeration: "${run}"`).toContain("Futuur");
+      expect(run, `stale venue enumeration: "${run}"`).toContain("Myriad");
     }
   });
 
