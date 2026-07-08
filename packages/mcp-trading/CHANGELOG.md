@@ -11,8 +11,8 @@ Docs + registry-metadata release; no tool behavior changes.
 
 - **README refresh**: the keyless `pm_data_*` data surface is now front and
   center — 8 venues (Polymarket, Kalshi, Smarkets, Limitless, Manifold,
-  Metaculus, Futuur, Rothera; an earlier line wrongly listed PredictIt), the
-  anonymous hosted-endpoint path, and the `referenceProbability` /
+  Metaculus, PredictIt, Rothera — the "seven venues" line predated Rothera),
+  the anonymous hosted-endpoint path, and the `referenceProbability` /
   `volumeHistory` fields the data tools return.
 - **`server.json`**: hosted endpoint's `Authorization` header marked optional
   (the `pm_data_*` tools work anonymously — verified live) and the server
