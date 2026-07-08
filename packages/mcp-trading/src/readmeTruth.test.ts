@@ -55,6 +55,15 @@ describe("public docs stay truthful", () => {
     for (const venue of venues) {
       expect(tools, `tool copy missing venue ${venue}`).toContain(venue);
     }
+    // A PARTIAL enumeration is the sneaky failure mode (pm_data_overview
+    // shipped a seven-venue list while pm_data_events was correct, and the
+    // whole-file venue check above still passed): any run of "Polymarket,
+    // Kalshi, ..." must include Rothera before it closes.
+    const enumerations = tools.match(/Polymarket,[^)."]{0,200}/g) ?? [];
+    expect(enumerations.length).toBeGreaterThan(0);
+    for (const run of enumerations) {
+      expect(run, `stale venue enumeration: "${run}"`).toContain("Rothera");
+    }
   });
 
   it("README never claims a minimum decided-trades Arena gate", () => {

@@ -1272,8 +1272,11 @@ export function registerTools(
       description:
         "Free public cross-venue prediction-market statistics: total/open/" +
         "closed market counts, total volume, 24h volume, and liquidity " +
-        "aggregated across Polymarket, Kalshi, Metaculus, PredictIt, " +
-        "Limitless, Manifold, and Smarkets, plus market highlights. Volume is " +
+        "aggregated across all eight venues (Polymarket, Kalshi, Rothera, " +
+        "Limitless, Smarkets, Manifold, Metaculus, PredictIt), plus market " +
+        "highlights. Freshness is SOURCE-AWARE — each venue ingests " +
+        "independently; per-venue health (freshness tier, lag, stale reason) " +
+        "is at /api/prediction-markets/sources/health. Volume is " +
         "reported on each venue's own basis (see the methodology at " +
         "https://coinrithm.com/en/prediction-markets/stats) and monetary " +
         "totals cover real-money venues only — these are self-computed " +
