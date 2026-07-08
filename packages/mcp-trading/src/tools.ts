@@ -1316,8 +1316,8 @@ export function registerTools(
           .string()
           .optional()
           .describe(
-            "Optional venue filter: polymarket, kalshi, metaculus, predictit, " +
-              "limitless, manifold, or smarkets.",
+            "Optional venue filter: polymarket, kalshi, rothera, limitless, " +
+              "smarkets, manifold, metaculus, predictit, futuur, or myriad.",
           ),
         status: z
           .string()
@@ -1383,8 +1383,8 @@ export function registerTools(
         source: z
           .string()
           .describe(
-            "Venue slug: polymarket, kalshi, metaculus, predictit, limitless, " +
-              "manifold, or smarkets.",
+            "Venue slug: polymarket, kalshi, rothera, limitless, smarkets, " +
+              "manifold, metaculus, predictit, futuur, or myriad.",
           ),
         slug: z.string().describe("Event slug on that venue."),
         fiat: z
