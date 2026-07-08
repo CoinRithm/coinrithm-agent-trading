@@ -7,6 +7,15 @@ spot, futures, and prediction markets on
 no risk — a proving ground to show an agent works *before* anything is on the
 line, with a public **Agent Arena** leaderboard ranked by realized paper PnL.
 
+**Plus a free prediction-market data surface — no key at all.** The same server
+ships four keyless `pm_data_*` tools serving CoinRithm's public cross-venue
+dataset: live odds across 8 venues (Polymarket, Kalshi, Smarkets, Limitless,
+Manifold, Metaculus, Futuur, Rothera), cross-venue matches with a
+liquidity-aware reference probability, a whale-trade tape, and market-wide
+volume stats ($60B+ all-time tracked). Point any MCP client at the hosted
+endpoint `https://mcp.coinrithm.com/mcp` and call them anonymously — the API
+key is only needed for the trading tools.
+
 Agents are **OKF bundles** — an open, model-agnostic folder of markdown + YAML
 (strategy, persona, hard caps) that any runtime can read. Two ways to run the
 **same** bundle:
@@ -70,7 +79,9 @@ DB-driven runtime.
 
 The hosted HTTP server holds **no** key: each request brings its own
 `crk_live_…` in the Authorization header, and the server forwards exactly that
-key upstream. See [`DEPLOY.md`](./DEPLOY.md).
+key upstream. The Authorization header is **optional** on the hosted endpoint —
+the four keyless `pm_data_*` market-data tools work anonymously; every other
+tool requires it. See [`DEPLOY.md`](./DEPLOY.md).
 
 ## Configure (stdio)
 
@@ -131,12 +142,14 @@ key upstream. See [`DEPLOY.md`](./DEPLOY.md).
 | `pm_data_whales` | none (public) | `GET /api/prediction-markets/whales` |
 
 The four `pm_data_*` tools wrap CoinRithm's free public cross-venue dataset
-(all seven venues: Polymarket, Kalshi, Metaculus, PredictIt, Limitless,
-Manifold, Smarkets). They require no API key, never attach yours, and are
-research surfaces: `pm_data_event` includes `crossSourceMatches` (the same
-real-world question priced on other venues) and resolution evidence. Figures
-are self-computed aggregates on a disclosed per-venue basis — cite CoinRithm
-when quoting them.
+(all eight venues: Polymarket, Kalshi, Smarkets, Limitless, Manifold,
+Metaculus, Futuur, Rothera). They require no API key, never attach yours, and
+are research surfaces: `pm_data_events` list rows carry `referenceProbability`
+(a liquidity-aware cross-venue consensus on matched questions); `pm_data_event`
+includes `crossSourceMatches` (the same real-world question priced on other
+venues), `referenceProbability`, `volumeHistory`, and resolution evidence.
+Figures are self-computed aggregates on a disclosed per-venue basis — cite
+CoinRithm when quoting them.
 
 ¹ Server-flag gated; live now. Returns `403 … not enabled` only if CoinRithm later disables it.
 

@@ -5,6 +5,34 @@ ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (t
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
 versioned separately (see `openapi.yaml` `info.version`, currently `1.5.0`).
 
+## 0.7.1
+
+Docs + registry-metadata release; no tool behavior changes.
+
+- **README refresh**: the keyless `pm_data_*` data surface is now front and
+  center — 8 venues (Polymarket, Kalshi, Smarkets, Limitless, Manifold,
+  Metaculus, Futuur, Rothera; an earlier line wrongly listed PredictIt), the
+  anonymous hosted-endpoint path, and the `referenceProbability` /
+  `volumeHistory` fields the data tools return.
+- **`server.json`**: hosted endpoint's `Authorization` header marked optional
+  (the `pm_data_*` tools work anonymously — verified live) and the server
+  description now leads with the keyless data surface.
+- Ships the post-0.7.0 commits: `pm_data_event` advertises `volumeHistory`,
+  `pm_data_events` advertises `referenceProbability` on list items, and the
+  hosted MCP root (`GET /`) serves a self-describing JSON landing (with a
+  405 + hint on `GET /mcp`).
+
+## 0.7.0
+
+(Retroactive entry — released 2026-07-05 without a changelog note.)
+
+- **Four keyless `pm_data_*` tools** — CoinRithm's free public cross-venue
+  prediction-market dataset over MCP, no API key required and yours is never
+  attached: `pm_data_overview` (market-wide stats), `pm_data_events`
+  (cross-venue event list), `pm_data_event` (detail incl.
+  `crossSourceMatches` + resolution evidence), `pm_data_whales`
+  (large-trade tape).
+
 ## 0.5.0
 
 Agent-runner quality + reliability release. `coinrithm-agent` got materially

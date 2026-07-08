@@ -2,8 +2,8 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.CoinRithm/mcp-trading",
   "title": "CoinRithm Agent Trading",
-  "description": "Paper-trade crypto spot, futures, and prediction markets on CoinRithm with a user API key.",
-  "version": "0.7.0",
+  "description": "Keyless prediction-market data across 8 venues plus paper-trading of crypto spot, futures, and PM.",
+  "version": "0.7.1",
   "repository": {
     "url": "https://github.com/CoinRithm/coinrithm-agent-trading",
     "source": "github",
@@ -14,7 +14,7 @@
     {
       "registryType": "npm",
       "identifier": "@coinrithm/mcp-trading",
-      "version": "0.7.0",
+      "version": "0.7.1",
       "runtimeHint": "npx",
       "transport": { "type": "stdio" },
       "environmentVariables": [
@@ -40,8 +40,8 @@
       "headers": [
         {
           "name": "Authorization",
-          "description": "Bearer crk_live_… — your personal CoinRithm API key, forwarded per request.",
-          "isRequired": true,
+          "description": "Bearer crk_live_… — your personal CoinRithm API key, forwarded per request. Optional: the keyless pm_data_* prediction-market data tools work anonymously; the key is only needed for portfolio and trading tools.",
+          "isRequired": false,
           "isSecret": true
         }
       ]
