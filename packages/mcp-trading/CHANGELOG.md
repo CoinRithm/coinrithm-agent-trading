@@ -5,6 +5,25 @@ ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (t
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
 versioned separately (see `openapi.yaml` `info.version`, currently `1.5.0`).
 
+## 0.7.2
+
+Docs-truth + privacy release. No tool behavior change, no API-surface change.
+
+- **Ten venues in the public listing.** `pm_data_*` tool copy, the README, and
+  `server.json` now name all ten venues (adds Futuur and Myriad). npm `0.7.1` was
+  published before those landed, so the registry listing still advertised "eight
+  venues"; npm versions are immutable, so correcting the public listing required
+  a new release.
+- **`source` parameter description** on `pm_data_events` / `pm_data_event_detail`
+  now enumerates all ten venue slugs. Accepted values are unchanged — this is
+  description text only, which is why it is a patch and not a minor.
+- **Privacy.** Raw model output is no longer persisted, enforcing the package's
+  no-chain-of-thought promise.
+- **New tripwire.** `server.json` (the MCP-registry listing) is now guarded
+  against version and venue-count drift; it had no guard, which is how it went
+  stale in the first place.
+- Refreshed stale Arena-gate example copy.
+
 ## 0.7.1
 
 Docs + registry-metadata release; no tool behavior changes.

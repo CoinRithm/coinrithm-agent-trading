@@ -2,8 +2,8 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.CoinRithm/mcp-trading",
   "title": "CoinRithm Agent Trading",
-  "description": "Keyless prediction-market data across 8 venues plus paper-trading of crypto spot, futures, and PM.",
-  "version": "0.7.1",
+  "description": "Keyless prediction-market data across 10 venues plus paper-trading of crypto spot, futures, and PM.",
+  "version": "0.7.2",
   "repository": {
     "url": "https://github.com/CoinRithm/coinrithm-agent-trading",
     "source": "github",
@@ -14,7 +14,7 @@
     {
       "registryType": "npm",
       "identifier": "@coinrithm/mcp-trading",
-      "version": "0.7.1",
+      "version": "0.7.2",
       "runtimeHint": "npx",
       "transport": { "type": "stdio" },
       "environmentVariables": [

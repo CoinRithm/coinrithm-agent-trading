@@ -79,4 +79,41 @@ describe("public docs stay truthful", () => {
     expect(readme).not.toMatch(/needs? (\d+|three|ten) decided trades/i);
     expect(readme).toContain("first decided trade");
   });
+
+  // server.json is the MCP-registry listing (published separately from npm via
+  // mcp-publisher). It had NO guard, and duly drifted: it sat at 0.7.1 claiming
+  // "8 venues" long after package.json/README were corrected, because nothing
+  // failed when it went stale. These tripwires bind it to the same truth.
+  describe("server.json (MCP registry listing) stays truthful", () => {
+    const serverJson = () =>
+      JSON.parse(readFileSync(join(repoRoot, "server.json"), "utf-8")) as {
+        version: string;
+        description: string;
+        packages: { identifier: string; version: string }[];
+      };
+    const pkgVersion = () =>
+      (
+        JSON.parse(readFileSync(join(pkgRoot, "package.json"), "utf-8")) as {
+          version: string;
+        }
+      ).version;
+
+    it("top-level version matches package.json", () => {
+      expect(serverJson().version).toBe(pkgVersion());
+    });
+
+    it("npm package entry pins the same published version", () => {
+      const npmPkg = serverJson().packages.find(
+        (p) => p.identifier === "@coinrithm/mcp-trading",
+      );
+      expect(npmPkg, "npm package entry missing").toBeDefined();
+      expect(npmPkg!.version).toBe(pkgVersion());
+    });
+
+    it("description states the current venue count, never a stale one", () => {
+      const { description } = serverJson();
+      expect(description).toContain("10 venues");
+      expect(description).not.toMatch(/\b(7|8|9|seven|eight|nine)\s+venues\b/i);
+    });
+  });
 });
