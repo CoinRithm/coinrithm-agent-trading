@@ -22,10 +22,15 @@ export interface CycleRecord {
   decision: string;
   skipReason?: string;
   // Keystone transparency: the model's own analysis this cycle + decision
-  // confidence + the full raw model text (capped), surfaced in the Arena terminal.
+  // confidence, surfaced in the Arena terminal.
   rationale?: string;
   confidence?: number;
-  rawModelOutput?: string;
+  // No `rawModelOutput` field here — deliberately. The no-CoT privacy promise
+  // (frontend copy + CLAUDE.md data-retention: "raw prompts and model
+  // reasoning traces are never stored") is enforced at the DB write boundary:
+  // recordCycle/persistCycleResult hard-force raw_model_output to NULL below,
+  // so this type omits the field entirely (compile-time block) rather than
+  // accepting a value it would then have to ignore. See f778338.
   modelFailed?: boolean;
   disabled?: boolean;
   actions?: unknown;
@@ -218,7 +223,11 @@ export async function recordCycle(pool: Pool, agentId: number, rec: CycleRecord)
       rec.skipReason ?? null,
       rec.rationale ?? null,
       rec.confidence ?? null,
-      rec.rawModelOutput ?? null,
+      // no-CoT privacy policy: raw_model_output is hard-forced NULL at this DB
+      // write boundary — CycleRecord has no rawModelOutput field to read from,
+      // so no caller can ever persist raw model text here regardless of what
+      // it passes upstream. Defense in depth on top of the runner (f778338).
+      null,
       !!rec.modelFailed,
       !!rec.disabled,
       rec.actions === undefined ? null : JSON.stringify(rec.actions),
@@ -261,7 +270,9 @@ export async function persistCycleResult(
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
       [
         agentId, c.decision, c.skipReason ?? null, c.rationale ?? null, c.confidence ?? null,
-        c.rawModelOutput ?? null, !!c.modelFailed, !!c.disabled,
+        // no-CoT privacy policy: raw_model_output is hard-forced NULL at this DB
+        // write boundary (same enforcement as recordCycle above) — see f778338.
+        null, !!c.modelFailed, !!c.disabled,
         c.actions === undefined ? null : JSON.stringify(c.actions), c.log ?? null, c.error ?? null,
         c.triggerCodes ?? null, c.llmCallMade ?? null, c.tokensIn ?? null, c.tokensOut ?? null,
         c.estimatedCostUsd ?? null, c.decisionType ?? null, c.writeAttempted ?? null, c.writeAccepted ?? null,

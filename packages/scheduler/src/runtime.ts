@@ -137,7 +137,12 @@ export async function runAgentOnce(pool: Pool, agent: AgentRow, config: Config):
         skipReason: result.skipReason,
         rationale: result.rationale,
         confidence: result.confidence,
-        rawModelOutput: result.rawModelOutput,
+        // result.rawModelOutput (engine CycleResult) is intentionally NOT
+        // forwarded — CycleRecord has no such field. The no-CoT privacy
+        // promise is enforced at the DB write boundary in db.ts, which
+        // hard-forces raw_model_output to NULL regardless; the engine already
+        // never populates it either (f778338), but the DB helper doesn't rely
+        // on that upstream guarantee.
         modelFailed: result.modelFailed,
         disabled: result.disabled,
         actions: result.planned,
