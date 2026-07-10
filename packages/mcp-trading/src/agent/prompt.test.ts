@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { buildUserPrompt, formatPmResolutions } from "./prompt.js";
+import { buildSystemPrompt, buildUserPrompt, formatPmResolutions } from "./prompt.js";
+import { parseSkill } from "./skill.js";
+import { renderFolderOfOne } from "./templates.js";
 import { Observation, PmResolution } from "./types.js";
 
 const baseObs = (over: Partial<Observation> = {}): Observation => ({
@@ -102,5 +104,29 @@ describe("buildUserPrompt — settlement feedback integration", () => {
     );
     expect(out).toMatch(/Resolved since last cycle/);
     expect(out).toContain('"Will BTC top $80k?" — YES, WON +320 mUSD');
+  });
+});
+
+describe("buildSystemPrompt — independent forecast (pm_open forecastProbability)", () => {
+  const specWithPm = () => {
+    const spec = parseSkill(renderFolderOfOne("a", "conservative")).spec;
+    spec.venues = ["pm", "futures", "spot"];
+    return spec;
+  };
+
+  it("omits the forecast field + rule by default (includeForecast off)", () => {
+    const out = buildSystemPrompt(specWithPm(), "strategy");
+    expect(out).not.toMatch(/forecastProbability/);
+    expect(out).not.toMatch(/FORECAST RULE/);
+  });
+
+  it("adds the forecast field to pm_open + the anti-echo FORECAST RULE when includeForecast is on", () => {
+    const out = buildSystemPrompt(specWithPm(), "strategy", {
+      includeForecast: true,
+    });
+    expect(out).toMatch(/"forecastProbability":1\.\.99/);
+    expect(out).toMatch(/FORECAST RULE/);
+    // The rule must tell the model NOT to echo/anchor on the market price.
+    expect(out).toMatch(/do NOT copy, round, or anchor/i);
   });
 });

@@ -40,9 +40,15 @@ export function formatPmResolutions(resolutions: PmResolution[]): string[] {
 export function buildSystemPrompt(
   spec: AgentSpec,
   mergedProse: string,
+  // includeForecast (default OFF here; the runner passes the house-agent flag):
+  // when true, pm_open asks the model for its OWN independent forecastProbability
+  // (1..99) — its probability the backed side wins, judged from the question, NOT
+  // echoed from the market price. This feeds the agent's public calibration record.
+  opts: { includeForecast?: boolean } = {},
 ): string {
   const r = spec.risk;
   const v = spec.venues;
+  const includeForecast = opts.includeForecast === true;
   const actions: string[] = [];
   if (v.includes("futures")) {
     actions.push(
@@ -60,7 +66,7 @@ export function buildSystemPrompt(
   }
   if (v.includes("pm")) {
     actions.push(
-      '{"type":"pm_open","ref":"pmN","stakeMusd","confidence":0..1}  (set "ref" to the `ref` of the ONE observation.pmMarkets entry you are betting — e.g. "pm3" — copied EXACTLY; stakeMusd >= 10)',
+      `{"type":"pm_open","ref":"pmN","stakeMusd","confidence":0..1${includeForecast ? ',"forecastProbability":1..99' : ""}}  (set "ref" to the \`ref\` of the ONE observation.pmMarkets entry you are betting — e.g. "pm3" — copied EXACTLY; stakeMusd >= 10${includeForecast ? '; set "forecastProbability" to YOUR OWN probability 1-99 that this outcome wins — see the forecast rule below' : ""})`,
     );
   }
   return [
@@ -83,6 +89,11 @@ export function buildSystemPrompt(
     "- prediction markets are a FIRST-CLASS venue for you — a pm_open is as real a trade as a futures/spot open, not an afterthought. Each observation.pmMarkets entry carries a short `ref` (pm1, pm2, …), an `outcome` label, and `prob` (0..1, the market's CURRENT odds). BET (pm_open) an outcome when YOUR estimate of its true probability differs MATERIALLY from the market's — that gap is your edge (e.g. prob 0.35 but you think it's really ~0.55 -> buy). Skip only markets pinned near 0 or 1 (no edge left). Every entry in observation.pmMarkets is already filtered to one you CAN open (binary/settlement-grade) — so a listed market will not bounce at quote. Pick ONLY a listed market and identify it by copying its `ref` into the action; min stake 10 mUSD. Do NOT re-bet a market+outcome you ALREADY hold (check observation.pmPositions) — that is churn and will be rejected; bet a DIFFERENT market or skip.",
     "- PM stake is a SEPARATE budget from your futures margin: the futures margin cap (maxOpenMarginMusd) does NOT limit pm_open. So when your futures are at the margin/position cap — you hold the max, or a futures_open keeps getting REJECTED with open_margin_exceeds_cap — prediction markets are STILL fully open to you. PIVOT to pm_open on a mispriced market instead of re-proposing a futures_open that will just be rejected: a rejected open wastes the entire cycle, an eligible PM bet does not.",
     "- YOUR SHARPEST PM EDGE is the crypto price view you JUST formed: crypto PM markets resolve on the very prices you analyse, so you have a genuine information edge there that you do NOT have on coin futures alone. EVERY cycle you reach a price conviction, it is REQUIRED that you scan observation.pmMarkets for a crypto market that same view prices wrong and, if one is materially mispriced, open it with pm_open — treat that mispricing exactly like a flagged coin setup (an ACT, not a skip). If you are bearish BTC, a 'BTC above $X by <date>' priced high is a NO; if bullish ETH, an 'ETH above $Y' priced low is a YES. Leaving a clearly mispriced crypto market untraded is the same mistake as ignoring a flagged setup. (For non-crypto events you have no special edge; skip unless the odds are obviously off.)",
+    ...(includeForecast
+      ? [
+          "- FORECAST RULE (pm_open forecastProbability): before you look at what the market is pricing, decide YOUR OWN probability the outcome you are backing actually WINS — reason ONLY from the question, its resolution criteria, and the deadline. Put that number (1-99, whole or one decimal) in `forecastProbability`. This is graded against reality as your PUBLIC calibration record, so it must be YOUR judgement, NOT the market's: do NOT copy, round, or anchor it to the observation.pmMarkets `prob`. It is FINE if your honest forecast happens to land on the market's number — but reaching that by echoing the price defeats the point. If you genuinely cannot form an independent view, OMIT the field rather than parroting the market (an absent forecast is better than a fake one, and it never blocks the bet).",
+        ]
+      : []),
     `- abstention.minConfidence ${spec.abstention.minConfidence}: opens below this are rejected, so act with genuine conviction — but routine caution is no reason to sit out a clear setup`,
     ...(spec.capabilities.includes("indicators")
       ? [

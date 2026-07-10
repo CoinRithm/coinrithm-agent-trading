@@ -59,6 +59,10 @@ export async function fetchQuote(
     estimatedCostMusd: asNum(d.estimatedCostMusd), // spot gross notional
     // Freshness lives in the response's `observation` block (anti-look-ahead).
     freshness: freshnessOf(asObj(d.observation)),
+    // PM open-time quality-gate preview (additive; older backends omit it → the
+    // runner just doesn't early-skip and falls through to the normal path).
+    openBlocked: d.openBlocked === true,
+    openBlockReasons: d.openBlockReasons,
   };
 }
 
@@ -130,6 +134,12 @@ export async function executeAction(
       outcomeExternalMarketId: action.outcomeExternalMarketId,
       stakeMusd: action.stakeMusd,
       idempotencyKey,
+      // The agent's OWN independent forecast (already clamped/omitted by the runner).
+      // Included ONLY when present, so an absent forecast leaves the request body
+      // byte-identical to pre-forecast behavior.
+      ...(action.forecastProbability != null
+        ? { forecastProbability: action.forecastProbability }
+        : {}),
       agentTrace: trace,
     });
   }

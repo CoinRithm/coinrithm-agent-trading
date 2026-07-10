@@ -398,6 +398,12 @@ export type ProposedAction =
       stakeMusd: number;
       confidence?: number;
       rationaleSummary?: string;
+      // The agent's OWN probability (1..99) that the backed side wins, formed from
+      // the question/resolution criteria/deadline — NOT the market price. Recorded
+      // separately from the entry price for the agent's public calibration record.
+      // The runner clamps it to [1,99] and OMITS it when absent/unparseable (a bad
+      // forecast never blocks the trade); it is NEVER defaulted to the market price.
+      forecastProbability?: number;
     };
 
 export type ActionVenue = Venue;
@@ -478,6 +484,13 @@ export interface QuoteEvidence {
   executionPrice?: number; // spot fill price
   estimatedCostMusd?: number; // spot gross notional (server-computed)
   freshness?: Freshness;
+  // PM open-time quality-gate PREVIEW (distinct from eligible/blockReasons, which
+  // describe the mock-entry SHAPE gate). openBlocked=true means a pm/open right now
+  // would be rejected 422 by the quality gate (quality state missing/stale, or
+  // decisionEligible=false). The runner uses it to SKIP a blocked PM candidate
+  // early instead of burning the open attempt on a guaranteed 422.
+  openBlocked?: boolean;
+  openBlockReasons?: unknown;
 }
 
 // ───────────────────────── Per-session run state ────────────────────────────

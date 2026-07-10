@@ -1,9 +1,11 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   runCycle,
   RunnerDeps,
   repairFuturesTakeProfit,
   rationaleForAction,
+  sanitizeForecastProbability,
+  houseAgentForecastEnabled,
 } from "./runner.js";
 import type { ProposedAction, QuoteEvidence } from "./types.js";
 import { parseSkill } from "./skill.js";
@@ -582,5 +584,159 @@ describe("rationaleForAction (per-trade reasoning stays honest about the market)
     expect(
       rationaleForAction(solOpen, "ETH is ripping", "SOL momentum entry", 2),
     ).toBe("SOL momentum entry");
+  });
+});
+
+describe("sanitizeForecastProbability (rails: clamp [1,99], omit garbage)", () => {
+  it("passes an in-range value through, rounded to one decimal", () => {
+    expect(sanitizeForecastProbability(62)).toBe(62);
+    expect(sanitizeForecastProbability(62.37)).toBe(62.4);
+  });
+  it("clamps above 99 down to 99 and at/below 0 up to 1", () => {
+    expect(sanitizeForecastProbability(150)).toBe(99);
+    expect(sanitizeForecastProbability(99.9)).toBe(99);
+    expect(sanitizeForecastProbability(0)).toBe(1);
+    expect(sanitizeForecastProbability(-5)).toBe(1);
+    expect(sanitizeForecastProbability(0.4)).toBe(1);
+  });
+  it("returns undefined for missing / non-finite / non-numeric input (never fakes a value)", () => {
+    expect(sanitizeForecastProbability(undefined)).toBeUndefined();
+    expect(sanitizeForecastProbability(null)).toBeUndefined();
+    expect(sanitizeForecastProbability(NaN)).toBeUndefined();
+    expect(sanitizeForecastProbability(Infinity)).toBeUndefined();
+    expect(sanitizeForecastProbability("55")).toBeUndefined(); // parser coerces; this helper is number-only
+  });
+});
+
+describe("houseAgentForecastEnabled (default ON, false/0 kill-switch)", () => {
+  const prev = process.env.HOUSE_AGENT_FORECAST_ENABLED;
+  afterEach(() => {
+    if (prev === undefined) delete process.env.HOUSE_AGENT_FORECAST_ENABLED;
+    else process.env.HOUSE_AGENT_FORECAST_ENABLED = prev;
+  });
+  it("is ON when unset", () => {
+    delete process.env.HOUSE_AGENT_FORECAST_ENABLED;
+    expect(houseAgentForecastEnabled()).toBe(true);
+  });
+  it("is OFF for false / 0 / no / off", () => {
+    for (const v of ["false", "0", "no", "off", "FALSE", " Off "]) {
+      process.env.HOUSE_AGENT_FORECAST_ENABLED = v;
+      expect(houseAgentForecastEnabled()).toBe(false);
+    }
+  });
+});
+
+describe("runCycle — PM independent forecast submission", () => {
+  const prevFlag = process.env.HOUSE_AGENT_FORECAST_ENABLED;
+  afterEach(() => {
+    if (prevFlag === undefined) delete process.env.HOUSE_AGENT_FORECAST_ENABLED;
+    else process.env.HOUSE_AGENT_FORECAST_ENABLED = prevFlag;
+  });
+
+  // baseClient's discover surfaces one market (kalshi/btc-up/yes-1) at prob 0.5,
+  // so the market's integer probability is 50%.
+  const pmDecision = (forecastProbability?: number) => ({
+    decision: "act",
+    confidence: 0.8,
+    actions: [
+      {
+        type: "pm_open",
+        source: "kalshi",
+        slug: "btc-up",
+        outcomeExternalMarketId: "yes-1",
+        stakeMusd: 20,
+        confidence: 0.8,
+        ...(forecastProbability != null ? { forecastProbability } : {}),
+      },
+    ],
+  });
+
+  it("parse-success: submits the clamped forecastProbability on the open", async () => {
+    delete process.env.HOUSE_AGENT_FORECAST_ENABLED; // default ON
+    const client = baseClient();
+    const d = deps({ live: true }, client, provider(pmDecision(55)));
+    d.spec.venues = ["spot", "futures", "pm"];
+    const r = await runCycle(d);
+    expect(r.planned[0].executed).toBe(true);
+    expect(client.openPmPosition).toHaveBeenCalledTimes(1);
+    expect(client.openPmPosition.mock.calls[0][0]).toMatchObject({
+      forecastProbability: 55,
+    });
+  });
+
+  it("clamps an out-of-range model forecast before submitting (150 -> 99)", async () => {
+    delete process.env.HOUSE_AGENT_FORECAST_ENABLED;
+    const client = baseClient();
+    const d = deps({ live: true }, client, provider(pmDecision(150)));
+    d.spec.venues = ["spot", "futures", "pm"];
+    await runCycle(d);
+    expect(client.openPmPosition.mock.calls[0][0].forecastProbability).toBe(99);
+  });
+
+  it("parse-failure / omitted forecast: trade STILL proceeds with NO forecast field", async () => {
+    delete process.env.HOUSE_AGENT_FORECAST_ENABLED;
+    const client = baseClient();
+    // Model emits a non-numeric forecast — the parser drops it to undefined; the
+    // trade must still open, just without the field.
+    const d = deps(
+      { live: true },
+      client,
+      provider(pmDecision("garbage" as unknown as number)),
+    );
+    d.spec.venues = ["spot", "futures", "pm"];
+    const r = await runCycle(d);
+    expect(r.planned[0].executed).toBe(true);
+    expect(client.openPmPosition).toHaveBeenCalledTimes(1);
+    const body = client.openPmPosition.mock.calls[0][0];
+    expect(body).not.toHaveProperty("forecastProbability");
+  });
+
+  it("anti-echo: an exact-match forecast is still submitted, with an observable log line", async () => {
+    delete process.env.HOUSE_AGENT_FORECAST_ENABLED;
+    const client = baseClient();
+    const logs: string[] = [];
+    // forecast 50 == market prob 50% (echo) -> submitted as-is + logged.
+    const d = deps(
+      { live: true, log: (l: string) => logs.push(l) },
+      client,
+      provider(pmDecision(50)),
+    );
+    d.spec.venues = ["spot", "futures", "pm"];
+    await runCycle(d);
+    expect(client.openPmPosition.mock.calls[0][0].forecastProbability).toBe(50);
+    expect(logs.some((l) => /echo/i.test(l))).toBe(true);
+  });
+
+  it("kill-switch OFF: request is byte-identical (no forecastProbability) even when the model forecasts", async () => {
+    process.env.HOUSE_AGENT_FORECAST_ENABLED = "false";
+    const client = baseClient();
+    const d = deps({ live: true }, client, provider(pmDecision(55)));
+    d.spec.venues = ["spot", "futures", "pm"];
+    const r = await runCycle(d);
+    expect(r.planned[0].executed).toBe(true);
+    const body = client.openPmPosition.mock.calls[0][0];
+    expect(body).not.toHaveProperty("forecastProbability");
+    // Strong byte-level check: the serialized request never mentions the field.
+    expect(JSON.stringify(body)).not.toContain("forecastProbability");
+  });
+
+  it("openBlocked: skips the candidate early (pm_open_blocked) instead of a guaranteed 422", async () => {
+    delete process.env.HOUSE_AGENT_FORECAST_ENABLED;
+    const client = baseClient({
+      pmQuote: vi.fn(async () =>
+        okData({
+          eligible: true,
+          openBlocked: true,
+          openBlockReasons: ["quality_state_stale"],
+          observation: { freshness: { status: "fresh" } },
+        }),
+      ),
+    });
+    const d = deps({ live: true }, client, provider(pmDecision(55)));
+    d.spec.venues = ["spot", "futures", "pm"];
+    const r = await runCycle(d);
+    expect(r.planned[0].accepted).toBe(false);
+    expect(r.planned[0].code).toBe("pm_open_blocked");
+    expect(client.openPmPosition).not.toHaveBeenCalled();
   });
 });

@@ -23,6 +23,23 @@ const confidence = num(z.number().min(0).max(1))
   .optional()
   .transform((v) => v ?? undefined);
 
+// The model's OWN 0-100 forecast for the backed PM side (its independent
+// probability the side wins, decided from the question — NOT the market price).
+// Deliberately TOLERANT: a missing / null / non-numeric value becomes undefined
+// (the runner then omits the field) rather than failing the whole action. A bad
+// forecast must NEVER block an otherwise-valid trade. Out-of-range values are NOT
+// rejected here — the runner clamps them to the backend's [1,99] rail. Kept as a
+// permissive `any→number|undefined` so it can never throw inside the strict
+// discriminated union.
+const forecastProbability = z
+  .any()
+  .transform((v) => {
+    const n =
+      typeof v === "string" && v.trim() !== "" ? Number(v) : (v as unknown);
+    return typeof n === "number" && Number.isFinite(n) ? n : undefined;
+  })
+  .optional();
+
 const futuresOpen = z
   .object({
     type: z.literal("futures_open"),
@@ -93,6 +110,7 @@ const pmOpen = z
     stakeMusd: num(z.number().positive()),
     confidence,
     rationaleSummary: z.string().optional(),
+    forecastProbability,
   })
   .strict();
 

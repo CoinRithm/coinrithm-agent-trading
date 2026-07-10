@@ -103,4 +103,63 @@ describe("parseDecision", () => {
     expect(parseDecision(JSON.stringify({ decision: "act", actions: [{ type: "futures_close", positionId: "pos#5" }] })).ok).toBe(false);
     expect(parseDecision(JSON.stringify({ decision: "act", actions: [{ type: "futures_close", positionId: "" }] })).ok).toBe(false);
   });
+
+  describe("pm_open forecastProbability (independent forecast, tolerant parse)", () => {
+    const pm = (extra: Record<string, unknown>) =>
+      parseDecision(
+        JSON.stringify({
+          decision: "act",
+          actions: [
+            { type: "pm_open", ref: "pm2", stakeMusd: 10, ...extra },
+          ],
+        }),
+      );
+
+    it("parses a numeric forecastProbability onto the pm_open action", () => {
+      const r = pm({ forecastProbability: 62 });
+      expect(r.ok).toBe(true);
+      if (r.ok) {
+        const a = r.decision.actions[0] as { forecastProbability?: number };
+        expect(a.forecastProbability).toBe(62);
+      }
+    });
+
+    it("coerces a stringified forecastProbability from weak models", () => {
+      const r = pm({ forecastProbability: "62.5" });
+      expect(r.ok).toBe(true);
+      if (r.ok) {
+        const a = r.decision.actions[0] as { forecastProbability?: number };
+        expect(a.forecastProbability).toBe(62.5);
+      }
+    });
+
+    it("tolerates a non-numeric forecast: field omitted, action STILL parses (never blocks the trade)", () => {
+      const r = pm({ forecastProbability: "not-a-number" });
+      expect(r.ok).toBe(true);
+      if (r.ok) {
+        const a = r.decision.actions[0] as { forecastProbability?: number };
+        expect(a.forecastProbability).toBeUndefined();
+        // the trade itself is intact
+        expect(a).toMatchObject({ type: "pm_open", stakeMusd: 10 });
+      }
+    });
+
+    it("passes an out-of-range forecast THROUGH (the runner clamps, not the parser)", () => {
+      const r = pm({ forecastProbability: 150 });
+      expect(r.ok).toBe(true);
+      if (r.ok) {
+        const a = r.decision.actions[0] as { forecastProbability?: number };
+        expect(a.forecastProbability).toBe(150);
+      }
+    });
+
+    it("omits the field entirely when the model does not forecast", () => {
+      const r = pm({});
+      expect(r.ok).toBe(true);
+      if (r.ok) {
+        const a = r.decision.actions[0] as { forecastProbability?: number };
+        expect(a.forecastProbability).toBeUndefined();
+      }
+    });
+  });
 });

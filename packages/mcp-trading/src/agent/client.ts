@@ -238,6 +238,10 @@ export class CoinRithmClient {
     outcomeExternalMarketId: string;
     stakeMusd: number;
     idempotencyKey: string;
+    // Optional: the agent's OWN estimated probability (1..99) that the backed side
+    // wins, recorded separately from the market price for its public calibration
+    // record. Omitted entirely when the agent isn't forecasting.
+    forecastProbability?: number;
     agentTrace?: AgentTrace;
   }) {
     return this.request("POST", "/api/agent/pm/open", { body });

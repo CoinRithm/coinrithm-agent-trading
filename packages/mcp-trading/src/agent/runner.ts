@@ -44,6 +44,28 @@ export interface RunnerDeps {
   log?: (line: string) => void;
 }
 
+// Independent-forecast kill-switch. Default ON: the fleet elicits + submits its
+// OWN forecastProbability on PM opens. Set HOUSE_AGENT_FORECAST_ENABLED to
+// "false"/"0"/"no"/"off" to ship pm/open requests WITHOUT the field, byte-identical
+// to pre-forecast behavior (prompt extension also drops out). Read at CALL TIME
+// (not module-load) so a process env / a test can toggle it without re-import.
+export function houseAgentForecastEnabled(): boolean {
+  const v = (process.env.HOUSE_AGENT_FORECAST_ENABLED ?? "").trim().toLowerCase();
+  return !["false", "0", "no", "off"].includes(v);
+}
+
+// Clamp a model-proposed forecast to the backend's exclusive (0,100) rail as a
+// whole-or-one-decimal value in [1,99]. Returns undefined for missing / null /
+// NaN / non-finite input (absent > fake — the trade proceeds WITHOUT the field;
+// the value is NEVER defaulted to the market price / entryProbability). The
+// decision parser already tolerates non-numeric model output down to undefined,
+// so this mainly enforces the numeric range.
+export function sanitizeForecastProbability(raw: unknown): number | undefined {
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return undefined;
+  const clamped = Math.min(99, Math.max(1, raw));
+  return Math.round(clamped * 10) / 10; // one-decimal precision
+}
+
 // A stable idempotency-key component per distinct intent (so a lost response
 // replays rather than re-trades, but a genuinely new intent gets a new key).
 function intentKeyOf(action: ProposedAction): string {
@@ -192,6 +214,9 @@ export function rationaleForAction(
 export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
   const { client, provider, spec, mergedProse, state, live, stateFile } = deps;
   const log = deps.log ?? (() => {});
+  // One flag read per cycle governs BOTH the prompt extension and the submission,
+  // so they can never diverge (prompt asks for it iff we would submit it).
+  const forecastEnabled = houseAgentForecastEnabled();
   state.cyclesRun += 1;
   rollDay(state);
 
@@ -320,7 +345,9 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
   noteLlmCall(state, gate.codes, nowMs);
 
   // DECIDE
-  const system = buildSystemPrompt(spec, mergedProse);
+  const system = buildSystemPrompt(spec, mergedProse, {
+    includeForecast: forecastEnabled,
+  });
   const user = buildUserPrompt(observation, state.journal);
   const tokensInEst = Math.round((system.length + user.length) / 4);
   // Prompt-size + trigger visibility in the live terminal.
@@ -468,6 +495,41 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
         log(`reject pm_open: duplicate_intent (hold PM ${pm.slug})`);
         continue;
       }
+      // Independent forecast submission (HOUSE_AGENT_FORECAST_ENABLED, default ON).
+      // Attach the model's OWN probability the backed side wins — clamped to [1,99],
+      // OMITTED when absent/unparseable (a bad forecast never blocks the trade), and
+      // NEVER defaulted to the market price. Flag OFF strips any forecast so the open
+      // request is byte-identical to pre-forecast behavior.
+      if (forecastEnabled) {
+        const fc = sanitizeForecastProbability(pm.forecastProbability);
+        if (fc != null) {
+          const mkt = observation.pmMarkets.find(
+            (m) =>
+              (m.source ?? "").toLowerCase() === (pm.source ?? "").toLowerCase() &&
+              (m.slug ?? "").toLowerCase() === (pm.slug ?? "").toLowerCase() &&
+              m.outcomeExternalMarketId === pm.outcomeExternalMarketId,
+          );
+          const marketPct =
+            typeof mkt?.probability === "number" && Number.isFinite(mkt.probability)
+              ? Math.round(mkt.probability * 100)
+              : undefined;
+          // Anti-echo: an EXACT match on the market's integer probability is still
+          // submitted (a forecast can legitimately agree) — but we LOG it so echo
+          // rates stay observable; we never silently mutate the value.
+          if (marketPct != null && Math.round(fc) === marketPct) {
+            log(
+              `pm_open forecast ${fc} == market prob ${marketPct}% (echo) — submitting as-is`,
+            );
+          }
+          action = { ...pm, forecastProbability: fc };
+        } else {
+          action = { ...pm, forecastProbability: undefined };
+        }
+      } else if (pm.forecastProbability != null) {
+        // Flag off but the model still emitted a forecast — strip it so the request
+        // carries NO forecastProbability field (byte-identical to pre-forecast).
+        action = { ...pm, forecastProbability: undefined };
+      }
     }
     // Anti-churn critic: block re-opening a futures position we ALREADY hold unless
     // it's a confirmed WINNER with room (a legit scale-in). Stops the re-open-a-
@@ -507,6 +569,26 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
       }
     }
     const quote = await fetchQuote(client, action, observation, baseTrace);
+    // Early PM skip: the quote's openBlocked preview tells us a pm/open right now
+    // would be rejected 422 by the open-time quality gate (distinct from the
+    // eligible/blockReasons SHAPE gate the validator checks). Bail here with a clear
+    // reason instead of burning the open attempt on a guaranteed 422.
+    if (action.type === "pm_open" && quote?.openBlocked === true) {
+      const reasons = Array.isArray(quote.openBlockReasons)
+        ? (quote.openBlockReasons as unknown[]).map(String)
+        : [];
+      planned.push({
+        action,
+        accepted: false,
+        code: "pm_open_blocked",
+        reason: `open-time quality gate would reject this (422): ${JSON.stringify(reasons)}`,
+        quote,
+      });
+      log(
+        `skip pm_open early: openBlocked (${reasons.join(",") || "quality gate"})`,
+      );
+      continue;
+    }
     // Auto-clamp a missing/wrong-side futures take-profit to a valid R:R target
     // off the stop, so the open isn't silently rejected server-side (the runner
     // owns trigger orientation; weak models routinely mis-sign it).
