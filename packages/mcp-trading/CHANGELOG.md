@@ -5,6 +5,28 @@ ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (t
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
 versioned separately (see `openapi.yaml` `info.version`, currently `1.5.0`).
 
+## 0.7.3
+
+Quality-engine surfaces + independent forecasts. Additive; no breaking change.
+
+- **Quality verdicts in tool responses.** `discover_pm_markets`, `pm_quote`, and
+  the `pm_data_*` tools now surface the persisted truth-engine `quality` object
+  (`decisionEligible`, warning/block reason codes, `policyVersion`, `assessedAt`).
+  Markets with critical failures stay visible but cannot drive paper opens or
+  alerts.
+- **`openBlocked` preview on `pm_quote`.** Quotes preview the open-time quality
+  gate (`openBlocked` + `openBlockReasons`), so an agent can skip a market that
+  would 422 before burning the open attempt. The self-host runner
+  (`coinrithm-agent`) does this skip automatically.
+- **Independent forecasts in the runner.** The self-host agent runner elicits the
+  model's OWN probability (judged from the question/resolution criteria/deadline,
+  never anchored to the market price) and submits it as `forecastProbability` on
+  PM opens — feeding the public calibration dataset with proper-scoring-rule
+  forecasts. Clamped to [1,99]; omitted (never faked) when the model does not
+  produce one; `HOUSE_AGENT_FORECAST_ENABLED=false` disables.
+- **`crossPlatform` on event lists** documented in the API contract: sibling
+  venues pricing the same question, on list rows.
+
 ## 0.7.2
 
 Docs-truth + privacy release. No tool behavior change, no API-surface change.

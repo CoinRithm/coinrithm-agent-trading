@@ -246,7 +246,7 @@ Base URL: `https://api.coinrithm.com` (live). Hosted MCP: `https://mcp.coinrithm
 
 `info.version` in `openapi.yaml` (currently **1.5.0**) is the **API contract
 version**. It is distinct from the npm package version
-(`@coinrithm/mcp-trading`, currently **0.7.2**). The two are versioned
+(`@coinrithm/mcp-trading`, currently **0.7.3**). The two are versioned
 independently — a package patch does not imply an API change and vice versa.
 
 ---
