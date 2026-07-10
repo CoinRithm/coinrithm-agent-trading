@@ -518,9 +518,12 @@ export function registerTools(
         "Find active-open, quote-ready-first prediction markets on the mock-PM " +
         "sources (Kalshi + Polymarket by default). Returns source, slug, " +
         "quoteable outcome externalMarketIds, freshness, volume/liquidity/spread, " +
-        "and decisionSupport. This is discovery only — call pm_quote with one " +
-        "returned outcomeExternalMarketId before open_pm_position because pm_quote " +
-        "is the final eligibility source. " +
+        "decisionSupport, and quality (the truth engine's persisted verdict: " +
+        "decisionEligible plus stable warning/block reason codes; " +
+        "decisionEligible=false means opens are blocked and alerts suppressed " +
+        "while the market stays visible). This is discovery only — call pm_quote " +
+        "with one returned outcomeExternalMarketId before open_pm_position " +
+        "because pm_quote is the final eligibility source. " +
         PAPER_NOTE,
       inputSchema: {
         q: z
@@ -843,9 +846,13 @@ export function registerTools(
       title: "Prediction-market quote",
       description:
         "Read-only PM quote for a binary outcome: entry probability, share " +
-        "estimate, max payout, eligibility, freshness, and decisionSupport " +
-        "(market quality/liquidity/volume/spread tiers + flags) so you can " +
-        "quote and gauge tradability in one call. Never mutates state. " +
+        "estimate, max payout, eligibility, freshness, decisionSupport " +
+        "(market quality/liquidity/volume/spread tiers + flags), quality (the " +
+        "persisted truth-engine verdict), and openBlocked/openBlockReasons — " +
+        "a preview of the open-time quality gate: when openBlocked is true, " +
+        "open_pm_position would be rejected 422 with those stored reason codes " +
+        "(quality_state_missing, quality_state_stale, quote_dead, " +
+        "stale_freshness, ...). Never mutates state. " +
         "stakeMusd must be > 0 (min to open is 10). Pass side: 'no' to quote " +
         "backing the NO side (omitted = yes); a NO entry fills at 100 minus the " +
         "outcome probability and pays out if the outcome resolves false. " +
@@ -1323,8 +1330,11 @@ export function registerTools(
         "referenceProbability when present (CoinRithm's canonical cross-venue " +
         "number for open events matched across venues — probability, " +
         "venueCount, spreadPoints, and outcomeName for multi-outcome " +
-        "leaders). Research/data only: to trade, use discover_pm_markets + " +
-        "pm_quote instead. No API key required.",
+        "leaders), quality (persisted truth-engine verdict: decisionEligible " +
+        "+ warning/block reason codes — blocked markets stay visible but " +
+        "cannot drive paper opens or alerts), and crossPlatform (sibling " +
+        "venues pricing the same question). Research/data only: to trade, " +
+        "use discover_pm_markets + pm_quote instead. No API key required.",
       inputSchema: {
         q: z.string().optional().describe("Optional search text."),
         source: z

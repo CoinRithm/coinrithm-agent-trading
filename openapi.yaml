@@ -2483,6 +2483,36 @@ components:
         atLiquidation: { type: boolean, nullable: true }
 
     # ---- prediction markets ----
+    PmQuality:
+      type: object
+      description: |
+        Persisted quality assessment from CoinRithm's truth engine — the
+        aggregator's proven, versioned verdict for this event (one current
+        state per event, updated when facts change). Markets with critical
+        failures remain visible everywhere; `decisionEligible: false` means
+        new paper opens are BLOCKED (pm/open returns 422 with these stored
+        reasons) and alerts are suppressed. Omitted entirely when no
+        assessment row exists yet (brand-new events) — never fabricated.
+      properties:
+        decisionEligible:
+          type: boolean
+          description: Fresh, structurally valid, metrics-supported, open/quoteable, and not source-degraded.
+        warningReasons:
+          type: array
+          items: { type: string }
+          description: Non-blocking flags (e.g. anomaly_flagged). Informational.
+        blockReasons:
+          type: array
+          items: { type: string }
+          description: Stable decision-blocking codes (stale_freshness, quote_dead, dead_zero, unpriced, not_open, freshness_unknown).
+        policyVersion:
+          type: string
+          description: Version of the quality policy that produced this verdict (e.g. pm-quality-2).
+        assessedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Source-capture time backing the verdict (freshness SSOT), not a row-write timestamp.
     PmDiscoveryResponse:
       type: object
       properties:
@@ -2544,6 +2574,8 @@ components:
           description: |
             Structured reasons the market is not openable (e.g. multi-outcome /
             non-binary / settled). Empty when eligible or unknown.
+        quality:
+          $ref: "#/components/schemas/PmQuality"
         outcomes:
           type: array
           items: { $ref: "#/components/schemas/PmDiscoveryOutcome" }
@@ -2609,6 +2641,20 @@ components:
         frozenEntrySnapshot: { type: object, additionalProperties: true }
         freshness: { $ref: "#/components/schemas/Freshness" }
         decisionSupport: { $ref: "#/components/schemas/DecisionSupport" }
+        quality:
+          $ref: "#/components/schemas/PmQuality"
+        openBlocked:
+          type: boolean
+          description: |
+            Preview of the pm/open quality gate for this event: true when a
+            pm/open attempt would be rejected 422 right now (quality state
+            missing, stale, or decisionEligible=false). Distinct from
+            `eligible`/`blockReasons`, which describe the mock-entry shape
+            gate — both must pass to open.
+        openBlockReasons:
+          type: array
+          items: { type: string }
+          description: Stable reason codes mirroring what pm/open would return (quality_state_missing, quality_state_stale, or the stored blockReasons).
         executionModel: { $ref: "#/components/schemas/ExecutionModel" }
         eligibility:
           type: object
