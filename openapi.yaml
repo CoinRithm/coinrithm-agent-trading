@@ -2180,7 +2180,16 @@ components:
             (never back-filled).
         schemaVersion:
           type: [integer, "null"]
-          description: v2. Artifact schema version; `null` for legacy rows.
+          description: v2. Artifact schema version; `null` for legacy rows. `2` = carries provenance.
+        provenance:
+          anyOf:
+            - $ref: "#/components/schemas/DecisionProvenance"
+            - type: "null"
+          description: |
+            v2 (schemaVersion 2). WHAT RAN to produce the decision (server-stamped
+            policy versions + providerVerified; self-reported runtime/bundle/prompt-
+            hash/config-hash/model/evidence). `null` on schemaVersion-1 rows (never
+            back-filled); hashed into `contentHash` for a v2 row.
 
     EntryContext:
       type: object
@@ -2471,11 +2480,118 @@ components:
             - $ref: "#/components/schemas/EntryContext"
             - type: "null"
           description: Frozen market snapshot at decision time; null for pre-capture rows.
+        provenance:
+          anyOf:
+            - $ref: "#/components/schemas/DecisionProvenance"
+            - type: "null"
+          description: |
+            v2 (schemaVersion 2). WHAT RAN to produce the decision — one of
+            `contentHashFields` for a v2 row, so a verifier reproduces the hash off
+            this field. `null` on schemaVersion-1 rows (never back-filled).
         settlementLabel:
           type: [string, "null"]
           description: Later lifecycle stamp (NOT part of contentHash); null until the linked position settles.
         settledAt: { type: [string, "null"], format: date-time }
         createdAt: { type: string, format: date-time }
+
+    DecisionProvenanceReport:
+      type: object
+      description: |
+        OPTIONAL self-reported provenance you attach to a pm/open or pm/opportunity
+        so the durable artifact can record WHAT RAN to produce the decision. Every
+        field here is SELF-REPORTED and carries NO trust on its own. Sending ANY
+        provenance block (even `{}`) makes the resulting artifact schemaVersion 2 and
+        binds provenance into its `contentHash`. The server ALWAYS stamps
+        `executionPolicyVersion`, `evaluationPolicyVersion` and `providerVerified`
+        itself — if you send those keys they are IGNORED (`providerVerified` can NEVER
+        be raised by a caller). `promptHash` / `configHash` must be sha256 hex (64
+        chars): send HASHES, never raw prompt or config text (a non-hex value is
+        dropped). Unknown keys are ignored; oversized values are capped.
+      properties:
+        runtimeKind:
+          type: string
+          enum: [hosted_scheduler, self_host_runner, byo_api, mcp_tool]
+          description: The runtime surface you ran on (self-reported; no trust).
+        packageVersion: { type: string, maxLength: 40 }
+        bundleId: { type: string, maxLength: 120 }
+        bundleVersion: { type: string, maxLength: 40 }
+        skillVersions:
+          type: object
+          additionalProperties: { type: string }
+          description: "{skillId: version}. Capped: 50 keys, key<=120 / value<=40 chars."
+        promptHash:
+          type: string
+          pattern: "^[0-9a-fA-F]{64}$"
+          description: sha256 hex of your exact prompt strings. HASH ONLY — never raw text.
+        configHash:
+          type: string
+          pattern: "^[0-9a-fA-F]{64}$"
+          description: sha256 hex of your resolved config/spec. HASH ONLY — never raw text.
+        modelProvider: { type: string, maxLength: 80 }
+        modelName: { type: string, maxLength: 80 }
+        evidenceRef:
+          type: object
+          description: Pointers to the observation evidence (never the evidence itself).
+          properties:
+            snapshotIds:
+              type: array
+              items: { type: string, maxLength: 200 }
+              description: Opaque snapshot ids (capped at 100).
+            sourceCapturedAt:
+              type: string
+              format: date-time
+              description: Source capture time (ISO 8601).
+
+    DecisionProvenance:
+      type: object
+      description: |
+        Provenance-v2 as STORED and SERVED on a schemaVersion-2 artifact: WHAT RAN to
+        produce the decision. The HONESTY SPLIT is load-bearing — server-stamped
+        fields are authoritative; caller-reported fields are SELF-REPORTED and carry
+        no trust. Present only on schemaVersion-2 rows (null / absent on v1).
+      properties:
+        v: { type: integer, description: Provenance object version. }
+        executionPolicyVersion:
+          type: string
+          description: SERVER-STAMPED. Versioned paper-execution policy (e.g. paper_execution_v1).
+        evaluationPolicyVersion:
+          type: string
+          description: SERVER-STAMPED. Versioned evaluation policy (e.g. eval-1).
+        providerVerified:
+          type: boolean
+          description: |
+            SERVER-COMPUTED ONLY — true only where CoinRithm itself controlled the
+            model/provider call. Currently FALSE for every public agent surface (the
+            house scheduler and self-host runner both authenticate as ordinary keyed
+            callers, so there is no non-spoofable signal); a caller can NEVER raise
+            it. Honest, not aspirational.
+        runtimeKind:
+          type: [string, "null"]
+          enum: [hosted_scheduler, self_host_runner, byo_api, mcp_tool, null]
+          description: SELF-REPORTED runtime surface. No trust on its own.
+        packageVersion: { type: [string, "null"] }
+        bundleId: { type: [string, "null"] }
+        bundleVersion: { type: [string, "null"] }
+        skillVersions:
+          type: [object, "null"]
+          additionalProperties: { type: string }
+          description: "SELF-REPORTED {skillId: version}."
+        promptHash:
+          type: [string, "null"]
+          description: sha256 hex (64) of the prompt strings — HASH ONLY, never raw text.
+        configHash:
+          type: [string, "null"]
+          description: sha256 hex (64) of the resolved config — HASH ONLY, never raw text.
+        modelProvider: { type: [string, "null"] }
+        modelName: { type: [string, "null"] }
+        evidenceRef:
+          type: [object, "null"]
+          description: Pointers to the observation evidence (never the evidence itself).
+          properties:
+            snapshotIds:
+              type: [array, "null"]
+              items: { type: string }
+            sourceCapturedAt: { type: [string, "null"], format: date-time }
 
     SettlementProvenance:
       type: object
@@ -2570,6 +2686,13 @@ components:
           anyOf:
             - $ref: "#/components/schemas/OpportunityCohortContext"
             - type: "null"
+        provenance:
+          anyOf:
+            - $ref: "#/components/schemas/DecisionProvenance"
+            - type: "null"
+          description: |
+            v2 (schemaVersion 2). WHAT RAN to produce the opportunity. `null` on
+            schemaVersion-1 rows (no provenance block was reported).
 
     ArenaAgent:
       type: object
@@ -3230,6 +3353,8 @@ components:
         stakeMusd: { type: number, minimum: 10 }
         idempotencyKey: { type: string }
         agentTrace: { $ref: "#/components/schemas/AgentTraceMetadata" }
+        provenance:
+          $ref: "#/components/schemas/DecisionProvenanceReport"
     PmOpportunityRequest:
       type: object
       required: [kind]
@@ -3280,6 +3405,8 @@ components:
           description: Your own decision id — idempotency key within your API key.
         runId: { type: string, description: Your own run id for grouping. }
         agentTrace: { $ref: "#/components/schemas/AgentTraceMetadata" }
+        provenance:
+          $ref: "#/components/schemas/DecisionProvenanceReport"
     PmOpportunityResponse:
       type: object
       properties:

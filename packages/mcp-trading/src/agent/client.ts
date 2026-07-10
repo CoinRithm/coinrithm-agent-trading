@@ -10,6 +10,25 @@ import { sleep as realSleep } from "./util.js";
 
 export const DEFAULT_BASE_URL = "https://api.coinrithm.com";
 
+// SELF-REPORTED provenance the runner attaches to a pm/open or pm/opportunity so the
+// durable artifact records WHAT RAN. Carries NO trust: the server stamps the policy
+// versions + providerVerified itself (providerVerified can never be raised here). The
+// runner fills only what it honestly knows (runtimeKind, packageVersion, model), and
+// omits the rest.
+export type ProvenanceReport = {
+  runtimeKind?:
+    "hosted_scheduler" | "self_host_runner" | "byo_api" | "mcp_tool";
+  packageVersion?: string;
+  bundleId?: string;
+  bundleVersion?: string;
+  skillVersions?: Record<string, string>;
+  promptHash?: string;
+  configHash?: string;
+  modelProvider?: string;
+  modelName?: string;
+  evidenceRef?: { snapshotIds?: string[]; sourceCapturedAt?: string };
+};
+
 export interface ClientConfig {
   apiKey: string;
   baseUrl?: string;
@@ -294,6 +313,8 @@ export class CoinRithmClient {
     // wins, recorded separately from the market price for its public calibration
     // record. Omitted entirely when the agent isn't forecasting.
     forecastProbability?: number;
+    // Optional SELF-REPORTED provenance (WHAT RAN). Makes the artifact schemaVersion 2.
+    provenance?: ProvenanceReport;
     agentTrace?: AgentTrace;
   }) {
     return this.request("POST", "/api/agent/pm/open", { body });
@@ -322,6 +343,8 @@ export class CoinRithmClient {
       cohort?: { universeSize?: number; horizon?: string };
       decisionId?: string | null;
       runId?: string | null;
+      // Optional SELF-REPORTED provenance (WHAT RAN). Makes the artifact schemaVersion 2.
+      provenance?: ProvenanceReport;
     },
     trace?: AgentTrace,
   ) {

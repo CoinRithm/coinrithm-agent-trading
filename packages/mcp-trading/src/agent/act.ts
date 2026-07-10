@@ -2,7 +2,7 @@
 // the model) and execute a validated action (futures / spot / PM) with an
 // idempotency key.
 
-import { CoinRithmClient } from "./client.js";
+import { CoinRithmClient, ProvenanceReport } from "./client.js";
 import {
   ProposedAction,
   AgentTrace,
@@ -97,6 +97,10 @@ export async function executeAction(
   observation: Observation,
   trace: AgentTrace,
   idempotencyKey: string,
+  // Optional SELF-REPORTED runner provenance, attached to a pm_open only (the one
+  // durable-artifact write path here). Absent => the request is byte-identical to
+  // pre-provenance behavior.
+  provenance?: ProvenanceReport,
 ): Promise<ApiResult> {
   if (action.type === "futures_open") {
     const coinId = coinIdFor(observation, action.symbol);
@@ -167,6 +171,8 @@ export async function executeAction(
       ...(action.forecastProbability != null
         ? { forecastProbability: action.forecastProbability }
         : {}),
+      // Attach runner provenance only when present (byte-identical to before when absent).
+      ...(provenance ? { provenance } : {}),
       agentTrace: trace,
     });
   }

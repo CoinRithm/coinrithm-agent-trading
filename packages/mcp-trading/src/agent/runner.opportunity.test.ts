@@ -3,8 +3,12 @@ import {
   runCycle,
   RunnerDeps,
   buildSkipOpportunity,
+  buildRunnerProvenance,
+  runnerRuntimeKind,
   agentOpportunityCaptureEnabled,
 } from "./runner.js";
+import { parseSkill as parseSkillForProv } from "./skill.js";
+import { renderFolderOfOne as renderForProv } from "./templates.js";
 import type { Decision, PmMarket } from "./types.js";
 import { parseSkill } from "./skill.js";
 import { renderFolderOfOne } from "./templates.js";
@@ -114,7 +118,44 @@ function deps(
 
 afterEach(() => {
   delete process.env.AGENT_OPPORTUNITY_CAPTURE_ENABLED;
+  delete process.env.COINRITHM_RUNTIME_KIND;
   vi.restoreAllMocks();
+});
+
+/* ------------------------- runner provenance ------------------------- */
+
+describe("buildRunnerProvenance + runnerRuntimeKind", () => {
+  const specOf = () =>
+    parseSkillForProv(renderForProv("a", "conservative")).spec;
+
+  it("reports the honest self-host default + package version + self-reported model", () => {
+    delete process.env.COINRITHM_RUNTIME_KIND;
+    const p = buildRunnerProvenance(specOf());
+    expect(p.runtimeKind).toBe("self_host_runner");
+    expect(typeof p.packageVersion).toBe("string");
+    expect((p.packageVersion ?? "").length).toBeGreaterThan(0);
+    // conservative template -> anthropic model (self-reported, no trust).
+    expect(p.modelProvider).toBe("anthropic");
+    expect((p.modelName ?? "").length).toBeGreaterThan(0);
+    // The runner never fabricates what it cannot attest.
+    expect(p.promptHash).toBeUndefined();
+    expect(p.configHash).toBeUndefined();
+    // It never sets providerVerified (server-only) — the field is not even present.
+    expect(p).not.toHaveProperty("providerVerified");
+  });
+
+  it("honors COINRITHM_RUNTIME_KIND=hosted_scheduler (descriptive label, no trust)", () => {
+    process.env.COINRITHM_RUNTIME_KIND = "hosted_scheduler";
+    expect(runnerRuntimeKind()).toBe("hosted_scheduler");
+    expect(buildRunnerProvenance(specOf()).runtimeKind).toBe(
+      "hosted_scheduler",
+    );
+  });
+
+  it("falls back to self_host_runner for an unrecognized runtime kind", () => {
+    process.env.COINRITHM_RUNTIME_KIND = "root_shell";
+    expect(runnerRuntimeKind()).toBe("self_host_runner");
+  });
 });
 
 /* ------------------------- pure helpers ------------------------- */
@@ -233,6 +274,10 @@ describe("runCycle opportunity emission", () => {
     expect(body.source).toBe("kalshi");
     expect(body.cohort).toEqual({ universeSize: 2, horizon: "7d" });
     expect(body.decisionId).toBeTruthy();
+    // The runner attaches its REAL provenance (self-reported; server stamps trust).
+    expect(body.provenance?.runtimeKind).toBe("self_host_runner");
+    expect(body.provenance?.modelProvider).toBe("anthropic");
+    expect((body.provenance?.packageVersion ?? "").length).toBeGreaterThan(0);
     expect(r.opportunity?.kind).toBe("abstained");
   });
 
@@ -285,6 +330,10 @@ describe("runCycle opportunity emission", () => {
     };
     const r = await runCycle(deps({ live: true }, client, provider(act)));
     expect(client.openPmPosition).toHaveBeenCalledTimes(1);
+    // The pm_open request carries the runner's provenance too (durable-artifact write).
+    expect(client.openPmPosition.mock.calls[0][0].provenance?.runtimeKind).toBe(
+      "self_host_runner",
+    );
     expect(client.reportPmOpportunity).toHaveBeenCalledTimes(1);
     const body = client.reportPmOpportunity.mock.calls[0][0];
     expect(body.kind).toBe("quote_expired");

@@ -98,3 +98,56 @@ describe("report_pm_opportunity tool", () => {
     expect(desc).toMatch(/not independently verify/i);
   });
 });
+
+describe("provenance input schema (both PM write tools)", () => {
+  const openTool = capture().find((t) => t.name === "open_pm_position");
+  const oppTool = capture().find((t) => t.name === "report_pm_opportunity");
+
+  const provField = (t: Registered | undefined) =>
+    t!.config.inputSchema.provenance;
+
+  it("both tools expose an OPTIONAL provenance field", () => {
+    expect(provField(openTool)).toBeDefined();
+    expect(provField(oppTool)).toBeDefined();
+    // Optional: omitting it parses clean (the row stays schemaVersion 1).
+    expect(provField(openTool).safeParse(undefined).success).toBe(true);
+    // An empty block is valid (server stamps make it schemaVersion 2).
+    expect(provField(openTool).safeParse({}).success).toBe(true);
+  });
+
+  it("accepts a valid self-reported provenance and enforces the hex hash rails", () => {
+    const good = {
+      runtimeKind: "self_host_runner",
+      packageVersion: "0.7.3",
+      promptHash: "a".repeat(64),
+      configHash: "b".repeat(64),
+      modelProvider: "anthropic",
+      modelName: "claude-opus",
+      skillVersions: { forecast: "3" },
+      evidenceRef: {
+        snapshotIds: ["s1"],
+        sourceCapturedAt: "2026-07-10T11:00:00Z",
+      },
+    };
+    expect(provField(oppTool).safeParse(good).success).toBe(true);
+    // A non-hex prompt hash (e.g. leaked raw text) is REJECTED at the boundary.
+    expect(
+      provField(oppTool).safeParse({ promptHash: "not a hash" }).success,
+    ).toBe(false);
+    // An unknown runtime kind is rejected.
+    expect(
+      provField(oppTool).safeParse({ runtimeKind: "root_shell" }).success,
+    ).toBe(false);
+  });
+
+  it("does NOT expose providerVerified as a caller-settable field (server-only)", () => {
+    // The report schema is the caller subset; providerVerified is not in it, so a
+    // caller literally cannot set it via the tool. Zod strips unknown keys by default.
+    const parsed = provField(openTool).safeParse({
+      runtimeKind: "byo_api",
+      providerVerified: true,
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.data).not.toHaveProperty("providerVerified");
+  });
+});

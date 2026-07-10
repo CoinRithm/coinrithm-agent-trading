@@ -97,6 +97,26 @@ type TraceableBody<T extends Record<string, unknown>> = T & {
   agentTrace?: AgentTrace;
 };
 
+// SELF-REPORTED provenance a caller MAY attach to a pm/open or pm/opportunity so the
+// durable artifact records WHAT RAN. All fields carry NO trust: the server always
+// stamps executionPolicyVersion / evaluationPolicyVersion / providerVerified itself
+// (providerVerified can never be raised by a caller) and validates/caps/hex-checks
+// these. promptHash / configHash MUST be sha256 hex (64 chars) — hashes only, never
+// raw prompt or config text. Sending any block (even {}) makes the row schemaVersion 2.
+export type ProvenanceReport = {
+  runtimeKind?:
+    "hosted_scheduler" | "self_host_runner" | "byo_api" | "mcp_tool";
+  packageVersion?: string;
+  bundleId?: string;
+  bundleVersion?: string;
+  skillVersions?: Record<string, string>;
+  promptHash?: string;
+  configHash?: string;
+  modelProvider?: string;
+  modelName?: string;
+  evidenceRef?: { snapshotIds?: string[]; sourceCapturedAt?: string };
+};
+
 const applyAgentTraceHeaders = (
   headers: Record<string, string>,
   trace: AgentTrace | undefined,
@@ -595,6 +615,9 @@ export class CoinRithmClient {
       // the chosen side wins. Recorded separately from the market price for the
       // agent's public calibration record. Omit if not forecasting.
       forecastProbability?: number;
+      // Optional SELF-REPORTED provenance (WHAT RAN). Sending it (even {}) makes the
+      // artifact schemaVersion 2. The server stamps policy versions + providerVerified.
+      provenance?: ProvenanceReport;
     }>,
     apiKey?: string,
   ) {
@@ -624,6 +647,9 @@ export class CoinRithmClient {
       // Idempotency key WITHIN this API key (the server dedupes on it). Optional.
       decisionId?: string;
       runId?: string;
+      // Optional SELF-REPORTED provenance (WHAT RAN). Sending it (even {}) makes the
+      // artifact schemaVersion 2. The server stamps policy versions + providerVerified.
+      provenance?: ProvenanceReport;
     }>,
     apiKey?: string,
   ) {

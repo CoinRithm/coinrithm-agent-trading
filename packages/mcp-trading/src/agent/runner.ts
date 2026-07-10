@@ -3,8 +3,9 @@
 // idempotency keys + agentTrace and exports run evidence. The client + provider
 // are injected so the loop is fully unit-testable with no network/model calls.
 
-import { CoinRithmClient } from "./client.js";
+import { CoinRithmClient, ProvenanceReport } from "./client.js";
 import { Provider } from "./providers.js";
+import { COINRITHM_API } from "./version.js";
 import {
   AgentSpec,
   RunState,
@@ -73,6 +74,33 @@ export function agentOpportunityCaptureEnabled(): boolean {
     .trim()
     .toLowerCase();
   return !["false", "0", "no", "off"].includes(v);
+}
+
+// The runner's SELF-REPORTED runtime kind. This is the npm coinrithm-agent runner,
+// so the honest default is "self_host_runner". When the house scheduler spawns the
+// runner it may set COINRITHM_RUNTIME_KIND=hosted_scheduler — a purely DESCRIPTIVE
+// label that carries NO trust (the backend forces providerVerified=false for every
+// keyed caller regardless), so it can never be used to fake verification. Any
+// unrecognized value falls back to self_host_runner.
+export function runnerRuntimeKind(): ProvenanceReport["runtimeKind"] {
+  const v = (process.env.COINRITHM_RUNTIME_KIND ?? "").trim().toLowerCase();
+  return v === "hosted_scheduler" ? "hosted_scheduler" : "self_host_runner";
+}
+
+// Build the runner's REAL provenance from what it honestly knows: its runtime kind,
+// the published package version (read from package.json via version.ts), and the
+// self-reported model provider/name from the resolved agent spec. Everything the
+// runner cannot truthfully attest (bundle/skill/prompt/config hashes, evidence refs)
+// is OMITTED — absent > fabricated. Sending this block makes the artifact v2; the
+// server still stamps the policy versions + providerVerified itself.
+export function buildRunnerProvenance(spec: AgentSpec): ProvenanceReport {
+  const prov: ProvenanceReport = {
+    runtimeKind: runnerRuntimeKind(),
+    packageVersion: COINRITHM_API.mcpVersion,
+  };
+  if (spec.model?.provider) prov.modelProvider = spec.model.provider;
+  if (spec.model?.name) prov.modelName = spec.model.name;
+  return prov;
 }
 
 // Clamp a model-proposed forecast to the backend's exclusive (0,100) rail as a
@@ -339,6 +367,10 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
   // One flag read per cycle governs BOTH the prompt extension and the submission,
   // so they can never diverge (prompt asks for it iff we would submit it).
   const forecastEnabled = houseAgentForecastEnabled();
+  // The runner's REAL provenance for this cycle (runtime kind + package version +
+  // self-reported model). Attached to every durable-artifact write (pm_open,
+  // opportunity) so the artifact records WHAT RAN. Constant per cycle.
+  const provenance = buildRunnerProvenance(spec);
   state.cyclesRun += 1;
   rollDay(state);
 
@@ -390,6 +422,7 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
           },
           decisionId,
           runId,
+          provenance,
         },
         baseTrace,
       );
@@ -874,7 +907,14 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
         decision.actions.length,
       ),
     );
-    const r = await executeAction(client, action, observation, trace, idem);
+    const r = await executeAction(
+      client,
+      action,
+      observation,
+      trace,
+      idem,
+      provenance,
+    );
     planned.push({
       action,
       accepted: true,

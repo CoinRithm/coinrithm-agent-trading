@@ -89,6 +89,63 @@ const AGENT_TRACE_SCHEMA = z
   .optional()
   .describe("Optional private trace metadata stored in the caller's ledger.");
 
+// Optional SELF-REPORTED provenance a caller attaches to a PM open/opportunity so the
+// durable artifact records WHAT RAN. Every field carries NO trust: the server always
+// stamps the execution/evaluation policy versions AND providerVerified itself
+// (providerVerified can NEVER be raised by a caller), validates/caps each value, and
+// hex-checks the hashes. Sending ANY block (even {}) makes the artifact schemaVersion 2.
+const PROVENANCE_REPORT_SCHEMA = z
+  .object({
+    runtimeKind: z
+      .enum(["hosted_scheduler", "self_host_runner", "byo_api", "mcp_tool"])
+      .optional()
+      .describe("The runtime surface you ran on (self-reported; no trust)."),
+    packageVersion: z.string().max(40).optional(),
+    bundleId: z.string().max(120).optional(),
+    bundleVersion: z.string().max(40).optional(),
+    skillVersions: z
+      .record(z.string(), z.string())
+      .optional()
+      .describe("{skillId: version}. Capped: 50 keys, key<=120 / value<=40."),
+    promptHash: z
+      .string()
+      .regex(/^[0-9a-fA-F]{64}$/)
+      .optional()
+      .describe(
+        "sha256 hex of your exact prompt strings. HASH ONLY — never raw text.",
+      ),
+    configHash: z
+      .string()
+      .regex(/^[0-9a-fA-F]{64}$/)
+      .optional()
+      .describe(
+        "sha256 hex of your resolved config/spec. HASH ONLY — never raw text.",
+      ),
+    modelProvider: z.string().max(80).optional(),
+    modelName: z.string().max(80).optional(),
+    evidenceRef: z
+      .object({
+        snapshotIds: z
+          .array(z.string().max(200))
+          .optional()
+          .describe("Opaque snapshot ids (capped at 100)."),
+        sourceCapturedAt: z
+          .string()
+          .optional()
+          .describe("Source capture time (ISO 8601)."),
+      })
+      .optional()
+      .describe(
+        "Pointers to the observation evidence (never the evidence itself).",
+      ),
+  })
+  .optional()
+  .describe(
+    "Optional self-reported provenance (WHAT RAN). No trust: the server stamps " +
+      "policy versions + providerVerified itself. Any block (even {}) makes the " +
+      "artifact schemaVersion 2.",
+  );
+
 function readOnlyAnnotations(title: string): ToolAnnotations {
   return {
     title,
@@ -1287,6 +1344,7 @@ export function registerTools(
               "SKILL — not the market's. Omit it if you are not forecasting; never " +
               "echo the market probability back.",
           ),
+        provenance: PROVENANCE_REPORT_SCHEMA,
         agentTrace: AGENT_TRACE_SCHEMA,
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
@@ -1303,6 +1361,7 @@ export function registerTools(
         stakeMusd,
         idempotencyKey,
         forecastProbability,
+        provenance,
         agentTrace,
       },
       extra,
@@ -1317,6 +1376,7 @@ export function registerTools(
             stakeMusd,
             idempotencyKey,
             forecastProbability,
+            provenance,
             agentTrace,
           },
           requestKey(extra),
@@ -1406,6 +1466,7 @@ export function registerTools(
             "Your own id for this decision — idempotency key within your API key.",
           ),
         runId: z.string().optional().describe("Your own run id for grouping."),
+        provenance: PROVENANCE_REPORT_SCHEMA,
         agentTrace: AGENT_TRACE_SCHEMA,
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
@@ -1425,6 +1486,7 @@ export function registerTools(
         cohort,
         decisionId,
         runId,
+        provenance,
         agentTrace,
       },
       extra,
@@ -1442,6 +1504,7 @@ export function registerTools(
             cohort,
             decisionId,
             runId,
+            provenance,
             agentTrace,
           },
           requestKey(extra),
