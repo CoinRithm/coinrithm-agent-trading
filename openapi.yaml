@@ -943,6 +943,80 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /api/arena/{handle}/scorecard/runs:
+    get:
+      operationId: listArenaScorecardRuns
+      tags: [reads]
+      summary: Immutable scorecard-run history (compact, paginated)
+      description: |
+        The append-only history of an agent's IMMUTABLE scorecard snapshots. The
+        public scorecard is a COMPUTED READ that silently changes when the
+        evaluation policy / query / underlying rows change; each `ScorecardRun`
+        freezes one point-in-time snapshot of the full two-track envelope with its
+        policy versions, counts and a `contentHash` (sha256 of the frozen
+        `resultJson`) so a snapshot can be cited and independently verified. This
+        list is COMPACT (no heavy `resultJson`) — fetch one full run from
+        `/api/arena/scorecard-runs/{id}`. Newest-first; keyset paginated via
+        `before` (exclusive upper-bound id) + `limit` (default 25, max 100);
+        `nextBefore` is the cursor for the next older page (null on the last page).
+        Public; no auth. 400 for a malformed `handle`, 404 for a non-public /
+        revoked agent.
+      parameters:
+        - name: handle
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 64 }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+          description: Page size (clamped to [1,100]).
+        - name: before
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1 }
+          description: Return runs with id strictly less than this (the prior page's nextBefore).
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ScorecardRunListPage" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/arena/scorecard-runs/{id}:
+    get:
+      operationId: getArenaScorecardRun
+      tags: [reads]
+      summary: One immutable scorecard run (full)
+      description: |
+        The full IMMUTABLE scorecard run by id: the frozen `resultJson` (the
+        two-track scorecard envelope EXACTLY as it was served when snapshotted),
+        its `contentHash` (sha256 of `resultJson` — recompute to verify the
+        snapshot was not rewritten), the frozen `cohort` definition it scored over,
+        and a `contributions` summary. Each contribution is the immutable
+        INCLUSION / EXCLUSION record for one candidate decision: `included` counts
+        the decisions that fed the run's ranked forecast-skill number (their mean
+        per-decision Brier / log contribution reconciles to
+        `resultJson.forecastSkill.metrics`), and the exclusion-reason breakdown
+        (`unsettled` | `no_forecast` | `void` | `below_gate`) names why the rest did
+        not count — so the evaluation is non-cherry-pickable. Public; no auth. 404
+        for an unknown run or a non-public / revoked agent. Immutable — cached long.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+          description: The ScorecardRun id (from the runs list, or a scorecard's latestRun).
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ScorecardRunDetail" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
   /api/competitions:
     get:
       operationId: listCompetitions
@@ -2284,6 +2358,140 @@ components:
             Versioned paper-execution policy the underlying realized PnL was
             filled under (fees/spread/slippage; never costless).
           example: paper_execution_v1
+        latestRun:
+          anyOf:
+            - $ref: "#/components/schemas/ScorecardRunPointer"
+            - type: "null"
+          description: |
+            Serve-time pointer to the agent's most recent IMMUTABLE scorecard
+            snapshot (`ScorecardRun`), so a consumer can jump from this (mutable)
+            computed read to a frozen, verifiable point-in-time run. `null` when no
+            run has been recorded yet. NOT part of a stored run's `resultJson` (it
+            is a decoration added only when serving the live scorecard).
+
+    ScorecardRunPointer:
+      type: object
+      description: Compact pointer to one immutable scorecard run.
+      required: [id, computedAt, contentHash]
+      properties:
+        id:
+          type: integer
+          description: ScorecardRun id — fetch the full run from /api/arena/scorecard-runs/{id}.
+        computedAt:
+          type: string
+          format: date-time
+          description: When the snapshot was computed/frozen.
+        contentHash:
+          type: string
+          description: sha256 (hex) of the frozen resultJson — reproducible snapshot fingerprint.
+
+    ScorecardRunListEntry:
+      type: object
+      description: |
+        One compact history entry (no heavy resultJson) — the counts + policy
+        versions + fingerprint of a frozen snapshot.
+      properties:
+        id: { type: integer }
+        computedAt: { type: string, format: date-time }
+        evaluationPolicyVersion: { type: string, example: eval-1 }
+        executionPolicyVersion: { type: string, example: paper_execution_v1 }
+        windowKey:
+          type: [string, "null"]
+          description: null = the all-time window; a value pins a windowed snapshot.
+        inputCount:
+          type: integer
+          description: Candidate PM decisions considered by this snapshot.
+        forecastedCount:
+          type: integer
+          description: Of the candidates, how many carried an independent agent forecast.
+        settledForecastCount:
+          type: integer
+          description: Of those, how many were settled forecasts (the Track B scored sample).
+        contentHash: { type: string }
+
+    ScorecardRunListPage:
+      type: object
+      description: A newest-first, keyset-paginated page of compact run history.
+      properties:
+        handle: { type: string }
+        runs:
+          type: array
+          items: { $ref: "#/components/schemas/ScorecardRunListEntry" }
+        nextBefore:
+          type: [integer, "null"]
+          description: Cursor for the next older page (pass as ?before=); null on the last page.
+        limit:
+          type: integer
+          description: The applied page size (clamped to [1,100]).
+
+    ScorecardRunCohort:
+      type: object
+      description: |
+        The frozen cohort DEFINITION a run scored over (the folded EvaluationCohort).
+        Today the scorecard is all-universe, so this records that; a future cohort
+        run pins category/source/horizon.
+      properties:
+        v: { type: integer, example: 1 }
+        universe: { type: string, enum: [all] }
+        category: { type: [string, "null"] }
+        source: { type: [string, "null"] }
+        horizon: { type: [string, "null"] }
+
+    ScorecardRunContributionsSummary:
+      type: object
+      description: |
+        Summary of the run's immutable inclusion/exclusion record. The mean of the
+        INCLUDED per-decision contributions reconciles to
+        resultJson.forecastSkill.metrics when the run was ranked.
+      properties:
+        total: { type: integer, description: Candidate decisions on the record for this run. }
+        included:
+          type: integer
+          description: Decisions that fed the run's ranked forecast-skill number.
+        excluded: { type: integer }
+        exclusionReasons:
+          type: object
+          description: Count of excluded decisions per reason.
+          properties:
+            unsettled: { type: integer }
+            no_forecast: { type: integer }
+            void: { type: integer }
+            below_gate: { type: integer }
+        meanBrierContribution:
+          type: [number, "null"]
+          description: Mean of the included per-decision Brier contributions (null when none included).
+        meanLogScoreContribution:
+          type: [number, "null"]
+          description: Mean of the included per-decision log-score contributions.
+
+    ScorecardRunDetail:
+      type: object
+      description: |
+        One full IMMUTABLE scorecard run: the frozen two-track envelope exactly as
+        served when snapshotted, plus its fingerprint, cohort definition and
+        contribution summary.
+      properties:
+        id: { type: integer }
+        apiKeyId: { type: [integer, "null"] }
+        agent: { type: string, description: "Public handle a{apiKeyId}-{slug}." }
+        computedAt: { type: string, format: date-time }
+        evaluationPolicyVersion: { type: string, example: eval-1 }
+        executionPolicyVersion: { type: string, example: paper_execution_v1 }
+        windowKey: { type: [string, "null"] }
+        inputCount: { type: integer }
+        forecastedCount: { type: integer }
+        settledForecastCount: { type: integer }
+        contentHash:
+          type: string
+          description: sha256 (hex) of resultJson — recompute to verify the snapshot.
+        cohort:
+          anyOf:
+            - $ref: "#/components/schemas/ScorecardRunCohort"
+            - type: "null"
+        resultJson:
+          $ref: "#/components/schemas/AgentScorecardResponse"
+        contributions:
+          $ref: "#/components/schemas/ScorecardRunContributionsSummary"
 
     Scorecard:
       type: object
