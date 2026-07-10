@@ -600,4 +600,33 @@ export class CoinRithmClient {
   ) {
     return this.request("POST", "/api/agent/pm/open", { body, apiKey });
   }
+
+  // Report a NON-opened opportunity (scope: read — it is EVIDENCE, not a trade, so
+  // it never moves a wallet or a position). Captures the model ABSTAINING while
+  // markets were listed, forecasting WITHOUT trading (forecast_only), or a validated
+  // open whose quote EXPIRED at act time (quote_expired), so the public evaluation
+  // is not selection-biased toward opened trades. Idempotent by (key, decisionId).
+  reportPmOpportunity(
+    body: TraceableBody<{
+      kind: "abstained" | "forecast_only" | "quote_expired";
+      source?: string;
+      slug?: string;
+      outcomeExternalMarketId?: string;
+      // REQUIRED by the server for forecast_only: the agent's OWN probability
+      // (1-99) that the chosen side wins. Omit for the other kinds.
+      forecastProbability?: number;
+      // The market price the agent observed (0-100). Optional.
+      marketProbability?: number;
+      reasonCode?: string;
+      // Cohort breadth — universeSize (how many markets were weighed) + horizon —
+      // so one report captures the whole opportunity cohort, never one per market.
+      cohort?: { universeSize?: number; horizon?: string };
+      // Idempotency key WITHIN this API key (the server dedupes on it). Optional.
+      decisionId?: string;
+      runId?: string;
+    }>,
+    apiKey?: string,
+  ) {
+    return this.request("POST", "/api/agent/pm/opportunity", { body, apiKey });
+  }
 }

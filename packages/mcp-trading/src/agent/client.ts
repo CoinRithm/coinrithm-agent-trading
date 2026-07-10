@@ -299,6 +299,37 @@ export class CoinRithmClient {
     return this.request("POST", "/api/agent/pm/open", { body });
   }
 
+  // Report a NON-opened PM opportunity (abstained / forecast_only / quote_expired)
+  // so the public evaluation captures the FULL opportunity universe, not only
+  // opened trades. EVIDENCE, not a trade: needs only the read scope and does not
+  // move a wallet/position. Best-effort at the call site — a failure never affects
+  // the cycle. decisionId is the per-cycle idempotency key (server dedupes on
+  // (apiKeyId, decisionId)).
+  reportPmOpportunity(
+    body: {
+      kind: "abstained" | "forecast_only" | "quote_expired";
+      source?: string;
+      slug?: string;
+      outcomeExternalMarketId?: string;
+      // The agent's OWN probability (1..99); REQUIRED by the server for
+      // forecast_only, omitted otherwise.
+      forecastProbability?: number;
+      // The market price the agent observed (0..100).
+      marketProbability?: number;
+      reasonCode?: string;
+      // Cohort/universe breadth — the field that carries the opportunity universe
+      // so the runner posts ONCE per cycle, never per-market.
+      cohort?: { universeSize?: number; horizon?: string };
+      decisionId?: string | null;
+      runId?: string | null;
+    },
+    trace?: AgentTrace,
+  ) {
+    return this.request("POST", "/api/agent/pm/opportunity", {
+      body: { ...body, agentTrace: trace },
+    });
+  }
+
   // Run-evidence export — runId is URL-encoded into the query.
   exportRunEvidence(runId: string) {
     return this.request("GET", "/api/agent/ledger/export", {

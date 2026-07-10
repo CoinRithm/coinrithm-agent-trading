@@ -1324,6 +1324,131 @@ export function registerTools(
       ),
   );
 
+  server.registerTool(
+    "report_pm_opportunity",
+    {
+      title: "Report a non-opened PM opportunity",
+      description:
+        "Report a prediction-market opportunity you evaluated but did NOT open, so " +
+        "your PUBLIC evaluation reflects the FULL opportunity universe — not only " +
+        "the trades you took (otherwise an agent can look skilled by exposure " +
+        "choice alone). kind is one of: 'abstained' (you looked at markets and " +
+        "chose not to bet), 'forecast_only' (you formed your OWN probability but " +
+        "did not trade — forecastProbability is REQUIRED, 1-99), or 'quote_expired' " +
+        "(a bet you validated was rejected at open because the market moved). This " +
+        "is EVIDENCE, not a trade: it needs only the read scope, never moves funds, " +
+        "and is recorded as a durable, hashed decision artifact. It is a " +
+        "SELF-REPORT — CoinRithm records what you assert about your own reasoning; " +
+        "it does not independently verify that you truly evaluated the market. Put " +
+        "the breadth of what you weighed in cohort.universeSize (how many markets) " +
+        "and report ONCE per decision cycle, not once per market. Reuse decisionId " +
+        "to make a retry idempotent. " +
+        PAPER_NOTE,
+      inputSchema: {
+        kind: z
+          .enum(["abstained", "forecast_only", "quote_expired"])
+          .describe(
+            "abstained = evaluated but did not bet; forecast_only = formed your " +
+              "own probability without trading (forecastProbability required); " +
+              "quote_expired = a validated open the server rejected at act time.",
+          ),
+        source: z
+          .string()
+          .optional()
+          .describe("Optional subject market source slug (e.g. kalshi)."),
+        slug: z.string().optional().describe("Optional subject event slug."),
+        outcomeExternalMarketId: z
+          .string()
+          .optional()
+          .describe(
+            "Optional case-sensitive outcome/market id of the subject.",
+          ),
+        forecastProbability: z
+          .number()
+          .min(1)
+          .max(99)
+          .optional()
+          .describe(
+            "Your OWN probability (1-99) the chosen side wins. REQUIRED for " +
+              "forecast_only; omit for the other kinds. Never echo the market price.",
+          ),
+        marketProbability: z
+          .number()
+          .min(0)
+          .max(100)
+          .optional()
+          .describe("The market price (0-100) you observed at the time."),
+        reasonCode: z
+          .string()
+          .max(500)
+          .optional()
+          .describe("Short structured reason (e.g. 'no_edge', 'stale_data')."),
+        cohort: z
+          .object({
+            universeSize: z
+              .number()
+              .int()
+              .min(0)
+              .optional()
+              .describe("How many markets you were choosing from this cycle."),
+            horizon: z
+              .string()
+              .max(64)
+              .optional()
+              .describe("Your forecast/decision horizon label (e.g. '7d')."),
+          })
+          .optional()
+          .describe("Opportunity-cohort breadth (frozen into the artifact)."),
+        decisionId: z
+          .string()
+          .optional()
+          .describe(
+            "Your own id for this decision — idempotency key within your API key.",
+          ),
+        runId: z.string().optional().describe("Your own run id for grouping."),
+        agentTrace: AGENT_TRACE_SCHEMA,
+      },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: mutatingAnnotations("Report a non-opened PM opportunity", {
+        idempotent: true,
+      }),
+    },
+    async (
+      {
+        kind,
+        source,
+        slug,
+        outcomeExternalMarketId,
+        forecastProbability,
+        marketProbability,
+        reasonCode,
+        cohort,
+        decisionId,
+        runId,
+        agentTrace,
+      },
+      extra,
+    ) =>
+      present(
+        await client.reportPmOpportunity(
+          {
+            kind,
+            source,
+            slug,
+            outcomeExternalMarketId,
+            forecastProbability,
+            marketProbability,
+            reasonCode,
+            cohort,
+            decisionId,
+            runId,
+            agentTrace,
+          },
+          requestKey(extra),
+        ),
+      ),
+  );
+
   // ---- Public cross-venue PM data (no API key required) ----
   // These wrap the free /api/prediction-markets/* endpoints — CoinRithm's
   // citable cross-venue dataset. They never attach the caller's key.

@@ -12,6 +12,8 @@ import {
   Decision,
   PlannedAction,
   ProposedAction,
+  PmMarket,
+  PostedOpportunity,
   QuoteEvidence,
   spotBuyCost,
   DEFAULT_TRIGGER_POLICY,
@@ -53,6 +55,21 @@ export interface RunnerDeps {
 // (not module-load) so a process env / a test can toggle it without re-import.
 export function houseAgentForecastEnabled(): boolean {
   const v = (process.env.HOUSE_AGENT_FORECAST_ENABLED ?? "")
+    .trim()
+    .toLowerCase();
+  return !["false", "0", "no", "off"].includes(v);
+}
+
+// Opportunity-capture kill-switch. Default ON: the runner reports the NON-opened
+// opportunities the trade paths cannot see — the model ABSTAINING while PM markets
+// were listed, forecasting WITHOUT trading (forecast_only), or a validated pm_open
+// whose quote EXPIRED at act time (quote_expired) — so the public evaluation is not
+// selection-biased toward opened trades. Mirrors the backend env name; set
+// AGENT_OPPORTUNITY_CAPTURE_ENABLED to "false"/"0"/"no"/"off" to disable. Read at
+// CALL TIME so a process env / a test can toggle it without re-import. Only ever
+// posts on a LIVE cycle (dry-run never writes), at most ONCE per cycle.
+export function agentOpportunityCaptureEnabled(): boolean {
+  const v = (process.env.AGENT_OPPORTUNITY_CAPTURE_ENABLED ?? "")
     .trim()
     .toLowerCase();
   return !["false", "0", "no", "off"].includes(v);
@@ -215,6 +232,107 @@ export function rationaleForAction(
     : summarizeAction(a);
 }
 
+// A market's current probability (stored 0..1) as whole percentage POINTS (0..100),
+// the basis the opportunity/decision record uses. undefined when not reported.
+function marketPct(prob: number | undefined): number | undefined {
+  return typeof prob === "number" && Number.isFinite(prob)
+    ? Math.round(prob * 100)
+    : undefined;
+}
+
+// Find the discovered market matching a resolved pm_open triple (case-insensitive
+// source/slug, exact outcome id) — for the observed market probability.
+function findPmMarket(
+  pmMarkets: PmMarket[],
+  ref: { source?: string; slug?: string; outcomeExternalMarketId?: string },
+): PmMarket | undefined {
+  return pmMarkets.find(
+    (m) =>
+      (m.source ?? "").toLowerCase() === (ref.source ?? "").toLowerCase() &&
+      (m.slug ?? "").toLowerCase() === (ref.slug ?? "").toLowerCase() &&
+      m.outcomeExternalMarketId === ref.outcomeExternalMarketId,
+  );
+}
+
+// Build the NON-opened opportunity for a MODEL-SKIP cycle, or null when there is no
+// PM universe to report on. The top listed market is the subject and the universe
+// breadth rides in universeSize so ONE post captures the whole cohort (never one
+// per market). A pm_open the model listed WITH a usable forecast makes it
+// forecast_only (it produced a probability but chose not to trade); otherwise it is
+// a plain abstention. NEVER defaults the forecast to the market price.
+//
+// NOTE: parseDecision() clears a pure `skip` decision's actions to [] (an act with
+// actions goes down the act path instead), so in the live runner this yields
+// `abstained`. The forecast_only rule is exercised whenever a decision reaches here
+// WITH surviving actions (kept faithful to the capture spec + future-proof; covered
+// directly by the unit test).
+export function buildSkipOpportunity(
+  decision: Decision,
+  pmMarkets: PmMarket[],
+  forecastEnabled: boolean,
+): PostedOpportunity | null {
+  if (pmMarkets.length === 0) return null;
+  const universeSize = pmMarkets.length;
+  const reasonCode = decision.reason?.trim() || undefined;
+
+  const pmAction = decision.actions.find(
+    (a): a is Extract<ProposedAction, { type: "pm_open" }> =>
+      a.type === "pm_open",
+  );
+  if (forecastEnabled && pmAction) {
+    const fc = sanitizeForecastProbability(pmAction.forecastProbability);
+    if (fc != null) {
+      // Resolve the forecasted market for an honest subject; fall back to the top
+      // listed market when the ref can't be resolved (still a valid forecast_only).
+      const resolved = resolvePmRef(pmAction, pmMarkets);
+      const subject =
+        (resolved.ok ? findPmMarket(pmMarkets, resolved.action) : undefined) ??
+        pmMarkets[0];
+      return {
+        kind: "forecast_only",
+        source: subject.source,
+        slug: subject.slug,
+        outcomeExternalMarketId: subject.outcomeExternalMarketId,
+        universeSize,
+        forecastProbability: fc,
+        marketProbability: marketPct(subject.probability),
+        reasonCode,
+      };
+    }
+  }
+
+  const top = pmMarkets[0];
+  return {
+    kind: "abstained",
+    source: top.source,
+    slug: top.slug,
+    outcomeExternalMarketId: top.outcomeExternalMarketId,
+    universeSize,
+    marketProbability: marketPct(top.probability),
+    reasonCode,
+  };
+}
+
+// A validated pm_open that FAILED at act with quote-expiry semantics — the server
+// rejected the open with a 422 mock_entry_blocked, i.e. the eligibility/quality/
+// pricing state moved between the quote the runner validated and the act, so the
+// quote it acted on had effectively expired. Distinct from a risk/balance 422
+// (insufficient_balance), which is not a quote-expiry.
+function isQuoteExpiredResult(status: number, data: unknown): boolean {
+  if (status !== 422) return false;
+  const d = asObj(data);
+  return asStr(d.error) === "mock_entry_blocked";
+}
+
+// Joined server block reasons (reasonCode) for a quote_expired opportunity.
+function blockReasonsOf(data: unknown): string | undefined {
+  const d = asObj(data);
+  const reasons = Array.isArray(d.blockReasons)
+    ? (d.blockReasons as unknown[]).map(String).filter((s) => s.length > 0)
+    : [];
+  return reasons.length > 0 ? reasons.join(",") : undefined;
+}
+
 export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
   const { client, provider, spec, mergedProse, state, live, stateFile } = deps;
   const log = deps.log ?? (() => {});
@@ -243,6 +361,45 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
   const runId = state.runId;
   const decisionId = makeDecisionId(state.cyclesRun);
   const baseTrace = makeTrace(runId, decisionId, spec);
+
+  // Opportunity capture (kills evaluation selection bias). Post at most ONE
+  // non-opened opportunity per cycle, LIVE only (dry-run never writes), best-effort
+  // — a failed post never affects the cycle result. The latch is set BEFORE the
+  // await so a failure never retries within the cycle (respects the write budget);
+  // the cohort/universe field carries the breadth, so we never post per-market.
+  const captureOpportunity = agentOpportunityCaptureEnabled();
+  let opportunityPosted = false;
+  let postedOpportunity: PostedOpportunity | undefined;
+  const postOpportunity = async (o: PostedOpportunity): Promise<void> => {
+    if (!captureOpportunity || !live || opportunityPosted) return;
+    opportunityPosted = true;
+    postedOpportunity = o;
+    try {
+      await client.reportPmOpportunity(
+        {
+          kind: o.kind,
+          source: o.source,
+          slug: o.slug,
+          outcomeExternalMarketId: o.outcomeExternalMarketId,
+          forecastProbability: o.forecastProbability,
+          marketProbability: o.marketProbability,
+          reasonCode: o.reasonCode,
+          cohort: {
+            universeSize: o.universeSize,
+            horizon: spec.objective?.horizon,
+          },
+          decisionId,
+          runId,
+        },
+        baseTrace,
+      );
+      log(`reported ${o.kind} opportunity (universe ${o.universeSize ?? "?"})`);
+    } catch (err) {
+      log(
+        `opportunity post failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  };
 
   // OBSERVE
   const obs = await observe(client, spec, state, baseTrace);
@@ -456,6 +613,16 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
 
   if (decision.decision === "skip" || decision.actions.length === 0) {
     state.consecutiveRejectCycles += 1;
+    // Capture the abstention / forecast-only: the model evaluated a non-empty PM
+    // universe and chose NOT to open, so the public evaluation must see it (else an
+    // agent looks skilled by exposure choice alone). One post carries the whole
+    // cohort via universeSize.
+    const skipOpp = buildSkipOpportunity(
+      decision,
+      observation.pmMarkets,
+      forecastEnabled,
+    );
+    if (skipOpp) await postOpportunity(skipOpp);
     saveState(stateFile, state);
     log(`model chose skip${decision.reason ? `: ${decision.reason}` : ""}`);
     return {
@@ -470,6 +637,7 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
       decisionType: "skip",
       writeAttempted: decision.actions.length,
       writeAccepted: 0,
+      ...(postedOpportunity ? { opportunity: postedOpportunity } : {}),
     };
   }
 
@@ -729,6 +897,27 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
         cashAvailableMusd -= cashConsumed(action, quote);
     } else {
       anyExecFailed = true;
+      // Quote-expiry capture: a validated pm_open the SERVER rejected at act time
+      // with a 422 mock_entry_blocked — the eligibility/quality/pricing state moved
+      // between the quote we validated and the act, so the quote expired. Report it
+      // (once-per-cycle; carries the universe breadth in the cohort field).
+      if (action.type === "pm_open" && isQuoteExpiredResult(r.status, r.data)) {
+        const pm = action;
+        await postOpportunity({
+          kind: "quote_expired",
+          source: pm.source,
+          slug: pm.slug,
+          outcomeExternalMarketId: pm.outcomeExternalMarketId,
+          universeSize: observation.pmMarkets.length,
+          forecastProbability: forecastEnabled
+            ? sanitizeForecastProbability(pm.forecastProbability)
+            : undefined,
+          marketProbability: marketPct(
+            findPmMarket(observation.pmMarkets, pm)?.probability,
+          ),
+          reasonCode: blockReasonsOf(r.data),
+        });
+      }
     }
     log(`${r.ok ? "executed" : "FAILED"} ${action.type} (HTTP ${r.status})`);
   }
@@ -768,6 +957,7 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
     decisionType: "act",
     writeAttempted: decision.actions.length,
     writeAccepted: planned.filter((p) => p.accepted).length,
+    ...(postedOpportunity ? { opportunity: postedOpportunity } : {}),
   };
 }
 

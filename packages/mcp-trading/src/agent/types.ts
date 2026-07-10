@@ -596,6 +596,26 @@ export interface CycleResult {
   decisionType?: "act" | "skip" | "gate_skip" | "model_error";
   writeAttempted?: number; // actions the model proposed
   writeAccepted?: number; // actions that passed validation (+ executed when live)
+  // The NON-opened opportunity this cycle reported to the backend (kills evaluation
+  // selection bias): abstained (model skipped while PM markets were listed),
+  // forecast_only (it forecast but did not trade), or quote_expired (a validated
+  // pm_open the server rejected at act time). At most ONE per cycle (the cohort/
+  // universe field carries the breadth). Present only when an opportunity was
+  // POSTED (live + capture flag on); undefined otherwise.
+  opportunity?: PostedOpportunity;
+}
+
+// The compact record of a reported opportunity, surfaced on CycleResult for
+// observability + tests. Mirrors the POST /api/agent/pm/opportunity body.
+export interface PostedOpportunity {
+  kind: "abstained" | "forecast_only" | "quote_expired";
+  source?: string;
+  slug?: string;
+  outcomeExternalMarketId?: string;
+  universeSize?: number;
+  forecastProbability?: number;
+  marketProbability?: number;
+  reasonCode?: string;
 }
 
 // ───────────────────────── Resolver (folder-as-architecture) ────────────────

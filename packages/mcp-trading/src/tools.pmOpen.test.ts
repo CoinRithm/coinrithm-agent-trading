@@ -9,7 +9,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 // registration time), so a bare stub is enough to inspect the input schemas.
 type Registered = {
   name: string;
-  config: { inputSchema: Record<string, z.ZodTypeAny> };
+  config: { inputSchema: Record<string, z.ZodTypeAny>; description?: string };
 };
 
 const capture = (): Registered[] => {
@@ -54,5 +54,47 @@ describe("open_pm_position forecastProbability input schema", () => {
     const desc = field().description ?? "";
     expect(desc).toMatch(/OWN/);
     expect(desc).toMatch(/calibration/i);
+  });
+});
+
+describe("report_pm_opportunity tool", () => {
+  const tool = capture().find((t) => t.name === "report_pm_opportunity");
+
+  it("is registered", () => {
+    expect(tool).toBeDefined();
+  });
+
+  it("accepts exactly the three reportable kinds", () => {
+    const kind = tool!.config.inputSchema.kind;
+    for (const good of ["abstained", "forecast_only", "quote_expired"]) {
+      expect(kind.safeParse(good).success, good).toBe(true);
+    }
+    for (const bad of ["opened", "risk_rejected", "validation_failed", ""]) {
+      expect(kind.safeParse(bad).success, bad).toBe(false);
+    }
+  });
+
+  it("bounds forecastProbability to [1,99] and makes it optional", () => {
+    const fc = tool!.config.inputSchema.forecastProbability;
+    expect(fc.safeParse(undefined).success).toBe(true);
+    for (const good of [1, 50, 99])
+      expect(fc.safeParse(good).success).toBe(true);
+    for (const bad of [0, 100, -5])
+      expect(fc.safeParse(bad).success).toBe(false);
+  });
+
+  it("accepts an optional cohort with universeSize + horizon", () => {
+    const cohort = tool!.config.inputSchema.cohort;
+    expect(cohort.safeParse(undefined).success).toBe(true);
+    expect(cohort.safeParse({ universeSize: 8, horizon: "7d" }).success).toBe(
+      true,
+    );
+    expect(cohort.safeParse({ universeSize: -1 }).success).toBe(false);
+  });
+
+  it("honestly labels itself a self-report (not independently verified)", () => {
+    const desc = tool!.config.description ?? "";
+    expect(desc).toMatch(/SELF-REPORT/);
+    expect(desc).toMatch(/not independently verify/i);
   });
 });
