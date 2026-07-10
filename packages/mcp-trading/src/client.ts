@@ -591,6 +591,10 @@ export class CoinRithmClient {
       side?: "yes" | "no";
       stakeMusd: number;
       idempotencyKey: string;
+      // Optional: the agent's OWN estimated probability (0-100, exclusive) that
+      // the chosen side wins. Recorded separately from the market price for the
+      // agent's public calibration record. Omit if not forecasting.
+      forecastProbability?: number;
     }>,
     apiKey?: string,
   ) {

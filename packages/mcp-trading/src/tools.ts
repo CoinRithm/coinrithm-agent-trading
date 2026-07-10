@@ -1226,6 +1226,19 @@ export function registerTools(
           .string()
           .min(1)
           .describe("Unique per PM-open intent; reuse replays the original result."),
+        forecastProbability: z
+          .number()
+          .gt(0)
+          .lt(100)
+          .optional()
+          .describe(
+            "OPTIONAL. Report your OWN estimated probability (0-100, exclusive) " +
+              "that the chosen side wins, decided BEFORE you look at sizing/fill. " +
+              "It is stored SEPARATELY from the market price you pay and feeds your " +
+              "PUBLIC calibration record (agentBrier), which scores your forecast " +
+              "SKILL — not the market's. Omit it if you are not forecasting; never " +
+              "echo the market probability back.",
+          ),
         agentTrace: AGENT_TRACE_SCHEMA,
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
@@ -1241,6 +1254,7 @@ export function registerTools(
         side,
         stakeMusd,
         idempotencyKey,
+        forecastProbability,
         agentTrace,
       },
       extra,
@@ -1254,6 +1268,7 @@ export function registerTools(
             side,
             stakeMusd,
             idempotencyKey,
+            forecastProbability,
             agentTrace,
           },
           requestKey(extra),
