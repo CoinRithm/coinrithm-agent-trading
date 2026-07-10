@@ -6,7 +6,9 @@ import { AgentSpec, AgentTrace } from "./types.js";
 import { shortId } from "./util.js";
 
 export function makeRunId(spec: AgentSpec): string {
-  const slug = (spec.name || "agent").replace(/[^a-z0-9-]+/gi, "-").toLowerCase();
+  const slug = (spec.name || "agent")
+    .replace(/[^a-z0-9-]+/gi, "-")
+    .toLowerCase();
   return `${slug}-${shortId()}`;
 }
 
@@ -30,7 +32,12 @@ export function makeTrace(
   };
 }
 
-export async function exportRunEvidence(client: CoinRithmClient, runId: string): Promise<unknown> {
+export async function exportRunEvidence(
+  client: CoinRithmClient,
+  runId: string,
+): Promise<unknown> {
   const r = await client.exportRunEvidence(runId);
-  return r.ok ? r.data : { error: `run-evidence export failed (HTTP ${r.status})` };
+  return r.ok
+    ? r.data
+    : { error: `run-evidence export failed (HTTP ${r.status})` };
 }

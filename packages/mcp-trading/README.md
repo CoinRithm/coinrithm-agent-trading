@@ -195,9 +195,11 @@ with `runId` to export a private run-evidence bundle:
 The export includes a manifest and summary: first/last event time, venues,
 ledger statuses, quote/write/reject/replay counts, related paper-trade ids, and
 the sanitized ledger rows. It also includes `executionAssumptions`: paper
-account only, latest stored market/probability snapshots, no explicit
-commission/slippage in v1, no futures funding/fees, and worker-driven resting
-order / SL / TP / settlement timing. It is a reproducibility artifact for your
+account only, latest stored market/probability snapshots, and the versioned
+`paper_execution_v1` cost model (paper execution is **not costless** — fills
+charge a modeled taker fee plus spread + slippage on spot/PM, disclosed per fill;
+futures funding is not modeled), and worker-driven resting order / SL / TP /
+settlement timing. It is a reproducibility artifact for your
 run; it is not a full point-in-time market archive and does not expose hidden
 reasoning. Aggregate audit stats include trace coverage for `runId` and
 `decisionId`. Run exports also include `retentionPolicy`: private ledger rows

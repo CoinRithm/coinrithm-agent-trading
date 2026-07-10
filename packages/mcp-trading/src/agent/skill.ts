@@ -32,7 +32,8 @@ import { checkCapabilityDrift } from "./capabilityGuard.js";
 // guardrails. "Unlimited" is normalised to a large finite value so cap-merge arithmetic
 // (most-restrictive-wins) and JSON serialisation stay simple.
 export const UNLIMITED_TRADES_PER_DAY = 1_000_000;
-const normalizeTradeCap = (v: number): number => (v <= 0 ? UNLIMITED_TRADES_PER_DAY : v);
+const normalizeTradeCap = (v: number): number =>
+  v <= 0 ? UNLIMITED_TRADES_PER_DAY : v;
 
 const DEFAULT_LIMITS: LimitsConfig = {
   maxTradesPerDay: UNLIMITED_TRADES_PER_DAY,
@@ -111,7 +112,8 @@ export function buildSpec(raw: Record<string, unknown>): AgentSpec {
     spec: typeof raw.spec === "string" ? raw.spec : "",
     trigger: {
       cadence: typeof trigger.cadence === "string" ? trigger.cadence : "",
-      timezone: typeof trigger.timezone === "string" ? trigger.timezone : undefined,
+      timezone:
+        typeof trigger.timezone === "string" ? trigger.timezone : undefined,
     },
     model: buildModel(raw.model),
     venues,
@@ -124,15 +126,29 @@ export function buildSpec(raw: Record<string, unknown>): AgentSpec {
       blocklist: strArr(risk.blocklist),
     },
     limits: {
-      maxTradesPerDay: normalizeTradeCap(num(limits.maxTradesPerDay, DEFAULT_LIMITS.maxTradesPerDay)),
-      maxWritesPerCycle: num(limits.maxWritesPerCycle, DEFAULT_LIMITS.maxWritesPerCycle),
-      maxDailyLossMusd: num(limits.maxDailyLossMusd, DEFAULT_LIMITS.maxDailyLossMusd),
-      maxOpenMarginMusd: num(limits.maxOpenMarginMusd, DEFAULT_LIMITS.maxOpenMarginMusd),
+      maxTradesPerDay: normalizeTradeCap(
+        num(limits.maxTradesPerDay, DEFAULT_LIMITS.maxTradesPerDay),
+      ),
+      maxWritesPerCycle: num(
+        limits.maxWritesPerCycle,
+        DEFAULT_LIMITS.maxWritesPerCycle,
+      ),
+      maxDailyLossMusd: num(
+        limits.maxDailyLossMusd,
+        DEFAULT_LIMITS.maxDailyLossMusd,
+      ),
+      maxOpenMarginMusd: num(
+        limits.maxOpenMarginMusd,
+        DEFAULT_LIMITS.maxOpenMarginMusd,
+      ),
     },
     abstention: {
       onStaleData: bool(abst.onStaleData, DEFAULT_ABSTENTION.onStaleData),
       onWeakSignal: bool(abst.onWeakSignal, DEFAULT_ABSTENTION.onWeakSignal),
-      onMissingQuote: bool(abst.onMissingQuote, DEFAULT_ABSTENTION.onMissingQuote),
+      onMissingQuote: bool(
+        abst.onMissingQuote,
+        DEFAULT_ABSTENTION.onMissingQuote,
+      ),
       onInsufficientBalance: bool(
         abst.onInsufficientBalance,
         DEFAULT_ABSTENTION.onInsufficientBalance,
@@ -146,7 +162,10 @@ export function buildSpec(raw: Record<string, unknown>): AgentSpec {
       ),
     },
     killSwitch: {
-      maxDrawdownMusd: num(ks.maxDrawdownMusd, DEFAULT_KILLSWITCH.maxDrawdownMusd),
+      maxDrawdownMusd: num(
+        ks.maxDrawdownMusd,
+        DEFAULT_KILLSWITCH.maxDrawdownMusd,
+      ),
       maxConsecutiveRejects: num(
         ks.maxConsecutiveRejects,
         DEFAULT_KILLSWITCH.maxConsecutiveRejects,
@@ -181,7 +200,10 @@ export function buildSpec(raw: Record<string, unknown>): AgentSpec {
         trig.maxLlmCallsPerHour,
         DEFAULT_TRIGGER_POLICY.maxLlmCallsPerHour,
       ),
-      debounceMinutes: num(trig.debounceMinutes, DEFAULT_TRIGGER_POLICY.debounceMinutes),
+      debounceMinutes: num(
+        trig.debounceMinutes,
+        DEFAULT_TRIGGER_POLICY.debounceMinutes,
+      ),
       pmEvalCooldownMinutes: num(
         trig.pmEvalCooldownMinutes,
         DEFAULT_TRIGGER_POLICY.pmEvalCooldownMinutes,

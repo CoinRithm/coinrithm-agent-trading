@@ -97,7 +97,10 @@ describe("validateAction", () => {
   });
 
   it("treats maxTradesPerDay <= 0 as UNLIMITED (house agents are never trade-count capped)", () => {
-    const uncapped = { ...spec, limits: { ...spec.limits, maxTradesPerDay: 0 } };
+    const uncapped = {
+      ...spec,
+      limits: { ...spec.limits, maxTradesPerDay: 0 },
+    };
     // far over any normal cap, but 0 means unlimited so the open still validates
     expect(
       validateAction(goodOpen, ctx({ spec: uncapped, writesToday: 999 })).valid,
@@ -150,7 +153,9 @@ describe("validateAction", () => {
       stopLossPrice: 70000, // short SL must be above entry to clear the SL check
       takeProfitPrice: 68000, // above entry -> wrong side for a short
     };
-    expect(validateAction(shortOpen, ctx()).code).toBe("take_profit_wrong_side");
+    expect(validateAction(shortOpen, ctx()).code).toBe(
+      "take_profit_wrong_side",
+    );
   });
 
   it("accepts a correctly-oriented long take-profit (above entry)", () => {
@@ -163,7 +168,13 @@ describe("validateAction", () => {
     const obsHeld: Observation = {
       ...observation,
       openPositions: [
-        { venue: "futures", id: 9, status: "open", symbol: "BTC", marginMusd: 50 },
+        {
+          venue: "futures",
+          id: 9,
+          status: "open",
+          symbol: "BTC",
+          marginMusd: 50,
+        },
       ],
     };
     // goodOpen targets BTC and carries stopLossPrice -> the server treats it as an
@@ -177,7 +188,13 @@ describe("validateAction", () => {
     const obsHeldOther: Observation = {
       ...observation,
       openPositions: [
-        { venue: "futures", id: 9, status: "open", symbol: "ETH", marginMusd: 50 },
+        {
+          venue: "futures",
+          id: 9,
+          status: "open",
+          symbol: "ETH",
+          marginMusd: 50,
+        },
       ],
     };
     expect(

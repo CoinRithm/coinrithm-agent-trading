@@ -22,7 +22,8 @@ import {
 } from "./db.js";
 import type { Config } from "./config.js";
 
-const errMsg = (e: unknown): string => (e instanceof Error ? e.message : String(e));
+const errMsg = (e: unknown): string =>
+  e instanceof Error ? e.message : String(e);
 
 // Pick a shared NVIDIA key from the pool for this agent. Deterministic by id so a
 // given agent always uses the same key (stable idempotency/rate behavior), while
@@ -38,7 +39,9 @@ function pickNvidiaKey(agent: AgentRow, config: Config): string | undefined {
 // for that provider. Free-tier `nvidia`/`groq` use the shared scheduler keys; any
 // other provider (or a BYO key) uses the agent's own decrypted brain key.
 function providerEnvFor(agent: AgentRow, config: Config): ProviderEnv {
-  const byo = agent.brainKeyEnc ? decrypt(agent.brainKeyEnc, config.encryptionKey) : undefined;
+  const byo = agent.brainKeyEnc
+    ? decrypt(agent.brainKeyEnc, config.encryptionKey)
+    : undefined;
   switch (agent.modelProvider) {
     case "nvidia":
       return { NVIDIA_API_KEY: byo ?? pickNvidiaKey(agent, config) };
@@ -60,16 +63,22 @@ function providerEnvFor(agent: AgentRow, config: Config): ProviderEnv {
 export function hydrateState(raw: unknown, runId: string): RunState {
   if (raw == null) return newState(runId);
   if (typeof raw !== "object" || Array.isArray(raw)) {
-    throw new Error("stored agent state is corrupt (not an object) — refusing to run");
+    throw new Error(
+      "stored agent state is corrupt (not an object) — refusing to run",
+    );
   }
   const parsed = raw as Partial<RunState>;
-  const base = newState(typeof parsed.runId === "string" ? parsed.runId : runId);
+  const base = newState(
+    typeof parsed.runId === "string" ? parsed.runId : runId,
+  );
   return rollDay({
     ...base,
     ...parsed,
     seen: Array.isArray(parsed.seen) ? parsed.seen : [],
     intentSeq:
-      parsed.intentSeq && typeof parsed.intentSeq === "object" && !Array.isArray(parsed.intentSeq)
+      parsed.intentSeq &&
+      typeof parsed.intentSeq === "object" &&
+      !Array.isArray(parsed.intentSeq)
         ? parsed.intentSeq
         : {},
   });
@@ -80,7 +89,11 @@ export function hydrateState(raw: unknown, runId: string): RunState {
 // classes: SETUP errors (bad key, missing model, corrupt state) never self-heal,
 // so the agent is DISABLED rather than error-looped every cadence; RUN errors
 // (network/model/DB) are transient and simply retried next cadence.
-export async function runAgentOnce(pool: Pool, agent: AgentRow, config: Config): Promise<void> {
+export async function runAgentOnce(
+  pool: Pool,
+  agent: AgentRow,
+  config: Config,
+): Promise<void> {
   const log: string[] = [];
 
   // A DB read blip here is transient (not the agent's fault) — record + retry.
@@ -88,7 +101,10 @@ export async function runAgentOnce(pool: Pool, agent: AgentRow, config: Config):
   try {
     stateRaw = await loadStateJson(pool, agent.id);
   } catch (e) {
-    await recordCycle(pool, agent.id, { decision: "error", error: `loadState: ${errMsg(e)}` }).catch(() => {});
+    await recordCycle(pool, agent.id, {
+      decision: "error",
+      error: `loadState: ${errMsg(e)}`,
+    }).catch(() => {});
     return;
   }
 
@@ -105,7 +121,10 @@ export async function runAgentOnce(pool: Pool, agent: AgentRow, config: Config):
     };
     const provider = selectProvider(spec, providerEnvFor(agent, config), fetch);
     const apiKey = decrypt(agent.coinrithmKeyEnc, config.encryptionKey);
-    const client = new CoinRithmClient({ apiKey, baseUrl: config.coinrithmApiUrl });
+    const client = new CoinRithmClient({
+      apiKey,
+      baseUrl: config.coinrithmApiUrl,
+    });
     const state = hydrateState(stateRaw, makeRunId(spec));
     deps = {
       client,
@@ -119,7 +138,11 @@ export async function runAgentOnce(pool: Pool, agent: AgentRow, config: Config):
     };
   } catch (e) {
     const msg = errMsg(e);
-    await recordCycle(pool, agent.id, { decision: "error", error: `setup: ${msg}`, log: log.join("\n") }).catch(() => {});
+    await recordCycle(pool, agent.id, {
+      decision: "error",
+      error: `setup: ${msg}`,
+      log: log.join("\n"),
+    }).catch(() => {});
     await disableAgent(pool, agent.id, `setup error: ${msg}`).catch(() => {});
     return;
   }
@@ -157,9 +180,15 @@ export async function runAgentOnce(pool: Pool, agent: AgentRow, config: Config):
         writeAttempted: result.writeAttempted,
         writeAccepted: result.writeAccepted,
       },
-      disableReason: result.disabled ? (result.disabledReason ?? "kill-switch") : undefined,
+      disableReason: result.disabled
+        ? (result.disabledReason ?? "kill-switch")
+        : undefined,
     });
   } catch (e) {
-    await recordCycle(pool, agent.id, { decision: "error", error: errMsg(e), log: log.join("\n") }).catch(() => {});
+    await recordCycle(pool, agent.id, {
+      decision: "error",
+      error: errMsg(e),
+      log: log.join("\n"),
+    }).catch(() => {});
   }
 }

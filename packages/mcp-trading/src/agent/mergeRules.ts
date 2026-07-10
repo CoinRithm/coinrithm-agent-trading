@@ -53,7 +53,11 @@ export function isAtLeastAsRestrictive(
 }
 
 // The more-restrictive of two values for a cap field.
-export function mostRestrictive(dir: CapDirection, a: unknown, b: unknown): unknown {
+export function mostRestrictive(
+  dir: CapDirection,
+  a: unknown,
+  b: unknown,
+): unknown {
   if (dir === "true") return a === true || b === true ? true : false;
   if (typeof a !== "number") return b;
   if (typeof b !== "number") return a;

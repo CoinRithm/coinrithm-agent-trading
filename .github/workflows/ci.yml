@@ -6,26 +6,69 @@ on:
   pull_request:
 
 jobs:
-  build:
+  # The published npm package: MCP server + agent runner (both live here).
+  mcp-trading:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
           cache-dependency-path: packages/mcp-trading/package-lock.json
 
-      # Builds the MCP server AND the agent runner (both live in this package),
-      # plus the runner's unit tests (no network / no model / no live keys).
-      - name: MCP package — install, typecheck, test, build
+      - name: mcp-trading — install, lint, format:check, typecheck, test, build
         working-directory: packages/mcp-trading
         run: |
           npm ci
+          npm run lint
+          npm run format:check
           npm run typecheck
           npm test
           npm run build
+
+  # The hosted agent scheduler. Depends on @coinrithm/mcp-trading's built dist,
+  # so build that first.
+  scheduler:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: packages/scheduler/package-lock.json
+
+      - name: Build the mcp-trading dependency first
+        working-directory: packages/mcp-trading
+        run: |
+          npm ci
+          npm run build
+
+      - name: scheduler — install, lint, format:check, typecheck, test, build
+        working-directory: packages/scheduler
+        run: |
+          npm ci
+          npm run lint
+          npm run format:check
+          npm run typecheck
+          npm test
+          npm run build
+
+  # The agent contract: the OpenAPI spec must be Redocly-clean (ZERO errors) and
+  # the example bundles must parse.
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: OpenAPI lint — ZERO errors required
+        # redocly exits non-zero on any error-severity problem; warnings do not
+        # fail the build. This is a hard zero-error gate (was baseline-tolerant).
+        run: NO_COLOR=1 npx -y @redocly/cli@2.32.0 lint openapi.yaml
 
       - name: Syntax-check examples (.mjs)
         run: |
@@ -36,20 +79,3 @@ jobs:
 
       - name: Syntax-check examples (.py)
         run: python3 -m py_compile examples/python/*.py
-
-      - name: OpenAPI lint (baseline-tolerant)
-        run: |
-          # The spec carries a known baseline of pre-existing structural lint
-          # errors (mostly OpenAPI 3.1 strictness on long-stable schema blocks).
-          # This gate fails ONLY if the error count GROWS beyond the baseline,
-          # so new endpoints/schemas must not add new lint errors.
-          BASELINE=81
-          out=$(NO_COLOR=1 npx -y @redocly/cli@2.32.0 lint openapi.yaml 2>&1) || true
-          echo "$out"
-          errors=$(echo "$out" | grep -oE 'failed with [0-9]+ error' | grep -oE '[0-9]+' || true)
-          errors=${errors:-0}
-          echo "redocly errors: $errors (baseline: $BASELINE)"
-          if [ "$errors" -gt "$BASELINE" ]; then
-            echo "::error::openapi.yaml lint errors increased: $errors > baseline $BASELINE"
-            exit 1
-          fi

@@ -34,9 +34,12 @@ Hard rules:
   response carries `observation.freshness`. If `freshness.status` is `stale`
   or `never_ingested`, do not open a position — skip that market or source.
   For PM discovery also check `meta.sourceHealth` per source.
-- **Cost model (v1, paper only).** Fills execute at mid/last price with no
-  commission, slippage, or futures funding in v1. Modeled fees/slippage are
-  roadmap — do not imply real execution costs.
+- **Cost model (`paper_execution_v1`, paper only).** Paper execution is not
+  costless: every fill charges a modeled taker fee, and spot market orders and PM
+  entries also pay an adverse spread + size-based slippage, folded into realized
+  PnL (futures funding is not modeled). Each fill's exact cost is disclosed in the
+  response `executionModel`; treat reported PnL as net of these modeled costs, not
+  a live-execution guarantee.
 - Leverage ≤ 20x (prefer 1–5x). PM stake ≥ 10 mUSD.
 - Never spend more than `usdt.available`; frozen partitions are unavailable.
 - `coinId` is a CoinRithm UCID, not a ticker (BTC = "1", USDT = "825").

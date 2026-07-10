@@ -6,13 +6,21 @@ import {
   ownerEnvNameFor,
 } from "./benchmarkSeed.js";
 
-const ALL = new Set(["bench-market-implied", "bench-base-rate", "bench-random"]);
+const ALL = new Set([
+  "bench-market-implied",
+  "bench-base-rate",
+  "bench-random",
+]);
 
 describe("keyEnvNameFor / ownerEnvNameFor", () => {
   it("derives the env var names from the handle", () => {
-    expect(keyEnvNameFor("bench-market-implied")).toBe("COINRITHM_KEY_BENCH_MARKET_IMPLIED");
+    expect(keyEnvNameFor("bench-market-implied")).toBe(
+      "COINRITHM_KEY_BENCH_MARKET_IMPLIED",
+    );
     expect(keyEnvNameFor("bench-random")).toBe("COINRITHM_KEY_BENCH_RANDOM");
-    expect(ownerEnvNameFor("bench-base-rate")).toBe("BENCH_OWNER_BENCH_BASE_RATE");
+    expect(ownerEnvNameFor("bench-base-rate")).toBe(
+      "BENCH_OWNER_BENCH_BASE_RATE",
+    );
   });
 });
 
@@ -46,7 +54,10 @@ describe("planBenchmarkSeed — dry-run vs commit shape", () => {
 
   it("an agent without a key becomes a config-only refresh (never a create)", () => {
     const someKeys = new Set(["bench-market-implied"]);
-    const plan = planBenchmarkSeed({ commit: true, availableKeyHandles: someKeys });
+    const plan = planBenchmarkSeed({
+      commit: true,
+      availableKeyHandles: someKeys,
+    });
     const byHandle = Object.fromEntries(plan.map((i) => [i.handle, i]));
     expect(byHandle["bench-market-implied"].mode).toBe("insert");
     expect(byHandle["bench-base-rate"].mode).toBe("config-only");
@@ -65,7 +76,10 @@ describe("planBenchmarkSeed — dry-run vs commit shape", () => {
   });
 
   it("formatIntent reads clearly for dry-run and commit", () => {
-    const [dry] = planBenchmarkSeed({ commit: false, availableKeyHandles: ALL });
+    const [dry] = planBenchmarkSeed({
+      commit: false,
+      availableKeyHandles: ALL,
+    });
     const [wet] = planBenchmarkSeed({ commit: true, availableKeyHandles: ALL });
     expect(formatIntent(dry)).toMatch(/would UPSERT bench-market-implied/);
     expect(formatIntent(wet)).toMatch(/^UPSERT bench-market-implied/);

@@ -108,7 +108,10 @@ export interface AgentTemplate {
   body: string;
 }
 
-export function buildAgentObject(name: string, preset: PresetName): AgentTemplate {
+export function buildAgentObject(
+  name: string,
+  preset: PresetName,
+): AgentTemplate {
   const p = PRESETS[preset];
   const frontmatter: Record<string, unknown> = {
     spec: "coinrithm.agent.v1",
@@ -195,8 +198,10 @@ export function ejectFiles(
   files["character/persona.md"] = PERSONA_STUB;
   if (fm.risk) files["character/risk.yaml"] = stringifyYaml(fm.risk);
   if (fm.limits) files["character/limits.yaml"] = stringifyYaml(fm.limits);
-  if (fm.abstention) files["character/abstention.yaml"] = stringifyYaml(fm.abstention);
-  if (fm.killSwitch) files["safety/killSwitch.yaml"] = stringifyYaml(fm.killSwitch);
+  if (fm.abstention)
+    files["character/abstention.yaml"] = stringifyYaml(fm.abstention);
+  if (fm.killSwitch)
+    files["safety/killSwitch.yaml"] = stringifyYaml(fm.killSwitch);
   files["runtime.yaml"] = renderRuntime(fm.model, fm.trigger);
   files["functionality/coinrithm.yaml"] = renderCoinrithmPin();
 

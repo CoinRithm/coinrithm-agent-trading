@@ -7,16 +7,27 @@ import {
 } from "./deploymentOverlay.js";
 import { DEFAULT_TRIGGER_POLICY, TriggerPolicy } from "./types.js";
 
-const pol = (p: Partial<TriggerPolicy> = {}): TriggerPolicy => ({ ...DEFAULT_TRIGGER_POLICY, ...p });
+const pol = (p: Partial<TriggerPolicy> = {}): TriggerPolicy => ({
+  ...DEFAULT_TRIGGER_POLICY,
+  ...p,
+});
 
 describe("applyDeploymentOverlay", () => {
   it("caps an OKF asking for more calls than the tier allows (free_demo)", () => {
-    const out = applyDeploymentOverlay(pol({ maxLlmCallsPerHour: 999 }), "free_demo");
-    expect(out.maxLlmCallsPerHour).toBe(TIER_LIMITS.free_demo.maxLlmCallsPerHour);
+    const out = applyDeploymentOverlay(
+      pol({ maxLlmCallsPerHour: 999 }),
+      "free_demo",
+    );
+    expect(out.maxLlmCallsPerHour).toBe(
+      TIER_LIMITS.free_demo.maxLlmCallsPerHour,
+    );
   });
 
   it("caps an OKF asking for UNLIMITED (0) to the tier cap", () => {
-    const out = applyDeploymentOverlay(pol({ maxLlmCallsPerHour: 0 }), "builder");
+    const out = applyDeploymentOverlay(
+      pol({ maxLlmCallsPerHour: 0 }),
+      "builder",
+    );
     expect(out.maxLlmCallsPerHour).toBe(TIER_LIMITS.builder.maxLlmCallsPerHour);
   });
 
@@ -26,8 +37,14 @@ describe("applyDeploymentOverlay", () => {
   });
 
   it("house + byok are uncapped (honor the request)", () => {
-    expect(applyDeploymentOverlay(pol({ maxLlmCallsPerHour: 999 }), "house").maxLlmCallsPerHour).toBe(999);
-    expect(applyDeploymentOverlay(pol({ maxLlmCallsPerHour: 0 }), "byok").maxLlmCallsPerHour).toBe(0);
+    expect(
+      applyDeploymentOverlay(pol({ maxLlmCallsPerHour: 999 }), "house")
+        .maxLlmCallsPerHour,
+    ).toBe(999);
+    expect(
+      applyDeploymentOverlay(pol({ maxLlmCallsPerHour: 0 }), "byok")
+        .maxLlmCallsPerHour,
+    ).toBe(0);
   });
 });
 
@@ -45,8 +62,18 @@ describe("effectiveCadenceSeconds", () => {
 
 describe("effectivePolicyView (transparency)", () => {
   it("shows requested vs enforced side by side", () => {
-    const v = effectivePolicyView(pol({ maxLlmCallsPerHour: 999 }), 60, "free_demo");
-    expect(v.requested).toEqual({ maxLlmCallsPerHour: 999, cadenceSeconds: 60 });
-    expect(v.effective).toEqual({ maxLlmCallsPerHour: 4, cadenceSeconds: 3600 });
+    const v = effectivePolicyView(
+      pol({ maxLlmCallsPerHour: 999 }),
+      60,
+      "free_demo",
+    );
+    expect(v.requested).toEqual({
+      maxLlmCallsPerHour: 999,
+      cadenceSeconds: 60,
+    });
+    expect(v.effective).toEqual({
+      maxLlmCallsPerHour: 4,
+      cadenceSeconds: 3600,
+    });
   });
 });

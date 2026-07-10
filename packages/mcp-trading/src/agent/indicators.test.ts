@@ -39,10 +39,20 @@ describe("sma / ema", () => {
 
 describe("rsi (Wilder)", () => {
   it("is 100 for a monotonically rising series", () => {
-    expect(rsi(Array.from({ length: 15 }, (_, i) => i + 1), 14)).toBe(100);
+    expect(
+      rsi(
+        Array.from({ length: 15 }, (_, i) => i + 1),
+        14,
+      ),
+    ).toBe(100);
   });
   it("is 0 for a monotonically falling series", () => {
-    expect(rsi(Array.from({ length: 15 }, (_, i) => 15 - i), 14)).toBe(0);
+    expect(
+      rsi(
+        Array.from({ length: 15 }, (_, i) => 15 - i),
+        14,
+      ),
+    ).toBe(0);
   });
   it("is 50 for a flat series", () => {
     expect(rsi(Array(15).fill(100), 14)).toBe(50);
@@ -59,7 +69,12 @@ describe("atr (Wilder)", () => {
     expect(atr(candles, 14)).toBe(10);
   });
   it("returns null with too few candles", () => {
-    expect(atr(Array.from({ length: 10 }, () => flatCandle(100)), 14)).toBeNull();
+    expect(
+      atr(
+        Array.from({ length: 10 }, () => flatCandle(100)),
+        14,
+      ),
+    ).toBeNull();
   });
 });
 
@@ -112,7 +127,9 @@ describe("computeIndicators", () => {
   });
 
   it("leaves long-window indicators null when there is too little data", () => {
-    const ind = computeIndicators([...Array.from({ length: 15 }, () => flatCandle(100))])!;
+    const ind = computeIndicators([
+      ...Array.from({ length: 15 }, () => flatCandle(100)),
+    ])!;
     expect(ind.ema50).toBeNull();
     expect(ind.ema20AboveEma50).toBeNull(); // depends on ema50
     expect(ind.rsi14).not.toBeNull(); // 15 candles is enough for rsi14

@@ -518,13 +518,17 @@ describe("observe", () => {
               source: "kalshi",
               slug: "misc-1",
               title: "Opaque B",
-              outcomes: [{ externalMarketId: "m1", name: "Yes", probability: 50 }],
+              outcomes: [
+                { externalMarketId: "m1", name: "Yes", probability: 50 },
+              ],
             },
             {
               source: "kalshi",
               slug: "misc-2",
               title: "Opaque C",
-              outcomes: [{ externalMarketId: "m2", name: "Yes", probability: 50 }],
+              outcomes: [
+                { externalMarketId: "m2", name: "Yes", probability: 50 },
+              ],
             },
           ],
         });

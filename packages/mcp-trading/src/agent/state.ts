@@ -49,7 +49,9 @@ export function loadState(file: string | undefined, runId: string): RunState {
       ...parsed,
       seen: Array.isArray(parsed.seen) ? parsed.seen : [],
       intentSeq:
-        parsed.intentSeq && typeof parsed.intentSeq === "object" && !Array.isArray(parsed.intentSeq)
+        parsed.intentSeq &&
+        typeof parsed.intentSeq === "object" &&
+        !Array.isArray(parsed.intentSeq)
           ? parsed.intentSeq
           : {},
     });
@@ -75,7 +77,10 @@ export function rollDay(state: RunState): RunState {
 
 // Accrue realized PnL from newly-closed trades into both the session total (for
 // drawdown) and today's total (for the daily-loss cap). Dedupe by the caller.
-export function accrueRealized(state: RunState, closedTrades: Record<string, unknown>[]): void {
+export function accrueRealized(
+  state: RunState,
+  closedTrades: Record<string, unknown>[],
+): void {
   for (const t of closedTrades) {
     const pnl = asNum(asObj(t).realizedPnlMusd);
     if (pnl != null) {
@@ -83,7 +88,8 @@ export function accrueRealized(state: RunState, closedTrades: Record<string, unk
       state.realizedPnlTodayMusd += pnl;
     }
   }
-  if (state.realizedPnlMusd > state.peakRealizedMusd) state.peakRealizedMusd = state.realizedPnlMusd;
+  if (state.realizedPnlMusd > state.peakRealizedMusd)
+    state.peakRealizedMusd = state.realizedPnlMusd;
 }
 
 // A transient model-failure streak (free models occasionally time out/hang) must
@@ -93,21 +99,36 @@ export function accrueRealized(state: RunState, closedTrades: Record<string, unk
 const MODEL_FAILURE_FLOOR = 10;
 
 // Returns a disable reason if any kill-switch condition is tripped, else null.
-export function checkKillSwitch(spec: AgentSpec, state: RunState): string | null {
+export function checkKillSwitch(
+  spec: AgentSpec,
+  state: RunState,
+): string | null {
   const ks = spec.killSwitch;
   if (ks.maxConsecutiveModelFailures > 0) {
-    const threshold = Math.max(ks.maxConsecutiveModelFailures, MODEL_FAILURE_FLOOR);
+    const threshold = Math.max(
+      ks.maxConsecutiveModelFailures,
+      MODEL_FAILURE_FLOOR,
+    );
     if (state.consecutiveModelFailures >= threshold) {
       return `consecutive model failures ${state.consecutiveModelFailures} >= ${threshold}`;
     }
   }
-  if (ks.maxConsecutiveRejects > 0 && state.consecutiveRejectCycles >= ks.maxConsecutiveRejects) {
+  if (
+    ks.maxConsecutiveRejects > 0 &&
+    state.consecutiveRejectCycles >= ks.maxConsecutiveRejects
+  ) {
     return `consecutive reject cycles ${state.consecutiveRejectCycles} >= ${ks.maxConsecutiveRejects}`;
   }
-  if (ks.maxDrawdownMusd > 0 && state.peakRealizedMusd - state.realizedPnlMusd >= ks.maxDrawdownMusd) {
+  if (
+    ks.maxDrawdownMusd > 0 &&
+    state.peakRealizedMusd - state.realizedPnlMusd >= ks.maxDrawdownMusd
+  ) {
     return `drawdown ${(state.peakRealizedMusd - state.realizedPnlMusd).toFixed(2)} >= ${ks.maxDrawdownMusd}`;
   }
-  if (ks.onRateLimitPressure && state.rateLimitHits >= RATE_LIMIT_PRESSURE_THRESHOLD) {
+  if (
+    ks.onRateLimitPressure &&
+    state.rateLimitHits >= RATE_LIMIT_PRESSURE_THRESHOLD
+  ) {
     return `rate-limit pressure: ${state.rateLimitHits} 429s this session`;
   }
   return null;

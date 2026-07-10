@@ -34,7 +34,12 @@ function req(env: NodeJS.ProcessEnv, k: string): string {
   return v.trim();
 }
 
-function intEnv(env: NodeJS.ProcessEnv, k: string, def: number, min: number): number {
+function intEnv(
+  env: NodeJS.ProcessEnv,
+  k: string,
+  def: number,
+  min: number,
+): number {
   const raw = env[k];
   if (!raw) return def;
   const n = Number(raw);
@@ -58,7 +63,14 @@ function urlEnv(env: NodeJS.ProcessEnv, k: string, def: string): string {
 // else empty. Dedup + trim so a stray comma or repeat can't double-count budget.
 function keyPool(env: NodeJS.ProcessEnv): string[] {
   const raw = env.NVIDIA_API_KEYS?.trim() || env.NVIDIA_API_KEY?.trim() || "";
-  return [...new Set(raw.split(",").map((s) => s.trim()).filter(Boolean))];
+  return [
+    ...new Set(
+      raw
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+    ),
+  ];
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -68,7 +80,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     encryptionKey: loadMasterKey(req(env, "ENCRYPTION_KEY")),
     nvidiaApiKeys: keyPool(env),
     groqApiKey: env.GROQ_API_KEY?.trim() || undefined,
-    coinrithmApiUrl: urlEnv(env, "COINRITHM_API_URL", "https://api.coinrithm.com"),
+    coinrithmApiUrl: urlEnv(
+      env,
+      "COINRITHM_API_URL",
+      "https://api.coinrithm.com",
+    ),
     pollIntervalMs: intEnv(env, "SCHEDULER_POLL_MS", 5000, 250),
     maxConcurrent: intEnv(env, "SCHEDULER_MAX_CONCURRENT", 6, 1),
     claimBatch: intEnv(env, "SCHEDULER_CLAIM_BATCH", 20, 1),

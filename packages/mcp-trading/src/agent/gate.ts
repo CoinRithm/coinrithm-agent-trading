@@ -80,15 +80,24 @@ export function evaluateGate(
   // (gated on the last LLM call, which any fire resets), so it's not every cycle.
   if (codeList.length === 0) {
     const pmAvailable = observation.pmMarkets.length > 0;
-    const sinceLastCall = state.lastLlmCallAt == null ? Infinity : nowMs - state.lastLlmCallAt;
+    const sinceLastCall =
+      state.lastLlmCallAt == null ? Infinity : nowMs - state.lastLlmCallAt;
     if (
       pmAvailable &&
       policy.pmEvalCooldownMinutes > 0 &&
       sinceLastCall >= policy.pmEvalCooldownMinutes * 60_000
     ) {
-      return { fire: true, codes: ["PM_PERIODIC"], reason: "PM periodic eval (quiet price tape)" };
+      return {
+        fire: true,
+        codes: ["PM_PERIODIC"],
+        reason: "PM periodic eval (quiet price tape)",
+      };
     }
-    return { fire: false, codes: [], reason: "no trigger (flat tape, no open position)" };
+    return {
+      fire: false,
+      codes: [],
+      reason: "no trigger (flat tape, no open position)",
+    };
   }
 
   // A real trigger exists. Open positions are NEVER starved by budget/debounce
@@ -96,9 +105,15 @@ export function evaluateGate(
   // fresh entry-only cycles so a chop-storm of entry setups can't burn the budget.
   if (!hasPosition) {
     if (policy.maxLlmCallsPerHour > 0) {
-      const recent = (state.llmCallTimestamps ?? []).filter((t) => nowMs - t < 3_600_000);
+      const recent = (state.llmCallTimestamps ?? []).filter(
+        (t) => nowMs - t < 3_600_000,
+      );
       if (recent.length >= policy.maxLlmCallsPerHour) {
-        return { fire: false, codes: codeList, reason: `hourly LLM budget ${policy.maxLlmCallsPerHour} reached` };
+        return {
+          fire: false,
+          codes: codeList,
+          reason: `hourly LLM budget ${policy.maxLlmCallsPerHour} reached`,
+        };
       }
     }
     if (policy.debounceMinutes > 0) {
@@ -108,17 +123,29 @@ export function evaluateGate(
         state.lastLlmCallAt != null &&
         nowMs - state.lastLlmCallAt < policy.debounceMinutes * 60_000
       ) {
-        return { fire: false, codes: codeList, reason: `debounced (same triggers within ${policy.debounceMinutes}m)` };
+        return {
+          fire: false,
+          codes: codeList,
+          reason: `debounced (same triggers within ${policy.debounceMinutes}m)`,
+        };
       }
     }
   }
 
-  return { fire: true, codes: codeList, reason: `triggers: ${codeList.join(",")}` };
+  return {
+    fire: true,
+    codes: codeList,
+    reason: `triggers: ${codeList.join(",")}`,
+  };
 }
 
 // Record that this cycle spent an LLM call — feeds the budget + debounce next
 // cycle. Mutates state; the caller persists it.
-export function noteLlmCall(state: RunState, codes: string[], nowMs: number): void {
+export function noteLlmCall(
+  state: RunState,
+  codes: string[],
+  nowMs: number,
+): void {
   state.llmCallTimestamps = [...(state.llmCallTimestamps ?? []), nowMs]
     .filter((t) => nowMs - t < 3_600_000)
     .slice(-200);
@@ -136,7 +163,11 @@ const RATE_PER_MTOK: Record<string, number> = {
   nvidia: 0, // free hosted tier
   "openai-compatible": 0.5,
 };
-export function estimateCostUsd(provider: string, tokensIn: number, tokensOut: number): number {
+export function estimateCostUsd(
+  provider: string,
+  tokensIn: number,
+  tokensOut: number,
+): number {
   const rate = RATE_PER_MTOK[provider] ?? 0;
   return Math.round(((tokensIn + tokensOut) / 1_000_000) * rate * 1e6) / 1e6;
 }

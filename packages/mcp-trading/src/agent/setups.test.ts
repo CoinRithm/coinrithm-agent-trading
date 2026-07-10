@@ -20,14 +20,27 @@ function ind(partial: Partial<IndicatorSet>): IndicatorSet {
   };
 }
 
-function entry(symbol: string, change24h: number, i: Partial<IndicatorSet>): WatchEntry {
-  return { symbol, coinId: symbol.toLowerCase(), change24h, indicators: ind(i) };
+function entry(
+  symbol: string,
+  change24h: number,
+  i: Partial<IndicatorSet>,
+): WatchEntry {
+  return {
+    symbol,
+    coinId: symbol.toLowerCase(),
+    change24h,
+    indicators: ind(i),
+  };
 }
 
 describe("scanSetups", () => {
   it("flags a clean downtrend (mid RSI) as a single short", () => {
     const out = scanSetups([
-      entry("ETH", -3.6, { aboveEma20: false, ema20AboveEma50: false, rsi14: 48 }),
+      entry("ETH", -3.6, {
+        aboveEma20: false,
+        ema20AboveEma50: false,
+        rsi14: 48,
+      }),
     ]);
     expect(out).toHaveLength(1);
     expect(out[0]!.kind).toBe("downtrend");
@@ -36,7 +49,11 @@ describe("scanSetups", () => {
 
   it("emits BOTH a short and a contrarian fade-long for a downtrend that is also oversold", () => {
     const out = scanSetups([
-      entry("ETH", -3.6, { aboveEma20: false, ema20AboveEma50: false, rsi14: 34 }),
+      entry("ETH", -3.6, {
+        aboveEma20: false,
+        ema20AboveEma50: false,
+        rsi14: 34,
+      }),
     ]);
     expect(out).toHaveLength(2);
     // strongest first = the trend short
@@ -49,7 +66,12 @@ describe("scanSetups", () => {
 
   it("flags a breakout as a long with high strength", () => {
     const out = scanSetups([
-      entry("SOL", 5, { aboveEma20: true, ema20AboveEma50: true, brokeRecentHigh: true, rsi14: 62 }),
+      entry("SOL", 5, {
+        aboveEma20: true,
+        ema20AboveEma50: true,
+        brokeRecentHigh: true,
+        rsi14: 62,
+      }),
     ]);
     expect(out[0]!.kind).toBe("breakout");
     expect(out[0]!.bias).toBe("long");
@@ -58,7 +80,11 @@ describe("scanSetups", () => {
 
   it("flags an oversold-but-flat coin as a fade-long", () => {
     const out = scanSetups([
-      entry("ADA", -0.3, { rsi14: 30, aboveEma20: null, ema20AboveEma50: null }),
+      entry("ADA", -0.3, {
+        rsi14: 30,
+        aboveEma20: null,
+        ema20AboveEma50: null,
+      }),
     ]);
     expect(out[0]!.kind).toBe("stretched");
     expect(out[0]!.bias).toBe("fade-long");
@@ -72,12 +98,20 @@ describe("scanSetups", () => {
   });
 
   it("skips entries with no indicators", () => {
-    expect(scanSetups([{ symbol: "BTC", coinId: "btc", change24h: -3 }])).toHaveLength(0);
+    expect(
+      scanSetups([{ symbol: "BTC", coinId: "btc", change24h: -3 }]),
+    ).toHaveLength(0);
   });
 
   it("tags setups as held when a position is already open on that symbol", () => {
     const out = scanSetups(
-      [entry("BTC", -3.0, { aboveEma20: false, ema20AboveEma50: false, rsi14: 48 })],
+      [
+        entry("BTC", -3.0, {
+          aboveEma20: false,
+          ema20AboveEma50: false,
+          rsi14: 48,
+        }),
+      ],
       [{ venue: "futures", id: 1, symbol: "BTC-PERP", side: "short" }],
     );
     expect(out[0]!.held).toBe("short");
@@ -85,7 +119,13 @@ describe("scanSetups", () => {
 
   it("leaves held undefined when no position matches the symbol", () => {
     const out = scanSetups(
-      [entry("ETH", -3.0, { aboveEma20: false, ema20AboveEma50: false, rsi14: 48 })],
+      [
+        entry("ETH", -3.0, {
+          aboveEma20: false,
+          ema20AboveEma50: false,
+          rsi14: 48,
+        }),
+      ],
       [{ venue: "futures", id: 1, symbol: "BTC-PERP", side: "short" }],
     );
     expect(out[0]!.held).toBeUndefined();
@@ -94,7 +134,11 @@ describe("scanSetups", () => {
   it("sorts strongest-first across the watchlist", () => {
     const out = scanSetups([
       entry("ADA", -0.3, { rsi14: 30 }), // stretched ~0.55
-      entry("SOL", 5, { aboveEma20: true, ema20AboveEma50: true, brokeRecentHigh: true }), // breakout 0.8
+      entry("SOL", 5, {
+        aboveEma20: true,
+        ema20AboveEma50: true,
+        brokeRecentHigh: true,
+      }), // breakout 0.8
     ]);
     expect(out[0]!.symbol).toBe("SOL");
     expect(out[0]!.strength).toBeGreaterThan(out[1]!.strength);

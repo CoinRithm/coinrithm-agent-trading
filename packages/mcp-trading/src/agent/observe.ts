@@ -115,7 +115,10 @@ function expandPmMarkets(
         // Keep titles SHORT: the model only needs to recognise the market.
         // Untrimmed titles, one per outcome across many events, ballooned the
         // prompt to ~69k tokens (413s on small-context free models).
-        const title = (asStr(ev.title) ?? asStr(ev.question) ?? "").slice(0, 80);
+        const title = (asStr(ev.title) ?? asStr(ev.question) ?? "").slice(
+          0,
+          80,
+        );
         const freshness = freshnessOf(ev); // freshness is event-level
         // Event-level 24h volume (the discover payload's `volume24h`, USD). Feeds
         // the mechanical BENCHMARK agents' deterministic highest-volume pick rule.
@@ -137,9 +140,7 @@ function expandPmMarkets(
           source,
           slug,
           outcomeExternalMarketId:
-            asStr(o.externalMarketId) ??
-            asStr(o.outcomeExternalMarketId) ??
-            "",
+            asStr(o.externalMarketId) ?? asStr(o.outcomeExternalMarketId) ?? "",
           // Carry the odds through: the model needs the outcome label + current
           // probability to spot a mispriced market and bet it.
           outcomeName: asStr(o.name) ?? asStr(o.outcomeName) ?? undefined,

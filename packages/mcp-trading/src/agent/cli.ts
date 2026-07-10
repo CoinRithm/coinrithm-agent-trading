@@ -17,14 +17,24 @@ import {
 } from "node:fs";
 import { resolve as resolvePath, dirname, join, basename } from "node:path";
 import { parse as parseYaml } from "yaml";
-import { resolveAgent, ResolveError, mergeProseParts, isSkillProseSource } from "./resolve.js";
+import {
+  resolveAgent,
+  ResolveError,
+  mergeProseParts,
+  isSkillProseSource,
+} from "./resolve.js";
 import { buildSpec, loadAgent } from "./skill.js";
 import { validateSkill, SkillValidationMode } from "./skillValidator.js";
 import { strictLint } from "./strictLint.js";
 import { checkCapabilityDrift } from "./capabilityGuard.js";
 import { buildManifest, writeManifest } from "./manifest.js";
 import { parseFrontmatter } from "./frontmatter.js";
-import { renderFolderOfOne, ejectFiles, PRESET_NAMES, PresetName } from "./templates.js";
+import {
+  renderFolderOfOne,
+  ejectFiles,
+  PRESET_NAMES,
+  PresetName,
+} from "./templates.js";
 import { COINRITHM_API } from "./version.js";
 import { stableStringify, envFlag } from "./util.js";
 import { ResolveIssue } from "./types.js";
@@ -49,7 +59,9 @@ function issuesResult(issues: ResolveIssue[], header: string): CmdResult {
     code: 1,
     lines: [
       `✗ ${header}`,
-      ...issues.map((i) => `  [${i.code}] ${i.path ? `${i.path}: ` : ""}${i.message}`),
+      ...issues.map(
+        (i) => `  [${i.code}] ${i.path ? `${i.path}: ` : ""}${i.message}`,
+      ),
     ],
   };
 }
@@ -64,8 +76,7 @@ function pinWarnings(path: string): string[] {
     const pin = join(agentDirOf(path), "functionality", "coinrithm.yaml");
     if (!existsSync(pin)) return [];
     const parsed = parseYaml(readFileSync(pin, "utf8")) as
-      | { api?: { openapiVersion?: string } }
-      | undefined;
+      { api?: { openapiVersion?: string } } | undefined;
     const v = parsed?.api?.openapiVersion;
     if (v && v !== COINRITHM_API.openapiVersion) {
       return [
@@ -88,11 +99,15 @@ export function cmdNew(
   }
   const preset = (opts.preset ?? "conservative") as PresetName;
   if (!PRESET_NAMES.includes(preset)) {
-    return fail([`unknown preset "${preset}" (allowed: ${PRESET_NAMES.join(", ")})`]);
+    return fail([
+      `unknown preset "${preset}" (allowed: ${PRESET_NAMES.join(", ")})`,
+    ]);
   }
   const dir = resolvePath(targetPath);
-  if (!dir || dir === resolvePath(".")) return fail(["provide a target directory name"]);
-  if (existsSync(dir)) return fail([`refusing to overwrite existing path: ${dir}`]);
+  if (!dir || dir === resolvePath("."))
+    return fail(["provide a target directory name"]);
+  if (existsSync(dir))
+    return fail([`refusing to overwrite existing path: ${dir}`]);
   const name = basename(dir);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "agent.md"), renderFolderOfOne(name, preset), "utf8");
@@ -114,7 +129,8 @@ export function cmdValidate(
   try {
     resolved = resolveAgent(path);
   } catch (e) {
-    if (e instanceof ResolveError) return issuesResult(e.issues, "resolve failed");
+    if (e instanceof ResolveError)
+      return issuesResult(e.issues, "resolve failed");
     throw e;
   }
   const raw = resolved.rawFrontmatter;
@@ -125,7 +141,9 @@ export function cmdValidate(
   const lintFatal = mode === "hosted";
   const lines: string[] = [];
   for (const i of lint) {
-    lines.push(`${lintFatal ? "✗" : "⚠"} ${i.code}${i.path ? ` (${i.path})` : ""}: ${i.message}`);
+    lines.push(
+      `${lintFatal ? "✗" : "⚠"} ${i.code}${i.path ? ` (${i.path})` : ""}: ${i.message}`,
+    );
   }
   for (const i of v.issues) lines.push(`✗ ${i.code}: ${i.reason}`);
   lines.push(...pinWarnings(path));
@@ -137,7 +155,8 @@ export function cmdValidate(
 
 export function cmdLock(path: string): CmdResult {
   const v = cmdValidate(path, "self-host");
-  if (!v.ok) return { ...v, lines: ["refusing to lock an invalid agent:", ...v.lines] };
+  if (!v.ok)
+    return { ...v, lines: ["refusing to lock an invalid agent:", ...v.lines] };
   const resolved = resolveAgent(path);
   const spec = buildSpec(resolved.rawFrontmatter);
   const manifest = buildManifest(resolved, spec);
@@ -145,28 +164,38 @@ export function cmdLock(path: string): CmdResult {
   // Self-host treats capability drift as advisory (not fatal), but locking past
   // it silently would hide it — surface it so the author isn't surprised when
   // `validate --hosted` later rejects the same folder.
-  const drift = ((v.data as { lint?: ResolveIssue[] } | undefined)?.lint ?? []).filter((i) =>
-    i.code.startsWith("drift_"),
-  );
+  const drift = (
+    (v.data as { lint?: ResolveIssue[] } | undefined)?.lint ?? []
+  ).filter((i) => i.code.startsWith("drift_"));
   const warn = drift.length
     ? [
         `⚠ locked with ${drift.length} advisory capability-drift note(s) — \`validate --hosted\` would reject these:`,
-        ...drift.map((i) => `  [${i.code}] ${i.path ? `${i.path}: ` : ""}${i.message}`),
+        ...drift.map(
+          (i) => `  [${i.code}] ${i.path ? `${i.path}: ` : ""}${i.message}`,
+        ),
       ]
     : [];
-  return { ok: true, code: 0, lines: [`wrote ${out}`, `configHash ${manifest.configHash}`, ...warn] };
+  return {
+    ok: true,
+    code: 0,
+    lines: [`wrote ${out}`, `configHash ${manifest.configHash}`, ...warn],
+  };
 }
 
 export function cmdEject(path: string): CmdResult {
   const agentDir = agentDirOf(path);
   const abs = resolvePath(path);
   const keystone =
-    existsSync(abs) && statSync(abs).isDirectory() ? join(abs, "agent.md") : abs;
+    existsSync(abs) && statSync(abs).isDirectory()
+      ? join(abs, "agent.md")
+      : abs;
   if (!existsSync(keystone)) return fail([`no agent.md at ${keystone}`]);
 
   const { data: fm, body } = parseFrontmatter(readFileSync(keystone, "utf8"));
   if (Array.isArray((fm as Record<string, unknown>).extends)) {
-    return fail(["agent already uses `extends` (already ejected?) — nothing to do"]);
+    return fail([
+      "agent already uses `extends` (already ejected?) — nothing to do",
+    ]);
   }
 
   const before = buildSpec(fm as Record<string, unknown>);
@@ -181,13 +210,17 @@ export function cmdEject(path: string): CmdResult {
   try {
     after = buildSpec(resolveAgent(agentDir).rawFrontmatter);
   } catch (e) {
-    return fail([`ejected folder failed to re-resolve: ${(e as Error).message}`]);
+    return fail([
+      `ejected folder failed to re-resolve: ${(e as Error).message}`,
+    ]);
   }
   const same = stableStringify(before) === stableStringify(after);
   const lines = [
     `ejected into ${agentDir}`,
     ...Object.keys(files).map((f) => `  + ${f}`),
-    same ? "✓ resolved spec unchanged" : "✗ WARNING: resolved spec CHANGED after eject",
+    same
+      ? "✓ resolved spec unchanged"
+      : "✗ WARNING: resolved spec CHANGED after eject",
   ];
   return { ok: same, code: same ? 0 : 1, lines };
 }
@@ -197,12 +230,19 @@ export function cmdInspect(path: string, json = false): CmdResult {
   try {
     resolved = resolveAgent(path);
   } catch (e) {
-    if (e instanceof ResolveError) return issuesResult(e.issues, "resolve failed");
+    if (e instanceof ResolveError)
+      return issuesResult(e.issues, "resolve failed");
     throw e;
   }
   const spec = buildSpec(resolved.rawFrontmatter);
-  const lint = [...strictLint(resolved.rawFrontmatter), ...checkCapabilityDrift(resolved, spec)];
-  const v = validateSkill({ spec, body: resolved.mergedProse, raw: resolved.rawFrontmatter }, "self-host");
+  const lint = [
+    ...strictLint(resolved.rawFrontmatter),
+    ...checkCapabilityDrift(resolved, spec),
+  ];
+  const v = validateSkill(
+    { spec, body: resolved.mergedProse, raw: resolved.rawFrontmatter },
+    "self-host",
+  );
   const output = {
     resolvedConfig: resolved.rawFrontmatter,
     provenance: resolved.provenance,
@@ -210,7 +250,12 @@ export function cmdInspect(path: string, json = false): CmdResult {
     validation: { valid: v.valid, issues: v.issues, lint },
   };
   if (json) {
-    return { ok: v.valid, code: 0, lines: [JSON.stringify(output, null, 2)], data: output };
+    return {
+      ok: v.valid,
+      code: 0,
+      lines: [JSON.stringify(output, null, 2)],
+      data: output,
+    };
   }
   const lines = [
     `name:        ${spec.name}`,
@@ -298,23 +343,33 @@ export async function cmdRun(
   try {
     loaded = loadAgent(path, "self-host");
   } catch (e) {
-    if (e instanceof ResolveError) return issuesResult(e.issues, "resolve failed");
+    if (e instanceof ResolveError)
+      return issuesResult(e.issues, "resolve failed");
     throw e;
   }
   const apiKey = process.env.COINRITHM_API_KEY;
-  if (!apiKey) return fail(["COINRITHM_API_KEY is not set (needed to read your paper account)"]);
+  if (!apiKey)
+    return fail([
+      "COINRITHM_API_KEY is not set (needed to read your paper account)",
+    ]);
   let provider;
   try {
     provider = selectProvider(loaded.spec, process.env, fetch);
   } catch (e) {
     return fail([(e as Error).message]);
   }
-  const client = new CoinRithmClient({ apiKey, baseUrl: process.env.COINRITHM_API_URL });
-  const stateFile = opts.stateFile ?? join(agentDirOf(path), ".agent.state.json");
+  const client = new CoinRithmClient({
+    apiKey,
+    baseUrl: process.env.COINRITHM_API_URL,
+  });
+  const stateFile =
+    opts.stateFile ?? join(agentDirOf(path), ".agent.state.json");
 
   const release = acquireLock(stateFile);
   if (!release) {
-    return fail([`another runner holds ${stateFile}.lock — only one runner per agent at a time`]);
+    return fail([
+      `another runner holds ${stateFile}.lock — only one runner per agent at a time`,
+    ]);
   }
   // A self-host `run` is a cadence-paced loop users stop with Ctrl-C. Node exits
   // on SIGINT/SIGTERM WITHOUT unwinding the finally across the awaited loop, so
@@ -338,7 +393,9 @@ export async function cmdRun(
       return fail([(e as Error).message]);
     }
     if (state.disabled) {
-      return fail([`agent is disabled: ${state.disabledReason ?? "kill-switch"} — clear ${stateFile} to reset`]);
+      return fail([
+        `agent is disabled: ${state.disabledReason ?? "kill-switch"} — clear ${stateFile} to reset`,
+      ]);
     }
     const live = !!opts.live;
     const lines: string[] = [
@@ -349,11 +406,19 @@ export async function cmdRun(
     // resolver, manifest, and caps are untouched (the spec is still enforced).
     const disableSkills = envFlag(process.env.COINRITHM_AGENT_DISABLE_SKILLS);
     const mergedProse = disableSkills
-      ? mergeProseParts(loaded.resolved.proseParts.filter((p) => !isSkillProseSource(p.source)))
+      ? mergeProseParts(
+          loaded.resolved.proseParts.filter(
+            (p) => !isSkillProseSource(p.source),
+          ),
+        )
       : loaded.body;
     if (disableSkills) {
-      const dropped = loaded.resolved.proseParts.filter((p) => isSkillProseSource(p.source)).length;
-      lines.push(`skills DISABLED via COINRITHM_AGENT_DISABLE_SKILLS — ${dropped} tactic skill(s) dropped from the prompt (caps unchanged)`);
+      const dropped = loaded.resolved.proseParts.filter((p) =>
+        isSkillProseSource(p.source),
+      ).length;
+      lines.push(
+        `skills DISABLED via COINRITHM_AGENT_DISABLE_SKILLS — ${dropped} tactic skill(s) dropped from the prompt (caps unchanged)`,
+      );
     }
     const deps: RunnerDeps = {
       client,
@@ -434,7 +499,10 @@ export async function main(argv: string[]): Promise<number> {
   let r: CmdResult;
   switch (cmd) {
     case "new":
-      r = cmdNew(pos[0] ?? "", { template: flags.template, preset: flags.preset });
+      r = cmdNew(pos[0] ?? "", {
+        template: flags.template,
+        preset: flags.preset,
+      });
       break;
     case "validate":
       r = cmdValidate(pos[0] ?? ".", flags.hosted ? "hosted" : "self-host");
@@ -451,7 +519,11 @@ export async function main(argv: string[]): Promise<number> {
     case "run": {
       // dry-run is the default; only --live (or LIVE=1) AND not --dry-run trades.
       const live = (!!flags.live || process.env.LIVE === "1") && !flags.dryRun;
-      r = await cmdRun(pos[0] ?? ".", { once: flags.once, live, stateFile: flags.state });
+      r = await cmdRun(pos[0] ?? ".", {
+        once: flags.once,
+        live,
+        stateFile: flags.state,
+      });
       break;
     }
     case undefined:
@@ -461,7 +533,11 @@ export async function main(argv: string[]): Promise<number> {
       r = { ok: true, code: 0, lines: usageLines() };
       break;
     default:
-      r = { ok: false, code: 1, lines: [`unknown command "${cmd}"`, ...usageLines()] };
+      r = {
+        ok: false,
+        code: 1,
+        lines: [`unknown command "${cmd}"`, ...usageLines()],
+      };
   }
   for (const line of r.lines) {
     // eslint-disable-next-line no-console

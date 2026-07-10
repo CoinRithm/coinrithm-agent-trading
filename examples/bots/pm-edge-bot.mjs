@@ -324,7 +324,7 @@ const exportRunEvidence = async () => {
     }
     console.log(`  rows in export    = ${bundle.count ?? bundle.data?.length ?? 0}`);
     const ea = run?.executionAssumptions;
-    if (ea) console.log(`  costModel         = ${ea.costModel ?? "paper, mid/last price, no commission/slippage/funding (v1)"}`);
+    if (ea) console.log(`  costModel         = ${ea.costModel?.policyVersion ?? "paper_execution_v1 (not costless: modeled taker fee + spread + slippage, disclosed per fill)"}`);
   } catch (e) {
     console.log(`  (run evidence unavailable: ${e.message})`);
   }

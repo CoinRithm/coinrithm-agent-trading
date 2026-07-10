@@ -20,8 +20,10 @@
 // can place a trade. Without it, write tools return a refusal string instead
 // of calling the API.
 //
-// COST MODEL (v1, honest): fills execute at mid/last price; no commission,
-// slippage, or futures funding in v1. Modeled fees/slippage are roadmap.
+// COST MODEL (paper_execution_v1, honest): paper execution is NOT costless.
+// Every fill charges a modeled taker fee; spot market orders and PM entries also
+// pay an adverse spread + size-based slippage (futures funding is not modeled),
+// folded into realized PnL. Each fill's cost is disclosed in the executionModel.
 // ---------------------------------------------------------------------------
 
 import { tool } from "ai";
@@ -221,7 +223,7 @@ export function coinrithmTools({ apiKey, live = false, baseUrl = "https://api.co
 
     export_run_evidence: tool({
       description:
-        "Export one private reproducibility bundle for a specific agentTrace.runId. The bundle includes sanitized ledger rows, executionAssumptions (cost model: paper, mid/last price, no commission/slippage/funding in v1), evidenceChecklist (trace completeness, quoteBeforeTrade, etc.), and outcomeSummary. Use this to prove the agent only acted on data available at decision time.",
+        "Export one private reproducibility bundle for a specific agentTrace.runId. The bundle includes sanitized ledger rows, executionAssumptions (the versioned paper_execution_v1 cost model — paper execution is not costless; fills charge a modeled taker fee plus spread + slippage on spot/PM, disclosed per fill), evidenceChecklist (trace completeness, quoteBeforeTrade, etc.), and outcomeSummary. Use this to prove the agent only acted on data available at decision time.",
       inputSchema: z.object({
         runId: z.string().min(1).describe("Required run id to export"),
         agentTrace: agentTraceSchema,

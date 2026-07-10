@@ -66,21 +66,49 @@ describe("benchmark strategy vocabulary", () => {
 
 describe("benchmarkForecast — per-strategy forecast rules", () => {
   it("market-implied ECHOES the market probability exactly (percentage)", () => {
-    expect(benchmarkForecast("market-implied", mkMarket({ probability: 0.42 }), "2026-07-10")).toBe(42);
-    expect(benchmarkForecast("market-implied", mkMarket({ probability: 0.5 }), "2026-07-10")).toBe(50);
-    expect(benchmarkForecast("market-implied", mkMarket({ probability: 0.777 }), "2026-07-10")).toBe(78);
+    expect(
+      benchmarkForecast(
+        "market-implied",
+        mkMarket({ probability: 0.42 }),
+        "2026-07-10",
+      ),
+    ).toBe(42);
+    expect(
+      benchmarkForecast(
+        "market-implied",
+        mkMarket({ probability: 0.5 }),
+        "2026-07-10",
+      ),
+    ).toBe(50);
+    expect(
+      benchmarkForecast(
+        "market-implied",
+        mkMarket({ probability: 0.777 }),
+        "2026-07-10",
+      ),
+    ).toBe(78);
   });
 
   it("market-implied clamps to the exclusive (0,100) rail [1,99]", () => {
-    expect(benchmarkForecast("market-implied", mkMarket({ probability: 0.0 }), "d")).toBe(1);
-    expect(benchmarkForecast("market-implied", mkMarket({ probability: 1.0 }), "d")).toBe(99);
-    expect(benchmarkForecast("market-implied", mkMarket({ probability: 0.005 }), "d")).toBe(1);
+    expect(
+      benchmarkForecast("market-implied", mkMarket({ probability: 0.0 }), "d"),
+    ).toBe(1);
+    expect(
+      benchmarkForecast("market-implied", mkMarket({ probability: 1.0 }), "d"),
+    ).toBe(99);
+    expect(
+      benchmarkForecast(
+        "market-implied",
+        mkMarket({ probability: 0.005 }),
+        "d",
+      ),
+    ).toBe(1);
   });
 
   it("base-rate submits the documented uninformative 50 (never invented)", () => {
-    expect(benchmarkForecast("base-rate", mkMarket({ probability: 0.9 }), "d")).toBe(
-      BASE_RATE_UNINFORMATIVE,
-    );
+    expect(
+      benchmarkForecast("base-rate", mkMarket({ probability: 0.9 }), "d"),
+    ).toBe(BASE_RATE_UNINFORMATIVE);
     expect(BASE_RATE_UNINFORMATIVE).toBe(50);
   });
 
@@ -147,15 +175,33 @@ describe("pickBenchmarkMarket — deterministic pick rule", () => {
 
   it("ignores markets without a usable probability", () => {
     const markets = [
-      mkMarket({ slug: "noprob", outcomeExternalMarketId: "n1", probability: undefined, volumeUsd: 999 }),
-      mkMarket({ slug: "ok", outcomeExternalMarketId: "o1", probability: 0.3, volumeUsd: 10 }),
+      mkMarket({
+        slug: "noprob",
+        outcomeExternalMarketId: "n1",
+        probability: undefined,
+        volumeUsd: 999,
+      }),
+      mkMarket({
+        slug: "ok",
+        outcomeExternalMarketId: "o1",
+        probability: 0.3,
+        volumeUsd: 10,
+      }),
     ];
     expect(pickBenchmarkMarket(markets)?.slug).toBe("ok");
   });
 
   it("excludes already-held markets", () => {
-    const held = mkMarket({ slug: "held", outcomeExternalMarketId: "h1", volumeUsd: 999 });
-    const free = mkMarket({ slug: "free", outcomeExternalMarketId: "f1", volumeUsd: 10 });
+    const held = mkMarket({
+      slug: "held",
+      outcomeExternalMarketId: "h1",
+      volumeUsd: 999,
+    });
+    const free = mkMarket({
+      slug: "free",
+      outcomeExternalMarketId: "f1",
+      volumeUsd: 10,
+    });
     const heldKeys = new Set([marketKey(held)]);
     expect(pickBenchmarkMarket([held, free], heldKeys)?.slug).toBe("free");
   });
@@ -179,13 +225,27 @@ describe("pickBenchmarkMarket — deterministic pick rule", () => {
 describe("decideMechanical — produces a benchmark pm_open", () => {
   const obs = mkObs({
     pmMarkets: [
-      mkMarket({ slug: "low", outcomeExternalMarketId: "l1", probability: 0.2, volumeUsd: 10 }),
-      mkMarket({ slug: "high", outcomeExternalMarketId: "h1", probability: 0.6, volumeUsd: 900 }),
+      mkMarket({
+        slug: "low",
+        outcomeExternalMarketId: "l1",
+        probability: 0.2,
+        volumeUsd: 10,
+      }),
+      mkMarket({
+        slug: "high",
+        outcomeExternalMarketId: "h1",
+        probability: 0.6,
+        volumeUsd: 900,
+      }),
     ],
   });
 
   it("market-implied bets the top-volume market echoing its probability", () => {
-    const { decision } = decideMechanical({ strategy: "market-implied", observation: obs, dateKey: "2026-07-10" });
+    const { decision } = decideMechanical({
+      strategy: "market-implied",
+      observation: obs,
+      dateKey: "2026-07-10",
+    });
     expect(decision.decision).toBe("act");
     expect(decision.actions).toHaveLength(1);
     const a = decision.actions[0];
@@ -199,47 +259,83 @@ describe("decideMechanical — produces a benchmark pm_open", () => {
   });
 
   it("base-rate bets the same market but forecasts 50", () => {
-    const { decision } = decideMechanical({ strategy: "base-rate", observation: obs, dateKey: "2026-07-10" });
+    const { decision } = decideMechanical({
+      strategy: "base-rate",
+      observation: obs,
+      dateKey: "2026-07-10",
+    });
     const a = decision.actions[0];
     expect(a.type === "pm_open" && a.slug).toBe("high"); // SAME pick as market-implied
     expect(a.type === "pm_open" && a.forecastProbability).toBe(50);
   });
 
   it("random bets the same market with a seeded [20,80] forecast", () => {
-    const { decision } = decideMechanical({ strategy: "random", observation: obs, dateKey: "2026-07-10" });
+    const { decision } = decideMechanical({
+      strategy: "random",
+      observation: obs,
+      dateKey: "2026-07-10",
+    });
     const a = decision.actions[0];
     expect(a.type === "pm_open" && a.slug).toBe("high"); // SAME pick
     if (a.type === "pm_open") {
       expect(a.forecastProbability).toBeGreaterThanOrEqual(20);
       expect(a.forecastProbability).toBeLessThanOrEqual(80);
       // reproducible
-      const again = decideMechanical({ strategy: "random", observation: obs, dateKey: "2026-07-10" });
+      const again = decideMechanical({
+        strategy: "random",
+        observation: obs,
+        dateKey: "2026-07-10",
+      });
       const b = again.decision.actions[0];
-      expect(b.type === "pm_open" && b.forecastProbability).toBe(a.forecastProbability);
+      expect(b.type === "pm_open" && b.forecastProbability).toBe(
+        a.forecastProbability,
+      );
     }
   });
 
   it("skips when no eligible market is available", () => {
-    const { decision } = decideMechanical({ strategy: "market-implied", observation: mkObs() });
+    const { decision } = decideMechanical({
+      strategy: "market-implied",
+      observation: mkObs(),
+    });
     expect(decision.decision).toBe("skip");
     expect(decision.actions).toHaveLength(0);
     expect(decision.reason).toBe("no_eligible_market");
   });
 
   it("skips (never throws) on an unknown strategy", () => {
-    const { decision } = decideMechanical({ strategy: "totally-not-a-strategy", observation: obs });
+    const { decision } = decideMechanical({
+      strategy: "totally-not-a-strategy",
+      observation: obs,
+    });
     expect(decision.decision).toBe("skip");
     expect(decision.reason).toBe("unknown_strategy");
   });
 
   it("does not re-bet a market it already holds", () => {
     const held = mkObs({
-      pmMarkets: [mkMarket({ slug: "high", outcomeExternalMarketId: "h1", probability: 0.6, volumeUsd: 900 })],
+      pmMarkets: [
+        mkMarket({
+          slug: "high",
+          outcomeExternalMarketId: "h1",
+          probability: 0.6,
+          volumeUsd: 900,
+        }),
+      ],
       pmPositions: [
-        { id: 1, source: "kalshi", slug: "high", outcomeExternalMarketId: "h1", status: "open" },
+        {
+          id: 1,
+          source: "kalshi",
+          slug: "high",
+          outcomeExternalMarketId: "h1",
+          status: "open",
+        },
       ],
     });
-    const { decision } = decideMechanical({ strategy: "market-implied", observation: held });
+    const { decision } = decideMechanical({
+      strategy: "market-implied",
+      observation: held,
+    });
     expect(decision.decision).toBe("skip");
   });
 });

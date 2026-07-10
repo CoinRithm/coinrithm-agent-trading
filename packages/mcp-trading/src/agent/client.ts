@@ -25,8 +25,10 @@ function traceHeaders(trace?: AgentTrace): Record<string, string> {
   if (!trace) return h;
   if (trace.runId) h["X-CoinRithm-Run-Id"] = trace.runId;
   if (trace.decisionId) h["X-CoinRithm-Decision-Id"] = trace.decisionId;
-  if (trace.strategyLabel) h["X-CoinRithm-Strategy-Label"] = trace.strategyLabel;
-  if (typeof trace.confidence === "number") h["X-CoinRithm-Confidence"] = String(trace.confidence);
+  if (trace.strategyLabel)
+    h["X-CoinRithm-Strategy-Label"] = trace.strategyLabel;
+  if (typeof trace.confidence === "number")
+    h["X-CoinRithm-Confidence"] = String(trace.confidence);
   return h;
 }
 
@@ -56,7 +58,8 @@ export class CoinRithmClient {
     const url = new URL(this.baseUrl + path);
     if (opts.query) {
       for (const [k, v] of Object.entries(opts.query)) {
-        if (v !== undefined && v !== null && v !== "") url.searchParams.set(k, String(v));
+        if (v !== undefined && v !== null && v !== "")
+          url.searchParams.set(k, String(v));
       }
     }
     const headers: Record<string, string> = {
@@ -78,14 +81,19 @@ export class CoinRithmClient {
         return {
           ok: false,
           status: 0,
-          data: { error: "network_error", message: err instanceof Error ? err.message : String(err) },
+          data: {
+            error: "network_error",
+            message: err instanceof Error ? err.message : String(err),
+          },
         };
       }
 
       const retryAfter = Number(res.headers.get("retry-after"));
       if (res.status === 429) this.rateLimitHits += 1;
       if (res.status === 429 && attempt < this.maxRetries) {
-        await this.sleepFn((Number.isFinite(retryAfter) ? retryAfter : 5) * 1000);
+        await this.sleepFn(
+          (Number.isFinite(retryAfter) ? retryAfter : 5) * 1000,
+        );
         continue;
       }
 
@@ -102,8 +110,12 @@ export class CoinRithmClient {
         ok: res.ok,
         status: res.status,
         data,
-        retryAfterSeconds: res.status === 429 && Number.isFinite(retryAfter) ? retryAfter : undefined,
-        rateLimitRemaining: Number(res.headers.get("ratelimit-remaining")) || undefined,
+        retryAfterSeconds:
+          res.status === 429 && Number.isFinite(retryAfter)
+            ? retryAfter
+            : undefined,
+        rateLimitRemaining:
+          Number(res.headers.get("ratelimit-remaining")) || undefined,
         ledgerEventId: res.headers.get("x-coinrithm-ledger-event-id"),
       };
     }
@@ -123,32 +135,61 @@ export class CoinRithmClient {
     return this.request("GET", "/api/agent/resolve", { query: { q }, trace });
   }
   market(coinId: string, trace?: AgentTrace) {
-    return this.request("GET", `/api/agent/market/${encodeURIComponent(coinId)}`, { trace });
+    return this.request(
+      "GET",
+      `/api/agent/market/${encodeURIComponent(coinId)}`,
+      { trace },
+    );
   }
   candles(coinId: string, range: string, trace?: AgentTrace) {
-    return this.request("GET", `/api/agent/market/${encodeURIComponent(coinId)}/candles`, {
-      query: { range },
-      trace,
-    });
+    return this.request(
+      "GET",
+      `/api/agent/market/${encodeURIComponent(coinId)}/candles`,
+      {
+        query: { range },
+        trace,
+      },
+    );
   }
-  trades(query?: { venue?: string; limit?: number; updatedSince?: string }, trace?: AgentTrace) {
+  trades(
+    query?: { venue?: string; limit?: number; updatedSince?: string },
+    trace?: AgentTrace,
+  ) {
     return this.request("GET", "/api/agent/trades", { query, trace });
   }
   futuresPositions(query?: { updatedSince?: string }, trace?: AgentTrace) {
-    return this.request("GET", "/api/agent/positions/futures", { query, trace });
+    return this.request("GET", "/api/agent/positions/futures", {
+      query,
+      trace,
+    });
   }
   futuresQuote(
-    body: { coinId: string; side: string; leverage: number; marginMusd: number },
+    body: {
+      coinId: string;
+      side: string;
+      leverage: number;
+      marginMusd: number;
+    },
     trace?: AgentTrace,
   ) {
-    return this.request("POST", "/api/agent/futures/quote", { body: { ...body, agentTrace: trace } });
+    return this.request("POST", "/api/agent/futures/quote", {
+      body: { ...body, agentTrace: trace },
+    });
   }
   // ── spot ─────────────────────────────────────────────────────────────────
-  openOrders(query?: { coinId?: string; updatedSince?: string }, trace?: AgentTrace) {
+  openOrders(
+    query?: { coinId?: string; updatedSince?: string },
+    trace?: AgentTrace,
+  ) {
     return this.request("GET", "/api/agent/orders/open", { query, trace });
   }
-  spotQuote(body: { coinId: string; side: string; quantity: number }, trace?: AgentTrace) {
-    return this.request("POST", "/api/agent/spot/quote", { body: { ...body, agentTrace: trace } });
+  spotQuote(
+    body: { coinId: string; side: string; quantity: number },
+    trace?: AgentTrace,
+  ) {
+    return this.request("POST", "/api/agent/spot/quote", {
+      body: { ...body, agentTrace: trace },
+    });
   }
   // ── prediction markets ───────────────────────────────────────────────────
   discoverPmMarkets(
@@ -178,10 +219,17 @@ export class CoinRithmClient {
     return this.request("GET", "/api/agent/positions/pm", { query, trace });
   }
   pmQuote(
-    body: { source: string; slug: string; outcomeExternalMarketId: string; stakeMusd: number },
+    body: {
+      source: string;
+      slug: string;
+      outcomeExternalMarketId: string;
+      stakeMusd: number;
+    },
     trace?: AgentTrace,
   ) {
-    return this.request("POST", "/api/agent/pm/quote", { body: { ...body, agentTrace: trace } });
+    return this.request("POST", "/api/agent/pm/quote", {
+      body: { ...body, agentTrace: trace },
+    });
   }
 
   // ── writes ─────────────────────────────────────────────────────────────────
@@ -226,7 +274,11 @@ export class CoinRithmClient {
   }) {
     return this.request("POST", "/api/agent/spot/order", { body });
   }
-  cancelSpotOrder(orderId: number, idempotencyKey?: string, trace?: AgentTrace) {
+  cancelSpotOrder(
+    orderId: number,
+    idempotencyKey?: string,
+    trace?: AgentTrace,
+  ) {
     return this.request("POST", `/api/agent/spot/order/${orderId}/cancel`, {
       body: idempotencyKey !== undefined ? { idempotencyKey } : undefined,
       trace,
@@ -249,7 +301,9 @@ export class CoinRithmClient {
 
   // Run-evidence export — runId is URL-encoded into the query.
   exportRunEvidence(runId: string) {
-    return this.request("GET", "/api/agent/ledger/export", { query: { runId } });
+    return this.request("GET", "/api/agent/ledger/export", {
+      query: { runId },
+    });
   }
 }
 

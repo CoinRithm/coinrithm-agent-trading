@@ -23,7 +23,9 @@ describe("envelope encryption", () => {
     const parts = blob.split(":");
     const ct = Buffer.from(parts[3]!, "base64");
     ct[0] = ct[0]! ^ 0xff; // flip a byte
-    const tampered = [parts[0], parts[1], parts[2], ct.toString("base64")].join(":");
+    const tampered = [parts[0], parts[1], parts[2], ct.toString("base64")].join(
+      ":",
+    );
     expect(() => decrypt(tampered, key)).toThrow();
   });
 
@@ -41,7 +43,9 @@ describe("envelope encryption", () => {
     expect(loadMasterKey(key.toString("hex")).length).toBe(32);
     expect(loadMasterKey(key.toString("base64")).length).toBe(32);
     expect(() => loadMasterKey("tooshort")).toThrow(/32 bytes/);
-    expect(() => loadMasterKey(randomBytes(16).toString("hex"))).toThrow(/32 bytes/);
+    expect(() => loadMasterKey(randomBytes(16).toString("hex"))).toThrow(
+      /32 bytes/,
+    );
   });
 
   it("secretEquals is length-safe", () => {

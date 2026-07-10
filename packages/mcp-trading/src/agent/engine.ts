@@ -7,7 +7,11 @@
 // stable engine pieces, never the CLI.
 
 export { runCycle, type RunnerDeps } from "./runner.js";
-export { selectProvider, type ProviderEnv, type Provider } from "./providers.js";
+export {
+  selectProvider,
+  type ProviderEnv,
+  type Provider,
+} from "./providers.js";
 export { CoinRithmClient } from "./client.js";
 export { loadAgent, buildSpec, type LoadedAgent } from "./skill.js";
 export { resolveAgent } from "./resolve.js";

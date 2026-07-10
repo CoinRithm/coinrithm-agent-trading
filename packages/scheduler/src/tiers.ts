@@ -65,7 +65,10 @@ export function limitsForPlan(plan: string | null | undefined): TierLimits {
   return TIER_LIMITS.free;
 }
 
-function limitsFor(plan: string | null | undefined, isHouse?: boolean): TierLimits {
+function limitsFor(
+  plan: string | null | undefined,
+  isHouse?: boolean,
+): TierLimits {
   return isHouse ? TIER_LIMITS.house : limitsForPlan(plan);
 }
 
@@ -98,9 +101,16 @@ export function evaluateDeploy(req: DeployRequest): GateResult {
   if (req.currentAgentCount >= limits.maxAgentsPerOwner) {
     reasons.push(`agent_cap_reached:${limits.maxAgentsPerOwner}`);
   }
-  const requested = Number.isFinite(req.cadenceSeconds) ? req.cadenceSeconds : limits.minCadenceSeconds;
+  const requested = Number.isFinite(req.cadenceSeconds)
+    ? req.cadenceSeconds
+    : limits.minCadenceSeconds;
   const effectiveCadenceSeconds = Math.max(requested, limits.minCadenceSeconds);
-  return { allowed: reasons.length === 0, reasons, effectiveCadenceSeconds, limits };
+  return {
+    allowed: reasons.length === 0,
+    reasons,
+    effectiveCadenceSeconds,
+    limits,
+  };
 }
 
 export interface BudgetState {
@@ -112,7 +122,9 @@ export interface BudgetState {
 
 /** True once an owner's metered compute crosses their tier's monthly budget. */
 export function isOverBudget(s: BudgetState): boolean {
-  return s.costThisPeriodUsd >= limitsFor(s.plan, s.isHouse).monthlyComputeBudgetUsd;
+  return (
+    s.costThisPeriodUsd >= limitsFor(s.plan, s.isHouse).monthlyComputeBudgetUsd
+  );
 }
 
 export interface TierStatus {

@@ -46,7 +46,8 @@ const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
 // plus a GEMINI_API_KEY. The free tier (no credit card, generous Flash quota) makes
 // it the easiest key a USER can bring for their OWN agent — and a per-user key means
 // each agent draws on its own quota, which is how the fleet actually scales.
-const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai";
+const GEMINI_BASE_URL =
+  "https://generativelanguage.googleapis.com/v1beta/openai";
 
 // Cap any single model call so a hung provider can't block an agent forever — but
 // generously. The scheduler runs cycles SEQUENTIALLY per agent (it locks the row
@@ -70,7 +71,9 @@ const DEFAULT_TIMEOUT_MS = 300_000;
 // instruct mode (measured ~3-4s, clean JSON). Apply it automatically for any
 // nemotron model so a per-cadence decision never blows the cadence.
 function applyReasoningToggle(model: string, system: string): string {
-  return /nemotron/i.test(model) ? `detailed thinking off\n\n${system}` : system;
+  return /nemotron/i.test(model)
+    ? `detailed thinking off\n\n${system}`
+    : system;
 }
 
 // fetch with a hard timeout via AbortController. A custom fetchFn (tests) that
@@ -203,7 +206,9 @@ class AnthropicProvider implements Provider {
             completionTokens: json.usage.output_tokens ?? 0,
           }
         : undefined;
-      return text ? { ok: true, text, usage } : { ok: false, error: "anthropic returned empty content" };
+      return text
+        ? { ok: true, text, usage }
+        : { ok: false, error: "anthropic returned empty content" };
     } catch (err) {
       return { ok: false, error: callError(err, timeoutMs) };
     }
@@ -238,7 +243,10 @@ class OpenAiCompatProvider implements Provider {
             max_tokens: input.maxTokens ?? 1024,
             response_format: { type: "json_object" },
             messages: [
-              { role: "system", content: applyReasoningToggle(this.model, input.system) },
+              {
+                role: "system",
+                content: applyReasoningToggle(this.model, input.system),
+              },
               { role: "user", content: input.user },
             ],
           }),
@@ -263,7 +271,9 @@ class OpenAiCompatProvider implements Provider {
             completionTokens: json.usage.completion_tokens ?? 0,
           }
         : undefined;
-      return text ? { ok: true, text, usage } : { ok: false, error: "provider returned empty content" };
+      return text
+        ? { ok: true, text, usage }
+        : { ok: false, error: "provider returned empty content" };
     } catch (err) {
       return { ok: false, error: callError(err, timeoutMs) };
     }
@@ -300,9 +310,12 @@ export function selectProvider(
             : provider === "gemini"
               ? "GEMINI_API_KEY"
               : "OPENAI_API_KEY / MODEL_API_KEY";
-    throw new Error(`missing model API key: set ${varName} in the environment (never in an agent file)`);
+    throw new Error(
+      `missing model API key: set ${varName} in the environment (never in an agent file)`,
+    );
   }
-  if (provider === "anthropic") return new AnthropicProvider(name, key, fetchFn);
+  if (provider === "anthropic")
+    return new AnthropicProvider(name, key, fetchFn);
   const resolvedBase = baseUrlFor(provider, baseUrl);
   if (!resolvedBase) {
     throw new Error("openai-compatible provider needs model.baseUrl");

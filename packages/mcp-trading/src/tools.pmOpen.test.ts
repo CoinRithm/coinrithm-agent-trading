@@ -7,7 +7,10 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 // Capture every tool registered by registerTools without a live server/client.
 // registerTools only references the client inside handler closures (not at
 // registration time), so a bare stub is enough to inspect the input schemas.
-type Registered = { name: string; config: { inputSchema: Record<string, z.ZodTypeAny> } };
+type Registered = {
+  name: string;
+  config: { inputSchema: Record<string, z.ZodTypeAny> };
+};
 
 const capture = (): Registered[] => {
   const tools: Registered[] = [];

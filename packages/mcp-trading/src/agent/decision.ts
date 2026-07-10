@@ -13,7 +13,10 @@ import { Decision, ProposedAction } from "./types.js";
 // "actions.0.positionId: Expected number, received string".
 const num = (inner: z.ZodTypeAny) =>
   z.preprocess(
-    (v) => (typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v)) ? Number(v) : v),
+    (v) =>
+      typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v))
+        ? Number(v)
+        : v,
     inner,
   );
 
@@ -194,21 +197,25 @@ function coerceJson(text: string): unknown {
 }
 
 export type ParseDecisionResult =
-  | { ok: true; decision: Decision }
-  | { ok: false; error: string };
+  { ok: true; decision: Decision } | { ok: false; error: string };
 
 export function parseDecision(text: string): ParseDecisionResult {
   let obj: unknown;
   try {
     obj = normalizeDecisionVerb(coerceJson(text));
   } catch (err) {
-    return { ok: false, error: `model output is not valid JSON: ${err instanceof Error ? err.message : String(err)}` };
+    return {
+      ok: false,
+      error: `model output is not valid JSON: ${err instanceof Error ? err.message : String(err)}`,
+    };
   }
   const res = decisionSchema.safeParse(obj);
   if (!res.success) {
     return {
       ok: false,
-      error: res.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`).join("; "),
+      error: res.error.issues
+        .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+        .join("; "),
     };
   }
   const d = res.data;

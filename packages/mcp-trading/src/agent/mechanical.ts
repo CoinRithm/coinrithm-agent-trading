@@ -205,7 +205,10 @@ export function decideMechanical(
   const strategy = input.strategy;
   if (!isBenchmarkStrategy(strategy)) {
     log.push(`mechanical: unknown benchmark strategy "${strategy}" — skipping`);
-    return { decision: { decision: "skip", reason: "unknown_strategy", actions: [] }, log };
+    return {
+      decision: { decision: "skip", reason: "unknown_strategy", actions: [] },
+      log,
+    };
   }
 
   const dateKey = input.dateKey ?? dayKey();
@@ -216,7 +219,10 @@ export function decideMechanical(
     log.push(
       `mechanical(${strategy}): no eligible PM market to benchmark this cycle — skipping`,
     );
-    return { decision: { decision: "skip", reason: "no_eligible_market", actions: [] }, log };
+    return {
+      decision: { decision: "skip", reason: "no_eligible_market", actions: [] },
+      log,
+    };
   }
 
   const forecast = benchmarkForecast(strategy, market, dateKey);
@@ -224,7 +230,10 @@ export function decideMechanical(
     log.push(
       `mechanical(${strategy}): could not size a forecast for ${market.slug} — skipping`,
     );
-    return { decision: { decision: "skip", reason: "unsizable_forecast", actions: [] }, log };
+    return {
+      decision: { decision: "skip", reason: "unsizable_forecast", actions: [] },
+      log,
+    };
   }
 
   const marketPct =
@@ -281,7 +290,10 @@ export interface BenchmarkAgentDefinition {
 // reference line) and never abstains on confidence (minConfidence 0). PM-only,
 // tiny fixed stake, always-fire trigger policy (mechanical is free, so there is
 // no reason to gate a cycle).
-function benchmarkSpec(strategy: BenchmarkStrategy, cadenceSeconds: number): AgentSpec {
+function benchmarkSpec(
+  strategy: BenchmarkStrategy,
+  cadenceSeconds: number,
+): AgentSpec {
   const label = LABELS[strategy];
   return {
     name: `bench-${strategy}`,

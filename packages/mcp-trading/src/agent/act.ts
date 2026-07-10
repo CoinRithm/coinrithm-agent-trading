@@ -3,11 +3,25 @@
 // idempotency key.
 
 import { CoinRithmClient } from "./client.js";
-import { ProposedAction, AgentTrace, ApiResult, Observation, QuoteEvidence, Freshness } from "./types.js";
+import {
+  ProposedAction,
+  AgentTrace,
+  ApiResult,
+  Observation,
+  QuoteEvidence,
+  Freshness,
+} from "./types.js";
 import { asObj, asNum, asStr } from "./extract.js";
 
-function coinIdFor(observation: Observation, symbol: string): string | undefined {
-  return observation.watch.find((w) => w.symbol.toUpperCase() === symbol.toUpperCase())?.coinId ?? undefined;
+function coinIdFor(
+  observation: Observation,
+  symbol: string,
+): string | undefined {
+  return (
+    observation.watch.find(
+      (w) => w.symbol.toUpperCase() === symbol.toUpperCase(),
+    )?.coinId ?? undefined
+  );
 }
 
 function freshnessOf(block: Record<string, unknown>): Freshness | undefined {
@@ -26,15 +40,25 @@ export async function fetchQuote(
   let r: ApiResult;
   if (action.type === "futures_open") {
     const coinId = coinIdFor(observation, action.symbol);
-    if (!coinId) return { eligible: false, blockReasons: ["unresolved_symbol"] };
+    if (!coinId)
+      return { eligible: false, blockReasons: ["unresolved_symbol"] };
     r = await client.futuresQuote(
-      { coinId, side: action.side, leverage: action.leverage, marginMusd: action.marginMusd },
+      {
+        coinId,
+        side: action.side,
+        leverage: action.leverage,
+        marginMusd: action.marginMusd,
+      },
       trace,
     );
   } else if (action.type === "spot_order") {
     const coinId = coinIdFor(observation, action.symbol);
-    if (!coinId) return { eligible: false, blockReasons: ["unresolved_symbol"] };
-    r = await client.spotQuote({ coinId, side: action.side, quantity: action.quantity }, trace);
+    if (!coinId)
+      return { eligible: false, blockReasons: ["unresolved_symbol"] };
+    r = await client.spotQuote(
+      { coinId, side: action.side, quantity: action.quantity },
+      trace,
+    );
   } else if (action.type === "pm_open") {
     r = await client.pmQuote(
       {
@@ -48,7 +72,8 @@ export async function fetchQuote(
   } else {
     return undefined; // close / set-sltp / cancel need no quote
   }
-  if (!r.ok) return { eligible: false, blockReasons: [`quote_http_${r.status}`] };
+  if (!r.ok)
+    return { eligible: false, blockReasons: [`quote_http_${r.status}`] };
   const d = asObj(r.data);
   return {
     eligible: d.eligible === true,
@@ -75,7 +100,8 @@ export async function executeAction(
 ): Promise<ApiResult> {
   if (action.type === "futures_open") {
     const coinId = coinIdFor(observation, action.symbol);
-    if (!coinId) return { ok: false, status: 0, data: { error: "unresolved_symbol" } };
+    if (!coinId)
+      return { ok: false, status: 0, data: { error: "unresolved_symbol" } };
     return client.openFutures({
       coinId,
       side: action.side,
@@ -109,7 +135,8 @@ export async function executeAction(
   }
   if (action.type === "spot_order") {
     const coinId = coinIdFor(observation, action.symbol);
-    if (!coinId) return { ok: false, status: 0, data: { error: "unresolved_symbol" } };
+    if (!coinId)
+      return { ok: false, status: 0, data: { error: "unresolved_symbol" } };
     return client.placeSpotOrder({
       coinId,
       side: action.side,

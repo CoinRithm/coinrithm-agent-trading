@@ -62,7 +62,11 @@ async function main(): Promise<void> {
 
   // Lightweight, unauthenticated liveness probe (handy for Coolify/uptime checks).
   app.get("/healthz", (_req, res) => {
-    res.json({ ok: true, service: "coinrithm-mcp", transport: "streamable-http" });
+    res.json({
+      ok: true,
+      service: "coinrithm-mcp",
+      transport: "streamable-http",
+    });
   });
 
   // Self-describing landing for humans and validate-before-recommend agents.
@@ -75,7 +79,11 @@ async function main(): Promise<void> {
       version: SERVER_VERSION,
       description:
         "Model Context Protocol server for CoinRithm: keyless public prediction-market data tools (pm_data_*) plus paper-trading tools (spot, futures, prediction markets) with a crk_live_ API key. Paper only — never real money.",
-      endpoint: { url: "https://mcp.coinrithm.com/mcp", method: "POST", transport: "streamable-http" },
+      endpoint: {
+        url: "https://mcp.coinrithm.com/mcp",
+        method: "POST",
+        transport: "streamable-http",
+      },
       connect:
         "Point any MCP client at the endpoint above. Data tools need no key; trading tools take Authorization: Bearer crk_live_… (mint one at coinrithm.com → Settings → API Keys).",
       localAlternative: "npx -y @coinrithm/mcp-trading",

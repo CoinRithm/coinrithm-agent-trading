@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from "node:fs";
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  rmSync,
+  existsSync,
+  readFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { resolveAgent } from "./resolve.js";
@@ -41,18 +48,33 @@ body`;
 describe("manifest", () => {
   it("is deterministic: two compiles of the same inputs serialize identically", () => {
     write("agent.md", AGENT);
-    const a = serializeManifest(buildManifest(resolveAgent(dir), buildSpec(resolveAgent(dir).rawFrontmatter)));
-    const b = serializeManifest(buildManifest(resolveAgent(dir), buildSpec(resolveAgent(dir).rawFrontmatter)));
+    const a = serializeManifest(
+      buildManifest(
+        resolveAgent(dir),
+        buildSpec(resolveAgent(dir).rawFrontmatter),
+      ),
+    );
+    const b = serializeManifest(
+      buildManifest(
+        resolveAgent(dir),
+        buildSpec(resolveAgent(dir).rawFrontmatter),
+      ),
+    );
     expect(a).toBe(b);
   });
 
   it("writes meta/manifest.lock.json with a config hash", () => {
     write("agent.md", AGENT);
     const resolved = resolveAgent(dir);
-    const manifest = buildManifest(resolved, buildSpec(resolved.rawFrontmatter));
+    const manifest = buildManifest(
+      resolved,
+      buildSpec(resolved.rawFrontmatter),
+    );
     const out = writeManifest(dir, manifest);
     expect(existsSync(join(dir, "meta", "manifest.lock.json"))).toBe(true);
-    const parsed = JSON.parse(readFileSync(join(dir, "meta", "manifest.lock.json"), "utf8"));
+    const parsed = JSON.parse(
+      readFileSync(join(dir, "meta", "manifest.lock.json"), "utf8"),
+    );
     expect(parsed.schema).toBe("coinrithm.manifest.v1");
     expect(parsed.configHash).toMatch(/^sha256:/);
     expect(parsed.resolvedSpec.risk.maxLeverage).toBe(3);

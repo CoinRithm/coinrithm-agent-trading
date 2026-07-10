@@ -1,6 +1,10 @@
 // Small dependency-free helpers shared across the runner.
 import { createHash } from "node:crypto";
-import { resolve as resolvePath, relative as relativePath, isAbsolute } from "node:path";
+import {
+  resolve as resolvePath,
+  relative as relativePath,
+  isAbsolute,
+} from "node:path";
 
 export const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
@@ -15,7 +19,13 @@ export function parseCadenceMs(cadence: unknown): number | null {
   if (!Number.isFinite(n) || n <= 0) return null;
   const unit = m[2].toLowerCase();
   const mult =
-    unit === "s" ? 1000 : unit === "m" ? 60_000 : unit === "h" ? 3_600_000 : 86_400_000;
+    unit === "s"
+      ? 1000
+      : unit === "m"
+        ? 60_000
+        : unit === "h"
+          ? 3_600_000
+          : 86_400_000;
   return n * mult;
 }
 
@@ -26,14 +36,17 @@ export function dayKey(d: Date = new Date()): string {
 
 // Truthy reading of an opt-in env flag (1/true/yes/on, case-insensitive).
 export function envFlag(value: string | undefined): boolean {
-  return ["1", "true", "yes", "on"].includes((value ?? "").trim().toLowerCase());
+  return ["1", "true", "yes", "on"].includes(
+    (value ?? "").trim().toLowerCase(),
+  );
 }
 
 // Deep-scan a parsed frontmatter object for anything that looks like a secret.
 // The skill file is meant to be committable and shareable; a real key must
 // NEVER live in it (keys are supplied at runtime via env / encrypted store).
 // Returns a list of human-readable findings (empty = clean).
-const SECRET_KEY_RE = /(^|[_.-])(api[_-]?key|secret|token|password|passwd|bearer|authorization|private[_-]?key)($|[_.-])/i;
+const SECRET_KEY_RE =
+  /(^|[_.-])(api[_-]?key|secret|token|password|passwd|bearer|authorization|private[_-]?key)($|[_.-])/i;
 const SECRET_VALUE_RE =
   /(crk_live_[a-z0-9_]+|sk-[a-z0-9-]{16,}|sk_live_[a-z0-9]{16,}|ghp_[a-z0-9]{20,}|bearer\s+[a-z0-9._-]{12,}|AIza[a-z0-9_-]{20,})/i;
 
@@ -59,7 +72,9 @@ export function scanForSecrets(
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
       const here = pathPrefix ? `${pathPrefix}.${k}` : k;
       if (SECRET_KEY_RE.test(k)) {
-        findings.push(`field "${here}" must not appear in a skill file (secret-like key)`);
+        findings.push(
+          `field "${here}" must not appear in a skill file (secret-like key)`,
+        );
       }
       scanForSecrets(v, here, findings);
     }
@@ -79,7 +94,7 @@ export function shortId(): string {
 // so a Windows checkout and a Linux checkout of the same file hash identically.
 export function normalizeContent(text: string): string {
   return text
-    .replace(/^﻿/, "") // strip UTF-8 BOM (Windows editors add it)
+    .replace(/^\uFEFF/, "") // strip UTF-8 BOM (Windows editors add it)
     .replace(/\r\n/g, "\n")
     .replace(/\r/g, "\n")
     .replace(/\s+$/, "");
@@ -88,7 +103,8 @@ export function normalizeContent(text: string): string {
 // SHA-256 of normalized content — the manifest lock's per-file contentHash.
 export function sha256(text: string): string {
   return (
-    "sha256:" + createHash("sha256").update(normalizeContent(text), "utf8").digest("hex")
+    "sha256:" +
+    createHash("sha256").update(normalizeContent(text), "utf8").digest("hex")
   );
 }
 
@@ -107,7 +123,11 @@ export function isPathInside(parent: string, child: string): boolean {
 
 // Keep only the most-recent slice of a (possibly large) memory file so a growing
 // journal never blows the model context / the user's token budget.
-export function boundTail(text: string, maxLines: number, maxBytes: number): string {
+export function boundTail(
+  text: string,
+  maxLines: number,
+  maxBytes: number,
+): string {
   let lines = text.split("\n");
   if (lines.length > maxLines) lines = lines.slice(-maxLines);
   let out = lines.join("\n");

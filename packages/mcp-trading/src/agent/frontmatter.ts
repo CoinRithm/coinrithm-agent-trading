@@ -27,7 +27,9 @@ export function parseFrontmatter(text: string): Frontmatter {
     );
   }
   if (data == null || typeof data !== "object" || Array.isArray(data)) {
-    throw new Error("skill frontmatter must be a YAML mapping (key: value pairs)");
+    throw new Error(
+      "skill frontmatter must be a YAML mapping (key: value pairs)",
+    );
   }
   return { data: data as Record<string, unknown>, body: (m[2] ?? "").trim() };
 }

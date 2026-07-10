@@ -14,7 +14,9 @@ async function main(): Promise<void> {
   console.log("[scheduler] agent_runtime schema ready");
   const deGroqed = await migrateHouseAgentsOffGroq(pool);
   if (deGroqed > 0)
-    console.log(`[scheduler] de-Groq: moved ${deGroqed} house agent(s) off Groq -> NVIDIA (free 6k TPM can't fit our prompt)`);
+    console.log(
+      `[scheduler] de-Groq: moved ${deGroqed} house agent(s) off Groq -> NVIDIA (free 6k TPM can't fit our prompt)`,
+    );
 
   const control: Control = { stopped: false };
 
@@ -33,7 +35,9 @@ async function main(): Promise<void> {
           ? `ok · last tick ${Math.round(ageMs / 1000)}s ago`
           : `stale · no tick in ${Math.round(ageMs / 1000)}s`,
       );
-    }).listen(config.healthPort, () => console.log(`[scheduler] health on :${config.healthPort}`));
+    }).listen(config.healthPort, () =>
+      console.log(`[scheduler] health on :${config.healthPort}`),
+    );
   }
 
   let shuttingDown = false;
@@ -57,7 +61,10 @@ async function main(): Promise<void> {
 // truly uncaught exception is unsafe to continue from, so exit and let the
 // orchestrator restart cleanly (state is in the DB, so a restart loses nothing).
 process.on("unhandledRejection", (reason) => {
-  console.error("[scheduler] unhandledRejection:", reason instanceof Error ? reason.message : reason);
+  console.error(
+    "[scheduler] unhandledRejection:",
+    reason instanceof Error ? reason.message : reason,
+  );
 });
 process.on("uncaughtException", (err) => {
   console.error("[scheduler] uncaughtException:", err);

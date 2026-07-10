@@ -89,7 +89,10 @@ export async function migrateHouseAgentsOffGroq(pool: Pool): Promise<number> {
 // --- Tier usage (the metering the tier gate reads; see tiers.ts) ---
 
 // Non-disabled agents an owner currently runs — the deploy gate's agent-cap input.
-export async function agentCountByOwner(pool: Pool, ownerUserId: number): Promise<number> {
+export async function agentCountByOwner(
+  pool: Pool,
+  ownerUserId: number,
+): Promise<number> {
   const { rows } = await pool.query<{ n: string }>(
     `SELECT COUNT(*) AS n
        FROM agent_runtime.agents
@@ -101,7 +104,11 @@ export async function agentCountByOwner(pool: Pool, ownerUserId: number): Promis
 
 // Sum of metered model cost for an owner's agents since `since` — the run-budget
 // gate's input. Reads agent_cycles.estimated_cost_usd populated per cycle.
-export async function costByOwnerSince(pool: Pool, ownerUserId: number, since: Date): Promise<number> {
+export async function costByOwnerSince(
+  pool: Pool,
+  ownerUserId: number,
+  since: Date,
+): Promise<number> {
   const { rows } = await pool.query<{ total: string | null }>(
     `SELECT COALESCE(SUM(c.estimated_cost_usd), 0)::float8 AS total
        FROM agent_runtime.agent_cycles c
@@ -159,7 +166,10 @@ const RUN_LOCK_SECONDS = 360;
 // lock window rather than re-firing the same cycle; a normal cycle reschedules to
 // now()+cadence on completion — sequential per agent, so a slow call just delays
 // the next cycle, never overlaps it.
-export async function claimDueAgents(pool: Pool, limit: number): Promise<AgentRow[]> {
+export async function claimDueAgents(
+  pool: Pool,
+  limit: number,
+): Promise<AgentRow[]> {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -194,7 +204,10 @@ export async function claimDueAgents(pool: Pool, limit: number): Promise<AgentRo
   }
 }
 
-export async function loadStateJson(pool: Pool, agentId: number): Promise<unknown | null> {
+export async function loadStateJson(
+  pool: Pool,
+  agentId: number,
+): Promise<unknown | null> {
   const { rows } = await pool.query<{ state: unknown }>(
     "SELECT state FROM agent_runtime.agent_state WHERE agent_id = $1",
     [agentId],
@@ -202,7 +215,11 @@ export async function loadStateJson(pool: Pool, agentId: number): Promise<unknow
   return rows.length > 0 ? rows[0]!.state : null;
 }
 
-export async function saveStateJson(pool: Pool, agentId: number, state: unknown): Promise<void> {
+export async function saveStateJson(
+  pool: Pool,
+  agentId: number,
+  state: unknown,
+): Promise<void> {
   await pool.query(
     `INSERT INTO agent_runtime.agent_state (agent_id, state, updated_at)
      VALUES ($1, $2::jsonb, now())
@@ -211,7 +228,11 @@ export async function saveStateJson(pool: Pool, agentId: number, state: unknown)
   );
 }
 
-export async function recordCycle(pool: Pool, agentId: number, rec: CycleRecord): Promise<void> {
+export async function recordCycle(
+  pool: Pool,
+  agentId: number,
+  rec: CycleRecord,
+): Promise<void> {
   await pool.query(
     `INSERT INTO agent_runtime.agent_cycles
        (agent_id, decision, skip_reason, rationale, confidence, raw_model_output, model_failed, disabled, actions, log, error,
@@ -269,13 +290,27 @@ export async function persistCycleResult(
           trigger_codes, llm_call_made, tokens_in, tokens_out, estimated_cost_usd, decision_type, write_attempted, write_accepted)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
       [
-        agentId, c.decision, c.skipReason ?? null, c.rationale ?? null, c.confidence ?? null,
+        agentId,
+        c.decision,
+        c.skipReason ?? null,
+        c.rationale ?? null,
+        c.confidence ?? null,
         // no-CoT privacy policy: raw_model_output is hard-forced NULL at this DB
         // write boundary (same enforcement as recordCycle above) — see f778338.
-        null, !!c.modelFailed, !!c.disabled,
-        c.actions === undefined ? null : JSON.stringify(c.actions), c.log ?? null, c.error ?? null,
-        c.triggerCodes ?? null, c.llmCallMade ?? null, c.tokensIn ?? null, c.tokensOut ?? null,
-        c.estimatedCostUsd ?? null, c.decisionType ?? null, c.writeAttempted ?? null, c.writeAccepted ?? null,
+        null,
+        !!c.modelFailed,
+        !!c.disabled,
+        c.actions === undefined ? null : JSON.stringify(c.actions),
+        c.log ?? null,
+        c.error ?? null,
+        c.triggerCodes ?? null,
+        c.llmCallMade ?? null,
+        c.tokensIn ?? null,
+        c.tokensOut ?? null,
+        c.estimatedCostUsd ?? null,
+        c.decisionType ?? null,
+        c.writeAttempted ?? null,
+        c.writeAccepted ?? null,
       ],
     );
     if (args.disableReason) {
@@ -310,7 +345,10 @@ export async function persistCycleResult(
 // over the shared-key rate budget) never reaches persistCycleResult, so without
 // this it would inherit the full RUN_LOCK lock — a 60s agent locked out 360s.
 // Mirror the persistCycleResult reschedule so the agent runs again next cadence.
-export async function rescheduleToCadence(pool: Pool, agentId: number): Promise<void> {
+export async function rescheduleToCadence(
+  pool: Pool,
+  agentId: number,
+): Promise<void> {
   await pool.query(
     `UPDATE agent_runtime.agents
         SET next_run_at = now() + make_interval(secs => cadence_seconds), updated_at = now()
@@ -319,7 +357,11 @@ export async function rescheduleToCadence(pool: Pool, agentId: number): Promise<
   );
 }
 
-export async function disableAgent(pool: Pool, agentId: number, reason: string): Promise<void> {
+export async function disableAgent(
+  pool: Pool,
+  agentId: number,
+  reason: string,
+): Promise<void> {
   await pool.query(
     "UPDATE agent_runtime.agents SET status = 'disabled', disabled_reason = $2, updated_at = now() WHERE id = $1",
     [agentId, reason.slice(0, 500)],

@@ -52,7 +52,9 @@ export interface RunnerDeps {
 // to pre-forecast behavior (prompt extension also drops out). Read at CALL TIME
 // (not module-load) so a process env / a test can toggle it without re-import.
 export function houseAgentForecastEnabled(): boolean {
-  const v = (process.env.HOUSE_AGENT_FORECAST_ENABLED ?? "").trim().toLowerCase();
+  const v = (process.env.HOUSE_AGENT_FORECAST_ENABLED ?? "")
+    .trim()
+    .toLowerCase();
   return !["false", "0", "no", "off"].includes(v);
 }
 
@@ -537,12 +539,14 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
         if (fc != null) {
           const mkt = observation.pmMarkets.find(
             (m) =>
-              (m.source ?? "").toLowerCase() === (pm.source ?? "").toLowerCase() &&
+              (m.source ?? "").toLowerCase() ===
+                (pm.source ?? "").toLowerCase() &&
               (m.slug ?? "").toLowerCase() === (pm.slug ?? "").toLowerCase() &&
               m.outcomeExternalMarketId === pm.outcomeExternalMarketId,
           );
           const marketPct =
-            typeof mkt?.probability === "number" && Number.isFinite(mkt.probability)
+            typeof mkt?.probability === "number" &&
+            Number.isFinite(mkt.probability)
               ? Math.round(mkt.probability * 100)
               : undefined;
           // Anti-echo: an EXACT match on the market's integer probability is still

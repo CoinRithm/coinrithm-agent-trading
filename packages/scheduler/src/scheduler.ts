@@ -10,7 +10,8 @@ import { withConcurrency } from "./concurrency.js";
 import { RateBudget, sharedKeyFor, type SharedKey } from "./rateBudget.js";
 import type { Config } from "./config.js";
 
-const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms: number): Promise<void> =>
+  new Promise((r) => setTimeout(r, ms));
 
 export interface Control {
   stopped: boolean;
@@ -30,7 +31,8 @@ export async function runScheduler(
 ): Promise<void> {
   // NVIDIA fleet budget scales with the key pool: each independent key has its
   // own ~RPM quota, so N keys => N * nvidiaRpm fleet-wide. Groq has its own bucket.
-  const nvidiaFleetRpm = config.nvidiaRpm * Math.max(1, config.nvidiaApiKeys.length);
+  const nvidiaFleetRpm =
+    config.nvidiaRpm * Math.max(1, config.nvidiaApiKeys.length);
   logFn(
     `[scheduler] up · poll=${config.pollIntervalMs}ms concurrency=${config.maxConcurrent} batch=${config.claimBatch} nvidiaKeys=${config.nvidiaApiKeys.length} nvidiaRpm=${nvidiaFleetRpm} groqRpm=${config.groqApiKey ? config.groqRpm : 0}`,
   );
@@ -51,10 +53,14 @@ export async function runScheduler(
       // or any house stop is undone automatically, no manual re-seed).
       const revived = await reviveDisabledAgents(pool);
       if (revived.length > 0)
-        logFn(`[scheduler] self-heal: revived ${revived.length} disabled agent(s): ${revived.join(", ")}`);
+        logFn(
+          `[scheduler] self-heal: revived ${revived.length} disabled agent(s): ${revived.join(", ")}`,
+        );
       const due = await claimDueAgents(pool, config.claimBatch);
       if (due.length > 0) {
-        logFn(`[scheduler] running ${due.length}: ${due.map((a) => a.handle).join(", ")}`);
+        logFn(
+          `[scheduler] running ${due.length}: ${due.map((a) => a.handle).join(", ")}`,
+        );
         await withConcurrency(due, config.maxConcurrent, async (a) => {
           // Agents on a shared key must hold a token for THAT key's budget; if
           // it's over budget this cadence, skip gracefully (transparent skip in
@@ -82,7 +88,9 @@ export async function runScheduler(
         });
       }
     } catch (e) {
-      logFn(`[scheduler] tick error: ${e instanceof Error ? e.message : String(e)}`);
+      logFn(
+        `[scheduler] tick error: ${e instanceof Error ? e.message : String(e)}`,
+      );
     }
     await sleep(config.pollIntervalMs);
   }

@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { buildSystemPrompt, buildUserPrompt, formatPmResolutions } from "./prompt.js";
+import {
+  buildSystemPrompt,
+  buildUserPrompt,
+  formatPmResolutions,
+} from "./prompt.js";
 import { parseSkill } from "./skill.js";
 import { renderFolderOfOne } from "./templates.js";
 import { Observation, PmResolution } from "./types.js";
@@ -146,7 +150,9 @@ describe("buildSystemPrompt — pm_ref escape hatch (hallucination fix)", () => 
     expect(out).toMatch(/do NOT invent, guess, or increment a ref/i);
     expect(out).toMatch(/pm_ref_unknown/);
     // Scopes the "bettable" set to THIS cycle's listed markets.
-    expect(out).toMatch(/listed in observation\.pmMarkets THIS cycle \(pm1\.\.pmN\)/);
+    expect(out).toMatch(
+      /listed in observation\.pmMarkets THIS cycle \(pm1\.\.pmN\)/,
+    );
     // The scan REQUIREMENT (edge thesis) is preserved, not removed.
     expect(out).toMatch(/REQUIRED that you scan/);
   });

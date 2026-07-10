@@ -91,7 +91,11 @@ export interface Bollinger {
 }
 
 // Bollinger bands: SMA(period) ± mult·stddev over the last `period` closes.
-export function bollinger(closes: number[], period = 20, mult = 2): Bollinger | null {
+export function bollinger(
+  closes: number[],
+  period = 20,
+  mult = 2,
+): Bollinger | null {
   if (period <= 0 || closes.length < period) return null;
   const slice = closes.slice(-period);
   const mid = slice.reduce((a, b) => a + b, 0) / period;
@@ -107,7 +111,10 @@ export interface HighLow {
 }
 
 // Highest high / lowest low over the last `lookback` candles (breakout levels).
-export function recentHighLow(candles: Candle[], lookback: number): HighLow | null {
+export function recentHighLow(
+  candles: Candle[],
+  lookback: number,
+): HighLow | null {
   if (lookback <= 0 || candles.length === 0) return null;
   const slice = candles.slice(-lookback);
   let high = -Infinity;
@@ -148,7 +155,10 @@ export interface IndicatorOpts {
 // for an agent that declared the `indicators` capability. The breakout flags
 // compare the latest close against the high/low of the PRECEDING window (so a
 // candle closing at a new 20-bar high reads as a breakout, not a tautology).
-export function computeIndicators(candles: Candle[], opts: IndicatorOpts = {}): IndicatorSet | null {
+export function computeIndicators(
+  candles: Candle[],
+  opts: IndicatorOpts = {},
+): IndicatorSet | null {
   if (candles.length === 0) return null;
   const closes = closesOf(candles);
   const close = closes[closes.length - 1]!;
@@ -179,7 +189,8 @@ export function computeIndicators(candles: Candle[], opts: IndicatorOpts = {}): 
     const f = Math.pow(10, figs - Math.ceil(Math.log10(Math.abs(n))));
     return Math.round(n * f) / f;
   };
-  const sigN = (n: number | null, figs = 6): number | null => (n == null ? null : sig(n, figs));
+  const sigN = (n: number | null, figs = 6): number | null =>
+    n == null ? null : sig(n, figs);
 
   return {
     asOfClose: sig(close),
@@ -187,7 +198,10 @@ export function computeIndicators(candles: Candle[], opts: IndicatorOpts = {}): 
     ema20: sigN(ema20),
     ema50: sigN(ema50),
     atr14: sigN(atr14),
-    bollinger: bb == null ? null : { upper: sig(bb.upper), mid: sig(bb.mid), lower: sig(bb.lower) },
+    bollinger:
+      bb == null
+        ? null
+        : { upper: sig(bb.upper), mid: sig(bb.mid), lower: sig(bb.lower) },
     recent20: r20 == null ? null : { high: sig(r20.high), low: sig(r20.low) },
     aboveEma20: ema20 == null ? null : close > ema20,
     ema20AboveEma50: ema20 == null || ema50 == null ? null : ema20 > ema50,

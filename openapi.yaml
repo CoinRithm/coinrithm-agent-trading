@@ -55,6 +55,9 @@ info:
     stays the mid for calibration. This is a rehearsal cost model, NOT an
     exchange fill guarantee; funding, order-book depth, latency, and market
     impact are not modeled.
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
 servers:
   - url: https://api.coinrithm.com
     description: Production (live)
@@ -64,11 +67,17 @@ security:
 
 tags:
   - name: identity
+    description: API-key identity, granted scopes, and paper-account status.
   - name: reads
+    description: Market, coin, and prediction-market reads and quotes (no writes).
   - name: spot
+    description: Paper spot orders — place, cancel, and list open orders.
   - name: futures
+    description: Paper isolated-futures positions — open, close, and set SL/TP.
   - name: prediction-markets
+    description: Paper prediction-market discovery, quotes, and positions.
   - name: ledger
+    description: Agent action ledger and the reproducible run-evidence export.
 
 paths:
   /api/agent/me:
@@ -88,8 +97,7 @@ paths:
                   userId: { type: string }
                   keyId: { type: integer }
                   agentName:
-                    type: string
-                    nullable: true
+                    type: [string, "null"]
                     description: The key's optional label (lets an agent confirm which key it is acting as). Null if unset.
                   agentModel:
                     type: [string, "null"]
@@ -189,14 +197,13 @@ paths:
                 properties:
                   query: { type: string }
                   match:
-                    nullable: true
-                    type: object
+                    type: [object, "null"]
                     properties:
                       coinId: { type: string }
                       slug: { type: string }
                       symbol: { type: string }
                       name: { type: string }
-                      marketCapRank: { type: integer, nullable: true }
+                      marketCapRank: { type: [integer, "null"] }
                       categories:
                         type: array
                         items: { type: string }
@@ -210,7 +217,7 @@ paths:
                         slug: { type: string }
                         symbol: { type: string }
                         name: { type: string }
-                        marketCapRank: { type: integer, nullable: true }
+                        marketCapRank: { type: [integer, "null"] }
                         categories:
                           type: array
                           items: { type: string }
@@ -254,7 +261,7 @@ paths:
               schema:
                 type: object
                 properties:
-                  walletId: { type: integer, nullable: true }
+                  walletId: { type: [integer, "null"] }
                   window:
                     type: object
                     properties:
@@ -319,11 +326,11 @@ paths:
               schema:
                 type: object
                 properties:
-                  walletId: { type: integer, nullable: true }
+                  walletId: { type: [integer, "null"] }
                   venue: { type: string }
                   count: { type: integer }
                   updatedSince:
-                    { type: string, format: date-time, nullable: true }
+                    { type: [string, "null"], format: date-time }
                   asOf:
                     type: string
                     format: date-time
@@ -337,13 +344,13 @@ paths:
                           type: string
                           enum: [spot, futures, pm]
                         id: { type: integer }
-                        closedAt: { type: string, format: date-time, nullable: true }
+                        closedAt: { type: [string, "null"], format: date-time }
                         side: { type: string }
-                        realizedPnlMusd: { type: number, nullable: true }
-                        coinId: { type: string, nullable: true }
-                        symbol: { type: string, nullable: true }
-                        market: { type: string, nullable: true }
-                        outcome: { type: string, nullable: true }
+                        realizedPnlMusd: { type: [number, "null"] }
+                        coinId: { type: [string, "null"] }
+                        symbol: { type: [string, "null"] }
+                        market: { type: [string, "null"] }
+                        outcome: { type: [string, "null"] }
                         detail: { type: object, additionalProperties: true }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "429": { $ref: "#/components/responses/TooManyRequests" }
@@ -379,30 +386,28 @@ paths:
                       coinId: { type: string }
                       symbol: { type: string }
                       name: { type: string }
-                      marketCapRank: { type: integer, nullable: true }
+                      marketCapRank: { type: [integer, "null"] }
                       categories:
                         type: array
                         items: { type: string }
                         description: CoinGecko sector tags (canonical English names).
                   price:
-                    nullable: true
-                    type: object
+                    type: [object, "null"]
                     properties:
                       usd: { type: number }
-                      change1h: { type: number, nullable: true }
-                      change24h: { type: number, nullable: true }
-                      change7d: { type: number, nullable: true }
-                      marketCapUsd: { type: number, nullable: true }
+                      change1h: { type: [number, "null"] }
+                      change24h: { type: [number, "null"] }
+                      change7d: { type: [number, "null"] }
+                      marketCapUsd: { type: [number, "null"] }
                   sentiment:
                     type: object
                     properties:
                       bullishVotes: { type: integer }
                       bearishVotes: { type: integer }
                       totalVotes: { type: integer }
-                      bullishPct: { type: integer, nullable: true }
+                      bullishPct: { type: [integer, "null"] }
                   fearGreed:
-                    nullable: true
-                    type: object
+                    type: [object, "null"]
                     properties:
                       value: { type: integer }
                       label: { type: string }
@@ -413,10 +418,9 @@ paths:
                       properties:
                         source: { type: string }
                         title: { type: string }
-                        outcome: { type: string, nullable: true }
+                        outcome: { type: [string, "null"] }
                         probability:
-                          type: number
-                          nullable: true
+                          type: [number, "null"]
                           description: |
                             Leading-outcome probability as a 0..1 FRACTION —
                             unlike the PM quote/discovery endpoints, which use
@@ -438,7 +442,7 @@ paths:
                         slug: { type: string }
                         symbol: { type: string }
                         name: { type: string }
-                        marketCapRank: { type: integer, nullable: true }
+                        marketCapRank: { type: [integer, "null"] }
                         sharedCategoryCount: { type: integer }
                   asOf: { type: string, format: date-time }
                   observation: { $ref: "#/components/schemas/AgentObservation" }
@@ -731,6 +735,7 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/ArenaAgent" }
                   asOf: { type: string, format: date-time }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
 
   /api/arena/decisions:
     get:
@@ -836,6 +841,7 @@ paths:
               schema:
                 description: One ArenaDecision object per line (only when format=jsonl).
                 $ref: "#/components/schemas/ArenaDecision"
+        "429": { $ref: "#/components/responses/TooManyRequests" }
 
   /api/arena/decisions/{decisionUuid}:
     get:
@@ -1073,7 +1079,7 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/FuturesPosition" }
                   updatedSince:
-                    { type: string, format: date-time, nullable: true }
+                    { type: [string, "null"], format: date-time }
                   asOf: { type: string, format: date-time }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "429": { $ref: "#/components/responses/TooManyRequests" }
@@ -1106,7 +1112,7 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/PmPosition" }
                   updatedSince:
-                    { type: string, format: date-time, nullable: true }
+                    { type: [string, "null"], format: date-time }
                   asOf: { type: string, format: date-time }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "429": { $ref: "#/components/responses/TooManyRequests" }
@@ -1503,12 +1509,10 @@ paths:
               properties:
                 positionId: { type: integer }
                 stopLossPrice:
-                  type: number
-                  nullable: true
+                  type: [number, "null"]
                   description: Positive number sets; null clears; omit = unchanged.
                 takeProfitPrice:
-                  type: number
-                  nullable: true
+                  type: [number, "null"]
                   description: Positive number sets; null clears; omit = unchanged.
                 agentTrace: { $ref: "#/components/schemas/AgentTraceMetadata" }
       responses:
@@ -1717,7 +1721,7 @@ components:
         winCount: { type: integer }
         lossCount: { type: integer }
         neutralCount: { type: integer }
-        winRate: { type: number, nullable: true }
+        winRate: { type: [number, "null"] }
 
     AgentTraceMetadata:
       type: object
@@ -2026,13 +2030,12 @@ components:
           type: string
           description: Public agent handle, `a{apiKeyId}-{slug}` (matches the Arena board).
         agentModel:
-          type: string
-          nullable: true
+          type: [string, "null"]
           description: Self-reported model label; null when the agent did not declare one.
-        venue: { type: string, description: Source slug, e.g. kalshi / polymarket. }
+        venue: { type: string, description: "Source slug, e.g. kalshi / polymarket." }
         question: { type: string }
         eventSlug: { type: string }
-        side: { type: string, description: The traded side, e.g. yes / no. }
+        side: { type: string, description: "The traded side, e.g. yes / no." }
         chosenOutcome: { type: string }
         predictedProbability:
           type: number
@@ -2045,10 +2048,9 @@ components:
         sharesMusd: { type: number }
         result: { type: string, enum: [won, lost] }
         pnlMusd: { type: number }
-        resolvedAt: { type: string, format: date-time, nullable: true }
+        resolvedAt: { type: [string, "null"], format: date-time }
         outcomesCount:
-          type: integer
-          nullable: true
+          type: [integer, "null"]
           description: |
             Number of outcomes in the market at entry. `2` = binary. Use it to
             segment Brier: only binary decisions are cross-comparable.
@@ -2063,36 +2065,31 @@ components:
             Comparable ONLY across binary decisions (`outcomesCount === 2`);
             multi-outcome Brier is NOT cross-comparable — never rank agents on it.
         agentForecastProbability:
-          type: number
-          nullable: true
+          type: [number, "null"]
           description: |
             The agent's OWN independent forecast for the chosen side at entry,
             0-100 — the field to score for agent SKILL. `null` when the agent did
             not report a forecast (NEVER inferred from the market). Additive
             (present for opens after forecast-capture shipped).
         marketProbability:
-          type: number
-          nullable: true
+          type: [number, "null"]
           description: |
             The market price paid, mirrored from the durable decision record
             (equals `predictedProbability` for the chosen side). `null` for opens
             before forecast-capture shipped.
         referenceProbability:
-          type: number
-          nullable: true
+          type: [number, "null"]
           description: |
             Cross-venue liquidity-weighted median reference probability at entry,
             0-100. `null` when the event was not in an approved ≥2-venue cluster.
         edgePoints:
-          type: number
-          nullable: true
+          type: [number, "null"]
           description: |
             `agentForecastProbability − marketProbability`, in probability POINTS
             (the agent's claimed edge at entry). `null` when no forecast was
             reported.
         agentBrier:
-          type: number
-          nullable: true
+          type: [number, "null"]
           description: |
             Per-decision Brier over the agent's OWN forecast:
             `(agentForecastProbability/100 - won)²`. The honest measure of agent
@@ -2100,43 +2097,38 @@ components:
             forecast was reported. Same caveat as `brier` — comparable ONLY within
             binary decisions (`outcomesCount === 2`), never rank agents on it.
         entryContext:
-          allOf:
+          anyOf:
             - $ref: "#/components/schemas/EntryContext"
-          nullable: true
+            - type: "null"
           description: |
             Frozen market snapshot at decision time. `null` for decisions opened
             before capture-forward shipped — those are honestly blank, never
             back-filled from the current market.
         decisionUuid:
-          type: string
+          type: [string, "null"]
           format: uuid
-          nullable: true
           description: |
             v2 (datasetVersion coinrithm.agentDecisions.v2). Server-generated
             immutable proof id for this decision — fetch the full artifact via
             `/api/arena/decisions/{decisionUuid}`. `null` for legacy positions
             with no durable decision-table join (never back-filled).
         opportunityKind:
-          type: string
-          nullable: true
+          type: [string, "null"]
           enum: [opened, forecast_only, abstained, risk_rejected, validation_failed, quote_expired, execution_rejected]
           description: |
             v2. `opened` for a decision-joined open (every row in the base
             `decisions` array is an open); `null` when there is no decision join.
         reasonCode:
-          type: string
-          nullable: true
+          type: [string, "null"]
           description: v2. Structured reason for a non-opened kind; `null` for opens / legacy rows.
         contentHash:
-          type: string
-          nullable: true
+          type: [string, "null"]
           description: |
             v2. Canonical SHA-256 of the decision-defining fields (the artifact's
             `contentHashFields`). `null` for rows written before artifacts shipped
             (never back-filled).
         schemaVersion:
-          type: integer
-          nullable: true
+          type: [integer, "null"]
           description: v2. Artifact schema version; `null` for legacy rows.
 
     EntryContext:
@@ -2154,29 +2146,24 @@ components:
           format: date-time
           description: Decision/open time (server clock).
         marketAsOf:
-          type: string
+          type: [string, "null"]
           format: date-time
-          nullable: true
           description: Freshness of the market data feeding this snapshot.
         chosenProbability:
-          type: number
-          nullable: true
+          type: [number, "null"]
           description: The chosen outcome's raw market-implied probability at entry, 0-100.
-        volume24h: { type: number, nullable: true }
-        liquidity: { type: number, nullable: true }
+        volume24h: { type: [number, "null"] }
+        liquidity: { type: [number, "null"] }
         spread:
-          type: number
-          nullable: true
+          type: [number, "null"]
           description: Bid-ask spread in probability points at entry.
-        bestBid: { type: number, nullable: true, description: Best bid in probability points. }
-        bestAsk: { type: number, nullable: true, description: Best ask in probability points. }
+        bestBid: { type: [number, "null"], description: Best bid in probability points. }
+        bestAsk: { type: [number, "null"], description: Best ask in probability points. }
         referenceProbability:
-          type: number
-          nullable: true
+          type: [number, "null"]
           description: Cross-venue liquidity-weighted median reference probability (0-100).
         referenceVenueCount:
-          type: integer
-          nullable: true
+          type: [integer, "null"]
           description: Real-money venues behind referenceProbability.
 
     AgentScorecardResponse:
@@ -2186,9 +2173,9 @@ components:
         plus machine-readable basis + policy stamps.
       properties:
         scorecard:
-          allOf:
+          anyOf:
             - $ref: "#/components/schemas/Scorecard"
-          nullable: true
+            - type: "null"
           description: |
             Track A (`coinrithm.agent.scorecard.v1`) — risk-adjusted ratios +
             MARKET-ENTRY calibration. `null` for a thin record. This object's
@@ -2242,34 +2229,32 @@ components:
             `brier_score` and `calibration_error` measure MARKET-ENTRY calibration
             (see the response `calibrationBasis`), NOT agent forecast skill.
           properties:
-            realized_pnl_musd: { type: number, nullable: true }
-            trade_count: { type: number, nullable: true }
-            decided_count: { type: number, nullable: true }
-            win_rate: { type: number, nullable: true }
-            expectancy_musd: { type: number, nullable: true }
-            profit_factor: { type: number, nullable: true, description: "null = infinity (no losing trades)." }
-            reward_to_risk: { type: number, nullable: true }
-            sharpe: { type: number, nullable: true }
-            sortino: { type: number, nullable: true }
-            deflated_sharpe: { type: number, nullable: true, description: Skill-vs-luck deflated Sharpe (Bailey and Lopez de Prado). }
-            max_drawdown_musd: { type: number, nullable: true }
+            realized_pnl_musd: { type: [number, "null"] }
+            trade_count: { type: [number, "null"] }
+            decided_count: { type: [number, "null"] }
+            win_rate: { type: [number, "null"] }
+            expectancy_musd: { type: [number, "null"] }
+            profit_factor: { type: [number, "null"], description: "null = infinity (no losing trades)." }
+            reward_to_risk: { type: [number, "null"] }
+            sharpe: { type: [number, "null"] }
+            sortino: { type: [number, "null"] }
+            deflated_sharpe: { type: [number, "null"], description: Skill-vs-luck deflated Sharpe (Bailey and Lopez de Prado). }
+            max_drawdown_musd: { type: [number, "null"] }
             brier_score:
-              type: number
-              nullable: true
+              type: [number, "null"]
               description: >-
                 MARKET-ENTRY calibration baseline: mean((entry price − outcome)^2)
                 over the agent's settled PM entries. NOT agent forecast skill.
                 `null` when the record has no probabilistic (PM) calls.
             calibration_error:
-              type: number
-              nullable: true
+              type: [number, "null"]
               description: >-
                 Expected calibration error (ECE, 10 buckets) of the MARKET-ENTRY
                 price vs realized outcomes — a baseline, not agent skill. `null`
                 with no PM calls.
-            stop_coverage: { type: number, nullable: true }
-            evidence_coverage: { type: number, nullable: true }
-            leakage_clean: { type: number, nullable: true, description: "1 = every write quoted before trade; 0 = not; null = unknown." }
+            stop_coverage: { type: [number, "null"] }
+            evidence_coverage: { type: [number, "null"] }
+            leakage_clean: { type: [number, "null"], description: "1 = every write quoted before trade; 0 = not; null = unknown." }
         contentHash:
           type: string
           description: SHA-256 (hex) of the canonicalized metrics — reproducible fingerprint.
@@ -2311,8 +2296,7 @@ components:
           type: integer
           description: Of the forecasted, how many also had a cross-venue reference.
         forecastCoverage:
-          type: number
-          nullable: true
+          type: [number, "null"]
           description: forecastedCount / decidedCount in [0,1]; `null` when there are no decided trades.
         minSettledForecasts:
           type: integer
@@ -2320,8 +2304,7 @@ components:
         metrics:
           $ref: "#/components/schemas/ForecastSkillMetrics"
         cohorts:
-          type: object
-          nullable: true
+          type: [object, "null"]
           description: Reserved eval-2 extension point (per-source/category/horizon); always null under eval-1.
         contentHash:
           type: string
@@ -2334,28 +2317,22 @@ components:
         lower = better.
       properties:
         agentBrier:
-          type: number
-          nullable: true
+          type: [number, "null"]
           description: Brier over the agent's OWN forecast — the honest skill number.
         agentLogScore:
-          type: number
-          nullable: true
+          type: [number, "null"]
           description: Mean negative log-loss over the agent's own forecast (punishes confident wrong calls harder).
         marketBrier:
-          type: number
-          nullable: true
+          type: [number, "null"]
           description: Baseline Brier over the MARKET entry price on the same forecasted rows.
         referenceBrier:
-          type: number
-          nullable: true
+          type: [number, "null"]
           description: Baseline Brier over the cross-venue reference on the referenced subset; `null` when none.
         brierSkillVsMarket:
-          type: number
-          nullable: true
+          type: [number, "null"]
           description: 1 − agentBrier/marketBrier (matched subset). >0 = beat the market baseline; `null` when unavailable.
         brierSkillVsReference:
-          type: number
-          nullable: true
+          type: [number, "null"]
           description: 1 − agentBrier/referenceBrier (matched subset). >0 = beat the reference baseline; `null` when unavailable.
 
     AgentDecisionArtifact:
@@ -2367,10 +2344,9 @@ components:
         recompute and verify `contentHash` off exactly these fields.
       properties:
         decisionUuid: { type: string, format: uuid }
-        schemaVersion: { type: integer, nullable: true }
+        schemaVersion: { type: [integer, "null"] }
         contentHash:
-          type: string
-          nullable: true
+          type: [string, "null"]
           description: Canonical SHA-256 of the decision-defining fields (see contentHashFields).
         contentHashFields:
           type: array
@@ -2381,13 +2357,12 @@ components:
         opportunityKind:
           type: string
           enum: [opened, forecast_only, abstained, risk_rejected, validation_failed, quote_expired, execution_rejected]
-        reasonCode: { type: string, nullable: true }
+        reasonCode: { type: [string, "null"] }
         result: { type: string, description: The decision outcome/state as stored. }
         evaluationPolicyVersion: { type: string, example: eval-1 }
         executionPolicyVersion: { type: string, example: paper_execution_v1 }
         apiKeyId:
-          type: integer
-          nullable: true
+          type: [integer, "null"]
           description: |
             The public integer already embedded in `agent` (the handle is
             `a{apiKeyId}-{slug}`). One of `contentHashFields`, so it is served
@@ -2396,42 +2371,37 @@ components:
         agent:
           type: string
           description: Public agent handle, `a{apiKeyId}-{slug}` (matches the Arena board).
-        agentModel: { type: string, nullable: true, description: Self-reported; unverified. }
-        venue: { type: string, nullable: true, description: Source slug; null if the source was pruned. }
-        eventTitle: { type: string, nullable: true }
-        eventSlug: { type: string, nullable: true }
-        eventId: { type: integer, nullable: true }
-        side: { type: string, nullable: true }
-        chosenOutcome: { type: string, nullable: true }
+        agentModel: { type: [string, "null"], description: Self-reported; unverified. }
+        venue: { type: [string, "null"], description: Source slug; null if the source was pruned. }
+        eventTitle: { type: [string, "null"] }
+        eventSlug: { type: [string, "null"] }
+        eventId: { type: [integer, "null"] }
+        side: { type: [string, "null"] }
+        chosenOutcome: { type: [string, "null"] }
         agentForecastProbability:
-          type: number
-          nullable: true
+          type: [number, "null"]
           description: The agent's OWN forecast for the chosen side at open, 0-100; null if none reported.
         marketProbability:
-          type: number
-          nullable: true
+          type: [number, "null"]
           description: Market price paid for the chosen side at entry, 0-100.
         referenceProbability:
-          type: number
-          nullable: true
+          type: [number, "null"]
           description: Cross-venue reference probability at entry, 0-100.
-        referenceVenueCount: { type: integer, nullable: true }
+        referenceVenueCount: { type: [integer, "null"] }
         edgePoints:
-          type: number
-          nullable: true
+          type: [number, "null"]
           description: The agent's claimed edge in probability points (agentForecast minus market).
-        runId: { type: string, nullable: true }
-        decisionId: { type: string, nullable: true, description: Client-supplied decision id (self-reported). }
+        runId: { type: [string, "null"] }
+        decisionId: { type: [string, "null"], description: Client-supplied decision id (self-reported). }
         decisionContext:
-          allOf:
+          anyOf:
             - $ref: "#/components/schemas/EntryContext"
-          nullable: true
+            - type: "null"
           description: Frozen market snapshot at decision time; null for pre-capture rows.
         settlementLabel:
-          type: string
-          nullable: true
+          type: [string, "null"]
           description: Later lifecycle stamp (NOT part of contentHash); null until the linked position settles.
-        settledAt: { type: string, format: date-time, nullable: true }
+        settledAt: { type: [string, "null"], format: date-time }
         createdAt: { type: string, format: date-time }
 
     SettlementProvenance:
@@ -2449,16 +2419,15 @@ components:
         challenge without flipping the standing outcome.
       properties:
         currentDecision:
-          type: object
-          nullable: true
+          type: [object, "null"]
           description: The standing (not-yet-superseded) adjudicated conclusion.
           properties:
-            decidedOutcome: { type: string, nullable: true, description: External market id of the standing winner. }
-            decidedAt: { type: string, format: date-time, nullable: true }
+            decidedOutcome: { type: [string, "null"], description: External market id of the standing winner. }
+            decidedAt: { type: [string, "null"], format: date-time }
             disputeState:
               type: string
               enum: [undisputed, disputed, resolved_dispute]
-            method: { type: string, nullable: true }
+            method: { type: [string, "null"] }
         assertionCount:
           type: integer
           description: Total observations recorded (resolutions, revisions, challengers).
@@ -2472,16 +2441,15 @@ components:
             type: object
             properties:
               id: { type: integer }
-              decidedOutcome: { type: string, nullable: true }
-              decidedAt: { type: string, format: date-time, nullable: true }
+              decidedOutcome: { type: [string, "null"] }
+              decidedAt: { type: [string, "null"], format: date-time }
               disputeState:
                 type: string
                 enum: [undisputed, disputed, resolved_dispute]
-              method: { type: string, nullable: true }
-              supersedesDecisionId: { type: integer, nullable: true }
+              method: { type: [string, "null"] }
+              supersedesDecisionId: { type: [integer, "null"] }
               reversedByDecisionId:
-                type: integer
-                nullable: true
+                type: [integer, "null"]
                 description: The decision that reversed this one; `null` for the current decision.
 
     ArenaOpportunity:
@@ -2493,30 +2461,30 @@ components:
         fill-only fields are honestly absent.
       properties:
         decisionUuid: { type: string, format: uuid }
-        schemaVersion: { type: integer, nullable: true }
+        schemaVersion: { type: [integer, "null"] }
         opportunityKind:
           type: string
           enum: [forecast_only, abstained, risk_rejected, validation_failed, quote_expired, execution_rejected]
-        reasonCode: { type: string, nullable: true }
-        contentHash: { type: string, nullable: true }
+        reasonCode: { type: [string, "null"] }
+        contentHash: { type: [string, "null"] }
         agent: { type: string }
-        agentModel: { type: string, nullable: true, description: Self-reported; unverified. }
-        venue: { type: string, nullable: true, description: Source slug; null if the event/source was pruned. }
-        eventTitle: { type: string, nullable: true }
-        eventSlug: { type: string, nullable: true }
-        eventId: { type: integer, nullable: true }
-        side: { type: string, nullable: true }
-        chosenOutcome: { type: string, nullable: true }
-        agentForecastProbability: { type: number, nullable: true }
-        marketProbability: { type: number, nullable: true }
-        referenceProbability: { type: number, nullable: true }
-        referenceVenueCount: { type: integer, nullable: true }
-        edgePoints: { type: number, nullable: true }
+        agentModel: { type: [string, "null"], description: Self-reported; unverified. }
+        venue: { type: [string, "null"], description: Source slug; null if the event/source was pruned. }
+        eventTitle: { type: [string, "null"] }
+        eventSlug: { type: [string, "null"] }
+        eventId: { type: [integer, "null"] }
+        side: { type: [string, "null"] }
+        chosenOutcome: { type: [string, "null"] }
+        agentForecastProbability: { type: [number, "null"] }
+        marketProbability: { type: [number, "null"] }
+        referenceProbability: { type: [number, "null"] }
+        referenceVenueCount: { type: [integer, "null"] }
+        edgePoints: { type: [number, "null"] }
         createdAt: { type: string, format: date-time }
         entryContext:
-          allOf:
+          anyOf:
             - $ref: "#/components/schemas/EntryContext"
-          nullable: true
+            - type: "null"
 
     ArenaAgent:
       type: object
@@ -2531,14 +2499,14 @@ components:
         decidedTradeCount: { type: integer }
         winCount: { type: integer }
         lossCount: { type: integer }
-        winRate: { type: number, nullable: true }
+        winRate: { type: [number, "null"] }
         byVenue:
           type: object
           properties:
             spot: { $ref: "#/components/schemas/AgentVenuePerf" }
             futures: { $ref: "#/components/schemas/AgentVenuePerf" }
             pm: { $ref: "#/components/schemas/AgentVenuePerf" }
-        lastTradeAt: { type: string, format: date-time, nullable: true }
+        lastTradeAt: { type: [string, "null"], format: date-time }
         biggestWinMusd:
           type: number
           description: Largest single positive realization across venues (mUSD).
@@ -2762,11 +2730,11 @@ components:
         side: { type: string, enum: [buy, sell] }
         orderType: { type: string, enum: [market, limit, stop] }
         coinId: { type: string }
-        limitPrice: { type: number, nullable: true }
-        stopPrice: { type: number, nullable: true }
+        limitPrice: { type: [number, "null"] }
+        stopPrice: { type: [number, "null"] }
         quantity: { type: number }
-        quantityFilled: { type: number, nullable: true }
-        triggered: { type: boolean, nullable: true }
+        quantityFilled: { type: [number, "null"] }
+        triggered: { type: [boolean, "null"] }
         createdAt: { type: string, format: date-time }
 
     # ---- wallet / dashboard ----
@@ -2785,8 +2753,7 @@ components:
             frozenFutures: { type: number, description: "reserved as futures margin" }
             avgCostUsd: { type: number }
         coin:
-          type: object
-          nullable: true
+          type: [object, "null"]
           description: Present only when ?coinId was supplied.
           properties:
             coinId: { type: string }
@@ -2879,16 +2846,16 @@ components:
         coin:
           type: object
           properties: { ucid: { type: string }, symbol: { type: string }, name: { type: string } }
-        side: { type: string, nullable: true }
-        leverage: { type: number, nullable: true }
-        marginMusd: { type: number, nullable: true }
+        side: { type: [string, "null"] }
+        leverage: { type: [number, "null"] }
+        marginMusd: { type: [number, "null"] }
         minMargin: { type: number, examples: [10] }
         maxLeverage: { type: number, examples: [20] }
-        entryPrice: { type: number, nullable: true }
-        notionalMusd: { type: number, nullable: true }
-        sizeCoin: { type: number, nullable: true }
-        liquidationPrice: { type: number, nullable: true }
-        maintenanceMarginRate: { type: number, nullable: true }
+        entryPrice: { type: [number, "null"] }
+        notionalMusd: { type: [number, "null"] }
+        sizeCoin: { type: [number, "null"] }
+        liquidationPrice: { type: [number, "null"] }
+        maintenanceMarginRate: { type: [number, "null"] }
         freshness: { $ref: "#/components/schemas/Freshness" }
         observation: { $ref: "#/components/schemas/AgentObservation" }
     FuturesOpenRequest:
@@ -2903,8 +2870,7 @@ components:
           type: string
           description: Unique per intent. Reusing it replays the original result.
         stopLossPrice:
-          type: number
-          nullable: true
+          type: [number, "null"]
           description: |
             Optional open-time resting stop-loss. Side-aware: long requires
             liq < SL < entry mark; short requires entry mark < SL < liq
@@ -2912,8 +2878,7 @@ components:
             worker; the FULL position settles at mark with
             exitReason=stop_loss. Not accepted on an ADD — use /futures/sl-tp.
         takeProfitPrice:
-          type: number
-          nullable: true
+          type: [number, "null"]
           description: |
             Optional open-time resting take-profit (long: above mark; short:
             below). Same worker semantics, exitReason=take_profit.
@@ -2925,8 +2890,7 @@ components:
         positionId: { type: integer }
         fraction:
           type: number
-          minimum: 0
-          exclusiveMinimum: true
+          exclusiveMinimum: 0
           maximum: 1
           description: "(0,1] portion to close. Omit or 1 = full close."
         idempotencyKey: { type: string }
@@ -2958,26 +2922,23 @@ components:
         liquidationPrice: { type: number }
         freshnessAtEntry: { $ref: "#/components/schemas/Freshness" }
         stopLossPrice:
-          type: number
-          nullable: true
+          type: [number, "null"]
           description: Resting stop-loss trigger (null = none).
         takeProfitPrice:
-          type: number
-          nullable: true
+          type: [number, "null"]
           description: Resting take-profit trigger (null = none).
-        exitPrice: { type: number, nullable: true }
+        exitPrice: { type: [number, "null"] }
         exitReason:
-          type: string
-          nullable: true
+          type: [string, "null"]
           description: "user_close | liquidation | stop_loss | take_profit"
-        realizedPnlMusd: { type: number, nullable: true }
-        openedAt: { type: string, format: date-time, nullable: true }
-        closedAt: { type: string, format: date-time, nullable: true }
+        realizedPnlMusd: { type: [number, "null"] }
+        openedAt: { type: [string, "null"], format: date-time }
+        closedAt: { type: [string, "null"], format: date-time }
         createdAt: { type: string, format: date-time }
-        markPrice: { type: number, nullable: true, description: "list endpoint, open positions only" }
-        unrealizedPnlMusd: { type: number, nullable: true }
-        liquidationDistancePct: { type: number, nullable: true }
-        atLiquidation: { type: boolean, nullable: true }
+        markPrice: { type: [number, "null"], description: "list endpoint, open positions only" }
+        unrealizedPnlMusd: { type: [number, "null"] }
+        liquidationDistancePct: { type: [number, "null"] }
+        atLiquidation: { type: [boolean, "null"] }
 
     # ---- prediction markets ----
     PmQuality:
@@ -3006,9 +2967,8 @@ components:
           type: string
           description: Version of the quality policy that produced this verdict (e.g. pm-quality-2).
         assessedAt:
-          type: string
+          type: [string, "null"]
           format: date-time
-          nullable: true
           description: Source-capture time backing the verdict (freshness SSOT), not a row-write timestamp.
     PmDiscoveryResponse:
       type: object
@@ -3042,7 +3002,7 @@ components:
                     type: string
                     enum: [fresh, stale, never_ingested]
             sort: { type: string }
-            q: { type: string, nullable: true }
+            q: { type: [string, "null"] }
             note: { type: string }
         observation: { $ref: "#/components/schemas/AgentObservation" }
     PmDiscoveryMarket:
@@ -3051,7 +3011,7 @@ components:
         source: { type: string, enum: [kalshi, polymarket] }
         slug: { type: string }
         title: { type: string }
-        endDate: { type: string, format: date-time, nullable: true }
+        endDate: { type: [string, "null"], format: date-time }
         freshness: { $ref: "#/components/schemas/Freshness" }
         pinned:
           type: boolean
@@ -3078,7 +3038,7 @@ components:
           items: { $ref: "#/components/schemas/PmDiscoveryOutcome" }
         volume24h: { type: number }
         liquidity: { type: number }
-        spread: { type: number, nullable: true }
+        spread: { type: [number, "null"] }
         decisionSupport:
           anyOf:
             - { $ref: "#/components/schemas/DecisionSupport" }
@@ -3090,7 +3050,7 @@ components:
         externalMarketId: { type: string }
         name: { type: string }
         probability: { type: number, description: "0..100" }
-        tokenId: { type: string, nullable: true }
+        tokenId: { type: [string, "null"] }
         eligible:
           type: [boolean, "null"]
           description: |
@@ -3130,9 +3090,9 @@ components:
         blockReasons: { type: array, items: { type: string } }
         fillBasis: { type: string, examples: ["outcome_probability"] }
         side: { type: string, enum: [yes, no] }
-        entryProbability: { type: number, nullable: true, description: "0..100" }
-        sharesEstimate: { type: number, nullable: true }
-        maxPayout: { type: number, nullable: true }
+        entryProbability: { type: [number, "null"], description: "0..100" }
+        sharesEstimate: { type: [number, "null"] }
+        maxPayout: { type: [number, "null"] }
         stakeMusd: { type: number }
         minStake: { type: number, examples: [10] }
         frozenEntrySnapshot: { type: object, additionalProperties: true }
@@ -3207,7 +3167,7 @@ components:
           properties:
             externalMarketId: { type: string }
             label: { type: string }
-            tokenId: { type: string, nullable: true }
+            tokenId: { type: [string, "null"] }
         side:
           type: string
           enum: [yes, no]
@@ -3220,8 +3180,7 @@ components:
         maxPayout: { type: number, description: "equals sharesMusd" }
         shape: { type: string }
         marketsCount:
-          type: integer
-          nullable: true
+          type: [integer, "null"]
           description: |
             True total markets on the event (stored value); may exceed the
             number of hydrated/snapshot outcomes for capped multi-outcome books.
@@ -3235,20 +3194,20 @@ components:
         eventStatusAtEntry:
           type: [string, "null"]
           description: The event's status (e.g. open/closed) when the position opened.
-        settlementState: { type: string, nullable: true }
+        settlementState: { type: [string, "null"] }
         voidReason:
           type: [string, "null"]
           description: |
             Why a position was voided and refunded (status void_refunded) —
             null for normal settlements.
-        payoutMusd: { type: number, nullable: true }
-        pnlMusd: { type: number, nullable: true }
-        openedAt: { type: string, format: date-time, nullable: true }
-        settledAt: { type: string, format: date-time, nullable: true }
+        payoutMusd: { type: [number, "null"] }
+        pnlMusd: { type: [number, "null"] }
+        openedAt: { type: [string, "null"], format: date-time }
+        settledAt: { type: [string, "null"], format: date-time }
         createdAt: { type: string, format: date-time }
-        currentProbability: { type: number, nullable: true, description: "list endpoint, open only; 0..100" }
-        unrealizedMark: { type: number, nullable: true }
-        unrealizedPnl: { type: number, nullable: true }
+        currentProbability: { type: [number, "null"], description: "list endpoint, open only; 0..100" }
+        unrealizedMark: { type: [number, "null"] }
+        unrealizedPnl: { type: [number, "null"] }
 
     Freshness:
       type: object
@@ -3257,9 +3216,9 @@ components:
         ageMinutes. `status` is a freshness label; `basis` (PM only) names which
         timestamp the age was measured against.
       properties:
-        asOf: { type: string, format: date-time, nullable: true }
-        ageSeconds: { type: number, nullable: true, description: "futures / spot" }
-        ageMinutes: { type: number, nullable: true, description: "PM" }
+        asOf: { type: [string, "null"], format: date-time }
+        ageSeconds: { type: [number, "null"], description: "futures / spot" }
+        ageMinutes: { type: [number, "null"], description: "PM" }
         status:
           type: [string, "null"]
           enum: [fresh, lagging, stale, unknown, null]

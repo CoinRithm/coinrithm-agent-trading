@@ -16,7 +16,12 @@
 //     mergedProse.
 
 import { readFileSync, existsSync, statSync, lstatSync } from "node:fs";
-import { resolve as resolvePath, relative as relativePath, join, isAbsolute } from "node:path";
+import {
+  resolve as resolvePath,
+  relative as relativePath,
+  join,
+  isAbsolute,
+} from "node:path";
 import { parse as parseYaml } from "yaml";
 import { parseFrontmatter } from "./frontmatter.js";
 import { ResolvedAgent, ResolveIssue, Provenance } from "./types.js";
@@ -78,10 +83,13 @@ const SKILL_METADATA_KEYS = new Set(["type", "title", "description", "tags"]);
 // A $ref must be a LOCAL, RELATIVE path inside the agent folder — never a URL,
 // an absolute path, a home/drive path, or a Windows backslash path.
 function refSyntaxIssue(ref: string): string | null {
-  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(ref)) return "remote/URL $ref is not allowed";
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(ref))
+    return "remote/URL $ref is not allowed";
   if (ref.startsWith("~")) return "home-relative (~) $ref is not allowed";
-  if (ref.includes("\\")) return "backslash in $ref is not allowed (use forward slashes)";
-  if (isAbsolute(ref) || /^[a-zA-Z]:/.test(ref)) return "absolute $ref is not allowed";
+  if (ref.includes("\\"))
+    return "backslash in $ref is not allowed (use forward slashes)";
+  if (isAbsolute(ref) || /^[a-zA-Z]:/.test(ref))
+    return "absolute $ref is not allowed";
   return null;
 }
 
@@ -103,7 +111,11 @@ function rel(dir: string, abs: string): string {
 function safePath(ctx: Ctx, ref: string, label: string): string | null {
   const syn = refSyntaxIssue(ref);
   if (syn) {
-    ctx.issues.push({ code: "unsafe_ref", path: ref, message: `${label} "${ref}": ${syn}` });
+    ctx.issues.push({
+      code: "unsafe_ref",
+      path: ref,
+      message: `${label} "${ref}": ${syn}`,
+    });
     return null;
   }
   const target = resolvePath(ctx.dir, ref);
@@ -256,7 +268,13 @@ function resolveSingleFile(abs: string): ResolvedAgent {
       },
     ]);
   }
-  const ctx: Ctx = { dir, issues, hashes: {}, mergeOrder: [], seenLower: new Map() };
+  const ctx: Ctx = {
+    dir,
+    issues,
+    hashes: {},
+    mergeOrder: [],
+    seenLower: new Map(),
+  };
   const r = toPosix(abs);
   ctx.hashes[r] = sha256(content);
   ctx.mergeOrder.push(r);
@@ -293,21 +311,34 @@ function loadSkillList(
 ): string[] {
   // include[] in the keystone wins; else character/skills/_index.yaml `active`.
   if (Array.isArray(frontmatter.include)) {
-    return frontmatter.include.filter((s): s is string => typeof s === "string");
+    return frontmatter.include.filter(
+      (s): s is string => typeof s === "string",
+    );
   }
   const indexPath = join(ctx.dir, "character/skills/_index.yaml");
   if (existsSync(indexPath)) {
     const abs = safePath(ctx, "character/skills/_index.yaml", "skills index");
     if (!abs) return [];
-    const parsed = parseYamlSafe(ctx, readHashed(ctx, abs), "character/skills/_index.yaml");
+    const parsed = parseYamlSafe(
+      ctx,
+      readHashed(ctx, abs),
+      "character/skills/_index.yaml",
+    );
     const active = (parsed as Record<string, unknown> | undefined)?.active;
-    if (Array.isArray(active)) return active.filter((s): s is string => typeof s === "string");
+    if (Array.isArray(active))
+      return active.filter((s): s is string => typeof s === "string");
   }
   return [];
 }
 
 function resolveDirectory(dir: string): ResolvedAgent {
-  const ctx: Ctx = { dir, issues: [], hashes: {}, mergeOrder: [], seenLower: new Map() };
+  const ctx: Ctx = {
+    dir,
+    issues: [],
+    hashes: {},
+    mergeOrder: [],
+    seenLower: new Map(),
+  };
   const keystoneAbs = findKeystone(dir);
   if (!keystoneAbs) {
     throw new ResolveError([
@@ -443,7 +474,8 @@ function resolveDirectory(dir: string): ResolvedAgent {
 
   // Prose assembly (machine-read config never enters here).
   const proseParts: Array<{ source: string; text: string }> = [];
-  if (keystoneBody.trim()) proseParts.push({ source: keystoneRel, text: keystoneBody });
+  if (keystoneBody.trim())
+    proseParts.push({ source: keystoneRel, text: keystoneBody });
   for (const pf of PROSE_FILES) {
     const p = join(dir, pf);
     if (existsSync(p)) {
@@ -471,7 +503,11 @@ function resolveDirectory(dir: string): ResolvedAgent {
   if (existsSync(functionalityPath)) {
     const abs = safePath(ctx, FUNCTIONALITY_PIN, "functionality pin");
     if (abs) {
-      const parsed = parseYamlSafe(ctx, readHashed(ctx, abs), FUNCTIONALITY_PIN);
+      const parsed = parseYamlSafe(
+        ctx,
+        readHashed(ctx, abs),
+        FUNCTIONALITY_PIN,
+      );
       for (const f of scanForSecrets(parsed)) {
         ctx.issues.push({
           code: "secret_in_functionality",
@@ -560,7 +596,9 @@ export function isSkillProseSource(source: string): boolean {
 export function mergeProseParts(
   parts: Array<{ source: string; text: string }>,
 ): string {
-  return parts.map((p) => `<!-- ${p.source} -->\n${p.text.trim()}`).join("\n\n");
+  return parts
+    .map((p) => `<!-- ${p.source} -->\n${p.text.trim()}`)
+    .join("\n\n");
 }
 
 export function resolveAgent(inputPath: string): ResolvedAgent {

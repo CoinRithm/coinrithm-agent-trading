@@ -23,7 +23,10 @@ const markets: PmMarket[] = [
   },
 ];
 
-const base: Omit<PmOpen, "ref" | "source" | "slug" | "outcomeExternalMarketId"> = {
+const base: Omit<
+  PmOpen,
+  "ref" | "source" | "slug" | "outcomeExternalMarketId"
+> = {
   type: "pm_open",
   stakeMusd: 25,
   confidence: 0.7,
@@ -37,7 +40,9 @@ describe("resolvePmRef", () => {
     expect(r.action.ref).toBeUndefined();
     expect(r.action.source).toBe("polymarket");
     expect(r.action.slug).toBe("eth-3k");
-    expect(r.action.outcomeExternalMarketId).toBe(markets[1].outcomeExternalMarketId);
+    expect(r.action.outcomeExternalMarketId).toBe(
+      markets[1].outcomeExternalMarketId,
+    );
     expect(r.action.stakeMusd).toBe(25); // other fields preserved
   });
 
@@ -99,7 +104,9 @@ describe("resolvePmRef", () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.action.source).toBe("kalshi");
-    expect(r.action.outcomeExternalMarketId).toBe(markets[0].outcomeExternalMarketId);
+    expect(r.action.outcomeExternalMarketId).toBe(
+      markets[0].outcomeExternalMarketId,
+    );
   });
 
   it("recovers a ref the model dropped into an id field (small-model slip)", () => {
@@ -112,7 +119,9 @@ describe("resolvePmRef", () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.action.source).toBe("polymarket");
-    expect(r.action.outcomeExternalMarketId).toBe(markets[1].outcomeExternalMarketId);
+    expect(r.action.outcomeExternalMarketId).toBe(
+      markets[1].outcomeExternalMarketId,
+    );
   });
 
   it("rejects pm_open with neither a ref nor a full triple (pm_ref_missing)", () => {

@@ -184,7 +184,7 @@ const run = async () => {
         line(`    [${item.status}] ${item.label}`.slice(0, W - 2), item.detail?.slice(0, 28) || "");
       }
       line("  rows in export", String(bundle.count ?? bundle.data?.length ?? 0));
-      line("  costModel", (ea.costModel ?? "paper, mid/last price, no commission/slippage/funding (v1)").slice(0, W - 12));
+      line("  costModel", (ea.costModel?.policyVersion ?? "paper_execution_v1 (not costless; modeled costs disclosed per fill)").slice(0, W - 12));
     } catch (e) {
       line("  (run evidence unavailable)", e.message.slice(0, 36));
     }

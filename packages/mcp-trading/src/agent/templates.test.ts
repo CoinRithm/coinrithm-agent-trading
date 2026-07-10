@@ -34,10 +34,16 @@ describe("templates / presets", () => {
   });
 
   it("conservative <= balanced <= bold within safe ranges", () => {
-    const [c, b, x] = PRESET_NAMES.map((p) => buildSpec(buildAgentObject("a", p).frontmatter));
+    const [c, b, x] = PRESET_NAMES.map((p) =>
+      buildSpec(buildAgentObject("a", p).frontmatter),
+    );
     expect(c.risk.maxLeverage).toBeLessThanOrEqual(b.risk.maxLeverage);
     expect(b.risk.maxLeverage).toBeLessThanOrEqual(x.risk.maxLeverage);
-    expect(c.risk.perTradeMarginMusd).toBeLessThanOrEqual(x.risk.perTradeMarginMusd);
-    expect(c.limits.maxDailyLossMusd).toBeLessThanOrEqual(x.limits.maxDailyLossMusd);
+    expect(c.risk.perTradeMarginMusd).toBeLessThanOrEqual(
+      x.risk.perTradeMarginMusd,
+    );
+    expect(c.limits.maxDailyLossMusd).toBeLessThanOrEqual(
+      x.limits.maxDailyLossMusd,
+    );
   });
 });

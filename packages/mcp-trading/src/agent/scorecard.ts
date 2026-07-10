@@ -89,7 +89,9 @@ function normalCdf(z: number): number {
     d *
     t *
     (0.31938153 +
-      t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))));
+      t *
+        (-0.356563782 +
+          t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))));
   return z >= 0 ? 1 - p : p;
 }
 
@@ -126,7 +128,9 @@ function deflatedSharpe(rs: number[], trials: number): number | null {
   if (m2 === 0) return null;
   const skew = moment(rs, 3) / m2 ** 1.5;
   const kurt = moment(rs, 4) / m2 ** 2; // 3 for a normal distribution
-  const denom = Math.sqrt(Math.max(1e-9, 1 - skew * sr + ((kurt - 1) / 4) * sr * sr));
+  const denom = Math.sqrt(
+    Math.max(1e-9, 1 - skew * sr + ((kurt - 1) / 4) * sr * sr),
+  );
   const sr0 = Math.sqrt(2 * Math.log(Math.max(1, trials))) / Math.sqrt(n);
   const z = ((sr - sr0) * Math.sqrt(n - 1)) / denom;
   return normalCdf(z);
@@ -146,7 +150,9 @@ function ece(preds: Array<{ p: number; outcome: 0 | 1 }>): number | null {
   for (let b = 0; b < buckets; b += 1) {
     const lo = b / buckets;
     const hi = (b + 1) / buckets;
-    const inB = preds.filter((x) => (b === buckets - 1 ? x.p >= lo && x.p <= hi : x.p >= lo && x.p < hi));
+    const inB = preds.filter((x) =>
+      b === buckets - 1 ? x.p >= lo && x.p <= hi : x.p >= lo && x.p < hi,
+    );
     if (inB.length === 0) continue;
     const avgP = mean(inB.map((x) => x.p));
     const avgO = mean(inB.map((x) => x.outcome));
@@ -168,7 +174,10 @@ export function computeScorecard(input: ScorecardInput): Scorecard {
   const avgLoss = losses.length ? grossLoss / losses.length : 0;
   const pWin = decided ? wins.length / decided : null;
 
-  const rs = input.returns && input.returns.length ? input.returns.filter(Number.isFinite) : pnls;
+  const rs =
+    input.returns && input.returns.length
+      ? input.returns.filter(Number.isFinite)
+      : pnls;
   const returnsBasis: Scorecard["returnsBasis"] =
     input.returns && input.returns.length ? "returns" : "realized_pnl";
   const ann = input.annualizationFactor ?? 1;
@@ -204,7 +213,11 @@ export function computeScorecard(input: ScorecardInput): Scorecard {
     stop_coverage: input.gates?.stopCoverage ?? null,
     evidence_coverage: input.gates?.evidenceCoverage ?? null,
     leakage_clean:
-      input.gates?.leakageClean == null ? null : input.gates.leakageClean ? 1 : 0,
+      input.gates?.leakageClean == null
+        ? null
+        : input.gates.leakageClean
+          ? 1
+          : 0,
   };
 
   // Canonicalize (sorted keys) and hash, so the report card carries a stable,

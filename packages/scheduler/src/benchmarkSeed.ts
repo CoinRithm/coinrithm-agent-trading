@@ -93,7 +93,12 @@ export function formatIntent(i: BenchmarkSeedIntent): string {
 
 export interface SeedBenchmarkResult {
   handle: string;
-  action: "inserted" | "config-updated" | "config-skipped-no-row" | "dry-run" | "skipped-no-key-dry-run";
+  action:
+    | "inserted"
+    | "config-updated"
+    | "config-skipped-no-row"
+    | "dry-run"
+    | "skipped-no-key-dry-run";
   detail: string;
 }
 
@@ -129,8 +134,14 @@ export async function seedBenchmarkAgents(
       // Config-only: refresh an EXISTING row's definition; never create (no key
       // to encrypt) and never touch its key or running state.
       if (!opts.commit) {
-        log(`[dry-run] would CONFIG-UPDATE ${a.handle} (no key; only refreshes an existing row)`);
-        results.push({ handle: a.handle, action: "skipped-no-key-dry-run", detail: "dry-run, no key" });
+        log(
+          `[dry-run] would CONFIG-UPDATE ${a.handle} (no key; only refreshes an existing row)`,
+        );
+        results.push({
+          handle: a.handle,
+          action: "skipped-no-key-dry-run",
+          detail: "dry-run, no key",
+        });
         continue;
       }
       const { rowCount } = await pool.query(
@@ -139,7 +150,14 @@ export async function seedBenchmarkAgents(
             model_name = $4, model_base_url = NULL, spec = $5::jsonb, prose = $6,
             updated_at = now()
           WHERE handle = $1`,
-        [a.handle, a.displayName, a.cadenceSeconds, modelName, specJson, a.prose],
+        [
+          a.handle,
+          a.displayName,
+          a.cadenceSeconds,
+          modelName,
+          specJson,
+          a.prose,
+        ],
       );
       const action = rowCount ? "config-updated" : "config-skipped-no-row";
       log(
@@ -147,13 +165,23 @@ export async function seedBenchmarkAgents(
           ? `config-updated ${a.handle} (key + state unchanged)`
           : `skipped ${a.handle}: not seeded yet — set ${keyEnvNameFor(a.handle)} to create it`,
       );
-      results.push({ handle: a.handle, action, detail: rowCount ? "definition refreshed" : "no existing row" });
+      results.push({
+        handle: a.handle,
+        action,
+        detail: rowCount ? "definition refreshed" : "no existing row",
+      });
       continue;
     }
 
     if (!opts.commit) {
-      log(`[dry-run] would UPSERT ${a.handle} (mechanical/${modelName}, has key)`);
-      results.push({ handle: a.handle, action: "dry-run", detail: "would upsert (has key)" });
+      log(
+        `[dry-run] would UPSERT ${a.handle} (mechanical/${modelName}, has key)`,
+      );
+      results.push({
+        handle: a.handle,
+        action: "dry-run",
+        detail: "would upsert (has key)",
+      });
       continue;
     }
 
@@ -179,7 +207,16 @@ export async function seedBenchmarkAgents(
           coinrithm_key_enc = EXCLUDED.coinrithm_key_enc,
           updated_at        = now()
        RETURNING id`,
-      [ownerUserId, a.handle, a.displayName, a.cadenceSeconds, modelName, specJson, a.prose, crkEnc],
+      [
+        ownerUserId,
+        a.handle,
+        a.displayName,
+        a.cadenceSeconds,
+        modelName,
+        specJson,
+        a.prose,
+        crkEnc,
+      ],
     );
     const id = rows[0]?.id;
     // Initial state only if absent — never reset a running benchmark's counters.
@@ -188,7 +225,9 @@ export async function seedBenchmarkAgents(
        VALUES ($1, $2::jsonb) ON CONFLICT (agent_id) DO NOTHING`,
       [id, JSON.stringify(newState(makeRunId(a.spec)))],
     );
-    log(`seeded ${a.handle} (id ${id}, mechanical/${modelName}, ${a.cadenceSeconds}s)`);
+    log(
+      `seeded ${a.handle} (id ${id}, mechanical/${modelName}, ${a.cadenceSeconds}s)`,
+    );
     results.push({ handle: a.handle, action: "inserted", detail: `id ${id}` });
   }
 

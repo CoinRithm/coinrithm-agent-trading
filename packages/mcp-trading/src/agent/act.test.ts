@@ -37,7 +37,13 @@ describe("executeAction idempotency-key wiring", () => {
       stopLossPrice: 100,
       takeProfitPrice: 200,
     };
-    await executeAction(client, action, emptyObservation(), trace, "run-1:sltp:42:0");
+    await executeAction(
+      client,
+      action,
+      emptyObservation(),
+      trace,
+      "run-1:sltp:42:0",
+    );
     expect(setFuturesSlTp).toHaveBeenCalledTimes(1);
     expect(setFuturesSlTp.mock.calls[0][0]).toMatchObject({
       positionId: 42,
@@ -49,7 +55,13 @@ describe("executeAction idempotency-key wiring", () => {
     const cancelSpotOrder = vi.fn(async () => okData({ ok: true }));
     const client = { cancelSpotOrder } as unknown as CoinRithmClient;
     const action: ProposedAction = { type: "spot_cancel", orderId: 7 };
-    await executeAction(client, action, emptyObservation(), trace, "run-1:cancel:7:0");
+    await executeAction(
+      client,
+      action,
+      emptyObservation(),
+      trace,
+      "run-1:cancel:7:0",
+    );
     expect(cancelSpotOrder).toHaveBeenCalledTimes(1);
     // signature: (orderId, idempotencyKey?, trace?)
     expect(cancelSpotOrder.mock.calls[0][0]).toBe(7);

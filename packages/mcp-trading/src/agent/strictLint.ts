@@ -137,7 +137,8 @@ export function strictLint(raw: Record<string, unknown>): ResolveIssue[] {
     "killSwitch",
     "objective",
   ]) {
-    if (isObj(raw[block])) lintKeys(block, raw[block] as Record<string, unknown>, issues);
+    if (isObj(raw[block]))
+      lintKeys(block, raw[block] as Record<string, unknown>, issues);
   }
 
   // Enum checks.

@@ -364,10 +364,11 @@ did:
 - **Manifest** — first/last event time, quote/write/reject/replay counts, venues,
   ledger statuses, related paper-trade ids, and the sanitized rows that reproduce
   what the agent called.
-- **`executionAssumptions`** — the v1 paper cost model, in writing: paper account
-  only, latest stored market/probability snapshots, no commission/slippage, no
-  futures funding/fees, and worker-driven resting-order / SL / TP / settlement
-  timing.
+- **`executionAssumptions`** — the versioned `paper_execution_v1` cost model, in
+  writing: paper account only, latest stored market/probability snapshots, the
+  modeled taker fee + spread + slippage each fill is charged (paper execution is
+  **not costless**; futures funding is not modeled), and worker-driven
+  resting-order / SL / TP / settlement timing.
 - **`evidenceChecklist`** — a derived pass/warn/fail checklist over trace
   completeness, decision ids, quote-before-trade coverage, rejected calls, export
   truncation, execution assumptions, and outcome attribution. Computed from the

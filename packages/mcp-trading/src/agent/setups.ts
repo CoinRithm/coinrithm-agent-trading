@@ -55,37 +55,88 @@ function classify(w: WatchEntry, openPositions: OpenPosition[]): SetupSignal[] {
   if (up) facts.push("price>EMA20>EMA50 (uptrend)");
   else if (down) facts.push("price<EMA20<EMA50 (downtrend)");
   if (rsi != null)
-    facts.push(`RSI ${Math.round(rsi)}${oversold ? " oversold" : overbought ? " overbought" : ""}`);
+    facts.push(
+      `RSI ${Math.round(rsi)}${oversold ? " oversold" : overbought ? " overbought" : ""}`,
+    );
   if (ind.brokeRecentHigh === true) facts.push("broke 20-bar high");
   if (ind.brokeRecentLow === true) facts.push("broke 20-bar low");
   if (ind.atr14 != null && ind.asOfClose)
-    facts.push(`ATR ${((100 * ind.atr14) / ind.asOfClose).toFixed(1)}% (stop ~1.5xATR)`);
+    facts.push(
+      `ATR ${((100 * ind.atr14) / ind.asOfClose).toFixed(1)}% (stop ~1.5xATR)`,
+    );
   const note = facts.join(" · ");
 
   const out: SetupSignal[] = [];
 
   // Primary trend-following / breakout read.
   if (ind.brokeRecentHigh === true) {
-    out.push({ symbol: w.symbol, kind: "breakout", bias: "long", strength: 0.8, note });
+    out.push({
+      symbol: w.symbol,
+      kind: "breakout",
+      bias: "long",
+      strength: 0.8,
+      note,
+    });
   } else if (ind.brokeRecentLow === true) {
-    out.push({ symbol: w.symbol, kind: "breakdown", bias: "short", strength: 0.8, note });
+    out.push({
+      symbol: w.symbol,
+      kind: "breakdown",
+      bias: "short",
+      strength: 0.8,
+      note,
+    });
   } else if (up && ch >= LEAN_MOVE_PCT) {
-    out.push({ symbol: w.symbol, kind: "uptrend", bias: "long", strength: ch >= STRONG_MOVE_PCT ? 0.75 : 0.6, note });
+    out.push({
+      symbol: w.symbol,
+      kind: "uptrend",
+      bias: "long",
+      strength: ch >= STRONG_MOVE_PCT ? 0.75 : 0.6,
+      note,
+    });
   } else if (down && ch <= -LEAN_MOVE_PCT) {
-    out.push({ symbol: w.symbol, kind: "downtrend", bias: "short", strength: ch <= -STRONG_MOVE_PCT ? 0.75 : 0.6, note });
+    out.push({
+      symbol: w.symbol,
+      kind: "downtrend",
+      bias: "short",
+      strength: ch <= -STRONG_MOVE_PCT ? 0.75 : 0.6,
+      note,
+    });
   } else if (overbought) {
-    out.push({ symbol: w.symbol, kind: "stretched", bias: "fade-short", strength: 0.55, note });
+    out.push({
+      symbol: w.symbol,
+      kind: "stretched",
+      bias: "fade-short",
+      strength: 0.55,
+      note,
+    });
   } else if (oversold) {
-    out.push({ symbol: w.symbol, kind: "stretched", bias: "fade-long", strength: 0.55, note });
+    out.push({
+      symbol: w.symbol,
+      kind: "stretched",
+      bias: "fade-long",
+      strength: 0.55,
+      note,
+    });
   } else if (Math.abs(ch) >= STRONG_MOVE_PCT) {
     // A strong move with no clean EMA stack — still tradeable momentum.
-    out.push({ symbol: w.symbol, kind: ch > 0 ? "uptrend" : "downtrend", bias: ch > 0 ? "long" : "short", strength: 0.55, note });
+    out.push({
+      symbol: w.symbol,
+      kind: ch > 0 ? "uptrend" : "downtrend",
+      bias: ch > 0 ? "long" : "short",
+      strength: 0.55,
+      note,
+    });
   }
 
   // Secondary COUNTER-TREND fade: a standing trend that is ALSO RSI-extreme is a
   // mean-reversion candidate. Only add it when the primary was the trend itself
   // (so we don't double-list a pure stretched read).
-  const primaryIsTrend = out[0] && (out[0].kind === "uptrend" || out[0].kind === "downtrend" || out[0].kind === "breakout" || out[0].kind === "breakdown");
+  const primaryIsTrend =
+    out[0] &&
+    (out[0].kind === "uptrend" ||
+      out[0].kind === "downtrend" ||
+      out[0].kind === "breakout" ||
+      out[0].kind === "breakdown");
   if (primaryIsTrend && (oversold || overbought)) {
     out.push({
       symbol: w.symbol,
@@ -103,8 +154,11 @@ function classify(w: WatchEntry, openPositions: OpenPosition[]): SetupSignal[] {
   // exceeds_cap churn). A winner with room is the one case a same-side "open" is OK
   // (scaling in); otherwise it's manage-only.
   const wb = baseSymbol(w.symbol);
-  const pos = wb ? openPositions.find((p) => baseSymbol(p.symbol) === wb) : undefined;
-  const held = pos && (pos.side === "long" || pos.side === "short") ? pos.side : undefined;
+  const pos = wb
+    ? openPositions.find((p) => baseSymbol(p.symbol) === wb)
+    : undefined;
+  const held =
+    pos && (pos.side === "long" || pos.side === "short") ? pos.side : undefined;
   if (held) {
     const u = pos?.unrealizedPnlMusd;
     const tag =
@@ -125,10 +179,14 @@ function classify(w: WatchEntry, openPositions: OpenPosition[]): SetupSignal[] {
 // Scan the whole watchlist, return the flagged setups strongest-first. An empty
 // list = a flat tape = a legitimate reason to skip new entries this cycle. Setups
 // on a symbol we already hold are tagged `held` (manage, don't re-open).
-export function scanSetups(watch: WatchEntry[], openPositions: OpenPosition[] = []): SetupSignal[] {
+export function scanSetups(
+  watch: WatchEntry[],
+  openPositions: OpenPosition[] = [],
+): SetupSignal[] {
   const out: SetupSignal[] = [];
   for (const w of watch) {
-    for (const s of classify(w, openPositions)) if (s.strength >= MIN_STRENGTH) out.push(s);
+    for (const s of classify(w, openPositions))
+      if (s.strength >= MIN_STRENGTH) out.push(s);
   }
   return out.sort((a, b) => b.strength - a.strength);
 }

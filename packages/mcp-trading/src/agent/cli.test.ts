@@ -9,7 +9,14 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { cmdNew, cmdValidate, cmdEject, cmdLock, cmdInspect, acquireLock } from "./cli.js";
+import {
+  cmdNew,
+  cmdValidate,
+  cmdEject,
+  cmdLock,
+  cmdInspect,
+  acquireLock,
+} from "./cli.js";
 
 let tmp: string;
 beforeEach(() => {

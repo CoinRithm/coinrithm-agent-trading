@@ -47,9 +47,7 @@ describe("public PM data client (keyless)", () => {
   });
 
   it("passes search filters as query params and surfaces non-2xx as ok:false", async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({ error: "not_found" }, 404),
-    );
+    fetchMock.mockResolvedValueOnce(jsonResponse({ error: "not_found" }, 404));
     const client = new CoinRithmClient({ baseUrl: "https://api.example.test" });
 
     const result = await client.listPublicPmEvents({

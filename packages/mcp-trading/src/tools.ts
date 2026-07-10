@@ -14,10 +14,14 @@ import type {
 } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { CoinRithmClient, bearerFromHeader, type ApiResult } from "./client.js";
+import { PAPER_EXECUTION_VERSION } from "./executionPolicy.js";
 
-const PAPER_NOTE =
+// Served on tool descriptions. Names the versioned execution policy and never
+// claims costless execution (drift-tested in executionPolicy.test.ts).
+export const PAPER_NOTE =
   "Paper trading only — virtual funds (50,000 mUSD). Not financial advice. " +
-  "Paper fills apply a disclosed execution cost folded into realized PnL: " +
+  `Paper fills run under the versioned ${PAPER_EXECUTION_VERSION} policy and ` +
+  "apply a disclosed execution cost folded into realized PnL: " +
   "spot/futures pay a taker fee (spot market orders also pay half-spread + " +
   "slippage); PM fills at the ask with size-based slippage and a Polymarket-" +
   "shaped taker fee, with entryProbability kept at the mid for calibration. " +
@@ -36,12 +40,16 @@ const API_RESULT_OUTPUT_SCHEMA = {
     .string()
     .nullable()
     .optional()
-    .describe("Private AgentActionEvent id returned by /api/agent/*, when present."),
+    .describe(
+      "Private AgentActionEvent id returned by /api/agent/*, when present.",
+    ),
   ledgerStatus: z
     .string()
     .nullable()
     .optional()
-    .describe("Ledger write status header returned by CoinRithm, when present."),
+    .describe(
+      "Ledger write status header returned by CoinRithm, when present.",
+    ),
   body: z
     .unknown()
     .describe(
@@ -201,7 +209,11 @@ export function registerTools(
     },
     async ({ fiat, locale, agentTrace }, extra) =>
       present(
-        await client.getPortfolio({ fiat, locale }, requestKey(extra), agentTrace),
+        await client.getPortfolio(
+          { fiat, locale },
+          requestKey(extra),
+          agentTrace,
+        ),
       ),
   );
 
@@ -225,7 +237,9 @@ export function registerTools(
       annotations: readOnlyAnnotations("Get wallet"),
     },
     async ({ coinId, agentTrace }, extra) =>
-      present(await client.getWallet({ coinId }, requestKey(extra), agentTrace)),
+      present(
+        await client.getWallet({ coinId }, requestKey(extra), agentTrace),
+      ),
   );
 
   server.registerTool(
@@ -607,16 +621,16 @@ export function registerTools(
         PAPER_NOTE,
       inputSchema: {
         venue: z.string().optional().describe("Optional venue filter."),
-        eventType: z.string().optional().describe("Optional event type filter."),
+        eventType: z
+          .string()
+          .optional()
+          .describe("Optional event type filter."),
         runId: z.string().optional().describe("Optional run id filter."),
         decisionId: z
           .string()
           .optional()
           .describe("Optional decision id filter."),
-        status: z
-          .string()
-          .optional()
-          .describe("Optional ledgerStatus filter."),
+        status: z.string().optional().describe("Optional ledgerStatus filter."),
         from: z.string().optional().describe("Optional ISO start timestamp."),
         to: z.string().optional().describe("Optional ISO end timestamp."),
         limit: z
@@ -654,7 +668,17 @@ export function registerTools(
     ) =>
       present(
         await client.getLedger(
-          { venue, eventType, runId, decisionId, status, from, to, limit, offset },
+          {
+            venue,
+            eventType,
+            runId,
+            decisionId,
+            status,
+            from,
+            to,
+            limit,
+            offset,
+          },
           requestKey(extra),
           agentTrace,
         ),
@@ -672,16 +696,16 @@ export function registerTools(
         PAPER_NOTE,
       inputSchema: {
         venue: z.string().optional().describe("Optional venue filter."),
-        eventType: z.string().optional().describe("Optional event type filter."),
+        eventType: z
+          .string()
+          .optional()
+          .describe("Optional event type filter."),
         runId: z.string().optional().describe("Optional run id filter."),
         decisionId: z
           .string()
           .optional()
           .describe("Optional decision id filter."),
-        status: z
-          .string()
-          .optional()
-          .describe("Optional ledgerStatus filter."),
+        status: z.string().optional().describe("Optional ledgerStatus filter."),
         from: z.string().optional().describe("Optional ISO start timestamp."),
         to: z.string().optional().describe("Optional ISO end timestamp."),
         agentTrace: AGENT_TRACE_SCHEMA,
@@ -883,7 +907,14 @@ export function registerTools(
     ) =>
       present(
         await client.pmQuote(
-          { source, slug, outcomeExternalMarketId, side, stakeMusd, agentTrace },
+          {
+            source,
+            slug,
+            outcomeExternalMarketId,
+            side,
+            stakeMusd,
+            agentTrace,
+          },
           requestKey(extra),
         ),
       ),
@@ -905,7 +936,9 @@ export function registerTools(
         coinId: z.string().describe("Coin UCID (e.g. '1' = BTC)."),
         side: z
           .enum(["buy", "sell"])
-          .describe("Spot side: buy increases the coin balance; sell reduces it."),
+          .describe(
+            "Spot side: buy increases the coin balance; sell reduces it.",
+          ),
         quantity: z
           .number()
           .positive()
@@ -1182,7 +1215,9 @@ export function registerTools(
         idempotencyKey: z
           .string()
           .min(1)
-          .describe("Unique per close intent; reuse replays the original result."),
+          .describe(
+            "Unique per close intent; reuse replays the original result.",
+          ),
         agentTrace: AGENT_TRACE_SCHEMA,
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
@@ -1215,11 +1250,15 @@ export function registerTools(
       inputSchema: {
         source: z
           .string()
-          .describe("Prediction-market source slug, e.g. kalshi or polymarket."),
+          .describe(
+            "Prediction-market source slug, e.g. kalshi or polymarket.",
+          ),
         slug: z.string().describe("Prediction-market event slug."),
         outcomeExternalMarketId: z
           .string()
-          .describe("Case-sensitive outcome or market id returned by discovery."),
+          .describe(
+            "Case-sensitive outcome or market id returned by discovery.",
+          ),
         side: z
           .enum(["yes", "no"])
           .optional()
@@ -1232,7 +1271,9 @@ export function registerTools(
         idempotencyKey: z
           .string()
           .min(1)
-          .describe("Unique per PM-open intent; reuse replays the original result."),
+          .describe(
+            "Unique per PM-open intent; reuse replays the original result.",
+          ),
         forecastProbability: z
           .number()
           .gt(0)

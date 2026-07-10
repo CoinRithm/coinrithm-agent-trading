@@ -7,7 +7,11 @@ import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { AgentSpec, ResolvedAgent, Provenance } from "./types.js";
 import { sha256, stableStringify, toPosix } from "./util.js";
-import { RESOLVER_VERSION, RUNNER_VERSION, MANIFEST_SCHEMA } from "./version.js";
+import {
+  RESOLVER_VERSION,
+  RUNNER_VERSION,
+  MANIFEST_SCHEMA,
+} from "./version.js";
 
 export interface AgentManifest {
   schema: string;
@@ -21,7 +25,10 @@ export interface AgentManifest {
   configHash: string; // binds resolvedSpec + resolver/schema version
 }
 
-export function buildManifest(resolved: ResolvedAgent, spec: AgentSpec): AgentManifest {
+export function buildManifest(
+  resolved: ResolvedAgent,
+  spec: AgentSpec,
+): AgentManifest {
   // configHash binds the RESOLVED spec to the resolver + schema version, so a
   // run reproduces only against the same compile (not just the same files).
   const configHash = sha256(
@@ -50,7 +57,10 @@ export function serializeManifest(manifest: AgentManifest): string {
   return stableStringify(manifest) + "\n";
 }
 
-export function writeManifest(agentDir: string, manifest: AgentManifest): string {
+export function writeManifest(
+  agentDir: string,
+  manifest: AgentManifest,
+): string {
   const metaDir = join(agentDir, "meta");
   mkdirSync(metaDir, { recursive: true });
   const out = join(metaDir, "manifest.lock.json");

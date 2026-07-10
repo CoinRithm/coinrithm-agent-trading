@@ -40,7 +40,10 @@ describe("recordCycle — no-CoT DB write boundary", () => {
     const query = vi.fn().mockResolvedValue({ rows: [] });
     const pool = { query } as unknown as Pool;
 
-    await recordCycle(pool, 1, { decision: "skip", skipReason: "gate: no trigger" });
+    await recordCycle(pool, 1, {
+      decision: "skip",
+      skipReason: "gate: no trigger",
+    });
 
     const [, params] = query.mock.calls[0] as [string, unknown[]];
     expect(params[RAW_MODEL_OUTPUT_PARAM_INDEX]).toBeNull();
@@ -52,7 +55,9 @@ describe("persistCycleResult — no-CoT DB write boundary", () => {
     const query = vi.fn().mockResolvedValue({ rows: [] });
     const release = vi.fn();
     const client = { query, release } as unknown as PoolClient;
-    const pool = { connect: vi.fn().mockResolvedValue(client) } as unknown as Pool;
+    const pool = {
+      connect: vi.fn().mockResolvedValue(client),
+    } as unknown as Pool;
 
     const hostileCycle = {
       decision: "act",
@@ -61,10 +66,15 @@ describe("persistCycleResult — no-CoT DB write boundary", () => {
       rawModelOutput: "full chain-of-thought the model produced this cycle",
     } as unknown as CycleRecord;
 
-    await persistCycleResult(pool, 7, { state: { runId: "r1" }, cycle: hostileCycle });
+    await persistCycleResult(pool, 7, {
+      state: { runId: "r1" },
+      cycle: hostileCycle,
+    });
 
     const cycleInsertCall = query.mock.calls.find(
-      (call) => typeof call[0] === "string" && call[0].includes("agent_runtime.agent_cycles"),
+      (call) =>
+        typeof call[0] === "string" &&
+        call[0].includes("agent_runtime.agent_cycles"),
     );
     expect(cycleInsertCall).toBeDefined();
     const params = cycleInsertCall![1] as unknown[];

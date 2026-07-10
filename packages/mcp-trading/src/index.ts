@@ -30,7 +30,9 @@ async function main(): Promise<void> {
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  log(`connected (stdio). base=${config.baseUrl}. Paper trading only — not advice.`);
+  log(
+    `connected (stdio). base=${config.baseUrl}. Paper trading only — not advice.`,
+  );
 }
 
 main().catch((err) => {

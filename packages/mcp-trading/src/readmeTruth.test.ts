@@ -53,7 +53,7 @@ describe("public docs stay truthful", () => {
       "Myriad",
     ];
     expect(tools).toContain("ALL ten");
-    expect(tools).not.toMatch(/ALL (seven|eight|nine)/i);
+    expect(tools).not.toMatch(/ALL (seven|eight|nine)/i);
     for (const venue of venues) {
       expect(tools, `tool copy missing venue ${venue}`).toContain(venue);
     }

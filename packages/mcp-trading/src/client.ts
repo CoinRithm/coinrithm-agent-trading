@@ -42,7 +42,10 @@ export interface AgentTrace {
 }
 
 function resolveBaseUrl(): string {
-  return (process.env.COINRITHM_API_URL?.trim() || DEFAULT_BASE_URL).replace(/\/+$/, "");
+  return (process.env.COINRITHM_API_URL?.trim() || DEFAULT_BASE_URL).replace(
+    /\/+$/,
+    "",
+  );
 }
 
 // stdio path: a startup key is REQUIRED (single user).
@@ -111,7 +114,7 @@ const applyAgentTraceHeaders = (
 
 const traceFromBody = (body: unknown): AgentTrace | undefined =>
   body && typeof body === "object" && "agentTrace" in body
-    ? ((body as { agentTrace?: AgentTrace }).agentTrace)
+    ? (body as { agentTrace?: AgentTrace }).agentTrace
     : undefined;
 
 export class CoinRithmClient {
@@ -164,7 +167,10 @@ export class CoinRithmClient {
       Authorization: `Bearer ${apiKey}`,
       Accept: "application/json",
     };
-    applyAgentTraceHeaders(headers, opts.agentTrace ?? traceFromBody(opts.body));
+    applyAgentTraceHeaders(
+      headers,
+      opts.agentTrace ?? traceFromBody(opts.body),
+    );
     if (opts.body !== undefined) headers["Content-Type"] = "application/json";
 
     let res: Response;
@@ -350,11 +356,7 @@ export class CoinRithmClient {
       agentTrace,
     });
   }
-  getMarketContext(
-    coinId: string,
-    apiKey?: string,
-    agentTrace?: AgentTrace,
-  ) {
+  getMarketContext(coinId: string, apiKey?: string, agentTrace?: AgentTrace) {
     return this.request(
       "GET",
       `/api/agent/market/${encodeURIComponent(coinId)}`,
@@ -449,11 +451,9 @@ export class CoinRithmClient {
     return this.request("GET", "/api/arena", { query, apiKey });
   }
   getArenaAgent(handle: string, apiKey?: string) {
-    return this.request(
-      "GET",
-      `/api/arena/${encodeURIComponent(handle)}`,
-      { apiKey },
-    );
+    return this.request("GET", `/api/arena/${encodeURIComponent(handle)}`, {
+      apiKey,
+    });
   }
   listOpenOrders(
     query?: { coinId?: string; limit?: number; updatedSince?: string },

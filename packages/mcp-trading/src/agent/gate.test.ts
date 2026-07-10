@@ -52,7 +52,10 @@ function state(partial: Partial<RunState> = {}): RunState {
     ...partial,
   };
 }
-const setup = (kind: SetupSignal["kind"], held?: "long" | "short"): SetupSignal => ({
+const setup = (
+  kind: SetupSignal["kind"],
+  held?: "long" | "short",
+): SetupSignal => ({
   symbol: "BTC",
   kind,
   bias: "short",
@@ -60,7 +63,10 @@ const setup = (kind: SetupSignal["kind"], held?: "long" | "short"): SetupSignal 
   note: "x",
   held,
 });
-const pol = (p: Partial<TriggerPolicy> = {}): TriggerPolicy => ({ ...DEFAULT_TRIGGER_POLICY, ...p });
+const pol = (p: Partial<TriggerPolicy> = {}): TriggerPolicy => ({
+  ...DEFAULT_TRIGGER_POLICY,
+  ...p,
+});
 const POS: OpenPosition = { venue: "futures", id: 1, side: "short" };
 
 describe("evaluateGate", () => {
@@ -72,7 +78,14 @@ describe("evaluateGate", () => {
 
   it("wakes for PM periodically on a quiet price tape once the cooldown elapsed", () => {
     const now = 100_000_000;
-    const pm: PmMarket[] = [{ source: "polymarket", slug: "x", outcomeExternalMarketId: "1", probability: 0.4 }];
+    const pm: PmMarket[] = [
+      {
+        source: "polymarket",
+        slug: "x",
+        outcomeExternalMarketId: "1",
+        probability: 0.4,
+      },
+    ];
     const st = state({ lastLlmCallAt: now - 11 * 60_000 }); // 11 min > 10 min cooldown
     const g = evaluateGate(obs([], [], pm), st, pol(), now);
     expect(g.fire).toBe(true);
@@ -81,7 +94,14 @@ describe("evaluateGate", () => {
 
   it("does NOT wake for PM within the cooldown window", () => {
     const now = 100_000_000;
-    const pm: PmMarket[] = [{ source: "polymarket", slug: "x", outcomeExternalMarketId: "1", probability: 0.4 }];
+    const pm: PmMarket[] = [
+      {
+        source: "polymarket",
+        slug: "x",
+        outcomeExternalMarketId: "1",
+        probability: 0.4,
+      },
+    ];
     const st = state({ lastLlmCallAt: now - 2 * 60_000 }); // 2 min < 10 min cooldown
     const g = evaluateGate(obs([], [], pm), st, pol(), now);
     expect(g.fire).toBe(false);
@@ -100,12 +120,22 @@ describe("evaluateGate", () => {
   });
 
   it("flags a big PnL swing on an open position", () => {
-    const g = evaluateGate(obs([], [{ ...POS, unrealizedPnlMusd: -300 }]), state(), pol(), 1000);
+    const g = evaluateGate(
+      obs([], [{ ...POS, unrealizedPnlMusd: -300 }]),
+      state(),
+      pol(),
+      1000,
+    );
     expect(g.codes).toContain("POSITION_BIG_PNL_SWING");
   });
 
   it("a held setup with no open position adds no entry trigger", () => {
-    const g = evaluateGate(obs([setup("downtrend", "short")]), state(), pol(), 1000);
+    const g = evaluateGate(
+      obs([setup("downtrend", "short")]),
+      state(),
+      pol(),
+      1000,
+    );
     expect(g.fire).toBe(false);
   });
 
@@ -116,23 +146,45 @@ describe("evaluateGate", () => {
 
   it("suppresses entry-only cycles over the hourly budget", () => {
     const now = 10_000_000;
-    const st = state({ llmCallTimestamps: [now - 1000, now - 2000, now - 3000] });
-    const g = evaluateGate(obs([setup("breakout")]), st, pol({ maxLlmCallsPerHour: 3 }), now);
+    const st = state({
+      llmCallTimestamps: [now - 1000, now - 2000, now - 3000],
+    });
+    const g = evaluateGate(
+      obs([setup("breakout")]),
+      st,
+      pol({ maxLlmCallsPerHour: 3 }),
+      now,
+    );
     expect(g.fire).toBe(false);
     expect(g.reason).toMatch(/budget/);
   });
 
   it("exempts an open position from the hourly budget", () => {
     const now = 10_000_000;
-    const st = state({ llmCallTimestamps: [now - 1000, now - 2000, now - 3000] });
-    const g = evaluateGate(obs([], [POS]), st, pol({ maxLlmCallsPerHour: 3 }), now);
+    const st = state({
+      llmCallTimestamps: [now - 1000, now - 2000, now - 3000],
+    });
+    const g = evaluateGate(
+      obs([], [POS]),
+      st,
+      pol({ maxLlmCallsPerHour: 3 }),
+      now,
+    );
     expect(g.fire).toBe(true);
   });
 
   it("debounces an identical entry-trigger set within the window", () => {
     const now = 10_000_000;
-    const st = state({ lastTriggerFingerprint: "PRICE_BREAKOUT", lastLlmCallAt: now - 60_000 });
-    const g = evaluateGate(obs([setup("breakout")]), st, pol({ debounceMinutes: 5 }), now);
+    const st = state({
+      lastTriggerFingerprint: "PRICE_BREAKOUT",
+      lastLlmCallAt: now - 60_000,
+    });
+    const g = evaluateGate(
+      obs([setup("breakout")]),
+      st,
+      pol({ debounceMinutes: 5 }),
+      now,
+    );
     expect(g.fire).toBe(false);
     expect(g.reason).toMatch(/debounced/);
   });

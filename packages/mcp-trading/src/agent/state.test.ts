@@ -2,7 +2,12 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadState, newState, accrueRealized, checkKillSwitch } from "./state.js";
+import {
+  loadState,
+  newState,
+  accrueRealized,
+  checkKillSwitch,
+} from "./state.js";
 import { parseSkill } from "./skill.js";
 import { renderFolderOfOne } from "./templates.js";
 

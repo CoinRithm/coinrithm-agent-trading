@@ -31,6 +31,10 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\"",
     "start": "node dist/index.js",
     "start:http": "node dist/http.js",
     "smoke:agent": "npm run build && node scripts/agent-smoke.mjs",
@@ -70,9 +74,13 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@eslint/js": "^9.13.0",
     "@types/express": "^4.17.21",
     "@types/node": "^20.14.0",
+    "eslint": "^9.13.0",
+    "prettier": "^3.3.3",
     "typescript": "^5.5.0",
+    "typescript-eslint": "^8.11.0",
     "vitest": "^2.1.0"
   }
 }

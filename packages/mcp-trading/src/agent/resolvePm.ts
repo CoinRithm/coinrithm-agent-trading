@@ -16,8 +16,7 @@ import { PmMarket, ProposedAction } from "./types.js";
 type PmOpen = Extract<ProposedAction, { type: "pm_open" }>;
 
 export type PmRefResolution =
-  | { ok: true; action: PmOpen }
-  | { ok: false; code: string; reason: string };
+  { ok: true; action: PmOpen } | { ok: false; code: string; reason: string };
 
 const REF_RE = /^pm\d+$/i;
 

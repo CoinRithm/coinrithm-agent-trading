@@ -19,14 +19,34 @@ export interface TierLimits {
 
 // Effective caps per tier. Tightenable later from config; these are the defaults.
 export const TIER_LIMITS: Record<Tier, TierLimits> = {
-  free_demo: { maxLlmCallsPerHour: 4, minCadenceSeconds: 3600, maxConcurrentAgents: 1 },
-  builder: { maxLlmCallsPerHour: 20, minCadenceSeconds: 900, maxConcurrentAgents: 3 },
-  pro: { maxLlmCallsPerHour: 120, minCadenceSeconds: 60, maxConcurrentAgents: 10 },
+  free_demo: {
+    maxLlmCallsPerHour: 4,
+    minCadenceSeconds: 3600,
+    maxConcurrentAgents: 1,
+  },
+  builder: {
+    maxLlmCallsPerHour: 20,
+    minCadenceSeconds: 900,
+    maxConcurrentAgents: 3,
+  },
+  pro: {
+    maxLlmCallsPerHour: 120,
+    minCadenceSeconds: 60,
+    maxConcurrentAgents: 10,
+  },
   // BYO key = the user's own model quota, so we don't cap their calls; we still
   // host + meter + verify (that's what they pay the infra fee for).
-  byok: { maxLlmCallsPerHour: 0, minCadenceSeconds: 60, maxConcurrentAgents: 5 },
+  byok: {
+    maxLlmCallsPerHour: 0,
+    minCadenceSeconds: 60,
+    maxConcurrentAgents: 5,
+  },
   // The house showcase fleet — uncapped, runs on our pooled keys.
-  house: { maxLlmCallsPerHour: 0, minCadenceSeconds: 60, maxConcurrentAgents: 0 },
+  house: {
+    maxLlmCallsPerHour: 0,
+    minCadenceSeconds: 60,
+    maxConcurrentAgents: 0,
+  },
 };
 
 // Tighten one numeric cap: 0 means "unlimited" on either side. The tier always wins
@@ -38,17 +58,26 @@ function tighten(requested: number, tierCap: number): number {
 }
 
 // Cap the OKF's requested TriggerPolicy by the tier. NEVER widens.
-export function applyDeploymentOverlay(requested: TriggerPolicy, tier: Tier): TriggerPolicy {
+export function applyDeploymentOverlay(
+  requested: TriggerPolicy,
+  tier: Tier,
+): TriggerPolicy {
   const lim = TIER_LIMITS[tier];
   return {
     ...requested,
-    maxLlmCallsPerHour: tighten(requested.maxLlmCallsPerHour, lim.maxLlmCallsPerHour),
+    maxLlmCallsPerHour: tighten(
+      requested.maxLlmCallsPerHour,
+      lim.maxLlmCallsPerHour,
+    ),
   };
 }
 
 // Effective cadence (seconds): the agent's requested cadence floored by the tier
 // (a free agent can't run every minute even if its OKF asks to).
-export function effectiveCadenceSeconds(requestedSeconds: number, tier: Tier): number {
+export function effectiveCadenceSeconds(
+  requestedSeconds: number,
+  tier: Tier,
+): number {
   return Math.max(requestedSeconds, TIER_LIMITS[tier].minCadenceSeconds);
 }
 
