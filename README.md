@@ -251,13 +251,17 @@ independently — a package patch does not imply an API change and vice versa.
 
 ---
 
-## Cost model (v1, honest)
+## Cost model (`paper_execution_v1`, honest)
 
-Every fill executes at **mid/last price** (the latest stored market snapshot).
-There is **no commission, no slippage, and no futures funding rate** in v1.
-The paper account does not model bid/ask spread costs or borrow fees. These are
-**roadmap items** — the platform will add explicit modeled fee tiers in a future
-version. Do not treat paper PnL as a direct predictor of live-trading results.
+Paper execution is **not costless**. Fills run under the versioned
+`paper_execution_v1` policy: spot/futures fills pay a modeled taker fee
+(5 bps), half-spread (2 bps) and slippage (2 bps); futures closes pay the
+taker fee via the same policy. Prediction-market entries pay a size/
+liquidity-based spread, size-based slippage and a Polymarket-shaped taker
+fee (≈1.8% near 50% probability, tapering toward 0 at the extremes). All
+reported PnL is **net of these modeled costs**. Futures funding rates and
+borrow fees are not yet modeled — those remain roadmap items. Do not treat
+paper PnL as a direct predictor of live-trading results.
 
 ---
 

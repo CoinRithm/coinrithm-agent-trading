@@ -51,13 +51,25 @@ export function resolvePmRef(
   if (ref) {
     const mkt = pmMarkets.find((m) => trimLower(m.ref) === ref);
     if (!mkt) {
-      const known = pmMarkets.length
-        ? `pm1..pm${pmMarkets.length}`
+      const listed = pmMarkets.length;
+      const known = listed
+        ? `pm1..pm${listed}`
         : "(none discovered this cycle)";
+      // Trace-reading diagnostic (no behaviour change — still pm_ref_unknown). The
+      // refs are stamped contiguous pm1..pmN every cycle, so an unmatched ref is
+      // either INVENTED — its index runs past what was listed (or nothing was
+      // listed at all), i.e. the model made up a market that was never on the board
+      // (the pm_ref hallucination this guard exists for) — or STALE: an in-range ref
+      // that still doesn't match (e.g. carried over from a prior cycle's board).
+      const n = Number.parseInt(ref.replace(/^pm/i, ""), 10);
+      const diag =
+        listed === 0 || !Number.isFinite(n) || n < 1 || n > listed
+          ? "invented (ref index is beyond the markets listed this cycle)"
+          : "stale (in-range ref does not match this cycle's listed markets)";
       return {
         ok: false,
         code: "pm_ref_unknown",
-        reason: `ref ${ref} is not one of this cycle's listed PM markets ${known}`,
+        reason: `ref ${ref} is not one of this cycle's listed PM markets ${known} — ${diag}`,
       };
     }
     // Canonicalise: take the triple from the matched market, drop the ref.
