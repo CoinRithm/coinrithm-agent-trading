@@ -15,6 +15,16 @@ export { validateSkill, type SkillValidationMode } from "./skillValidator.js";
 export { newState, rollDay } from "./state.js";
 export { makeRunId } from "./runEvidence.js";
 export { parseCadenceMs } from "./util.js";
+// Mechanical BENCHMARK baseline agents (sol #7): the deterministic, non-LLM
+// reference line the scheduler seeds into agent_runtime and the runner executes.
+export {
+  BENCHMARK_AGENTS,
+  BENCHMARK_STRATEGIES,
+  decideMechanical,
+  isBenchmarkStrategy,
+  type BenchmarkStrategy,
+  type BenchmarkAgentDefinition,
+} from "./mechanical.js";
 export type {
   AgentSpec,
   RunState,

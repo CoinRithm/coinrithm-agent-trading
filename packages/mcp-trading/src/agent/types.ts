@@ -34,7 +34,14 @@ export type ProviderName =
   | "groq"
   | "nvidia"
   | "gemini"
-  | "openai-compatible";
+  | "openai-compatible"
+  // A NON-LLM, deterministic decision path used by the mechanical BENCHMARK
+  // baseline agents (market-implied / base-rate / random). No model is called;
+  // the runner computes the decision from the observation via a strategy key
+  // carried in model.name. Zero inference cost, fully reproducible. See
+  // mechanical.ts. selectProvider returns a stub that never issues a network
+  // call, and runCycle short-circuits before the provider is ever asked.
+  | "mechanical";
 export const PROVIDERS: readonly ProviderName[] = [
   "anthropic",
   "openai",
@@ -42,6 +49,7 @@ export const PROVIDERS: readonly ProviderName[] = [
   "nvidia",
   "gemini",
   "openai-compatible",
+  "mechanical",
 ];
 
 // ───────────────────────── Skill frontmatter (the spec) ─────────────────────
@@ -292,6 +300,13 @@ export interface PmMarket {
   probability?: number;
   title?: string;
   freshness?: Freshness;
+  // Event-level 24h notional volume (USD) from the discover payload's
+  // `volume24h` (COALESCE'd to 0 by the backend, so present on every event;
+  // probe-confirmed 2026-07-10 against the discover controller). Shared by all
+  // outcomes of an event. Used by the mechanical BENCHMARK agents' deterministic
+  // "highest-volume eligible not-already-held" pick rule; LLM agents ignore it.
+  // Optional so an older backend that omits it degrades to discovery order.
+  volumeUsd?: number;
 }
 
 // A deterministic "this cycle has tradeable structure" flag, computed from the

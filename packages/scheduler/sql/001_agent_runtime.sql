@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS agent_runtime.agents (
   is_house          BOOLEAN NOT NULL DEFAULT false,
   live              BOOLEAN NOT NULL DEFAULT true,  -- false = dry-run (no writes)
   cadence_seconds   INTEGER NOT NULL CHECK (cadence_seconds >= 60),
-  model_provider    TEXT NOT NULL,                  -- nvidia | anthropic | openai | groq | openai-compatible
+  model_provider    TEXT NOT NULL,                  -- nvidia | anthropic | openai | groq | gemini | openai-compatible | mechanical (non-LLM benchmark baselines; model_name carries the strategy)
   model_name        TEXT NOT NULL,
   model_base_url    TEXT,
   spec              JSONB NOT NULL,                 -- compiled AgentSpec

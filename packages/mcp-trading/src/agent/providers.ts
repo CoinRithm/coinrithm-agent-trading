@@ -111,6 +111,8 @@ function envKey(provider: ProviderName, env: ProviderEnv): string | undefined {
       return env.GEMINI_API_KEY ?? env.MODEL_API_KEY;
     case "openai-compatible":
       return env.MODEL_API_KEY ?? env.OPENAI_API_KEY;
+    case "mechanical":
+      return undefined; // no LLM, no key — selectProvider short-circuits before this matters
   }
 }
 
@@ -128,6 +130,27 @@ function baseUrlFor(provider: ProviderName, configured?: string): string {
       return (configured ?? "").replace(/\/+$/, "");
     case "anthropic":
       return "https://api.anthropic.com/v1";
+    case "mechanical":
+      return ""; // never used — mechanical agents make no HTTP call
+  }
+}
+
+// Non-LLM stub for the mechanical BENCHMARK agents. It satisfies the Provider
+// contract so the deps stay non-null, but decide() is NEVER invoked: runCycle
+// detects a mechanical agent and computes the decision deterministically before
+// the provider is asked. If it is ever called, it fails closed (loudly) rather
+// than silently pretending to reason.
+class MechanicalProvider implements Provider {
+  label: string;
+  constructor(strategy: string) {
+    this.label = `mechanical/${strategy}`;
+  }
+  async decide(): Promise<DecideResult> {
+    return {
+      ok: false,
+      error:
+        "mechanical benchmark provider has no model — runCycle must short-circuit before decide() (this call is a bug)",
+    };
   }
 }
 
@@ -261,6 +284,10 @@ export function selectProvider(
     );
   }
   const { provider, name, baseUrl } = spec.model;
+  // Mechanical benchmark agents need NO model key: they never call a model. Return
+  // the stub before the env-key requirement so a benchmark can be constructed with
+  // no ANTHROPIC/NVIDIA/etc. key present.
+  if (provider === "mechanical") return new MechanicalProvider(name);
   const key = envKey(provider, env);
   if (!key) {
     const varName =

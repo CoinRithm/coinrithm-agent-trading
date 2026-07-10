@@ -740,3 +740,71 @@ describe("runCycle — PM independent forecast submission", () => {
     expect(client.openPmPosition).not.toHaveBeenCalled();
   });
 });
+
+describe("runCycle — mechanical BENCHMARK agents (no LLM call)", () => {
+  const prevFlag = process.env.HOUSE_AGENT_FORECAST_ENABLED;
+  afterEach(() => {
+    if (prevFlag === undefined) delete process.env.HOUSE_AGENT_FORECAST_ENABLED;
+    else process.env.HOUSE_AGENT_FORECAST_ENABLED = prevFlag;
+  });
+
+  // A provider whose decide() MUST NOT be called for a mechanical agent.
+  function neverProvider(): Provider {
+    return { label: "should-not-be-called", decide: vi.fn(async () => ({ ok: false as const, error: "must not be called" })) };
+  }
+
+  function mechanicalDeps(strategy: string) {
+    const prov = neverProvider();
+    const d = deps({ live: true }, baseClient(), prov);
+    d.spec.venues = ["pm"];
+    d.spec.model = { provider: "mechanical", name: strategy };
+    d.spec.abstention.minConfidence = 0;
+    return { d, prov, client: d.client as unknown as ReturnType<typeof baseClient> };
+  }
+
+  it("market-implied: short-circuits the LLM and submits a forecast == market probability", async () => {
+    delete process.env.HOUSE_AGENT_FORECAST_ENABLED; // default ON
+    const { d, prov, client } = mechanicalDeps("market-implied");
+    const r = await runCycle(d);
+    // the model was never consulted
+    expect((prov.decide as ReturnType<typeof vi.fn>)).not.toHaveBeenCalled();
+    // a benchmark bet was executed on the discovered market (kalshi/btc-up @ 0.5)
+    expect(r.decision).toBe("act");
+    expect(r.planned[0].executed).toBe(true);
+    expect(client.openPmPosition).toHaveBeenCalledTimes(1);
+    // echo BY DESIGN: forecast 50 == market prob 50%
+    expect(client.openPmPosition.mock.calls[0][0].forecastProbability).toBe(50);
+    expect(client.openPmPosition.mock.calls[0][0].stakeMusd).toBe(10);
+    // zero-cost cycle: no LLM call, no tokens
+    expect(r.llmCallMade).toBe(false);
+    expect(r.tokensIn).toBe(0);
+    expect(r.tokensOut).toBe(0);
+    expect(r.estimatedCostUsd).toBe(0);
+  });
+
+  it("base-rate: submits the uninformative 50 without calling the model", async () => {
+    delete process.env.HOUSE_AGENT_FORECAST_ENABLED;
+    const { d, prov, client } = mechanicalDeps("base-rate");
+    await runCycle(d);
+    expect((prov.decide as ReturnType<typeof vi.fn>)).not.toHaveBeenCalled();
+    expect(client.openPmPosition.mock.calls[0][0].forecastProbability).toBe(50);
+  });
+
+  it("random: submits a seeded [20,80] forecast without calling the model", async () => {
+    delete process.env.HOUSE_AGENT_FORECAST_ENABLED;
+    const { d, prov, client } = mechanicalDeps("random");
+    await runCycle(d);
+    expect((prov.decide as ReturnType<typeof vi.fn>)).not.toHaveBeenCalled();
+    const fc = client.openPmPosition.mock.calls[0][0].forecastProbability;
+    expect(fc).toBeGreaterThanOrEqual(20);
+    expect(fc).toBeLessThanOrEqual(80);
+  });
+
+  it("an unknown strategy skips (no throw, no model call, no write)", async () => {
+    const { d, prov, client } = mechanicalDeps("not-a-strategy");
+    const r = await runCycle(d);
+    expect((prov.decide as ReturnType<typeof vi.fn>)).not.toHaveBeenCalled();
+    expect(r.decision).toBe("skip");
+    expect(client.openPmPosition).not.toHaveBeenCalled();
+  });
+});

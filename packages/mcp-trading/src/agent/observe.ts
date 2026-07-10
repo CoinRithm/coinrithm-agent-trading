@@ -117,6 +117,10 @@ function expandPmMarkets(
         // prompt to ~69k tokens (413s on small-context free models).
         const title = (asStr(ev.title) ?? asStr(ev.question) ?? "").slice(0, 80);
         const freshness = freshnessOf(ev); // freshness is event-level
+        // Event-level 24h volume (the discover payload's `volume24h`, USD). Feeds
+        // the mechanical BENCHMARK agents' deterministic highest-volume pick rule.
+        // Same for every outcome of the event; undefined on an older backend.
+        const volumeUsd = asNum(ev.volume24h) ?? undefined;
         // At most a few outcomes per event so a wide multi-outcome market
         // (e.g. dozens of price buckets) can't explode the prompt. Drop
         // outcomes the backend flagged NOT openable (eligible === false) so the
@@ -146,6 +150,7 @@ function expandPmMarkets(
           ),
           title,
           freshness,
+          volumeUsd,
         }));
       })
       .filter((m) => m.source && m.slug && m.outcomeExternalMarketId)

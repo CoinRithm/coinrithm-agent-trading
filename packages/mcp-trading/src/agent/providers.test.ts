@@ -44,6 +44,19 @@ describe("selectProvider", () => {
     expect(() => selectProvider(nvSpec, {}, fetch)).toThrow(/NVIDIA_API_KEY/);
   });
 
+  it("mechanical preset needs NO key and returns a stub that never issues a model call", async () => {
+    const mechSpec = {
+      ...spec,
+      model: { provider: "mechanical" as const, name: "market-implied" },
+    };
+    // No env key at all — must NOT throw a missing-key error (unlike every LLM provider).
+    const p = selectProvider(mechSpec, {}, fetch);
+    expect(p.label).toBe("mechanical/market-implied");
+    // The stub fails closed if ever invoked (runCycle short-circuits before this).
+    const r = await p.decide({ system: "s", user: "u" });
+    expect(r.ok).toBe(false);
+  });
+
   it("forces 'detailed thinking off' for nemotron models (else they emit a slow think-chain)", async () => {
     const nemoSpec = {
       ...spec,

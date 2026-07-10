@@ -9,12 +9,14 @@ import {
   AgentSpec,
   RunState,
   CycleResult,
+  Decision,
   PlannedAction,
   ProposedAction,
   QuoteEvidence,
   spotBuyCost,
   DEFAULT_TRIGGER_POLICY,
 } from "./types.js";
+import { decideMechanical } from "./mechanical.js";
 import { evaluateGate, noteLlmCall, estimateCostUsd } from "./gate.js";
 import { baseSymbol } from "./setups.js";
 import { observe } from "./observe.js";
@@ -342,73 +344,103 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
       writeAccepted: 0,
     };
   }
-  noteLlmCall(state, gate.codes, nowMs);
-
-  // DECIDE
-  const system = buildSystemPrompt(spec, mergedProse, {
-    includeForecast: forecastEnabled,
-  });
-  const user = buildUserPrompt(observation, state.journal);
-  const tokensInEst = Math.round((system.length + user.length) / 4);
-  // Prompt-size + trigger visibility in the live terminal.
-  log(
-    `prompt ~${tokensInEst} tok ` +
-      `(pm ${observation.pmMarkets.length}, trades ${observation.newClosedTrades.length}, watch ${observation.watch.length}, setups ${observation.setups.length}, triggers ${gate.codes.join("|") || "none"})`,
-  );
-  const res = await provider.decide({ system, user });
-  // Metering: prefer provider-reported usage; fall back to a chars/4 estimate.
-  const tokensIn = res.ok
-    ? (res.usage?.promptTokens ?? tokensInEst)
-    : tokensInEst;
-  const tokensOut = res.ok
-    ? (res.usage?.completionTokens ?? Math.round(res.text.length / 4))
-    : 0;
-  const estimatedCostUsd = estimateCostUsd(providerName, tokensIn, tokensOut);
-  const meter = {
-    triggerCodes: gate.codes,
-    llmCallMade: true,
-    tokensIn,
-    tokensOut,
-    estimatedCostUsd,
+  // DECIDE. Two paths share the same downstream validate+act loop:
+  //   • mechanical benchmark agents (provider "mechanical") compute the decision
+  //     deterministically from the observation — no prompt, no model call, no
+  //     inference cost. They never touch the LLM budget/debounce (noteLlmCall).
+  //   • every other agent asks its BYO model.
+  let decision: Decision;
+  let meter: {
+    triggerCodes: string[];
+    llmCallMade: boolean;
+    tokensIn: number;
+    tokensOut: number;
+    estimatedCostUsd: number;
   };
-  if (!res.ok) {
-    state.consecutiveModelFailures += 1;
-    saveState(stateFile, state);
-    log(`model error: ${res.error}`);
-    return {
-      decision: "skip",
-      skipReason: `model error: ${res.error}`,
-      planned: [],
-      modelFailed: true,
-      live,
-      ...meter,
-      decisionType: "model_error",
-      writeAttempted: 0,
-      writeAccepted: 0,
+  if (providerName === "mechanical") {
+    const mech = decideMechanical({
+      strategy: spec.model?.name ?? "",
+      observation,
+      dateKey: state.dayKey,
+    });
+    for (const l of mech.log) log(l);
+    decision = mech.decision;
+    state.consecutiveModelFailures = 0;
+    // Zero-cost cycle: a mechanical decision made no LLM call.
+    meter = {
+      triggerCodes: gate.codes,
+      llmCallMade: false,
+      tokensIn: 0,
+      tokensOut: 0,
+      estimatedCostUsd: 0,
     };
-  }
-  const parsed = parseDecision(res.text);
-  if (!parsed.ok) {
-    state.consecutiveModelFailures += 1;
-    saveState(stateFile, state);
-    log(`model output invalid: ${parsed.error}`);
-    return {
-      decision: "skip",
-      skipReason: `model output invalid: ${parsed.error}`,
-      // Never persist raw model text (no-CoT privacy policy) — the parse error
-      // in skipReason is the diagnostic; the malformed output is not stored.
-      rawModelOutput: undefined,
-      planned: [],
-      modelFailed: true,
-      live,
-      ...meter,
-      decisionType: "model_error",
-      writeAttempted: 0,
-      writeAccepted: 0,
+  } else {
+    noteLlmCall(state, gate.codes, nowMs);
+    const system = buildSystemPrompt(spec, mergedProse, {
+      includeForecast: forecastEnabled,
+    });
+    const user = buildUserPrompt(observation, state.journal);
+    const tokensInEst = Math.round((system.length + user.length) / 4);
+    // Prompt-size + trigger visibility in the live terminal.
+    log(
+      `prompt ~${tokensInEst} tok ` +
+        `(pm ${observation.pmMarkets.length}, trades ${observation.newClosedTrades.length}, watch ${observation.watch.length}, setups ${observation.setups.length}, triggers ${gate.codes.join("|") || "none"})`,
+    );
+    const res = await provider.decide({ system, user });
+    // Metering: prefer provider-reported usage; fall back to a chars/4 estimate.
+    const tokensIn = res.ok
+      ? (res.usage?.promptTokens ?? tokensInEst)
+      : tokensInEst;
+    const tokensOut = res.ok
+      ? (res.usage?.completionTokens ?? Math.round(res.text.length / 4))
+      : 0;
+    const estimatedCostUsd = estimateCostUsd(providerName, tokensIn, tokensOut);
+    meter = {
+      triggerCodes: gate.codes,
+      llmCallMade: true,
+      tokensIn,
+      tokensOut,
+      estimatedCostUsd,
     };
+    if (!res.ok) {
+      state.consecutiveModelFailures += 1;
+      saveState(stateFile, state);
+      log(`model error: ${res.error}`);
+      return {
+        decision: "skip",
+        skipReason: `model error: ${res.error}`,
+        planned: [],
+        modelFailed: true,
+        live,
+        ...meter,
+        decisionType: "model_error",
+        writeAttempted: 0,
+        writeAccepted: 0,
+      };
+    }
+    const parsed = parseDecision(res.text);
+    if (!parsed.ok) {
+      state.consecutiveModelFailures += 1;
+      saveState(stateFile, state);
+      log(`model output invalid: ${parsed.error}`);
+      return {
+        decision: "skip",
+        skipReason: `model output invalid: ${parsed.error}`,
+        // Never persist raw model text (no-CoT privacy policy) — the parse error
+        // in skipReason is the diagnostic; the malformed output is not stored.
+        rawModelOutput: undefined,
+        planned: [],
+        modelFailed: true,
+        live,
+        ...meter,
+        decisionType: "model_error",
+        writeAttempted: 0,
+        writeAccepted: 0,
+      };
+    }
+    state.consecutiveModelFailures = 0;
+    decision = parsed.decision;
   }
-  state.consecutiveModelFailures = 0;
-  const decision = parsed.decision;
   // Reasoning captured for the Arena terminal (keystone transparency): the
   // model's PARSED, sanitized short analysis + decision confidence. We do NOT
   // persist the full raw model text — a response can carry prose reasoning
@@ -515,7 +547,12 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
               : undefined;
           // Anti-echo: an EXACT match on the market's integer probability is still
           // submitted (a forecast can legitimately agree) — but we LOG it so echo
-          // rates stay observable; we never silently mutate the value.
+          // rates stay observable; we never silently mutate the value. NOTE: the
+          // market-implied BENCHMARK agent (provider "mechanical", model.name
+          // "market-implied") echoes the market probability BY DESIGN — it IS the
+          // baseline definition — so a 100% echo rate there is expected, not a
+          // defect. Its agentModel/description say BENCHMARK so this log line is
+          // never mistaken for a mispriced skill agent.
           if (marketPct != null && Math.round(fc) === marketPct) {
             log(
               `pm_open forecast ${fc} == market prob ${marketPct}% (echo) — submitting as-is`,
