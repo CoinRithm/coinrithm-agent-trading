@@ -82,6 +82,84 @@ function freshnessOf(block: Record<string, unknown>): Freshness | undefined {
   return status ? { status, ageSeconds: asNum(fr.ageSeconds) } : undefined;
 }
 
+// Does a market title reference the given watchlist coin? Matches on the PM coin
+// NAME ("Bitcoin") or the ticker ("BTC"), case-insensitively — the discover `q`
+// is a phrase match so a q=Bitcoin result reliably carries "Bitcoin"/"BTC" in the
+// title. Used both to decide whether the primary board already covers the coin the
+// agent analysed and to keep the secondary (crypto-targeted) fetch on-topic.
+function titleMentionsCoin(title: string | undefined, symbol: string): boolean {
+  const t = (title ?? "").toLowerCase();
+  if (!t) return false;
+  const name = (PM_COIN_NAMES[symbol] ?? symbol).toLowerCase();
+  const sym = symbol.toLowerCase();
+  return t.includes(name) || t.includes(sym);
+}
+
+// Expand one raw /api/agent/pm/discover payload into per-outcome PmMarket rows
+// (WITHOUT a ref — refs are stamped once over the final merged+sliced list so they
+// stay contiguous pm1..pmN). One row per quoteable outcome; drops outcomes the
+// backend flagged not-openable (eligible === false) and markets the agent already
+// holds (heldPmKeys). Shared by the primary board fetch and the crypto-targeted
+// secondary fetch so both go through the exact same filters.
+function expandPmMarkets(
+  discData: unknown,
+  heldPmKeys: Set<string>,
+): Omit<PmMarket, "ref">[] {
+  const dd = asObj(discData);
+  return (
+    asArr(dd.data ?? dd.markets ?? dd.results)
+      .map(asObj)
+      .flatMap((ev) => {
+        const source = (asStr(ev.source) ?? "").toLowerCase();
+        const slug = (asStr(ev.slug) ?? "").toLowerCase();
+        // Keep titles SHORT: the model only needs to recognise the market.
+        // Untrimmed titles, one per outcome across many events, ballooned the
+        // prompt to ~69k tokens (413s on small-context free models).
+        const title = (asStr(ev.title) ?? asStr(ev.question) ?? "").slice(0, 80);
+        const freshness = freshnessOf(ev); // freshness is event-level
+        // At most a few outcomes per event so a wide multi-outcome market
+        // (e.g. dozens of price buckets) can't explode the prompt. Drop
+        // outcomes the backend flagged NOT openable (eligible === false) so the
+        // model never bets a market that would fail the binary entry gate at
+        // quote. Back-compat: an older backend omits `eligible` (undefined) ->
+        // the outcome is kept (current behaviour).
+        const outcomes = asArr(ev.outcomes)
+          .map(asObj)
+          .filter((o) => o.eligible !== false)
+          .slice(0, 3);
+        // A market with no outcomes array still round-trips a flat fallback row.
+        const rows = outcomes.length > 0 ? outcomes : [ev];
+        return rows.map((o) => ({
+          source,
+          slug,
+          outcomeExternalMarketId:
+            asStr(o.externalMarketId) ??
+            asStr(o.outcomeExternalMarketId) ??
+            "",
+          // Carry the odds through: the model needs the outcome label + current
+          // probability to spot a mispriced market and bet it.
+          outcomeName: asStr(o.name) ?? asStr(o.outcomeName) ?? undefined,
+          // Backend returns probability as 0..100 (percent) — normalise to 0..1
+          // to match the prompt's "0..1" framing (probed 2026-06-24).
+          probability: ((p) => (p == null ? undefined : p > 1 ? p / 100 : p))(
+            asNum(o.probability),
+          ),
+          title,
+          freshness,
+        }));
+      })
+      .filter((m) => m.source && m.slug && m.outcomeExternalMarketId)
+      // Drop already-held markets so the model only sees markets it can actually
+      // open — done BEFORE any slice so held positions don't consume candidate slots.
+      .filter(
+        (m) =>
+          !heldPmKeys.has(
+            `${m.source.toLowerCase()}|${m.slug.toLowerCase()}|${m.outcomeExternalMarketId}`,
+          ),
+      )
+  );
+}
+
 function emptyObservation(state: RunState, scopes: string[] = []): Observation {
   return {
     asOf: state.cursor ?? new Date().toISOString(),
@@ -357,12 +435,11 @@ export async function observe(
         .slice(0, 25);
     }
     if (pmDiscR.ok) {
-      const dd = asObj(pmDiscR.data);
       // Anti-churn: exclude markets the agent ALREADY holds an open position in
       // from the candidate list BEFORE it reaches the prompt — so the model never
       // sees (and re-picks) a held market only to have the runner/server reject it
       // as a duplicate, burning a whole cycle. Keyed source|slug|outcomeExternalMarketId
-      // (lower-cased to match the discover rows below). The runner preflight guard
+      // (lower-cased to match the discover rows). The runner preflight guard
       // (duplicate_intent) + server dedup (duplicate_open) remain the backstops.
       // Side-agnostic = no re-bet/hedge on a held outcome, matching the runner policy.
       const heldPmKeys = new Set(
@@ -375,68 +452,67 @@ export async function observe(
       );
       // Real /api/agent/pm/discover payload: { data: [event], pagination, meta }.
       // Each EVENT carries source/slug/title/freshness at the top level and the
-      // quoteable id NESTED at outcomes[].externalMarketId — so expand one
-      // PmMarket per quoteable outcome. (Tolerant `markets`/`results` and flat
-      // `outcomeExternalMarketId` fallbacks kept for older/mocked shapes.)
-      pmMarkets = asArr(dd.data ?? dd.markets ?? dd.results)
-        .map(asObj)
-        .flatMap((ev) => {
-          const source = (asStr(ev.source) ?? "").toLowerCase();
-          const slug = (asStr(ev.slug) ?? "").toLowerCase();
-          // Keep titles SHORT: the model only needs to recognise the market.
-          // Untrimmed titles, one per outcome across many events, ballooned the
-          // prompt to ~69k tokens (413s on small-context free models).
-          const title = (asStr(ev.title) ?? asStr(ev.question) ?? "").slice(
-            0,
-            80,
+      // quoteable id NESTED at outcomes[].externalMarketId — expandPmMarkets turns
+      // that into one row per quoteable outcome (eligible + not-held filtered).
+      let mergedRows = expandPmMarkets(pmDiscR.data, heldPmKeys);
+
+      // ── Crypto-targeted secondary discover (pm_ref hallucination fix) ────────
+      // The prompt tells the model its SHARPEST PM edge is the crypto price view it
+      // JUST formed — but that is only actionable if the board actually LISTS a
+      // market for the coin it analysed. The primary board is keyed to ONE query
+      // (the top watchlist coin, with a Bitcoin fallback when that coin is thin),
+      // so an agent whose top coin got displaced by the Bitcoin fallback sees NO
+      // market for the coin it has a view on and an 8B model invents a pmN ref
+      // (→ pm_ref_unknown, wasted cycle). When the top ANALYSED coin (its sharpest
+      // edge) has no market in the primary board, fire ONE extra discover for that
+      // coin and MERGE it in — giving the model a real ref to bet instead of a
+      // hallucinated one. Budget: at most a single additional CoinRithm data-API
+      // read, and only on cycles where the top coin is actually missing; the shared
+      // free-tier model-call RateBudget (scheduler) is untouched — this is a read,
+      // not an LLM call, and the client already backs off on 429.
+      const analyzedCoins = watch
+        .filter((w) => w.coinId)
+        .map((w) => w.symbol.toUpperCase());
+      const topAnalyzed = analyzedCoins[0];
+      const primaryCoversTop =
+        !topAnalyzed ||
+        mergedRows.some((m) => titleMentionsCoin(m.title, topAnalyzed));
+      if (topAnalyzed && !primaryCoversTop) {
+        const targetName = PM_COIN_NAMES[topAnalyzed] ?? topAnalyzed;
+        // limit 6 (not ~5): the eligible/held/dedupe filters shave the list, and we
+        // then cap the merged contribution to 4 targeted rows below.
+        const secR = await client.discoverPmMarkets(
+          { q: targetName, limit: 6 },
+          trace,
+        );
+        if (secR.ok) {
+          // Dedupe the secondary rows against the primary list by source+slug (event
+          // key) so a market already on the board is never shown twice, and keep only
+          // rows that actually reference the targeted coin (a fuzzy backend match
+          // can't dilute the board with off-topic events).
+          const primaryEventKeys = new Set(
+            mergedRows.map((m) => `${m.source}|${m.slug}`),
           );
-          const freshness = freshnessOf(ev); // freshness is event-level
-          // At most a few outcomes per event so a wide multi-outcome market
-          // (e.g. dozens of price buckets) can't explode the prompt. Drop
-          // outcomes the backend flagged NOT openable (eligible === false) so the
-          // model never bets a market that would fail the binary entry gate at
-          // quote. Back-compat: an older backend omits `eligible` (undefined) →
-          // the outcome is kept (current behaviour).
-          const outcomes = asArr(ev.outcomes)
-            .map(asObj)
-            .filter((o) => o.eligible !== false)
-            .slice(0, 3);
-          // A market with no outcomes array still round-trips a flat fallback row.
-          const rows = outcomes.length > 0 ? outcomes : [ev];
-          return rows.map((o) => ({
-            source,
-            slug,
-            outcomeExternalMarketId:
-              asStr(o.externalMarketId) ??
-              asStr(o.outcomeExternalMarketId) ??
-              "",
-            // Carry the odds through: the model needs the outcome label + current
-            // probability to spot a mispriced market and bet it (was stripped).
-            outcomeName: asStr(o.name) ?? asStr(o.outcomeName) ?? undefined,
-            // Backend returns probability as 0..100 (percent) — normalise to 0..1
-            // to match the prompt's "0..1" framing (probed 2026-06-24).
-            probability: ((p) => (p == null ? undefined : p > 1 ? p / 100 : p))(
-              asNum(o.probability),
-            ),
-            title,
-            freshness,
-          }));
-        })
-        .filter((m) => m.source && m.slug && m.outcomeExternalMarketId)
-        // Drop already-held markets (see heldPmKeys above) so the model only sees
-        // markets it can actually open — done BEFORE the slice so held positions
-        // don't consume the limited candidate slots.
-        .filter(
-          (m) =>
-            !heldPmKeys.has(
-              `${m.source.toLowerCase()}|${m.slug.toLowerCase()}|${m.outcomeExternalMarketId}`,
-            ),
-        )
-        // Hard cap the PM block: a handful of fresh markets is plenty to pick from.
+          const secRows = expandPmMarkets(secR.data, heldPmKeys)
+            .filter((m) => titleMentionsCoin(m.title, topAnalyzed))
+            .filter((m) => !primaryEventKeys.has(`${m.source}|${m.slug}`))
+            .slice(0, 4);
+          // Reserve slots for the targeted rows so the 12-cap can't slice off the
+          // very markets the secondary fetch exists to surface. Primary rows keep
+          // priority; the targeted rows are appended.
+          if (secRows.length > 0) {
+            const primaryBudget = Math.max(0, 12 - secRows.length);
+            mergedRows = [...mergedRows.slice(0, primaryBudget), ...secRows];
+          }
+        }
+      }
+
+      // Hard cap the PM block (a handful of fresh markets is plenty) and stamp a
+      // short, stable per-cycle ref (pm1…pmN) the model copies instead of the long
+      // outcomeExternalMarketId. Refs are assigned AFTER the merge + slice so they
+      // are a contiguous 1..N matching exactly what the prompt shows.
+      pmMarkets = mergedRows
         .slice(0, 12)
-        // Stamp a short, stable per-cycle ref (pm1…pmN) the model copies instead of
-        // the long outcomeExternalMarketId. Assigned AFTER the slice so refs are a
-        // contiguous 1..N matching exactly what the prompt shows.
         .map((m, i) => ({ ...m, ref: `pm${i + 1}` }));
     }
   }

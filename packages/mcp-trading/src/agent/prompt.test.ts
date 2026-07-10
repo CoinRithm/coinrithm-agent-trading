@@ -130,3 +130,29 @@ describe("buildSystemPrompt — independent forecast (pm_open forecastProbabilit
     expect(out).toMatch(/do NOT copy, round, or anchor/i);
   });
 });
+
+describe("buildSystemPrompt — pm_ref escape hatch (hallucination fix)", () => {
+  const specWithPm = () => {
+    const spec = parseSkill(renderFolderOfOne("a", "conservative")).spec;
+    spec.venues = ["pm", "futures", "spot"];
+    return spec;
+  };
+
+  it("adds an ESCAPE HATCH: an unlisted crypto view is a legitimate SKIP, not a reason to invent a ref", () => {
+    const out = buildSystemPrompt(specWithPm(), "strategy");
+    expect(out).toMatch(/ESCAPE HATCH/);
+    expect(out).toMatch(/legitimate SKIP for PM/i);
+    // Explicitly forbids inventing/incrementing a ref and names the wasted-cycle cost.
+    expect(out).toMatch(/do NOT invent, guess, or increment a ref/i);
+    expect(out).toMatch(/pm_ref_unknown/);
+    // Scopes the "bettable" set to THIS cycle's listed markets.
+    expect(out).toMatch(/listed in observation\.pmMarkets THIS cycle \(pm1\.\.pmN\)/);
+    // The scan REQUIREMENT (edge thesis) is preserved, not removed.
+    expect(out).toMatch(/REQUIRED that you scan/);
+  });
+
+  it("keeps the pm_open action ref instruction scoped to THIS cycle's listed refs (pm1..pmN)", () => {
+    const out = buildSystemPrompt(specWithPm(), "strategy");
+    expect(out).toMatch(/one of the refs listed THIS cycle \(pm1\.\.pmN\)/);
+  });
+});

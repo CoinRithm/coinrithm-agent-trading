@@ -358,6 +358,190 @@ describe("observe", () => {
     expect(observation.pmMarkets.map((m) => m.ref)).toEqual(["pm1", "pm2"]);
   });
 
+  // ── crypto-targeted secondary discover (pm_ref hallucination fix) ────────────
+  it("does NOT fire a second discover when the primary board already lists the top analyzed coin (budget)", async () => {
+    // Conservative watchlist top coin is BTC; the board lists a Bitcoin market, so
+    // the agent's sharpest-edge coin is covered — no extra call is spent.
+    const pmSpec = {
+      ...spec,
+      venues: ["pm", "futures"] as ("spot" | "futures" | "pm")[],
+    };
+    const calls: Array<{ q?: string; limit?: number }> = [];
+    const c = fakeClient({
+      pmPositions: async () => okData({ positions: [] }),
+      discoverPmMarkets: async (q: { q?: string; limit?: number }) => {
+        calls.push(q);
+        return okData({
+          data: [
+            {
+              source: "kalshi",
+              slug: "btc-100k",
+              title: "Bitcoin above $100k?",
+              freshness: { status: "fresh" },
+              outcomes: [
+                { externalMarketId: "btc-yes", name: "Yes", probability: 40 },
+                { externalMarketId: "btc-no", name: "No", probability: 60 },
+              ],
+            },
+          ],
+        });
+      },
+    });
+    const { observation } = await observe(c, pmSpec, newState("r"));
+    expect(calls.length).toBe(1); // primary only; no Bitcoin fallback, no secondary
+    expect(observation.pmMarkets.length).toBe(2);
+    expect(observation.pmMarkets.map((m) => m.ref)).toEqual(["pm1", "pm2"]);
+  });
+
+  it("fires ONE crypto-targeted secondary discover when the primary board lacks the top analyzed coin, merging its refs continuously", async () => {
+    // Top coin is SOL. Its primary query is thin (1 event < 3) so the existing
+    // Bitcoin fallback replaces the board with BTC markets — leaving SOL, the coin
+    // the agent actually has a view on, absent. Without a listed SOL market an 8B
+    // model invents a pmN ref (pm_ref_unknown). The fix re-queries SOL once and
+    // merges a REAL sol ref into the board.
+    const pmSpec = {
+      ...spec,
+      venues: ["pm", "futures"] as ("spot" | "futures" | "pm")[],
+      risk: { ...spec.risk, watchlist: ["SOL", "BTC"] },
+    };
+    const calls: Array<{ q?: string; limit?: number }> = [];
+    const c = fakeClient({
+      pmPositions: async () => okData({ positions: [] }),
+      discoverPmMarkets: async (q: { q?: string; limit?: number }) => {
+        calls.push(q);
+        const query = (q?.q ?? "").toLowerCase();
+        if (query === "bitcoin") {
+          return okData({
+            data: [
+              {
+                source: "kalshi",
+                slug: "btc-100k",
+                title: "Bitcoin above $100k by 2026?",
+                freshness: { status: "fresh" },
+                outcomes: [
+                  { externalMarketId: "btc-yes", name: "Yes", probability: 45 },
+                  { externalMarketId: "btc-no", name: "No", probability: 55 },
+                ],
+              },
+            ],
+          });
+        }
+        if (query === "solana") {
+          return okData({
+            data: [
+              {
+                source: "polymarket",
+                slug: "sol-250",
+                title: "Solana above $250 by Friday?",
+                freshness: { status: "fresh" },
+                outcomes: [
+                  { externalMarketId: "sol-yes", name: "Yes", probability: 30 },
+                ],
+              },
+            ],
+          });
+        }
+        return okData({ data: [] });
+      },
+    });
+    const { observation } = await observe(c, pmSpec, newState("r"));
+    // primary Solana (thin) -> Bitcoin fallback -> targeted Solana re-query.
+    expect(calls.map((x) => (x.q ?? "").toLowerCase())).toEqual([
+      "solana",
+      "bitcoin",
+      "solana",
+    ]);
+    expect(calls[2].limit).toBe(6); // the secondary is a small, budgeted call
+    // The merged board carries a real SOL ref the model can bet instead of inventing.
+    const sol = observation.pmMarkets.find((m) => m.slug === "sol-250");
+    expect(sol).toBeDefined();
+    expect(sol?.outcomeExternalMarketId).toBe("sol-yes");
+    // Secondary rows are appended after the primary rows, refs stay contiguous 1..N.
+    expect(observation.pmMarkets.map((m) => m.ref)).toEqual(
+      observation.pmMarkets.map((_, i) => `pm${i + 1}`),
+    );
+    expect(sol?.ref).toBe(`pm${observation.pmMarkets.length}`);
+  });
+
+  it("dedupes secondary rows against the primary board by source+slug (no duplicate market)", async () => {
+    // Top coin SOL. The primary board carries a sol-250 event but with an opaque
+    // title (so the coverage-by-title check misses it and the secondary fires). The
+    // secondary re-returns sol-250 (same source+slug) plus a genuinely new sol-300;
+    // the dup must be dropped and only the new market merged.
+    const pmSpec = {
+      ...spec,
+      venues: ["pm", "futures"] as ("spot" | "futures" | "pm")[],
+      risk: { ...spec.risk, watchlist: ["SOL", "BTC"] },
+    };
+    const c = fakeClient({
+      pmPositions: async () => okData({ positions: [] }),
+      discoverPmMarkets: async (q: { q?: string; limit?: number }) => {
+        // Primary (limit 12) returns 3 opaque-titled events (>=3 so no Bitcoin
+        // fallback); the secondary is distinguished by its limit of 6.
+        if (q.limit === 6) {
+          return okData({
+            data: [
+              {
+                source: "polymarket",
+                slug: "sol-250",
+                title: "Solana above $250?", // dup of primary by source+slug
+                outcomes: [
+                  { externalMarketId: "sol-yes", name: "Yes", probability: 30 },
+                ],
+              },
+              {
+                source: "polymarket",
+                slug: "sol-300",
+                title: "Solana above $300?", // genuinely new
+                outcomes: [
+                  {
+                    externalMarketId: "sol300-yes",
+                    name: "Yes",
+                    probability: 20,
+                  },
+                ],
+              },
+            ],
+          });
+        }
+        return okData({
+          data: [
+            {
+              source: "polymarket",
+              slug: "sol-250",
+              title: "Opaque title A",
+              outcomes: [
+                { externalMarketId: "sol-yes", name: "Yes", probability: 30 },
+              ],
+            },
+            {
+              source: "kalshi",
+              slug: "misc-1",
+              title: "Opaque B",
+              outcomes: [{ externalMarketId: "m1", name: "Yes", probability: 50 }],
+            },
+            {
+              source: "kalshi",
+              slug: "misc-2",
+              title: "Opaque C",
+              outcomes: [{ externalMarketId: "m2", name: "Yes", probability: 50 }],
+            },
+          ],
+        });
+      },
+    });
+    const { observation } = await observe(c, pmSpec, newState("r"));
+    // sol-250 stays a single row (dup dropped); sol-300 is the only merged addition.
+    expect(
+      observation.pmMarkets.filter((m) => m.slug === "sol-250").length,
+    ).toBe(1);
+    expect(observation.pmMarkets.some((m) => m.slug === "sol-300")).toBe(true);
+    // Refs contiguous across the merged list.
+    expect(observation.pmMarkets.map((m) => m.ref)).toEqual(
+      observation.pmMarkets.map((_, i) => `pm${i + 1}`),
+    );
+  });
+
   // ── news capability ─────────────────────────────────────────────────────────
   it("fetches and compacts watchlist news when the `news` capability is set", async () => {
     const newsSpec = {
