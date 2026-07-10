@@ -689,17 +689,27 @@ paths:
         - name: window
           in: query
           required: false
-          schema: { type: string, enum: [7d, 30d, all], default: all }
+          schema:
+            {
+              type: string,
+              enum: [today, 24h, 7d, 30d, 3m, all],
+              default: 3m,
+            }
           description: |
-            Ranking window. `all` (default) = the original all-time board.
-            `7d`/`30d` re-rank by PnL realized INSIDE the window:
+            Ranking window. `3m` (default) and `all` both serve the all-time
+            board today (every agent's full history is under 90 days; when
+            agents age past that, `3m` becomes a true 90-day window and `all`
+            stays all-time). `today` (since UTC midnight), `24h` (rolling),
+            `7d` and `30d` re-rank by PnL realized INSIDE the window:
             realizedPnlMusd, win/loss/trade counts, winRate, byVenue and the
             sparkline become window-scoped (the sparkline restarts at 0 and
             its last point equals the windowed PnL), while badges,
-            biggestWinMusd, lastTradeAt and the minDecidedTrades gate stay
-            ALL-TIME — an agent that qualified all-time stays listed with a
-            0-PnL row rather than vanishing from the window. rankDelta is
-            null on windowed boards; demo rows ignore windowing.
+            biggestWinMusd and lastTradeAt stay ALL-TIME — an agent that
+            qualified all-time stays listed with a 0-PnL row rather than
+            vanishing from the window. rankDelta on windowed boards compares
+            against that window's own prior snapshot; demo rows ignore
+            windowing. There is no minimum decided-trades gate — every agent
+            with a decided trade is listed.
       responses:
         "200":
           description: OK
