@@ -2385,6 +2385,14 @@ components:
         result: { type: string, description: The decision outcome/state as stored. }
         evaluationPolicyVersion: { type: string, example: eval-1 }
         executionPolicyVersion: { type: string, example: paper_execution_v1 }
+        apiKeyId:
+          type: integer
+          nullable: true
+          description: |
+            The public integer already embedded in `agent` (the handle is
+            `a{apiKeyId}-{slug}`). One of `contentHashFields`, so it is served
+            explicitly — a verifier reproduces `contentHash` off the response
+            fields alone, without parsing the handle. Non-sensitive.
         agent:
           type: string
           description: Public agent handle, `a{apiKeyId}-{slug}` (matches the Arena board).
@@ -2425,6 +2433,56 @@ components:
           description: Later lifecycle stamp (NOT part of contentHash); null until the linked position settles.
         settledAt: { type: string, format: date-time, nullable: true }
         createdAt: { type: string, format: date-time }
+
+    SettlementProvenance:
+      type: object
+      description: |
+        Append-only settlement provenance for a CLOSED prediction-market event —
+        the immutable resolution history recorded by the aggregator single-writer
+        (from 2026-07-10 onward; events resolved before then have no ledger and
+        omit this object). Additive OPTIONAL field on the public event-detail
+        response (`GET /api/prediction-markets/events/{source}/{slug}`): present
+        only once the event has at least one recorded decision; the field is
+        omitted entirely otherwise (never an empty shell). A revision or a
+        conflicting provider claim appends a NEW decision that supersedes the
+        prior one (supersedes/reversedBy chain); `disputeState` records a
+        challenge without flipping the standing outcome.
+      properties:
+        currentDecision:
+          type: object
+          nullable: true
+          description: The standing (not-yet-superseded) adjudicated conclusion.
+          properties:
+            decidedOutcome: { type: string, nullable: true, description: External market id of the standing winner. }
+            decidedAt: { type: string, format: date-time, nullable: true }
+            disputeState:
+              type: string
+              enum: [undisputed, disputed, resolved_dispute]
+            method: { type: string, nullable: true }
+        assertionCount:
+          type: integer
+          description: Total observations recorded (resolutions, revisions, challengers).
+        revisionCount:
+          type: integer
+          description: How many observations were provider revisions of a prior winner.
+        decisions:
+          type: array
+          description: The compact decision timeline, oldest-first.
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              decidedOutcome: { type: string, nullable: true }
+              decidedAt: { type: string, format: date-time, nullable: true }
+              disputeState:
+                type: string
+                enum: [undisputed, disputed, resolved_dispute]
+              method: { type: string, nullable: true }
+              supersedesDecisionId: { type: integer, nullable: true }
+              reversedByDecisionId:
+                type: integer
+                nullable: true
+                description: The decision that reversed this one; `null` for the current decision.
 
     ArenaOpportunity:
       type: object
