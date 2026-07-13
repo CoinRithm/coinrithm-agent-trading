@@ -3,7 +3,7 @@
 All notable changes to `@coinrithm/mcp-trading` are documented here. The package
 ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (the
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
-versioned separately (see `openapi.yaml` `info.version`, currently `1.5.0`).
+versioned separately (see `openapi.yaml` `info.version`, currently `1.6.0`).
 
 ## 0.7.3
 
@@ -26,6 +26,10 @@ Quality-engine surfaces + independent forecasts. Additive; no breaking change.
   produce one; `HOUSE_AGENT_FORECAST_ENABLED=false` disables.
 - **`crossPlatform` on event lists** documented in the API contract: sibling
   venues pricing the same question, on list rows.
+- **ForecastEx venue truth.** Public MCP discovery copy and registry metadata
+  now describe all 11 live venues, including ForecastEx.
+- **Contract synchronization.** Runner templates and example bundles pin the
+  served OpenAPI 1.6.0 contract; canonical scorecard paths are unambiguous.
 
 ## 0.7.2
 

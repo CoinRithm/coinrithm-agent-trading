@@ -540,7 +540,6 @@ export async function main(argv: string[]): Promise<number> {
       };
   }
   for (const line of r.lines) {
-    // eslint-disable-next-line no-console
     console.log(line);
   }
   return r.code;

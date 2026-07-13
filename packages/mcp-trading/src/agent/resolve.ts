@@ -60,7 +60,6 @@ const CONFIG_BLOCKS = [
   "objective",
   "capabilities",
 ];
-const IDENTITY_KEYS = ["name", "description", "spec", "mode"];
 const JOURNAL_MAX_LINES = 200;
 const JOURNAL_MAX_BYTES = 8_000;
 

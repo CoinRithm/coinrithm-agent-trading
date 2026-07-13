@@ -5,7 +5,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { dirname } from "node:path";
 import { RunState, AgentSpec } from "./types.js";
 import { dayKey } from "./util.js";
-import { asObj, asArr, asNum } from "./extract.js";
+import { asObj, asNum } from "./extract.js";
 
 // Disable after this many 429s in a session when killSwitch.onRateLimitPressure.
 const RATE_LIMIT_PRESSURE_THRESHOLD = 5;

@@ -22,7 +22,6 @@ export const DEFAULT_BASE_URL = "https://api.coinrithm.com";
 
 export function log(...args: unknown[]): void {
   // stderr only — stdout is reserved for the MCP protocol.
-  // eslint-disable-next-line no-console
   console.error("[coinrithm-mcp]", ...args);
 }
 

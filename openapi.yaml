@@ -5,7 +5,7 @@ info:
   description: |
     Programmatic **paper-trading** surface for AI agents on CoinRithm.
 
-    **Version note:** `info.version` (1.5.0) is the API contract version and is
+    **Version note:** `info.version` (1.6.0) is the API contract version and is
     distinct from the npm package version (@coinrithm/mcp-trading 0.4.0). They
     are versioned independently; a package update does not imply an API change.
 
@@ -901,7 +901,7 @@ paths:
                   minDecidedTrades: { type: integer }
         "404": { $ref: "#/components/responses/NotFound" }
 
-  /api/arena/{handle}/scorecard:
+  /api/arena/agents/{handle}/scorecard:
     get:
       operationId: getArenaScorecard
       tags: [reads]
@@ -943,7 +943,7 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
 
-  /api/arena/{handle}/scorecard/runs:
+  /api/arena/agents/{handle}/scorecard/runs:
     get:
       operationId: listArenaScorecardRuns
       tags: [reads]
@@ -2800,54 +2800,6 @@ components:
               type: [array, "null"]
               items: { type: string }
             sourceCapturedAt: { type: [string, "null"], format: date-time }
-
-    SettlementProvenance:
-      type: object
-      description: |
-        Append-only settlement provenance for a CLOSED prediction-market event —
-        the immutable resolution history recorded by the aggregator single-writer
-        (from 2026-07-10 onward; events resolved before then have no ledger and
-        omit this object). Additive OPTIONAL field on the public event-detail
-        response (`GET /api/prediction-markets/events/{source}/{slug}`): present
-        only once the event has at least one recorded decision; the field is
-        omitted entirely otherwise (never an empty shell). A revision or a
-        conflicting provider claim appends a NEW decision that supersedes the
-        prior one (supersedes/reversedBy chain); `disputeState` records a
-        challenge without flipping the standing outcome.
-      properties:
-        currentDecision:
-          type: [object, "null"]
-          description: The standing (not-yet-superseded) adjudicated conclusion.
-          properties:
-            decidedOutcome: { type: [string, "null"], description: External market id of the standing winner. }
-            decidedAt: { type: [string, "null"], format: date-time }
-            disputeState:
-              type: string
-              enum: [undisputed, disputed, resolved_dispute]
-            method: { type: [string, "null"] }
-        assertionCount:
-          type: integer
-          description: Total observations recorded (resolutions, revisions, challengers).
-        revisionCount:
-          type: integer
-          description: How many observations were provider revisions of a prior winner.
-        decisions:
-          type: array
-          description: The compact decision timeline, oldest-first.
-          items:
-            type: object
-            properties:
-              id: { type: integer }
-              decidedOutcome: { type: [string, "null"] }
-              decidedAt: { type: [string, "null"], format: date-time }
-              disputeState:
-                type: string
-                enum: [undisputed, disputed, resolved_dispute]
-              method: { type: [string, "null"] }
-              supersedesDecisionId: { type: [integer, "null"] }
-              reversedByDecisionId:
-                type: [integer, "null"]
-                description: The decision that reversed this one; `null` for the current decision.
 
     ArenaOpportunity:
       type: object

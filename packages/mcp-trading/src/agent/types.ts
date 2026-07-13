@@ -429,7 +429,7 @@ export function actionVenue(a: ProposedAction): ActionVenue {
   return "pm";
 }
 
-export function isWriteAction(a: ProposedAction): boolean {
+export function isWriteAction(_a: ProposedAction): boolean {
   // Every proposed action mutates state (set-sltp/cancel included). The model
   // never proposes a read; reads are the runner's job during observe.
   return true;

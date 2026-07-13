@@ -26,7 +26,7 @@ export const COINRITHM_API = {
   mcpUrl: "https://mcp.coinrithm.com/mcp",
   // The API CONTRACT version (openapi.yaml info.version). Versioned independently
   // from the npm package below — hand-bump this when the OpenAPI contract changes.
-  openapiVersion: "1.5.0",
+  openapiVersion: "1.6.0",
   mcpPackage: "@coinrithm/mcp-trading",
   mcpVersion: PACKAGE_VERSION,
 } as const;

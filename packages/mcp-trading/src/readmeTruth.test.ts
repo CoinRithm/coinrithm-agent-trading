@@ -36,8 +36,51 @@ describe("public docs stay truthful", () => {
     expect(apiClaim![1]).toBe(actual![1]);
   });
 
-  it("pm_data_events tool description names all eight venues", () => {
+  it("runner, changelog, spec note, and example bundles pin the served contract", () => {
+    const openapi = readFileSync(join(repoRoot, "openapi.yaml"), "utf-8");
+    const actual = openapi.match(/^\s{2}version:\s*["']?([\d.]+)["']?/m);
+    expect(actual, "openapi.yaml info.version missing").not.toBeNull();
+    const version = actual![1];
+
+    const runner = readFileSync(
+      join(__dirname, "agent", "version.ts"),
+      "utf-8",
+    );
+    const changelog = readFileSync(join(pkgRoot, "CHANGELOG.md"), "utf-8");
+    expect(runner).toContain(`openapiVersion: "${version}"`);
+    expect(changelog).toContain(`currently \`${version}\``);
+    expect(openapi).toContain(`\`info.version\` (${version})`);
+
+    const examples = [
+      "quant-reference",
+      "leo-breakout-hunter",
+      "mia-trend-rider",
+      "sam-risk-managed-swinger",
+      "contrarian-carl",
+      "olivia-calibrated-quant",
+      "momentum-futures-decomposed",
+    ];
+    for (const example of examples) {
+      const manifest = readFileSync(
+        join(
+          repoRoot,
+          "examples",
+          "agents",
+          example,
+          "functionality",
+          "coinrithm.yaml",
+        ),
+        "utf-8",
+      );
+      expect(manifest, `${example} contract pin drifted`).toContain(
+        `openapiVersion: ${version}`,
+      );
+    }
+  });
+
+  it("pm_data_events tool description names all eleven venues", () => {
     const tools = readFileSync(join(__dirname, "tools.ts"), "utf-8");
+    const packageReadme = readFileSync(join(pkgRoot, "README.md"), "utf-8");
     // Canonical venue list (prod overview bySource, 2026-07-08). If a venue
     // is added or removed, update the tool description AND this list.
     const venues = [
@@ -51,9 +94,13 @@ describe("public docs stay truthful", () => {
       "PredictIt",
       "Futuur",
       "Myriad",
+      "ForecastEx",
     ];
-    expect(tools).toContain("ALL ten");
-    expect(tools).not.toMatch(/ALL (seven|eight|nine)/i);
+    expect(tools).toContain("ALL 11");
+    expect(tools).not.toMatch(/ALL (seven|eight|nine|ten|7|8|9|10)/i);
+    expect(packageReadme).toContain("11 venues");
+    expect(packageReadme).toContain("ForecastEx");
+    expect(packageReadme).not.toContain("10 venues");
     for (const venue of venues) {
       expect(tools, `tool copy missing venue ${venue}`).toContain(venue);
     }
@@ -71,6 +118,7 @@ describe("public docs stay truthful", () => {
       expect(run, `stale venue enumeration: "${run}"`).toContain("Rothera");
       expect(run, `stale venue enumeration: "${run}"`).toContain("Futuur");
       expect(run, `stale venue enumeration: "${run}"`).toContain("Myriad");
+      expect(run, `stale venue enumeration: "${run}"`).toContain("ForecastEx");
     }
   });
 
@@ -112,8 +160,10 @@ describe("public docs stay truthful", () => {
 
     it("description states the current venue count, never a stale one", () => {
       const { description } = serverJson();
-      expect(description).toContain("10 venues");
-      expect(description).not.toMatch(/\b(7|8|9|seven|eight|nine)\s+venues\b/i);
+      expect(description).toContain("11 venues");
+      expect(description).not.toMatch(
+        /\b(7|8|9|10|seven|eight|nine|ten)\s+venues\b/i,
+      );
     });
   });
 });
