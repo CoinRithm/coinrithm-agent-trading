@@ -1,0 +1,37 @@
+# Publish server.json to the official MCP registry via GitHub Actions OIDC.
+#
+# Why OIDC: the registry grants io.github.CoinRithm/* to workflows running in
+# this org automatically — no user OAuth token, no org-visibility or OAuth-app
+# policy involvement (device-flow logins kept returning kerden97/*-only perms,
+# 2026-07-16). This is also the zero-click path for every future release.
+#
+# Run it: manually from the Actions tab (workflow_dispatch), via
+# `gh workflow run publish-mcp.yml`, or by pushing a v* tag.
+name: publish-mcp-registry
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  id-token: write # OIDC token for the registry login
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mcp-publisher
+        run: |
+          curl -sL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
+          chmod +x mcp-publisher
+
+      - name: Login (GitHub OIDC)
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish server.json
+        run: ./mcp-publisher publish server.json
