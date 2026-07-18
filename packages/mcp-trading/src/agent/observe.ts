@@ -52,6 +52,24 @@ const PM_COIN_NAMES: Record<string, string> = {
   SUI: "Sui",
 };
 
+// Repeated micro-contracts are useful for execution smoke tests but are a poor
+// calibration universe: outcomes overlap heavily, resolve too quickly to admit
+// meaningful independent research, and drown the public scorecard in Bitcoin
+// coin flips. Non-mechanical calibration agents receive a deeper discovery
+// page with these rows removed. Mechanical baselines intentionally keep the
+// unmodified universe so their reference contract remains reproducible.
+const PM_CALIBRATION_CHURN_RE =
+  /(updown|up-or-down|-5-?min|-5m-|-15m|15m(?:-|$)|(?:5|15)\s+min(?:ute)?s?|-1h-|hourly|-daily-|\bdaily\b|what-price-will[^\n]*(?:today|tomorrow)|-above-on-|-price-on-|this[ -]week|of[ -]the[ -]week|-weekly-)/i;
+
+export function isCalibrationChurnMarket(market: {
+  slug?: string;
+  title?: string;
+}): boolean {
+  return PM_CALIBRATION_CHURN_RE.test(
+    `${market.slug ?? ""} ${market.title ?? ""}`,
+  );
+}
+
 // Fetch candles for one coin and reduce them to a compact indicator bundle.
 // Tolerant by design: any failure (HTTP error, malformed/sparse candles) returns
 // null so the cycle proceeds with price-only context rather than skipping.
@@ -359,6 +377,10 @@ export async function observe(
   let pmResolutions: PmResolution[] = [];
   let pmMarkets: PmMarket[] = [];
   if (wantPm) {
+    const curatedCalibrationBoard =
+      spec.objective?.primary === "calibration" &&
+      spec.model?.provider !== "mechanical";
+    const primaryDiscoveryLimit = curatedCalibrationBoard ? 30 : 12;
     // Bias PM discovery toward CRYPTO markets the agent has a price view on — the
     // only PM edge a price agent reliably has (probed 2026-06-24: the default board
     // is World Cup / elections / F1, which an agent has no edge on). The discover
@@ -370,7 +392,10 @@ export async function observe(
       PM_COIN_NAMES[topCoin] ?? spec.risk.watchlist[0] ?? "Bitcoin";
     const [pmPosR, pmDiscFirst] = await Promise.all([
       client.pmPositions(undefined, trace),
-      client.discoverPmMarkets({ q: pmQuery, limit: 12 }, trace),
+      client.discoverPmMarkets(
+        { q: pmQuery, limit: primaryDiscoveryLimit },
+        trace,
+      ),
     ]);
     let pmDiscR = pmDiscFirst;
     const firstCount = pmDiscR.ok
@@ -461,6 +486,11 @@ export async function observe(
       // quoteable id NESTED at outcomes[].externalMarketId — expandPmMarkets turns
       // that into one row per quoteable outcome (eligible + not-held filtered).
       let mergedRows = expandPmMarkets(pmDiscR.data, heldPmKeys);
+      if (curatedCalibrationBoard) {
+        mergedRows = mergedRows.filter(
+          (market) => !isCalibrationChurnMarket(market),
+        );
+      }
 
       // ── Crypto-targeted secondary discover (pm_ref hallucination fix) ────────
       // The prompt tells the model its SHARPEST PM edge is the crypto price view it
@@ -499,10 +529,15 @@ export async function observe(
           const primaryEventKeys = new Set(
             mergedRows.map((m) => `${m.source}|${m.slug}`),
           );
-          const secRows = expandPmMarkets(secR.data, heldPmKeys)
+          let secRows = expandPmMarkets(secR.data, heldPmKeys)
             .filter((m) => titleMentionsCoin(m.title, topAnalyzed))
-            .filter((m) => !primaryEventKeys.has(`${m.source}|${m.slug}`))
-            .slice(0, 4);
+            .filter((m) => !primaryEventKeys.has(`${m.source}|${m.slug}`));
+          if (curatedCalibrationBoard) {
+            secRows = secRows.filter(
+              (market) => !isCalibrationChurnMarket(market),
+            );
+          }
+          secRows = secRows.slice(0, 4);
           // Reserve slots for the targeted rows so the 12-cap can't slice off the
           // very markets the secondary fetch exists to surface. Primary rows keep
           // priority; the targeted rows are appended.

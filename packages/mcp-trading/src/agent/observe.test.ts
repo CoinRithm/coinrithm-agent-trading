@@ -393,6 +393,95 @@ describe("observe", () => {
     expect(observation.pmMarkets.map((m) => m.ref)).toEqual(["pm1", "pm2"]);
   });
 
+  it("gives non-mechanical calibration agents a deeper board without micro-contract churn", async () => {
+    const calibrationSpec = {
+      ...spec,
+      venues: ["pm"] as ("spot" | "futures" | "pm")[],
+      objective: {
+        primary: "calibration" as const,
+        secondary: [],
+        horizon: "7d",
+      },
+      model: { provider: "nvidia" as const, name: "test-model" },
+    };
+    const calls: Array<{ q?: string; limit?: number }> = [];
+    const c = fakeClient({
+      pmPositions: async () => okData({ positions: [] }),
+      discoverPmMarkets: async (q: { q?: string; limit?: number }) => {
+        calls.push(q);
+        return okData({
+          data: [
+            {
+              source: "kalshi",
+              slug: "kxbtc15m-26jul181200",
+              title: "BTC 15 min · $64,000 target",
+              outcomes: [
+                { externalMarketId: "fast", name: "Yes", probability: 52 },
+              ],
+            },
+            {
+              source: "polymarket",
+              slug: "btc-up-or-down-daily-1784000000",
+              title: "BTC Up or Down - Daily",
+              outcomes: [
+                { externalMarketId: "daily", name: "Up", probability: 49 },
+              ],
+            },
+            {
+              source: "forecastex",
+              slug: "yxhbt-123126-100000",
+              title: "Will Bitcoin exceed $100,000 in 2026?",
+              outcomes: [
+                { externalMarketId: "year", name: "Yes", probability: 31 },
+              ],
+            },
+          ],
+        });
+      },
+    });
+    const { observation } = await observe(c, calibrationSpec, newState("r"));
+    expect(calls[0]?.limit).toBe(30);
+    expect(observation.pmMarkets.map((market) => market.slug)).toEqual([
+      "yxhbt-123126-100000",
+    ]);
+    expect(observation.pmMarkets[0]?.ref).toBe("pm1");
+  });
+
+  it("keeps the complete discovery universe for mechanical calibration baselines", async () => {
+    const mechanicalSpec = {
+      ...spec,
+      venues: ["pm"] as ("spot" | "futures" | "pm")[],
+      objective: {
+        primary: "calibration" as const,
+        secondary: ["benchmark"],
+        horizon: "all",
+      },
+      model: { provider: "mechanical" as const, name: "market-implied" },
+    };
+    const calls: Array<{ q?: string; limit?: number }> = [];
+    const c = fakeClient({
+      pmPositions: async () => okData({ positions: [] }),
+      discoverPmMarkets: async (q: { q?: string; limit?: number }) => {
+        calls.push(q);
+        return okData({
+          data: [
+            {
+              source: "kalshi",
+              slug: "kxbtc15m-26jul181200",
+              title: "BTC 15 min · $64,000 target",
+              outcomes: [
+                { externalMarketId: "fast", name: "Yes", probability: 52 },
+              ],
+            },
+          ],
+        });
+      },
+    });
+    const { observation } = await observe(c, mechanicalSpec, newState("r"));
+    expect(calls[0]?.limit).toBe(12);
+    expect(observation.pmMarkets[0]?.slug).toBe("kxbtc15m-26jul181200");
+  });
+
   it("fires ONE crypto-targeted secondary discover when the primary board lacks the top analyzed coin, merging its refs continuously", async () => {
     // Top coin is SOL. Its primary query is thin (1 event < 3) so the existing
     // Bitcoin fallback replaces the board with BTC markets — leaving SOL, the coin
