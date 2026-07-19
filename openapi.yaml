@@ -6,7 +6,7 @@ info:
     Programmatic **paper-trading** surface for AI agents on CoinRithm.
 
     **Version note:** `info.version` (1.6.0) is the API contract version and is
-    distinct from the npm package version (@coinrithm/mcp-trading 0.4.0). They
+    distinct from the npm package version (@coinrithm/mcp-trading 0.7.3). They
     are versioned independently; a package update does not imply an API change.
 
     All trading here is simulated: a 50,000 virtual-mUSD paper account, cash coin
@@ -76,6 +76,8 @@ tags:
     description: Paper isolated-futures positions — open, close, and set SL/TP.
   - name: prediction-markets
     description: Paper prediction-market discovery, quotes, and positions.
+  - name: public-pm-data
+    description: Keyless cross-venue prediction-market research data across 11 venues.
   - name: ledger
     description: Agent action ledger and the reproducible run-evidence export.
 
@@ -1342,6 +1344,166 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
 
+  /api/prediction-markets/overview:
+    get:
+      operationId: getPublicPredictionMarketOverview
+      tags: [public-pm-data]
+      summary: Cross-venue prediction-market overview
+      description: |
+        Keyless CoinRithm-computed overview across all 11 supported venues.
+        Monetary aggregates exclude play-money/points venues. Source-specific
+        volume windows and completeness are disclosed in the response and at
+        `/api/prediction-markets/sources/health`; do not assume every venue's
+        number has the same basis. Cite CoinRithm when quoting these aggregates.
+      security: []
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, default: open }
+        - name: source
+          in: query
+          schema: { $ref: "#/components/schemas/PublicPmSourceSlug" }
+        - name: fiat
+          in: query
+          schema: { type: string, default: USD }
+      responses:
+        "200":
+          description: Current cross-venue statistics and bounded highlights
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicPmOverviewResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /api/prediction-markets/events:
+    get:
+      operationId: searchPublicPredictionMarketEvents
+      tags: [public-pm-data]
+      summary: Search events across all prediction-market venues
+      description: |
+        Keyless event search across Polymarket, Kalshi, Rothera, Limitless,
+        Smarkets, Manifold, Metaculus, PredictIt, Futuur, Myriad and ForecastEx.
+        Results remain visible when quality-blocked; inspect `quality` and
+        `decisionSupport` before using a row for a decision. This research
+        endpoint is broader than the authenticated paper-trading discovery API.
+      security: []
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+        - name: q
+          in: query
+          schema: { type: string }
+          description: Search title, outcomes, topics and related coins.
+        - name: tag
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: source
+          in: query
+          schema: { $ref: "#/components/schemas/PublicPmSourceSlug" }
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [best, volume24h_desc, priceChange24h_desc, priceChange24h_asc, endDate_desc, trending]
+            default: best
+        - name: tradeable
+          in: query
+          schema: { type: boolean, default: false }
+          description: Restrict to plausibly mock-tradeable markets.
+        - name: fiat
+          in: query
+          schema: { type: string, default: USD }
+      responses:
+        "200":
+          description: Paginated provider-rich event records
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicPmEventsResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /api/prediction-markets/events/{source}/{slug}:
+    get:
+      operationId: getPublicPredictionMarketEvent
+      tags: [public-pm-data]
+      summary: Get full event evidence and cross-venue comparisons
+      description: |
+        Provider-rich event detail including outcomes, snapshots, resolution
+        provenance, related markets/news, recent large trades, volume history
+        and approved cross-source matches when available. For bounded agent
+        context use the MCP `pm_data_event` tool's default summary mode.
+      security: []
+      parameters:
+        - name: source
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/PublicPmSourceSlug" }
+        - name: slug
+          in: path
+          required: true
+          schema: { type: string, minLength: 1 }
+        - name: fiat
+          in: query
+          schema: { type: string, default: USD }
+      responses:
+        "200":
+          description: Complete event research record
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicPmEventDetailResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /api/prediction-markets/whales:
+    get:
+      operationId: getPublicPredictionMarketWhales
+      tags: [public-pm-data]
+      summary: Latest verified large prediction-market trades
+      description: |
+        Keyless large-trade tape with source-specific evidence, provenance and
+        24-hour aggregates. Availability can be live, delayed or unavailable;
+        play-money and unverifiable activity are excluded. A large print is
+        information, not a recommendation.
+      security: []
+      responses:
+        "200":
+          description: Latest 50 accepted trades, aggregate statistics and venue coverage
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicPmWhalesResponse" }
+        "429":
+          description: Public request rate limit exceeded; honor `Retry-After`.
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /api/prediction-markets/sources/health:
+    get:
+      operationId: getPublicPredictionMarketSourceHealth
+      tags: [public-pm-data]
+      summary: Source freshness and catalog-completeness truth
+      description: |
+        Keyless per-venue ingest evidence. Freshness and catalog completeness
+        are separate: a venue can have a fresh hot set while its full catalog
+        sweep is provider-bounded. Agents should skip stale or unhealthy sources
+        and preserve the returned completeness disclosure when citing coverage.
+      security: []
+      responses:
+        "200":
+          description: Health, lag, refresh policy and catalog sweep evidence for all venues
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicPmSourcesHealthResponse" }
+        "429":
+          description: Public request rate limit exceeded; honor `Retry-After`.
+        "500": { $ref: "#/components/responses/ServerError" }
+
   /api/agent/pm/discover:
     get:
       operationId: discoverPredictionMarkets
@@ -1884,6 +2046,226 @@ components:
       properties:
         error: { type: string }
       required: [error]
+
+    PublicPmSourceSlug:
+      type: string
+      enum: [polymarket, kalshi, rothera, limitless, smarkets, manifold, metaculus, predictit, futuur, myriad, forecastex]
+
+    PublicPmSource:
+      type: object
+      additionalProperties: true
+      properties:
+        id: { $ref: "#/components/schemas/PublicPmSourceSlug" }
+        name: { type: string }
+        kind: { type: string }
+        supportsTrading: { type: boolean }
+      required: [id, name]
+
+    PublicPmOutcome:
+      type: object
+      additionalProperties: true
+      properties:
+        externalMarketId: { type: string }
+        name: { type: string }
+        probability:
+          type: [number, "null"]
+          description: Provider-implied probability on a 0–100 scale.
+        priceChange24h: { type: [number, "null"] }
+      required: [name]
+
+    PublicPmEvent:
+      type: object
+      additionalProperties: true
+      properties:
+        id: { type: string }
+        slug: { type: string }
+        title: { type: string }
+        description: { type: [string, "null"] }
+        status: { type: string }
+        startDate: { type: [string, "null"], format: date-time }
+        endDate: { type: [string, "null"], format: date-time }
+        resolvedAt: { type: [string, "null"], format: date-time }
+        freshness:
+          type: object
+          additionalProperties: true
+          description: Observation time, age and source-aware freshness state.
+        volume: { type: [number, "null"] }
+        volume24h: { type: [number, "null"] }
+        liquidity: { type: [number, "null"] }
+        bestBid: { type: [number, "null"] }
+        bestAsk: { type: [number, "null"] }
+        spread: { type: [number, "null"] }
+        source: { $ref: "#/components/schemas/PublicPmSource" }
+        outcomes:
+          type: array
+          items: { $ref: "#/components/schemas/PublicPmOutcome" }
+        referenceProbability:
+          type: [object, "null"]
+          additionalProperties: true
+          description: Canonical matched-venue reference with venue count and spread.
+        decisionSupport:
+          type: [object, "null"]
+          additionalProperties: true
+        quality:
+          type: [object, "null"]
+          additionalProperties: true
+          description: Persisted truth-engine decision eligibility and reason codes.
+        crossPlatform:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+      required: [id, slug, title, status, source, outcomes]
+
+    PublicPmEventsResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/PublicPmEvent" }
+        pagination:
+          type: object
+          additionalProperties: true
+          properties:
+            total: { type: integer }
+            limit: { type: integer }
+            offset: { type: integer }
+        meta:
+          type: object
+          additionalProperties: true
+      required: [data, pagination]
+
+    PublicPmOverviewResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        stats:
+          type: object
+          additionalProperties: true
+        highlights:
+          type: object
+          additionalProperties:
+            type: array
+            items: { $ref: "#/components/schemas/PublicPmEvent" }
+        categories:
+          type: array
+          items: { type: [string, object] }
+        bySource:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        byCategory:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        updatedAt: { type: string, format: date-time }
+      required: [stats, highlights, categories, bySource, byCategory, updatedAt]
+
+    PublicPmEventDetailResponse:
+      type: object
+      additionalProperties: true
+      properties:
+        event: { $ref: "#/components/schemas/PublicPmEvent" }
+        snapshots:
+          type: array
+          items: { type: object, additionalProperties: true }
+        relatedEvents:
+          type: array
+          items: { $ref: "#/components/schemas/PublicPmEvent" }
+        crossSourceMatches:
+          type: array
+          items: { type: object, additionalProperties: true }
+        resolution: { type: [object, "null"], additionalProperties: true }
+        volumeHistory:
+          type: array
+          items: { type: object, additionalProperties: true }
+        relatedNews:
+          type: array
+          items: { type: object, additionalProperties: true }
+        recentWhaleTrades:
+          type: array
+          items: { $ref: "#/components/schemas/PublicPmWhaleTrade" }
+      required: [event]
+
+    PublicPmWhaleTrade:
+      type: object
+      additionalProperties: true
+      properties:
+        source: { $ref: "#/components/schemas/PublicPmSourceSlug" }
+        sourceName: { type: string }
+        eventSlug: { type: string }
+        eventTitle: { type: string }
+        side: { type: string }
+        outcome: { type: string }
+        usdValue: { type: number }
+        price: { type: number }
+        evidenceType: { type: string }
+        evidenceRef: { type: [string, "null"] }
+        evidenceUrl: { type: [string, "null"], format: uri }
+        availability: { type: string, enum: [live, delayed, unavailable] }
+        observedAt: { type: string, format: date-time }
+        tradedAt: { type: [string, "null"], format: date-time }
+        latencySeconds: { type: [number, "null"] }
+      required: [source, eventSlug, side, outcome, usdValue, price, evidenceType, availability, observedAt]
+
+    PublicPmWhalesResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        trades:
+          type: array
+          maxItems: 50
+          items: { $ref: "#/components/schemas/PublicPmWhaleTrade" }
+        stats24h:
+          type: object
+          additionalProperties: true
+        coverage:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+      required: [trades, coverage]
+
+    PublicPmSourcesHealthResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        asOf: { type: string, format: date-time }
+        thresholds: { type: object, additionalProperties: true }
+        summary: { type: object, additionalProperties: true }
+        degraded:
+          type: array
+          description: Venues currently failing one or more health checks.
+          items:
+            type: object
+            additionalProperties: true
+        sources:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+            properties:
+              id: { $ref: "#/components/schemas/PublicPmSourceSlug" }
+              name: { type: string }
+              isActive: { type: boolean }
+              lastIngestAt: { type: [string, "null"], format: date-time }
+              lagSeconds: { type: [number, "null"] }
+              freshness: { type: string }
+              openEvents: { type: integer }
+              totalEvents: { type: integer }
+              catalog:
+                type: object
+                additionalProperties: true
+                description: Latest sweep evidence and provider-bounded completeness truth.
+              degraded:
+                type: array
+                items: { type: string }
+                description: Empty when healthy; otherwise stable reason codes.
+        enrichment: { type: object, additionalProperties: true }
+      required: [asOf, summary, degraded, sources]
 
     AgentVenuePerf:
       type: object
