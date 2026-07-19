@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  compactPublicPmEvent,
   compactPublicPmEvents,
   compactPublicPmOverview,
   compactPublicPmWhales,
@@ -122,8 +123,99 @@ describe("compact public prediction-market MCP responses", () => {
     expect(compact.coverage).toEqual(source.coverage);
   });
 
+  it("bounds event detail while preserving auditable cross-venue evidence", () => {
+    const related = {
+      ...event,
+      slug: "related-event",
+      description: "x".repeat(5_000),
+      outcomes: Array.from({ length: 100 }, (_, index) => ({
+        externalMarketId: `outcome-${index}`,
+        name: `Outcome ${index}`,
+        probability: index / 100,
+      })),
+    };
+    const comparisonOutcomes = Array.from({ length: 20 }, (_, index) => ({
+      key: `outcome-${index}`,
+      label: `Outcome ${index}`,
+      eventAProbability: index,
+      eventBProbability: 20 - index,
+      deltaPoints: index - 10,
+      presentInA: true,
+      presentInB: true,
+      isShared: true,
+    }));
+    const source = {
+      event: {
+        ...event,
+        description: "d".repeat(2_000),
+        resolutionCriteria: "r".repeat(3_000),
+      },
+      snapshots: Array.from({ length: 30 }, (_, index) => ({
+        capturedAt: `2026-07-${String(index + 1).padStart(2, "0")}`,
+        probability: index,
+        rawProviderPayload: "x".repeat(1_000),
+      })),
+      relatedEvents: Array.from({ length: 12 }, () => related),
+      crossSourceMatches: Array.from({ length: 10 }, (_, index) => ({
+        matchId: `match-${index}`,
+        confidence: 1 - index / 100,
+        matchMethod: "verified",
+        divergence: { maxSharedOutcomeDeltaPoints: 20 },
+        comparison: {
+          summary: { matchedOutcomeCount: 20 },
+          outcomes: comparisonOutcomes,
+        },
+        event: related,
+      })),
+      resolution: { outcome: "France", evidenceUrl: "https://example.test" },
+      volumeHistory: Array.from({ length: 100 }, (_, day) => ({ day })),
+      relatedNews: Array.from({ length: 12 }, (_, index) => ({ id: index })),
+      topicRelatedCoins: Array.from({ length: 25 }, (_, index) => ({
+        slug: `coin-${index}`,
+      })),
+      agentsTradingMarket: { activeAgents: 2 },
+      recentWhaleTrades: [
+        {
+          source: "polymarket",
+          usdValue: 50_000,
+          evidenceType: "on_chain_trade",
+          event: related,
+        },
+      ],
+    };
+
+    const compact = compactPublicPmEvent(source) as Record<string, any>;
+
+    expect(compact.event.outcomeCount).toBe(6);
+    expect(compact.event.description).toHaveLength(1_200);
+    expect(compact.event.resolutionCriteria).toHaveLength(2_000);
+    expect(compact.snapshotCount).toBe(30);
+    expect(compact.snapshots).toHaveLength(20);
+    expect(compact.snapshots[0]).not.toHaveProperty("rawProviderPayload");
+    expect(compact.relatedEventCount).toBe(12);
+    expect(compact.relatedEvents).toHaveLength(5);
+    expect(compact.relatedEvents[0]).not.toHaveProperty("description");
+    expect(compact.crossSourceMatchCount).toBe(10);
+    expect(compact.crossSourceMatches).toHaveLength(5);
+    expect(compact.crossSourceMatches[0].comparison.outcomeCount).toBe(20);
+    expect(compact.crossSourceMatches[0].comparison.outcomes).toHaveLength(5);
+    expect(
+      compact.crossSourceMatches[0].comparison.outcomes[0].deltaPoints,
+    ).toBe(-10);
+    expect(compact.volumeHistory).toHaveLength(90);
+    expect(compact.relatedNews).toHaveLength(5);
+    expect(compact.topicRelatedCoins).toHaveLength(20);
+    expect(compact.recentWhaleTrades[0]).not.toHaveProperty("event");
+    expect(compact.resolution).toEqual(source.resolution);
+    expect(compact.agentsTradingMarket).toEqual(source.agentsTradingMarket);
+    expect(JSON.stringify(compact).length).toBeLessThan(
+      JSON.stringify(source).length / 4,
+    );
+  });
+
   it("passes through unexpected non-object error shapes", () => {
     expect(compactPublicPmOverview("upstream error")).toBe("upstream error");
+    expect(compactPublicPmEvent(false)).toBe(false);
     expect(compactPublicPmEvents(null)).toBeNull();
     expect(compactPublicPmWhales(["bad shape"], 10)).toEqual(["bad shape"]);
   });

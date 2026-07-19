@@ -138,7 +138,7 @@ tool requires it. See [`DEPLOY.md`](./DEPLOY.md).
 | `open_pm_position` | trade:pm | `POST /api/agent/pm/open` ¹ |
 | `pm_data_overview` | none (public) | compact `GET /api/prediction-markets/overview` |
 | `pm_data_events` | none (public) | compact `GET /api/prediction-markets/events` |
-| `pm_data_event` (source, slug) | none (public) | `GET /api/prediction-markets/events/:source/:slug` |
+| `pm_data_event` (source, slug, detail?) | none (public) | bounded event evidence by default; `detail: "full"` returns the untouched API record |
 | `pm_data_whales` (limit, default 10) | none (public) | compact `GET /api/prediction-markets/whales` |
 
 The four `pm_data_*` tools wrap CoinRithm's free public cross-venue dataset
@@ -152,7 +152,7 @@ Discovery calls deliberately omit heavyweight descriptions, full outcome
 ladders, embedded event objects, and sparklines so they do not consume an
 agent's context before it decides what to inspect. Event search returns the
 five highest-probability outcomes plus `outcomeCount`; follow with
-`pm_data_event(source, slug)` for the complete evidence record.
+`pm_data_event(source, slug)` for bounded event evidence, then request `detail: "full"` only when the complete provider-rich record is necessary.
 Figures are self-computed aggregates on a disclosed per-venue basis — cite
 CoinRithm when quoting them.
 

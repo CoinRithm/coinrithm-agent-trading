@@ -266,6 +266,40 @@ const OUTCOME_SUMMARY_FIELDS = [
   "priceChange24h",
 ] as const;
 
+const WHALE_TRADE_FIELDS = [
+  "source",
+  "sourceName",
+  "eventSlug",
+  "eventTitle",
+  "wallet",
+  "traderName",
+  "side",
+  "outcome",
+  "marketQuestion",
+  "usdValue",
+  "price",
+  "sourceMarketRef",
+  "nativeValue",
+  "nativeCurrency",
+  "valueBasis",
+  "evidenceType",
+  "evidenceRef",
+  "evidenceUrl",
+  "availability",
+  "observedAt",
+  "latencySeconds",
+  "tradedAt",
+] as const;
+
+function boundedText(value: unknown, maxLength: number): unknown {
+  if (typeof value !== "string" || value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength - 1)}…`;
+}
+
+function compactWhaleTrade(value: unknown): unknown {
+  return isJsonRecord(value) ? pick(value, WHALE_TRADE_FIELDS) : value;
+}
+
 function eventSummary(value: unknown): unknown {
   if (!isJsonRecord(value)) return value;
 
@@ -339,38 +373,190 @@ export function compactPublicPmEvents(data: unknown): unknown {
   };
 }
 
+function compactSnapshot(value: unknown): unknown {
+  if (!isJsonRecord(value)) return value;
+  return {
+    ...pick(value, [
+      "id",
+      "capturedAt",
+      "observedAt",
+      "timestamp",
+      "asOf",
+      "probability",
+      "volume",
+      "volume24h",
+      "liquidity",
+      "bestBid",
+      "bestAsk",
+      "spread",
+      "outcome",
+      "externalMarketId",
+    ]),
+    ...(Array.isArray(value.outcomes)
+      ? {
+          outcomeCount: value.outcomes.length,
+          outcomes: value.outcomes
+            .slice(0, 10)
+            .map((outcome) =>
+              isJsonRecord(outcome)
+                ? pick(outcome, OUTCOME_SUMMARY_FIELDS)
+                : outcome,
+            ),
+        }
+      : {}),
+  };
+}
+
+function compactComparison(value: unknown): unknown {
+  if (!isJsonRecord(value)) return value;
+  const outcomes = Array.isArray(value.outcomes) ? value.outcomes : [];
+  const shared = outcomes.filter(
+    (outcome) =>
+      isJsonRecord(outcome) &&
+      (outcome.isShared === true ||
+        (outcome.presentInA === true && outcome.presentInB === true)),
+  );
+  const candidates = shared.length > 0 ? shared : outcomes;
+  const ranked = candidates
+    .map((outcome, index) => ({ outcome, index }))
+    .sort((left, right) => {
+      const a = isJsonRecord(left.outcome)
+        ? Math.abs(probability(left.outcome.deltaPoints) ?? -1)
+        : -1;
+      const b = isJsonRecord(right.outcome)
+        ? Math.abs(probability(right.outcome.deltaPoints) ?? -1)
+        : -1;
+      return a !== b ? b - a : left.index - right.index;
+    })
+    .slice(0, 5)
+    .map(({ outcome }) =>
+      isJsonRecord(outcome)
+        ? pick(outcome, [
+            "key",
+            "label",
+            "eventAProbability",
+            "eventBProbability",
+            "deltaPoints",
+            "presentInA",
+            "presentInB",
+            "isShared",
+          ])
+        : outcome,
+    );
+  return {
+    summary: value.summary,
+    outcomeCount: outcomes.length,
+    outcomes: ranked,
+  };
+}
+
+function compactCrossSourceMatch(value: unknown): unknown {
+  if (!isJsonRecord(value)) return value;
+  return {
+    ...pick(value, [
+      "matchId",
+      "confidence",
+      "matchMethod",
+      "recommendedSourceId",
+      "divergence",
+    ]),
+    comparison: compactComparison(value.comparison),
+    event: eventSummary(value.event),
+  };
+}
+
+/**
+ * Default event detail for agents: enough provenance and comparison evidence
+ * to reason safely without recursively spending an entire context window.
+ * Callers can explicitly request detail=full for the untouched API record.
+ */
+export function compactPublicPmEvent(data: unknown): unknown {
+  if (!isJsonRecord(data)) return data;
+
+  const rawEvent = isJsonRecord(data.event) ? data.event : null;
+  const summary = rawEvent ? eventSummary(rawEvent) : data.event;
+  const event = isJsonRecord(summary)
+    ? {
+        ...summary,
+        ...(rawEvent
+          ? {
+              image: rawEvent.image,
+              externalUrl: rawEvent.externalUrl,
+              description: boundedText(rawEvent.description, 1_200),
+              resolutionCriteria: boundedText(
+                rawEvent.resolutionCriteria,
+                2_000,
+              ),
+              forecasting: rawEvent.forecasting,
+              topics: Array.isArray(rawEvent.topics)
+                ? rawEvent.topics.slice(0, 20)
+                : rawEvent.topics,
+              directRelatedCoins: Array.isArray(rawEvent.directRelatedCoins)
+                ? rawEvent.directRelatedCoins.slice(0, 20)
+                : rawEvent.directRelatedCoins,
+              indirectRelatedCoins: Array.isArray(rawEvent.indirectRelatedCoins)
+                ? rawEvent.indirectRelatedCoins.slice(0, 20)
+                : rawEvent.indirectRelatedCoins,
+            }
+          : {}),
+      }
+    : summary;
+
+  const relatedEvents = Array.isArray(data.relatedEvents)
+    ? data.relatedEvents.slice(0, 5).map(eventSummary)
+    : data.relatedEvents;
+  const crossSourceMatches = Array.isArray(data.crossSourceMatches)
+    ? data.crossSourceMatches
+        .map((match, index) => ({ match, index }))
+        .sort((left, right) => {
+          const a = isJsonRecord(left.match)
+            ? probability(left.match.confidence)
+            : null;
+          const b = isJsonRecord(right.match)
+            ? probability(right.match.confidence)
+            : null;
+          return a !== b && a !== null && b !== null
+            ? b - a
+            : left.index - right.index;
+        })
+        .slice(0, 5)
+        .map(({ match }) => compactCrossSourceMatch(match))
+    : data.crossSourceMatches;
+
+  return {
+    ...pick(data, ["resolution", "agentsTradingMarket"]),
+    event,
+    snapshotCount: Array.isArray(data.snapshots) ? data.snapshots.length : 0,
+    snapshots: Array.isArray(data.snapshots)
+      ? data.snapshots.slice(-20).map(compactSnapshot)
+      : data.snapshots,
+    relatedEventCount: Array.isArray(data.relatedEvents)
+      ? data.relatedEvents.length
+      : 0,
+    relatedEvents,
+    crossSourceMatchCount: Array.isArray(data.crossSourceMatches)
+      ? data.crossSourceMatches.length
+      : 0,
+    crossSourceMatches,
+    volumeHistory: Array.isArray(data.volumeHistory)
+      ? data.volumeHistory.slice(-90)
+      : data.volumeHistory,
+    relatedNews: Array.isArray(data.relatedNews)
+      ? data.relatedNews.slice(0, 5)
+      : data.relatedNews,
+    topicRelatedCoins: Array.isArray(data.topicRelatedCoins)
+      ? data.topicRelatedCoins.slice(0, 20)
+      : data.topicRelatedCoins,
+    recentWhaleTrades: Array.isArray(data.recentWhaleTrades)
+      ? data.recentWhaleTrades.slice(0, 5).map(compactWhaleTrade)
+      : data.recentWhaleTrades,
+  };
+}
+
 export function compactPublicPmWhales(data: unknown, limit: number): unknown {
   if (!isJsonRecord(data)) return data;
-  const tradeFields = [
-    "source",
-    "sourceName",
-    "eventSlug",
-    "eventTitle",
-    "wallet",
-    "traderName",
-    "side",
-    "outcome",
-    "marketQuestion",
-    "usdValue",
-    "price",
-    "sourceMarketRef",
-    "nativeValue",
-    "nativeCurrency",
-    "valueBasis",
-    "evidenceType",
-    "evidenceRef",
-    "evidenceUrl",
-    "availability",
-    "observedAt",
-    "latencySeconds",
-    "tradedAt",
-  ] as const;
   const trades = Array.isArray(data.trades)
-    ? data.trades
-        .slice(0, limit)
-        .map((trade) =>
-          isJsonRecord(trade) ? pick(trade, tradeFields) : trade,
-        )
+    ? data.trades.slice(0, limit).map(compactWhaleTrade)
     : data.trades;
   return { ...data, trades };
 }
@@ -1798,7 +1984,7 @@ export function registerTools(
   server.registerTool(
     "pm_data_event",
     {
-      title: "Get full prediction-market event detail",
+      title: "Get prediction-market event detail",
       description:
         "Free public detail for one prediction-market event by venue + slug: " +
         "outcomes with probabilities, price snapshots, resolution evidence, " +
@@ -1811,6 +1997,9 @@ export function registerTools(
         "recent whale trades on the event, related events, related news, and " +
         "volumeHistory when present (daily volume points captured since " +
         "2026-07-02 — read the event's volume trend directly from it). " +
+        "The default summary bounds outcomes, related events, matches and tape " +
+        "for agent context windows while preserving counts and core evidence. " +
+        "Set detail=full only when the untouched provider-rich record is needed. " +
         "This is the cross-venue research view; for tradability use pm_quote. " +
         "No API key required.",
       inputSchema: {
@@ -1825,14 +2014,24 @@ export function registerTools(
           .string()
           .optional()
           .describe("Fiat currency code for monetary figures (default usd)."),
+        detail: z
+          .enum(["summary", "full"])
+          .optional()
+          .describe(
+            "Response detail: bounded summary (default) or untouched full record.",
+          ),
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
-      annotations: readOnlyAnnotations(
-        "Get full prediction-market event detail",
-      ),
+      annotations: readOnlyAnnotations("Get prediction-market event detail"),
     },
-    async ({ source, slug, fiat }) =>
-      present(await client.getPublicPmEvent(source, slug, { fiat })),
+    async ({ source, slug, fiat, detail }) => {
+      const result = await client.getPublicPmEvent(source, slug, { fiat });
+      return present(
+        detail === "full"
+          ? result
+          : mapSuccessfulBody(result, compactPublicPmEvent),
+      );
+    },
   );
 
   server.registerTool(
