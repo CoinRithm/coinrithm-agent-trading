@@ -214,6 +214,174 @@ function present(result: ApiResult) {
   };
 }
 
+type JsonRecord = Record<string, unknown>;
+
+function isJsonRecord(value: unknown): value is JsonRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function pick(record: JsonRecord, keys: readonly string[]): JsonRecord {
+  return Object.fromEntries(
+    keys
+      .filter((key) => record[key] !== undefined)
+      .map((key) => [key, record[key]]),
+  );
+}
+
+function probability(value: unknown): number | null {
+  if (typeof value !== "number" && typeof value !== "string") return null;
+  if (typeof value === "string" && value.trim() === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+const EVENT_SUMMARY_FIELDS = [
+  "id",
+  "slug",
+  "title",
+  "status",
+  "startDate",
+  "endDate",
+  "resolvedAt",
+  "freshness",
+  "volume",
+  "volume24h",
+  "liquidity",
+  "priceChange24h",
+  "priceChange7d",
+  "bestBid",
+  "bestAsk",
+  "spread",
+  "marketsCount",
+  "referenceProbability",
+  "crossPlatform",
+  "decisionSupport",
+  "quality",
+] as const;
+
+const OUTCOME_SUMMARY_FIELDS = [
+  "externalMarketId",
+  "name",
+  "probability",
+  "priceChange24h",
+] as const;
+
+function eventSummary(value: unknown): unknown {
+  if (!isJsonRecord(value)) return value;
+
+  const source = isJsonRecord(value.source)
+    ? pick(value.source, ["id", "name", "kind", "supportsTrading"])
+    : value.source;
+  const outcomes = Array.isArray(value.outcomes)
+    ? value.outcomes
+        .map((outcome, index) => ({ outcome, index }))
+        .sort((left, right) => {
+          const a = isJsonRecord(left.outcome)
+            ? probability(left.outcome.probability)
+            : null;
+          const b = isJsonRecord(right.outcome)
+            ? probability(right.outcome.probability)
+            : null;
+          const aValid = a !== null;
+          const bValid = b !== null;
+          if (aValid !== bValid) return aValid ? -1 : 1;
+          return aValid && bValid && a !== b
+            ? (b as number) - (a as number)
+            : left.index - right.index;
+        })
+        .slice(0, 5)
+        .map(({ outcome }) =>
+          isJsonRecord(outcome)
+            ? pick(outcome, OUTCOME_SUMMARY_FIELDS)
+            : outcome,
+        )
+    : [];
+
+  return {
+    ...pick(value, EVENT_SUMMARY_FIELDS),
+    source,
+    outcomeCount: Array.isArray(value.outcomes) ? value.outcomes.length : 0,
+    outcomes,
+  };
+}
+
+/**
+ * Keep keyless discovery calls small enough for an agent context window.
+ * Full event evidence remains available from pm_data_event.
+ */
+export function compactPublicPmOverview(data: unknown): unknown {
+  if (!isJsonRecord(data)) return data;
+  const highlights = isJsonRecord(data.highlights)
+    ? Object.fromEntries(
+        Object.entries(data.highlights).map(([key, value]) => [
+          key,
+          Array.isArray(value) ? value.map(eventSummary) : value,
+        ]),
+      )
+    : data.highlights;
+  return {
+    ...pick(data, [
+      "stats",
+      "categories",
+      "bySource",
+      "byCategory",
+      "updatedAt",
+    ]),
+    highlights,
+  };
+}
+
+export function compactPublicPmEvents(data: unknown): unknown {
+  if (!isJsonRecord(data)) return data;
+  return {
+    ...data,
+    data: Array.isArray(data.data) ? data.data.map(eventSummary) : data.data,
+  };
+}
+
+export function compactPublicPmWhales(data: unknown, limit: number): unknown {
+  if (!isJsonRecord(data)) return data;
+  const tradeFields = [
+    "source",
+    "sourceName",
+    "eventSlug",
+    "eventTitle",
+    "wallet",
+    "traderName",
+    "side",
+    "outcome",
+    "marketQuestion",
+    "usdValue",
+    "price",
+    "sourceMarketRef",
+    "nativeValue",
+    "nativeCurrency",
+    "valueBasis",
+    "evidenceType",
+    "evidenceRef",
+    "evidenceUrl",
+    "availability",
+    "observedAt",
+    "latencySeconds",
+    "tradedAt",
+  ] as const;
+  const trades = Array.isArray(data.trades)
+    ? data.trades
+        .slice(0, limit)
+        .map((trade) =>
+          isJsonRecord(trade) ? pick(trade, tradeFields) : trade,
+        )
+    : data.trades;
+  return { ...data, trades };
+}
+
+function mapSuccessfulBody(
+  result: ApiResult,
+  transform: (data: unknown) => unknown,
+): ApiResult {
+  return result.ok ? { ...result, data: transform(result.data) } : result;
+}
+
 export function registerTools(
   server: McpServer,
   client: CoinRithmClient,
@@ -1525,7 +1693,8 @@ export function registerTools(
         "closed market counts, total volume, 24h volume, and liquidity " +
         "aggregated across all 11 venues (Polymarket, Kalshi, Rothera, " +
         "Limitless, Smarkets, Manifold, Metaculus, PredictIt, Futuur, Myriad, ForecastEx), plus market " +
-        "highlights. Freshness is SOURCE-AWARE — each venue ingests " +
+        "highlights in a compact discovery shape. Use pm_data_event for full " +
+        "event evidence. Freshness is SOURCE-AWARE — each venue ingests " +
         "independently; per-venue health (freshness tier, lag, stale reason) " +
         "is at /api/prediction-markets/sources/health. Volume is " +
         "reported on each venue's own basis (see the methodology at " +
@@ -1543,7 +1712,13 @@ export function registerTools(
         "Cross-venue prediction-market statistics",
       ),
     },
-    async ({ fiat }) => present(await client.getPublicPmOverview({ fiat })),
+    async ({ fiat }) =>
+      present(
+        mapSuccessfulBody(
+          await client.getPublicPmOverview({ fiat }),
+          compactPublicPmOverview,
+        ),
+      ),
   );
 
   server.registerTool(
@@ -1556,6 +1731,8 @@ export function registerTools(
         "Manifold, Metaculus, PredictIt, Futuur, Myriad, ForecastEx) — broader than discover_pm_markets, which is " +
         "scoped to the paper-tradeable venues. Returns titles, probabilities, " +
         "volume/liquidity, status, and source per event, plus " +
+        "the five highest-probability outcomes and the full outcome count. " +
+        "Use pm_data_event for all outcomes and full evidence. Also returns " +
         "referenceProbability when present (CoinRithm's canonical cross-venue " +
         "number for open events matched across venues — probability, " +
         "venueCount, spreadPoints, and outcomeName for multi-outcome " +
@@ -1603,15 +1780,18 @@ export function registerTools(
     },
     async ({ q, source, status, sort, limit, offset, fiat }) =>
       present(
-        await client.listPublicPmEvents({
-          q,
-          source,
-          status,
-          sort,
-          limit,
-          offset,
-          fiat,
-        }),
+        mapSuccessfulBody(
+          await client.listPublicPmEvents({
+            q,
+            source,
+            status,
+            sort,
+            limit,
+            offset,
+            fiat,
+          }),
+          compactPublicPmEvents,
+        ),
       ),
   );
 
@@ -1661,17 +1841,30 @@ export function registerTools(
       title: "Get latest prediction-market whale trades",
       description:
         "Free public tape of the latest large prediction-market trades " +
-        "(roughly $1k+ notional) across venues, newest first (top 50): side, " +
+        "(roughly $1k+ notional) across venues, newest first: side, " +
         "outcome, USD value, price, market question, and the event it printed " +
         "on. Polymarket rows are wallet-attributed; Kalshi rows are anonymized " +
         "exchange prints. A large print is information, not a recommendation. " +
         "No API key required.",
-      inputSchema: {},
+      inputSchema: {
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(50)
+          .optional()
+          .describe("Max rows (1-50, default 10)."),
+      },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: readOnlyAnnotations(
         "Get latest prediction-market whale trades",
       ),
     },
-    async () => present(await client.getPublicPmWhales()),
+    async ({ limit }) =>
+      present(
+        mapSuccessfulBody(await client.getPublicPmWhales(), (data) =>
+          compactPublicPmWhales(data, limit ?? 10),
+        ),
+      ),
   );
 }
