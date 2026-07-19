@@ -76,13 +76,21 @@ function pinWarnings(path: string): string[] {
     const pin = join(agentDirOf(path), "functionality", "coinrithm.yaml");
     if (!existsSync(pin)) return [];
     const parsed = parseYaml(readFileSync(pin, "utf8")) as
-      { api?: { openapiVersion?: string } } | undefined;
-    const v = parsed?.api?.openapiVersion;
-    if (v && v !== COINRITHM_API.openapiVersion) {
-      return [
-        `⚠ functionality/coinrithm.yaml pins API ${v}; current is ${COINRITHM_API.openapiVersion} (warning only, not a block)`,
-      ];
+      { api?: { openapiVersion?: string; mcpVersion?: string } } | undefined;
+    const warnings: string[] = [];
+    const openapi = parsed?.api?.openapiVersion;
+    if (openapi && openapi !== COINRITHM_API.openapiVersion) {
+      warnings.push(
+        `⚠ functionality/coinrithm.yaml pins API ${openapi}; current is ${COINRITHM_API.openapiVersion} (warning only, not a block)`,
+      );
     }
+    const mcp = parsed?.api?.mcpVersion;
+    if (mcp && mcp !== COINRITHM_API.mcpVersion) {
+      warnings.push(
+        `⚠ functionality/coinrithm.yaml pins MCP ${mcp}; current is ${COINRITHM_API.mcpVersion} (warning only, not a block)`,
+      );
+    }
+    return warnings;
   } catch {
     /* ignore */
   }

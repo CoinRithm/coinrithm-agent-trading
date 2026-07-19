@@ -4,7 +4,7 @@ api:
   mcpUrl: https://mcp.coinrithm.com/mcp
   openapiVersion: 1.6.0
   mcpPackage: "@coinrithm/mcp-trading"
-  mcpVersion: 0.4.0
+  mcpVersion: 0.7.3
 venues:
   - futures
 note: Reference pin. The runner warns if this lags the live API; it does not

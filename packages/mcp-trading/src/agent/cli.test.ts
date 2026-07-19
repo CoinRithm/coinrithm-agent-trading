@@ -17,6 +17,7 @@ import {
   cmdInspect,
   acquireLock,
 } from "./cli.js";
+import { COINRITHM_API } from "./version.js";
 
 let tmp: string;
 beforeEach(() => {
@@ -33,6 +34,25 @@ describe("cli", () => {
     expect(existsSync(join(dir, "agent.md"))).toBe(true);
     expect(cmdValidate(dir, "self-host").ok).toBe(true);
     expect(cmdValidate(dir, "hosted").ok).toBe(true);
+  });
+
+  it("warns when a decomposed agent pins a stale MCP package contract", () => {
+    const dir = join(tmp, "stale-pin");
+    expect(cmdNew(dir, { preset: "conservative" }).ok).toBe(true);
+    expect(cmdEject(dir).ok).toBe(true);
+    const pin = join(dir, "functionality", "coinrithm.yaml");
+    writeFileSync(
+      pin,
+      readFileSync(pin, "utf8").replace(/mcpVersion: .+/, "mcpVersion: 0.1.0"),
+      "utf8",
+    );
+
+    const result = cmdValidate(dir, "hosted");
+
+    expect(result.ok).toBe(true);
+    expect(result.lines.join("\n")).toContain(
+      `pins MCP 0.1.0; current is ${COINRITHM_API.mcpVersion}`,
+    );
   });
 
   it("new refuses to overwrite and rejects unknown preset/template", () => {
