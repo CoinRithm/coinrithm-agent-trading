@@ -136,10 +136,10 @@ tool requires it. See [`DEPLOY.md`](./DEPLOY.md).
 | `set_futures_sl_tp` | trade:futures | `POST /api/agent/futures/sl-tp` ² |
 | `close_futures_position` | trade:futures | `POST /api/agent/futures/close` |
 | `open_pm_position` | trade:pm | `POST /api/agent/pm/open` ¹ |
-| `pm_data_overview` | none (public) | `GET /api/prediction-markets/overview` |
-| `pm_data_events` | none (public) | `GET /api/prediction-markets/events` |
+| `pm_data_overview` | none (public) | compact `GET /api/prediction-markets/overview` |
+| `pm_data_events` | none (public) | compact `GET /api/prediction-markets/events` |
 | `pm_data_event` (source, slug) | none (public) | `GET /api/prediction-markets/events/:source/:slug` |
-| `pm_data_whales` | none (public) | `GET /api/prediction-markets/whales` |
+| `pm_data_whales` (limit, default 10) | none (public) | compact `GET /api/prediction-markets/whales` |
 
 The four `pm_data_*` tools wrap CoinRithm's free public cross-venue dataset
 (all 11 venues: Polymarket, Kalshi, Smarkets, Limitless, Manifold,
@@ -148,6 +148,11 @@ are research surfaces: `pm_data_events` list rows carry `referenceProbability`
 (a liquidity-aware cross-venue consensus on matched questions); `pm_data_event`
 includes `crossSourceMatches` (the same real-world question priced on other
 venues), `referenceProbability`, `volumeHistory`, and resolution evidence.
+Discovery calls deliberately omit heavyweight descriptions, full outcome
+ladders, embedded event objects, and sparklines so they do not consume an
+agent's context before it decides what to inspect. Event search returns the
+five highest-probability outcomes plus `outcomeCount`; follow with
+`pm_data_event(source, slug)` for the complete evidence record.
 Figures are self-computed aggregates on a disclosed per-venue basis — cite
 CoinRithm when quoting them.
 
@@ -157,8 +162,10 @@ CoinRithm when quoting them.
 Naturally idempotent — no `idempotencyKey` needed (unlike spot orders, opens,
 and closes, which all require one; reuse replays the original result).
 
-Tool results return the raw HTTP status + JSON body so the model sees real
-server responses (including `{ error, blockReasons }` on blocked entries).
+Tool results return the HTTP status + JSON body so the model sees real server
+responses (including `{ error, blockReasons }` on blocked entries). Public
+discovery tools use the bounded summary shape described above; action and
+event-detail tools preserve the full response body.
 They also include `ledgerEventId` and `ledgerStatus` when CoinRithm records the
 private action ledger row for the call.
 
