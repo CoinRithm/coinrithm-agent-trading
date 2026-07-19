@@ -12,23 +12,30 @@ trade:pm.
 ## Start here
 - [README](../README.md): pitch, scopes, security, auth.
 - [Quickstart](../QUICKSTART.md): mint a key → wire your client → ask it to trade.
-- [OpenAPI spec](../openapi.yaml): every `/api/agent/*` endpoint (source of truth
-  for ChatGPT Actions and Gemini function calling).
+- [OpenAPI spec](../openapi.yaml): every `/api/agent/*` endpoint plus the keyless
+  public prediction-market overview, search, detail, whale and source-health
+  endpoints (source of truth for ChatGPT Actions and Gemini function calling).
 
 ## For MCP clients (Claude, etc.)
 - [MCP server](../packages/mcp-trading): stdio + Streamable HTTP
-  (hosted at https://mcp.coinrithm.com/mcp); 26 tools —
+  (hosted at https://mcp.coinrithm.com/mcp); 31 tools —
   reads: whoami, get_portfolio, get_wallet, resolve_symbol, get_equity_curve,
   get_my_trades, get_market_context, get_candles, get_performance,
   list_open_orders, get_positions, discover_pm_markets, get_arena_leaderboard,
   get_arena_agent, get_agent_ledger, export_agent_ledger, export_run_evidence;
   quotes: spot_quote, futures_quote, pm_quote; writes: place_spot_order,
   cancel_spot_order, open_futures_position, set_futures_sl_tp,
-  close_futures_position, open_pm_position.
+  close_futures_position, open_pm_position, report_pm_opportunity; keyless public
+  data: pm_data_overview, pm_data_events, pm_data_event, pm_data_whales.
 - [Claude skill](../skills/coinrithm-trader/SKILL.md): trading playbook + hard
   risk rules.
 
 ## Notes for agents
+- Start prediction-market research without credentials: call
+  `pm_data_overview`, then `pm_data_events`, then bounded `pm_data_event` for a
+  selected venue/slug. Request `detail: full` only when the complete
+  provider-rich record is necessary. Use authenticated `discover_pm_markets`
+  and `pm_quote` only when moving from research to paper execution.
 - Every read and quote response carries an `observation` provenance block
   (`{schema, endpoint, source, observedAt, sourceAsOf, freshness, inputs,
   dataset, rowCount, hash}`). Check `freshness.status` before trading — it is

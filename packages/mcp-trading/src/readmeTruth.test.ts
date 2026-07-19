@@ -12,6 +12,20 @@ const pkgRoot = join(__dirname, "..");
 const repoRoot = join(pkgRoot, "..", "..");
 
 describe("public docs stay truthful", () => {
+  it("llms.txt tool count matches the registered MCP surface", () => {
+    const tools = readFileSync(join(__dirname, "tools.ts"), "utf-8");
+    const llms = readFileSync(
+      join(repoRoot, ".well-known", "llms.txt"),
+      "utf-8",
+    );
+    const registered = tools.match(/server\.registerTool\(/g)?.length ?? 0;
+    const claim = llms.match(/\b(\d+) tools\b/);
+    expect(claim, "llms.txt tool-count claim missing").not.toBeNull();
+    expect(Number(claim![1])).toBe(registered);
+    expect(llms).toContain("pm_data_overview");
+    expect(llms).toContain("pm_data_event");
+  });
+
   it("root README's package-version claim matches package.json", () => {
     const pkg = JSON.parse(
       readFileSync(join(pkgRoot, "package.json"), "utf-8"),
