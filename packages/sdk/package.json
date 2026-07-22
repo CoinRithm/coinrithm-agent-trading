@@ -1,0 +1,45 @@
+{
+  "name": "@coinrithm/sdk",
+  "version": "0.1.0",
+  "description": "Typed TypeScript SDK for the CoinRithm Agent Trading API (paper trading only) — generated from the OpenAPI 3.1 contract.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "generate": "openapi-typescript ../../openapi.yaml -o src/schema.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "dependencies": {
+    "openapi-fetch": "^0.13.5"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.6.1",
+    "typescript": "^5.6.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CoinRithm/coinrithm-agent-trading",
+    "directory": "packages/sdk"
+  },
+  "keywords": [
+    "coinrithm",
+    "prediction-markets",
+    "paper-trading",
+    "openapi",
+    "sdk",
+    "agents"
+  ]
+}
