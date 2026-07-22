@@ -757,6 +757,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/prediction-markets/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Live SSE stream of price deltas, whale prints and resolutions
+         * @description Keyless Server-Sent Events stream. One connection delivers three named
+         *     event types, each a JSON payload:
+         *
+         *     - `deltas` — top snapshot price-deltas since the previous tick
+         *       (`{at, deltas:[{source, slug, title, priceChange24h, volume24h,
+         *       capturedAt}]}`)
+         *     - `whale` — newly observed verified large trades (same trade shape as
+         *       `/api/prediction-markets/whales`; `{at, trades:[...]}`)
+         *     - `resolution` — freshly resolved events (`{at, resolutions:[{source,
+         *       slug, title, resolutionState, resolvedAt}]}`)
+         *
+         *     Comment heartbeats (`: hb <iso>`) arrive roughly every 15 seconds —
+         *     treat a silence much longer than that as a dead connection and
+         *     reconnect (a `retry: 5000` hint is sent on connect). Feeds tick at a
+         *     15-second cadence; a row is delivered at most once per server poller
+         *     session. This is an information feed, not a recommendation stream.
+         */
+        get: operations["streamPublicPredictionMarketEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/prediction-markets/sources/health": {
         parameters: {
             query?: never;
@@ -4153,6 +4188,36 @@ export interface operations {
                 content?: never;
             };
             500: components["responses"]["ServerError"];
+        };
+    };
+    streamPublicPredictionMarketEvents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description `text/event-stream`; named events `deltas`, `whale`, `resolution`
+             *     with JSON data frames, plus comment heartbeats.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
+                };
+            };
+            /** @description Stream at client capacity; retry later. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     getPublicPredictionMarketSourceHealth: {

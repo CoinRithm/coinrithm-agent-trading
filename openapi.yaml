@@ -1483,6 +1483,42 @@ paths:
           description: Public request rate limit exceeded; honor `Retry-After`.
         "500": { $ref: "#/components/responses/ServerError" }
 
+  /api/prediction-markets/stream:
+    get:
+      operationId: streamPublicPredictionMarketEvents
+      tags: [public-pm-data]
+      summary: Live SSE stream of price deltas, whale prints and resolutions
+      description: |
+        Keyless Server-Sent Events stream. One connection delivers three named
+        event types, each a JSON payload:
+
+        - `deltas` — top snapshot price-deltas since the previous tick
+          (`{at, deltas:[{source, slug, title, priceChange24h, volume24h,
+          capturedAt}]}`)
+        - `whale` — newly observed verified large trades (same trade shape as
+          `/api/prediction-markets/whales`; `{at, trades:[...]}`)
+        - `resolution` — freshly resolved events (`{at, resolutions:[{source,
+          slug, title, resolutionState, resolvedAt}]}`)
+
+        Comment heartbeats (`: hb <iso>`) arrive roughly every 15 seconds —
+        treat a silence much longer than that as a dead connection and
+        reconnect (a `retry: 5000` hint is sent on connect). Feeds tick at a
+        15-second cadence; a row is delivered at most once per server poller
+        session. This is an information feed, not a recommendation stream.
+      security: []
+      responses:
+        "200":
+          description: |
+            `text/event-stream`; named events `deltas`, `whale`, `resolution`
+            with JSON data frames, plus comment heartbeats.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: SSE frames (`event:` + `data:` JSON lines)
+        "503":
+          description: Stream at client capacity; retry later.
+
   /api/prediction-markets/sources/health:
     get:
       operationId: getPublicPredictionMarketSourceHealth
