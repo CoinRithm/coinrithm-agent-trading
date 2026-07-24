@@ -140,8 +140,12 @@ tool requires it. See [`DEPLOY.md`](./DEPLOY.md).
 | `pm_data_events` | none (public) | compact `GET /api/prediction-markets/events` |
 | `pm_data_event` (source, slug, detail?) | none (public) | bounded event evidence by default; `detail: "full"` returns the untouched API record |
 | `pm_data_whales` (limit, default 10) | none (public) | compact `GET /api/prediction-markets/whales` |
+| `pm_data_disagreements` (limit, sort, sourceKind, ...) | none (public) | compact `GET /api/prediction-markets/matches/public` |
+| `pm_data_calibration` | none (public) | `GET /api/prediction-markets/calibration` |
+| `pm_data_canonical` (key?, limit, cursor) | none (public) | `GET /api/prediction-markets/canonical` (+ `/:key` detail) |
+| `pm_data_volume_history` | none (public) | `GET /api/prediction-markets/volume-history` |
 
-The four `pm_data_*` tools wrap CoinRithm's free public cross-venue dataset
+The eight `pm_data_*` tools wrap CoinRithm's free public cross-venue dataset
 (all 11 venues: Polymarket, Kalshi, Smarkets, Limitless, Manifold,
 Metaculus, PredictIt, Rothera, Futuur, Myriad, ForecastEx). They require no API key, never attach yours, and
 are research surfaces: `pm_data_events` list rows carry `referenceProbability`
@@ -155,6 +159,17 @@ five highest-probability outcomes plus `outcomeCount`; follow with
 `pm_data_event(source, slug)` for bounded event evidence, then request `detail: "full"` only when the complete provider-rich record is necessary.
 Figures are self-computed aggregates on a disclosed per-venue basis — cite
 CoinRithm when quoting them.
+
+CoinRithm's trust-layer surfaces are keyless too: `pm_data_disagreements`
+returns graph-clustered, orientation-proven cross-venue probability gaps on
+the SAME real-world question (each cluster bounded to its top-5
+highest-delta shared outcomes per pairwise comparison); `pm_data_calibration`
+scores which venue forecasts best (Expected Calibration Error + a 10-bucket
+reliability curve over resolved markets); `pm_data_canonical` is CoinRithm's
+stable cross-venue identity for one question (list, or pass `key` for one
+canonical's venue members + append-only judgment lineage); and
+`pm_data_volume_history` is the global daily volume trend (real-money venues
+only, ~90-day rolling window).
 
 ¹ Server-flag gated; live now. Returns `403 … not enabled` only if CoinRithm later disables it.
 

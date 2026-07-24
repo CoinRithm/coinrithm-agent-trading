@@ -247,7 +247,7 @@ export class CoinRithmClient {
   // leak into them. No ledger headers exist on this surface either.
   private async publicRequest(
     path: string,
-    query?: Record<string, string | number | undefined>,
+    query?: Record<string, string | number | boolean | undefined>,
   ): Promise<ApiResult> {
     const url = new URL(this.baseUrl + path);
     if (query) {
@@ -311,6 +311,36 @@ export class CoinRithmClient {
   }
   getPublicPmWhales() {
     return this.publicRequest("/api/prediction-markets/whales");
+  }
+  // Cross-venue disagreement clusters (approved event matches, graph-clustered).
+  getPublicPmMatches(query?: {
+    limit?: number;
+    offset?: number;
+    sort?: string;
+    minDivergence?: number;
+    sourceKind?: string;
+    status?: string;
+    maxSnapshotAgeMinutes?: number;
+    requirePriced?: boolean;
+    fiat?: string;
+  }) {
+    return this.publicRequest("/api/prediction-markets/matches/public", query);
+  }
+  // Per-venue forecast-accuracy calibration (ECE + reliability curve). No query params.
+  getPublicPmCalibration() {
+    return this.publicRequest("/api/prediction-markets/calibration");
+  }
+  getPublicPmCanonicalList(query?: { limit?: number; cursor?: number }) {
+    return this.publicRequest("/api/prediction-markets/canonical", query);
+  }
+  getPublicPmCanonicalDetail(key: string) {
+    return this.publicRequest(
+      `/api/prediction-markets/canonical/${encodeURIComponent(key)}`,
+    );
+  }
+  // Global daily volume trend (real-money venues only). No query params.
+  getPublicPmVolumeHistory() {
+    return this.publicRequest("/api/prediction-markets/volume-history");
   }
 
   // Every method takes an optional trailing `apiKey` (the per-request key for

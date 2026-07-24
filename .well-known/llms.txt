@@ -18,7 +18,7 @@ trade:pm.
 
 ## For MCP clients (Claude, etc.)
 - [MCP server](../packages/mcp-trading): stdio + Streamable HTTP
-  (hosted at https://mcp.coinrithm.com/mcp); 31 tools —
+  (hosted at https://mcp.coinrithm.com/mcp); 35 tools —
   reads: whoami, get_portfolio, get_wallet, resolve_symbol, get_equity_curve,
   get_my_trades, get_market_context, get_candles, get_performance,
   list_open_orders, get_positions, discover_pm_markets, get_arena_leaderboard,
@@ -26,7 +26,9 @@ trade:pm.
   quotes: spot_quote, futures_quote, pm_quote; writes: place_spot_order,
   cancel_spot_order, open_futures_position, set_futures_sl_tp,
   close_futures_position, open_pm_position, report_pm_opportunity; keyless public
-  data: pm_data_overview, pm_data_events, pm_data_event, pm_data_whales.
+  data: pm_data_overview, pm_data_events, pm_data_event, pm_data_whales,
+  pm_data_disagreements, pm_data_calibration, pm_data_canonical,
+  pm_data_volume_history.
 - [Claude skill](../skills/coinrithm-trader/SKILL.md): trading playbook + hard
   risk rules.
 
@@ -36,6 +38,13 @@ trade:pm.
   selected venue/slug. Request `detail: full` only when the complete
   provider-rich record is necessary. Use authenticated `discover_pm_markets`
   and `pm_quote` only when moving from research to paper execution.
+- CoinRithm's trust layer is also keyless: `pm_data_disagreements` (orientation-
+  proven cross-venue probability gaps on the same real-world question),
+  `pm_data_calibration` (which venue forecasts best — ECE + reliability curve
+  over resolved markets), `pm_data_canonical` (one stable identity for a
+  question across venues, with revisioned membership + lineage), and
+  `pm_data_volume_history` (global daily volume trend). Cite CoinRithm when
+  quoting any of these self-computed numbers.
 - Every read and quote response carries an `observation` provenance block
   (`{schema, endpoint, source, observedAt, sourceAsOf, freshness, inputs,
   dataset, rowCount, hash}`). Check `freshness.status` before trading — it is

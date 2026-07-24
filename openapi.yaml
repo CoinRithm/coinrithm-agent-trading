@@ -1462,6 +1462,155 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         "500": { $ref: "#/components/responses/ServerError" }
 
+  /api/prediction-markets/matches/public:
+    get:
+      operationId: getPublicPredictionMarketDisagreements
+      tags: [public-pm-data]
+      summary: Cross-venue disagreement clusters (approved matches)
+      description: |
+        Keyless graph-clustered view of events CoinRithm has matched as the
+        same real-world question across 2+ venues, with pairwise comparisons
+        carrying per-shared-outcome probability deltas. Orientation between
+        matched markets is human/aggregator-reviewed, never price-inferred.
+        For bounded agent context use the MCP `pm_data_disagreements` tool,
+        which additionally bounds each event and comparison to its top-5
+        highest-delta shared outcomes.
+      security: []
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 25, default: 10 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [confidence_desc, divergence_desc, max_outcome_delta_desc]
+            default: confidence_desc
+        - name: minDivergence
+          in: query
+          schema: { type: number, minimum: 0, default: 0 }
+        - name: sourceKind
+          in: query
+          schema: { type: string, enum: [market] }
+          description: Restrict both sides of every pair to real-money market venues.
+        - name: status
+          in: query
+          schema: { type: string, enum: [open] }
+          description: Require both matched events to be currently open.
+        - name: maxSnapshotAgeMinutes
+          in: query
+          schema: { type: number, minimum: 0 }
+        - name: requirePriced
+          in: query
+          schema: { type: boolean, default: true }
+          description: |
+            Drops any pair where a side is an unpriced/untraded placeholder or
+            fails a quote-dead liveness check. Set false only for research/debug.
+        - name: fiat
+          in: query
+          schema: { type: string, default: USD }
+      responses:
+        "200":
+          description: Paginated disagreement clusters with pairwise comparisons
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicPmDisagreementsResponse" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /api/prediction-markets/calibration:
+    get:
+      operationId: getPublicPredictionMarketCalibration
+      tags: [public-pm-data]
+      summary: Per-venue forecast-accuracy calibration
+      description: |
+        Keyless per-source calibration (Expected Calibration Error + reliability
+        curve) computed from each venue's own probability ~24h before
+        resolution against the realised outcome, over resolved markets with
+        >=24h of pre-resolution history. Venues below the minimum sample appear
+        in `pending`, not `scored`.
+      security: []
+      responses:
+        "200":
+          description: Scored + pending per-venue calibration
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicPmCalibrationResponse" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /api/prediction-markets/canonical:
+    get:
+      operationId: listPublicPredictionMarketCanonicalEvents
+      tags: [public-pm-data]
+      summary: List canonical cross-venue event identities
+      description: |
+        Keyless cursor-paged directory of active canonical events — CoinRithm's
+        stable cross-venue identity for one real-world question, independent of
+        any single venue's slug.
+      security: []
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - name: cursor
+          in: query
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "200":
+          description: Paginated canonical directory
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicPmCanonicalListResponse" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /api/prediction-markets/canonical/{key}:
+    get:
+      operationId: getPublicPredictionMarketCanonicalEvent
+      tags: [public-pm-data]
+      summary: Get one canonical event's members and judgment lineage
+      description: |
+        Keyless canonical-event detail by UUID or slug: venue members with
+        orientation (same/inverted/unknown — never price-inferred), confidence
+        and provenance basis, plus an append-only judgment lineage. A MERGED
+        canonical still resolves (status='merged' + mergedInto pointer) so a
+        stable key never 404s.
+      security: []
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 200 }
+      responses:
+        "200":
+          description: Canonical event detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicPmCanonicalDetailResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /api/prediction-markets/volume-history:
+    get:
+      operationId: getPublicPredictionMarketVolumeHistory
+      tags: [public-pm-data]
+      summary: Global daily prediction-market volume trend
+      description: |
+        Keyless daily volume series (day-over-day delta of cumulative volume,
+        summed across real-money venues only) with a per-venue breakdown,
+        captured since 2026-07-02 and bounded to a rolling ~90-day window. A
+        day or venue with no known value is a gap (null), never a zero bar.
+      security: []
+      responses:
+        "200":
+          description: Daily global + per-venue volume series
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicPmVolumeHistoryResponse" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
   /api/prediction-markets/whales:
     get:
       operationId: getPublicPredictionMarketWhales
@@ -2302,6 +2451,160 @@ components:
                 description: Empty when healthy; otherwise stable reason codes.
         enrichment: { type: object, additionalProperties: true }
       required: [asOf, summary, degraded, sources]
+
+    PublicPmDisagreementsResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        data:
+          type: array
+          description: |
+            Graph-clustered disagreement rows. Each cluster carries clusterId,
+            primaryEventId, title, events[] (PublicPmEvent rows), comparisons[]
+            (per-pair matchId/confidence/matchMethod/divergence + a comparison
+            with per-outcome eventAProbability/eventBProbability/deltaPoints),
+            maxOverallGap, maxOutcomeGap, maxConfidence, and referenceProbability
+            when available.
+          items:
+            type: object
+            additionalProperties: true
+        total: { type: integer }
+        hasMore: { type: boolean }
+        pagination:
+          type: object
+          additionalProperties: true
+          properties:
+            limit: { type: integer }
+            offset: { type: integer }
+            nextOffset: { type: [integer, "null"] }
+        meta:
+          type: object
+          additionalProperties: true
+      required: [data, total, hasMore, pagination]
+
+    PublicPmCalibrationResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        leadHours: { type: number }
+        minSample: { type: integer }
+        methodology: { type: string }
+        scored:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+            properties:
+              source: { type: string }
+              name: { type: string }
+              sampleSize: { type: integer }
+              calibrationError: { type: number }
+              meanWinnerConfidence: { type: number }
+              reliability:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+                  properties:
+                    bucket: { type: string }
+                    predictedMean: { type: number }
+                    realizedRate: { type: number }
+                    pairs: { type: integer }
+        pending:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+            properties:
+              source: { type: string }
+              name: { type: string }
+              reason: { type: string }
+      required: [leadHours, minSample, scored, pending]
+
+    PublicPmCanonicalListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+            properties:
+              uuid: { type: string }
+              slug: { type: string }
+              title: { type: string }
+              revision: { type: integer }
+              status: { type: string }
+              memberCount: { type: integer }
+              createdAt: { type: string, format: date-time }
+              updatedAt: { type: string, format: date-time }
+        pagination:
+          type: object
+          additionalProperties: true
+          properties:
+            limit: { type: integer }
+            nextCursor: { type: [integer, "null"] }
+      required: [data, pagination]
+
+    PublicPmCanonicalDetailResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        canonical:
+          type: object
+          additionalProperties: true
+        mergedInto:
+          type: [object, "null"]
+          additionalProperties: true
+        members:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+            properties:
+              source: { type: string }
+              sourceName: { type: string }
+              eventSlug: { type: string }
+              eventTitle: { type: string }
+              eventStatus: { type: string }
+              isAnchor: { type: boolean }
+              orientation: { type: string, enum: [same, inverted, unknown] }
+              confidence: { type: number }
+              basis: { type: [string, "null"] }
+        lineage:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+      required: [canonical, members, lineage]
+
+    PublicPmVolumeHistoryResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        days:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+            properties:
+              day: { type: string }
+              volume24h: { type: [number, "null"] }
+              bySource:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+                  properties:
+                    source: { type: string }
+                    name: { type: string }
+                    volume24h: { type: [number, "null"] }
+        updatedAt: { type: string, format: date-time }
+        meta:
+          type: object
+          additionalProperties: true
+      required: [days, updatedAt]
 
     AgentVenuePerf:
       type: object

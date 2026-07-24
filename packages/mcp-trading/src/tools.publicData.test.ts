@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  compactPublicPmDisagreements,
   compactPublicPmEvent,
   compactPublicPmEvents,
   compactPublicPmOverview,
@@ -218,5 +219,92 @@ describe("compact public prediction-market MCP responses", () => {
     expect(compactPublicPmEvent(false)).toBe(false);
     expect(compactPublicPmEvents(null)).toBeNull();
     expect(compactPublicPmWhales(["bad shape"], 10)).toEqual(["bad shape"]);
+  });
+
+  it("bounds disagreement clusters while preserving pagination and headline metrics", () => {
+    const related = {
+      ...event,
+      slug: "related-event",
+      description: "x".repeat(5_000),
+      outcomes: Array.from({ length: 30 }, (_, index) => ({
+        externalMarketId: `outcome-${index}`,
+        name: `Outcome ${index}`,
+        probability: index / 30,
+      })),
+    };
+    const comparisonOutcomes = Array.from({ length: 20 }, (_, index) => ({
+      key: `outcome-${index}`,
+      label: `Outcome ${index}`,
+      eventAProbability: index,
+      eventBProbability: 20 - index,
+      deltaPoints: index - 10,
+      presentInA: true,
+      presentInB: true,
+      isShared: true,
+    }));
+    const cluster = {
+      clusterId: "kalshi:x|polymarket:y",
+      primaryEventId: "polymarket:y",
+      title: "Will it happen?",
+      referenceProbability: { probability: 42, venueCount: 2, spreadPoints: 3 },
+      maxOverallGap: 87.2,
+      maxOutcomeGap: 19.7,
+      maxConfidence: 0.91,
+      events: [event, related],
+      comparisons: [
+        {
+          eventId: "kalshi:x",
+          pair: {
+            matchId: 19466,
+            confidence: 0.91,
+            matchMethod: "verified",
+            recommendedSourceId: "polymarket",
+            divergence: { maxSharedOutcomeDeltaPoints: 19.7 },
+            comparison: {
+              summary: { matchedOutcomeCount: 20 },
+              outcomes: comparisonOutcomes,
+            },
+            eventA: related,
+            eventB: event,
+          },
+        },
+      ],
+    };
+    const source = {
+      data: [cluster],
+      total: 1,
+      hasMore: false,
+      pagination: { limit: 10, offset: 0, nextOffset: null },
+      meta: { sort: "confidence_desc" },
+    };
+
+    const compact = compactPublicPmDisagreements(source) as Record<string, any>;
+    const row = compact.data[0];
+
+    expect(compact.total).toBe(1);
+    expect(compact.hasMore).toBe(false);
+    expect(compact.pagination).toEqual(source.pagination);
+    expect(compact.meta).toEqual(source.meta);
+    expect(row.clusterId).toBe(cluster.clusterId);
+    expect(row.referenceProbability).toEqual(cluster.referenceProbability);
+    expect(row.maxOverallGap).toBe(87.2);
+    expect(row.eventCount).toBe(2);
+    expect(row.events[1]).not.toHaveProperty("description");
+    expect(row.events[1].outcomes.length).toBeLessThanOrEqual(5);
+    const pair = row.comparisons[0].pair;
+    expect(pair).not.toHaveProperty("eventA");
+    expect(pair).not.toHaveProperty("eventB");
+    expect(pair.matchId).toBe(19466);
+    expect(pair.comparison.outcomeCount).toBe(20);
+    expect(pair.comparison.outcomes).toHaveLength(5);
+    expect(JSON.stringify(compact).length).toBeLessThan(
+      JSON.stringify(source).length / 2,
+    );
+  });
+
+  it("passes through a non-object disagreements payload", () => {
+    expect(compactPublicPmDisagreements("upstream error")).toBe(
+      "upstream error",
+    );
   });
 });

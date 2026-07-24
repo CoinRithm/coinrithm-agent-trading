@@ -561,6 +561,71 @@ export function compactPublicPmWhales(data: unknown, limit: number): unknown {
   return { ...data, trades };
 }
 
+const MATCH_PAIR_FIELDS = [
+  "matchId",
+  "confidence",
+  "matchMethod",
+  "recommendedSourceId",
+  "divergence",
+] as const;
+
+function compactMatchPair(value: unknown): unknown {
+  if (!isJsonRecord(value)) return value;
+  return {
+    ...pick(value, MATCH_PAIR_FIELDS),
+    comparison: compactComparison(value.comparison),
+  };
+}
+
+function compactMatchCluster(value: unknown): unknown {
+  if (!isJsonRecord(value)) return value;
+  const events = Array.isArray(value.events)
+    ? value.events.map(eventSummary)
+    : value.events;
+  const comparisons = Array.isArray(value.comparisons)
+    ? value.comparisons.map((comparison) =>
+        isJsonRecord(comparison)
+          ? {
+              eventId: comparison.eventId,
+              pair: compactMatchPair(comparison.pair),
+            }
+          : comparison,
+      )
+    : value.comparisons;
+  return {
+    ...pick(value, [
+      "clusterId",
+      "primaryEventId",
+      "title",
+      "referenceProbability",
+      "maxOverallGap",
+      "maxOutcomeGap",
+      "maxConfidence",
+    ]),
+    eventCount: Array.isArray(value.events) ? value.events.length : 0,
+    events,
+    comparisons,
+  };
+}
+
+/**
+ * Keep cross-venue disagreement clusters small enough for an agent context
+ * window: each event is reduced to eventSummary (drops descriptions, images,
+ * sparklines) and each pairwise comparison keeps only its top-5 highest-delta
+ * shared outcomes (compactComparison) — the same bounding pm_data_event
+ * applies to crossSourceMatches. Verified live: a 5-cluster page drops from
+ * ~466KB to ~48KB.
+ */
+export function compactPublicPmDisagreements(data: unknown): unknown {
+  if (!isJsonRecord(data)) return data;
+  return {
+    ...pick(data, ["total", "hasMore", "pagination", "meta"]),
+    data: Array.isArray(data.data)
+      ? data.data.map(compactMatchCluster)
+      : data.data,
+  };
+}
+
 function mapSuccessfulBody(
   result: ApiResult,
   transform: (data: unknown) => unknown,
@@ -2065,5 +2130,230 @@ export function registerTools(
           compactPublicPmWhales(data, limit ?? 10),
         ),
       ),
+  );
+
+  server.registerTool(
+    "pm_data_disagreements",
+    {
+      title: "Cross-venue disagreement clusters",
+      description:
+        "Free public cross-venue disagreement clusters: prediction-market " +
+        "events CoinRithm has matched as the SAME real-world question across " +
+        "2+ venues (approved cross-source matches), graph-clustered so one row " +
+        "covers every venue tracking that question. Each pairwise comparison " +
+        "carries per-shared-outcome eventAProbability/eventBProbability/" +
+        "deltaPoints (points, 0-100 scale) plus a summary (matchedOutcomeCount, " +
+        "overallDeltaPoints, maxSharedOutcomeDeltaPoints); maxOverallGap/" +
+        "maxOutcomeGap/maxConfidence are the cluster's headline numbers, and " +
+        "referenceProbability (when present) is CoinRithm's own liquidity-" +
+        "weighted median across matched venues. Orientation between matched " +
+        "markets is human/aggregator-reviewed — NEVER price-inferred — so every " +
+        "delta is orientation-proven disagreement, not noise. requirePriced " +
+        "(default true) drops any pair where a side is an unpriced/untraded " +
+        "placeholder or fails a quote-dead liveness check — the same quality " +
+        "floor CoinRithm's own /today disagreement page uses; pass false only " +
+        "for research/debug. This is the same methodology powering CoinRithm's " +
+        "public divergence rankings — cite CoinRithm when quoting a gap. " +
+        "Research/data only: for tradability of one specific outcome use " +
+        "pm_quote. No API key required.",
+      inputSchema: {
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(25)
+          .optional()
+          .describe("Max clusters (1-25, default 10)."),
+        offset: z
+          .number()
+          .int()
+          .min(0)
+          .optional()
+          .describe("Pagination offset (default 0)."),
+        sort: z
+          .enum([
+            "confidence_desc",
+            "divergence_desc",
+            "max_outcome_delta_desc",
+          ])
+          .optional()
+          .describe(
+            "Ranking: confidence_desc (default) = strongest match first; " +
+              "divergence_desc = total cross-outcome gap; " +
+              "max_outcome_delta_desc = single largest shared-outcome gap " +
+              "(avoids multi-leg basket noise).",
+          ),
+        minDivergence: z
+          .number()
+          .min(0)
+          .optional()
+          .describe(
+            "Floor (points, 0-100) on whichever metric the active sort ranks by.",
+          ),
+        sourceKind: z
+          .enum(["market"])
+          .optional()
+          .describe(
+            "Pass 'market' to restrict both sides of every pair to real-money " +
+              "market venues (excludes forecast/play-money venues like " +
+              "Metaculus/Manifold).",
+          ),
+        status: z
+          .enum(["open"])
+          .optional()
+          .describe(
+            "Pass 'open' to require BOTH matched events be currently open.",
+          ),
+        maxSnapshotAgeMinutes: z
+          .number()
+          .min(0)
+          .optional()
+          .describe(
+            "Require both matched events' probability come from a price " +
+              "snapshot captured within this many minutes.",
+          ),
+        requirePriced: z
+          .boolean()
+          .optional()
+          .describe(
+            "Default true: drops any pair where a side is an unpriced/untraded " +
+              "placeholder or fails a quote-dead liveness check. Set false only " +
+              "for research/debug.",
+          ),
+        fiat: z
+          .string()
+          .optional()
+          .describe("Fiat currency code for monetary figures (default usd)."),
+      },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations("Cross-venue disagreement clusters"),
+    },
+    async ({
+      limit,
+      offset,
+      sort,
+      minDivergence,
+      sourceKind,
+      status,
+      maxSnapshotAgeMinutes,
+      requirePriced,
+      fiat,
+    }) =>
+      present(
+        mapSuccessfulBody(
+          await client.getPublicPmMatches({
+            limit,
+            offset,
+            sort,
+            minDivergence,
+            sourceKind,
+            status,
+            maxSnapshotAgeMinutes,
+            requirePriced,
+            fiat,
+          }),
+          compactPublicPmDisagreements,
+        ),
+      ),
+  );
+
+  server.registerTool(
+    "pm_data_calibration",
+    {
+      title: "Per-venue forecast-accuracy calibration",
+      description:
+        "Free public per-venue forecast-accuracy scorecard: for each venue, " +
+        "calibrationError (Expected Calibration Error, 0-1, lower is better — " +
+        "the fair cross-venue headline), sampleSize, meanWinnerConfidence, and " +
+        "a 10-bucket reliability curve (predictedMean vs realizedRate per " +
+        "probability bucket) computed from that venue's OWN probability ~24h " +
+        "before resolution against the outcome that actually happened, over " +
+        "resolved markets with >=24h of pre-resolution history. Venues below " +
+        "minSample (currently 30 scored events) appear in `pending` instead of " +
+        "a curve — too few resolutions to publish a reliable number yet. Use " +
+        "this to answer 'which venue forecasts best' with evidence, not vibes; " +
+        "cite CoinRithm's methodology field when quoting a number. No API key " +
+        "required.",
+      inputSchema: {},
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations(
+        "Per-venue forecast-accuracy calibration",
+      ),
+    },
+    async () => present(await client.getPublicPmCalibration()),
+  );
+
+  server.registerTool(
+    "pm_data_canonical",
+    {
+      title: "Canonical cross-venue event identity",
+      description:
+        "Free public canonical-event identity: CoinRithm's stable cross-venue " +
+        "identity for one real-world question, independent of any single " +
+        "venue's slug. Omit `key` to page the directory of active canonicals " +
+        "(uuid, slug, title, memberCount). Pass `key` (a canonical's uuid OR " +
+        "slug) for one canonical's full record: its venue members (each with " +
+        "orientation — same/inverted/unknown, NEVER price-inferred — plus " +
+        "confidence and provenance basis) and an append-only judgment lineage " +
+        "(created/member_added/member_removed/merged, newest first). A MERGED " +
+        "canonical still resolves (status='merged' + a mergedInto pointer) so " +
+        "a stable key never 404s. Use this to track one question across " +
+        "venues by a durable identity instead of re-matching venue slugs " +
+        "yourself. No API key required.",
+      inputSchema: {
+        key: z
+          .string()
+          .min(1)
+          .optional()
+          .describe(
+            "UUID or slug of one canonical event. Omit to list active canonicals.",
+          ),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(200)
+          .optional()
+          .describe("List mode only: max rows (1-200, default 50)."),
+        cursor: z
+          .number()
+          .int()
+          .positive()
+          .optional()
+          .describe(
+            "List mode only: pagination cursor — pass the previous " +
+              "response's pagination.nextCursor.",
+          ),
+      },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations("Canonical cross-venue event identity"),
+    },
+    async ({ key, limit, cursor }) =>
+      present(
+        key
+          ? await client.getPublicPmCanonicalDetail(key)
+          : await client.getPublicPmCanonicalList({ limit, cursor }),
+      ),
+  );
+
+  server.registerTool(
+    "pm_data_volume_history",
+    {
+      title: "Global prediction-market volume trend",
+      description:
+        "Free public global daily prediction-market volume trend: one point " +
+        "per UTC calendar day (day-over-day delta of each event's cumulative " +
+        "volume, summed across REAL-MONEY venues only — play-money/forecast " +
+        "venues like Manifold and Metaculus are excluded), with a per-venue " +
+        "breakdown (bySource) each day. Captured forward since 2026-07-02, " +
+        "bounded to a rolling ~90-day window; a day or venue with no known " +
+        "value is a gap (null), never a zero bar — do not read a gap as zero " +
+        "activity. Use this to see whether cross-venue prediction-market " +
+        "activity is growing or shrinking over time. No API key required.",
+      inputSchema: {},
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations("Global prediction-market volume trend"),
+    },
+    async () => present(await client.getPublicPmVolumeHistory()),
   );
 }
