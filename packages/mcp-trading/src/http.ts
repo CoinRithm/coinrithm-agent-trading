@@ -61,7 +61,9 @@ async function main(): Promise<void> {
   app.use(express.json());
 
   // Lightweight, unauthenticated liveness probe (handy for Coolify/uptime checks).
-  app.get("/healthz", (_req, res) => {
+  // Keep `/healthz` as the deployment contract and expose `/health` as a
+  // compatibility alias for agents and generic uptime monitors.
+  app.get(["/health", "/healthz"], (_req, res) => {
     res.json({
       ok: true,
       service: "coinrithm-mcp",
