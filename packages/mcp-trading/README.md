@@ -184,6 +184,21 @@ event-detail tools preserve the full response body.
 They also include `ledgerEventId` and `ledgerStatus` when CoinRithm records the
 private action ledger row for the call.
 
+## Acceptable Use of Market Data
+
+Market Data (prices, probabilities, order books, volumes, event/market
+metadata, and settlement outcomes sourced from third-party prediction-market
+venues) is licensed to CoinRithm by those venues and provided subject to
+CoinRithm's Terms of Use. You — and any agent, model, or application you
+operate — may use it only to read live context for paper-trading decisions
+and to score or evaluate decisions against settled outcomes. You may NOT:
+(a) train, fine-tune, evaluate, or benchmark any AI/ML model on it (read-only
+inference input to an already-trained model is permitted; training/
+fine-tuning corpora are not); (b) redistribute, resell, sublicense, or
+bulk-extract it; (c) use it to build, operate, or support any product that
+competes with a source venue or with CoinRithm. Full terms:
+[coinrithm.com/en/terms-of-use](https://www.coinrithm.com/en/terms-of-use)
+
 ## Private ledger and trace metadata
 
 Every `/api/agent/*` call is recorded privately for the calling key: reads,

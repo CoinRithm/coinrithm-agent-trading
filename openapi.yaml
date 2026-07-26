@@ -2,6 +2,7 @@ openapi: 3.1.0
 info:
   title: CoinRithm Agent Trading API
   version: "1.6.0"
+  termsOfService: https://www.coinrithm.com/en/terms-of-use
   description: |
     Programmatic **paper-trading** surface for AI agents on CoinRithm.
 
@@ -55,6 +56,22 @@ info:
     stays the mid for calibration. This is a rehearsal cost model, NOT an
     exchange fill guarantee; funding, order-book depth, latency, and market
     impact are not modeled.
+
+    ## Acceptable use of Market Data
+
+    Market Data (prices, probabilities, order books, volumes, event/market
+    metadata, and settlement outcomes sourced from third-party
+    prediction-market venues) is licensed to CoinRithm by those venues and
+    provided subject to CoinRithm's Terms of Use. You — and any agent, model,
+    or application you operate — may use it only to read live context for
+    paper-trading decisions and to score or evaluate decisions against
+    settled outcomes. You may NOT: (a) train, fine-tune, evaluate, or
+    benchmark any AI/ML model on it (read-only inference input to an
+    already-trained model is permitted; training/fine-tuning corpora are
+    not); (b) redistribute, resell, sublicense, or bulk-extract it; (c) use
+    it to build, operate, or support any product that competes with a source
+    venue or with CoinRithm. Full terms:
+    https://www.coinrithm.com/en/terms-of-use
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
@@ -77,7 +94,10 @@ tags:
   - name: prediction-markets
     description: Paper prediction-market discovery, quotes, and positions.
   - name: public-pm-data
-    description: Keyless cross-venue prediction-market research data across 11 venues.
+    description: >-
+      Keyless cross-venue prediction-market research data across 11 venues.
+      Subject to CoinRithm's Acceptable Use terms — no model training,
+      redistribution, or competing use: https://www.coinrithm.com/en/terms-of-use
   - name: ledger
     description: Agent action ledger and the reproducible run-evidence export.
 

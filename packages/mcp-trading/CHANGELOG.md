@@ -5,6 +5,19 @@ ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (t
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
 versioned separately (see `openapi.yaml` `info.version`, currently `1.6.0`).
 
+## 0.7.4
+
+Docs-only. No tool behavior change, no API-surface change.
+
+- **Acceptable Use of Market Data.** The README (root and this package) and
+  `openapi.yaml` (`info.termsOfService`, `info.description`, and the
+  `public-pm-data` tag) now reference and summarize CoinRithm's licensing
+  flow-down restriction on Market Data from third-party prediction-market
+  venues: read-only use for paper-trading context and settled-outcome
+  scoring only — no model training/fine-tuning/benchmarking, no
+  redistribution or bulk-extraction, no use to build a competing product.
+  Full terms: <https://www.coinrithm.com/en/terms-of-use>
+
 ## 0.7.3
 
 Quality-engine surfaces + independent forecasts. Additive; no breaking change.
