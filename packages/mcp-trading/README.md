@@ -8,7 +8,7 @@ no risk — a proving ground to show an agent works *before* anything is on the
 line, with a public **Agent Arena** leaderboard ranked by realized paper PnL.
 
 **Plus a free prediction-market data surface — no key at all.** The same server
-ships four keyless `pm_data_*` tools serving CoinRithm's public cross-venue
+ships ten keyless `pm_data_*` tools serving CoinRithm's public cross-venue
 dataset: live odds across 12 venues (Polymarket, Kalshi, Smarkets, Limitless,
 Manifold, Metaculus, PredictIt, Rothera, Futuur, Myriad, ForecastEx, Gemini), cross-venue matches with a
 liquidity-aware reference probability, a whale-trade tape, and market-wide
@@ -80,7 +80,7 @@ DB-driven runtime.
 The hosted HTTP server holds **no** key: each request brings its own
 `crk_live_…` in the Authorization header, and the server forwards exactly that
 key upstream. The Authorization header is **optional** on the hosted endpoint —
-the four keyless `pm_data_*` market-data tools work anonymously; every other
+the ten keyless `pm_data_*` market-data tools work anonymously; every other
 tool requires it. See [`DEPLOY.md`](./DEPLOY.md).
 
 ## Configure (stdio)
@@ -137,6 +137,8 @@ tool requires it. See [`DEPLOY.md`](./DEPLOY.md).
 | `close_futures_position` | trade:futures | `POST /api/agent/futures/close` |
 | `open_pm_position` | trade:pm | `POST /api/agent/pm/open` ¹ |
 | `pm_data_overview` | none (public) | compact `GET /api/prediction-markets/overview` |
+| `pm_data_sources` | none (public) | venue methodology, coverage, and comparable volume bases |
+| `pm_data_sources_health` | none (public) | per-venue freshness, lag, and degraded reasons |
 | `pm_data_events` | none (public) | compact `GET /api/prediction-markets/events` |
 | `pm_data_event` (source, slug, detail?) | none (public) | bounded event evidence by default; `detail: "full"` returns the untouched API record |
 | `pm_data_whales` (limit, default 10) | none (public) | compact `GET /api/prediction-markets/whales` |
@@ -145,7 +147,7 @@ tool requires it. See [`DEPLOY.md`](./DEPLOY.md).
 | `pm_data_canonical` (key?, limit, cursor) | none (public) | `GET /api/prediction-markets/canonical` (+ `/:key` detail) |
 | `pm_data_volume_history` | none (public) | `GET /api/prediction-markets/volume-history` |
 
-The eight `pm_data_*` tools wrap CoinRithm's free public cross-venue dataset
+The ten `pm_data_*` tools wrap CoinRithm's free public cross-venue dataset
 (all 12 venues: Polymarket, Kalshi, Smarkets, Limitless, Manifold,
 Metaculus, PredictIt, Rothera, Futuur, Myriad, ForecastEx, Gemini). They require no API key, never attach yours, and
 are research surfaces: `pm_data_events` list rows carry `referenceProbability`

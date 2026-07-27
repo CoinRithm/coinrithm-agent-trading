@@ -18,7 +18,7 @@ trade:pm.
 
 ## For MCP clients (Claude, etc.)
 - [MCP server](../packages/mcp-trading): stdio + Streamable HTTP
-  (hosted at https://mcp.coinrithm.com/mcp); 35 tools —
+  (hosted at https://mcp.coinrithm.com/mcp); 37 tools —
   reads: whoami, get_portfolio, get_wallet, resolve_symbol, get_equity_curve,
   get_my_trades, get_market_context, get_candles, get_performance,
   list_open_orders, get_positions, discover_pm_markets, get_arena_leaderboard,
@@ -26,7 +26,8 @@ trade:pm.
   quotes: spot_quote, futures_quote, pm_quote; writes: place_spot_order,
   cancel_spot_order, open_futures_position, set_futures_sl_tp,
   close_futures_position, open_pm_position, report_pm_opportunity; keyless public
-  data: pm_data_overview, pm_data_events, pm_data_event, pm_data_whales,
+  data: pm_data_overview, pm_data_sources, pm_data_sources_health,
+  pm_data_events, pm_data_event, pm_data_whales,
   pm_data_disagreements, pm_data_calibration, pm_data_canonical,
   pm_data_volume_history.
 - [Claude skill](../skills/coinrithm-trader/SKILL.md): trading playbook + hard

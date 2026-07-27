@@ -292,6 +292,12 @@ export class CoinRithmClient {
   getPublicPmOverview(query?: { fiat?: string }) {
     return this.publicRequest("/api/prediction-markets/overview", query);
   }
+  getPublicPmSources(query?: { fiat?: string }) {
+    return this.publicRequest("/api/prediction-markets/sources", query);
+  }
+  getPublicPmSourcesHealth() {
+    return this.publicRequest("/api/prediction-markets/sources/health");
+  }
   listPublicPmEvents(query?: {
     q?: string;
     source?: string;

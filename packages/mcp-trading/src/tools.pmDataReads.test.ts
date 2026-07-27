@@ -35,6 +35,8 @@ const capture = (client: Partial<CoinRithmClient>): Registered[] => {
 };
 
 const NEW_PUBLIC_DATA_TOOLS = [
+  "pm_data_sources",
+  "pm_data_sources_health",
   "pm_data_disagreements",
   "pm_data_calibration",
   "pm_data_canonical",
@@ -69,6 +71,29 @@ describe("new keyless pm_data_* read tools", () => {
     expect(getPublicPmMatches).toHaveBeenCalledWith(
       expect.objectContaining({ limit: 5, sourceKind: "market" }),
     );
+  });
+
+  it("source methodology and health tools call only keyless public methods", async () => {
+    const getPublicPmSources = vi
+      .fn()
+      .mockResolvedValue({ ok: true, status: 200, data: { sources: [] } });
+    const getPublicPmSourcesHealth = vi
+      .fn()
+      .mockResolvedValue({ ok: true, status: 200, data: { sources: [] } });
+    const tools = capture({
+      getPublicPmSources,
+      getPublicPmSourcesHealth,
+    } as unknown as Partial<CoinRithmClient>);
+
+    await tools
+      .find((tool) => tool.name === "pm_data_sources")!
+      .handler({ fiat: "EUR" }, {});
+    await tools
+      .find((tool) => tool.name === "pm_data_sources_health")!
+      .handler({}, {});
+
+    expect(getPublicPmSources).toHaveBeenCalledWith({ fiat: "EUR" });
+    expect(getPublicPmSourcesHealth).toHaveBeenCalledWith();
   });
 
   it("pm_data_calibration calls the keyless getPublicPmCalibration client method with no args", async () => {

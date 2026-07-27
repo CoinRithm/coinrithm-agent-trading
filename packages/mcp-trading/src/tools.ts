@@ -1973,6 +1973,51 @@ export function registerTools(
   );
 
   server.registerTool(
+    "pm_data_sources",
+    {
+      title: "Prediction-market venue methodology and coverage",
+      description:
+        "Free public methodology and comparable coverage for every CoinRithm " +
+        "prediction-market venue: source kind, supported metrics, market counts, " +
+        "explicit 24h/cumulative volume bases, currency basis, comparability, " +
+        "and as-of timestamps. Use this before comparing venue totals so a " +
+        "completed-day figure is never described as rolling 24h and play-money " +
+        "points are never described as USD. No API key required.",
+      inputSchema: {
+        fiat: z
+          .string()
+          .optional()
+          .describe("Fiat currency code for monetary figures (default usd)."),
+      },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations(
+        "Prediction-market venue methodology and coverage",
+      ),
+    },
+    async ({ fiat }) => present(await client.getPublicPmSources({ fiat })),
+  );
+
+  server.registerTool(
+    "pm_data_sources_health",
+    {
+      title: "Prediction-market venue freshness and health",
+      description:
+        "Free public per-venue ingest health across all CoinRithm sources: " +
+        "freshness tier, observed lag, stale/degraded reason, coverage counts, " +
+        "and current health timestamps. Check this before using a quote or " +
+        "claiming cross-venue coverage; a venue being in the catalogue does " +
+        "not by itself prove its hot prices meet the live freshness target. " +
+        "No API key required.",
+      inputSchema: {},
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations(
+        "Prediction-market venue freshness and health",
+      ),
+    },
+    async () => present(await client.getPublicPmSourcesHealth()),
+  );
+
+  server.registerTool(
     "pm_data_events",
     {
       title: "Search prediction markets across all venues",
