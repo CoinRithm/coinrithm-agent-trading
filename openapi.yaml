@@ -2274,8 +2274,13 @@ components:
         name: { type: string }
         probability:
           type: [number, "null"]
-          description: Provider-implied probability on a 0–100 scale.
-        priceChange24h: { type: [number, "null"] }
+          description: Provider-implied probability on a 0–100 scale (raw venue quote; may include vig, so a book's outcomes can sum above 100).
+        normalizedProbability:
+          type: [number, "null"]
+          description: Vig-removed display probability on a 0–100 scale, proportionally normalized so a complete exclusive book sums to ~100. Null when the book is not a complete exclusive book (threshold ladders, partial catalogs, non-market sources). The raw `probability` remains the executable venue quote.
+        priceChange24h:
+          type: [number, "null"]
+          description: 24h probability move in PERCENTAGE POINTS on the 0–100 scale (e.g. 5.5 means +5.5 points), NOT a fraction and not a relative percent change.
       required: [name]
 
     PublicPmEvent:
@@ -2301,6 +2306,16 @@ components:
         bestAsk: { type: [number, "null"] }
         spread: { type: [number, "null"] }
         source: { $ref: "#/components/schemas/PublicPmSource" }
+        priceChange24h:
+          type: [number, "null"]
+          description: Leading-outcome 24h probability move in PERCENTAGE POINTS on the 0–100 scale, NOT a fraction.
+        priceChange7d:
+          type: [number, "null"]
+          description: Leading-outcome 7d probability move in PERCENTAGE POINTS on the 0–100 scale, NOT a fraction.
+        probabilityBook:
+          type: [object, "null"]
+          additionalProperties: true
+          description: "Book-level probability basis: `basis` is `normalized_complete_book` when outcomes carry normalizedProbability (with `rawSum` and `overroundPoints`), else `raw_quotes`."
         outcomes:
           type: array
           items: { $ref: "#/components/schemas/PublicPmOutcome" }
