@@ -110,9 +110,9 @@ describe("public docs stay truthful", () => {
       "Myriad",
       "ForecastEx",
     ];
-    expect(tools).toContain("ALL 11");
+    expect(tools).toContain("ALL 12");
     expect(tools).not.toMatch(/ALL (seven|eight|nine|ten|7|8|9|10)/i);
-    expect(packageReadme).toContain("11 venues");
+    expect(packageReadme).toContain("12 venues");
     expect(packageReadme).toContain("ForecastEx");
     expect(packageReadme).not.toContain("10 venues");
     for (const venue of venues) {
@@ -174,7 +174,7 @@ describe("public docs stay truthful", () => {
 
     it("description states the current venue count, never a stale one", () => {
       const { description } = serverJson();
-      expect(description).toContain("11 venues");
+      expect(description).toContain("12 venues");
       expect(description).not.toMatch(
         /\b(7|8|9|10|seven|eight|nine|ten)\s+venues\b/i,
       );

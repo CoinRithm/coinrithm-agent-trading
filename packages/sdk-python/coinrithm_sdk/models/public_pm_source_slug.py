@@ -2,6 +2,7 @@ from enum import Enum
 
 class PublicPmSourceSlug(str, Enum):
     FORECASTEX = "forecastex"
+    GEMINI = "gemini"
     FUTUUR = "futuur"
     KALSHI = "kalshi"
     LIMITLESS = "limitless"

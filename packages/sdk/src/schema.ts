@@ -672,7 +672,7 @@ export interface paths {
         };
         /**
          * Cross-venue prediction-market overview
-         * @description Keyless CoinRithm-computed overview across all 11 supported venues.
+         * @description Keyless CoinRithm-computed overview across all 12 supported venues.
          *     Monetary aggregates exclude play-money/points venues. Source-specific
          *     volume windows and completeness are disclosed in the response and at
          *     `/api/prediction-markets/sources/health`; do not assume every venue's
@@ -726,6 +726,125 @@ export interface paths {
          *     context use the MCP `pm_data_event` tool's default summary mode.
          */
         get: operations["getPublicPredictionMarketEvent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/prediction-markets/matches/public": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Cross-venue disagreement clusters (approved matches)
+         * @description Keyless graph-clustered view of events CoinRithm has matched as the
+         *     same real-world question across 2+ venues, with pairwise comparisons
+         *     carrying per-shared-outcome probability deltas. Orientation between
+         *     matched markets is human/aggregator-reviewed, never price-inferred.
+         *     For bounded agent context use the MCP `pm_data_disagreements` tool,
+         *     which additionally bounds each event and comparison to its top-5
+         *     highest-delta shared outcomes.
+         */
+        get: operations["getPublicPredictionMarketDisagreements"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/prediction-markets/calibration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Per-venue forecast-accuracy calibration
+         * @description Keyless per-source calibration (Expected Calibration Error + reliability
+         *     curve) computed from each venue's own probability ~24h before
+         *     resolution against the realised outcome, over resolved markets with
+         *     >=24h of pre-resolution history. Venues below the minimum sample appear
+         *     in `pending`, not `scored`.
+         */
+        get: operations["getPublicPredictionMarketCalibration"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/prediction-markets/canonical": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List canonical cross-venue event identities
+         * @description Keyless cursor-paged directory of active canonical events — CoinRithm's
+         *     stable cross-venue identity for one real-world question, independent of
+         *     any single venue's slug.
+         */
+        get: operations["listPublicPredictionMarketCanonicalEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/prediction-markets/canonical/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get one canonical event's members and judgment lineage
+         * @description Keyless canonical-event detail by UUID or slug: venue members with
+         *     orientation (same/inverted/unknown — never price-inferred), confidence
+         *     and provenance basis, plus an append-only judgment lineage. A MERGED
+         *     canonical still resolves (status='merged' + mergedInto pointer) so a
+         *     stable key never 404s.
+         */
+        get: operations["getPublicPredictionMarketCanonicalEvent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/prediction-markets/volume-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Global daily prediction-market volume trend
+         * @description Keyless daily volume series (day-over-day delta of cumulative volume,
+         *     summed across real-money venues only) with a per-venue breakdown,
+         *     captured since 2026-07-02 and bounded to a rolling ~90-day window. A
+         *     day or venue with no known value is a gap (null), never a zero bar.
+         */
+        get: operations["getPublicPredictionMarketVolumeHistory"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1084,7 +1203,7 @@ export interface components {
             error: string;
         };
         /** @enum {string} */
-        PublicPmSourceSlug: "polymarket" | "kalshi" | "rothera" | "limitless" | "smarkets" | "manifold" | "metaculus" | "predictit" | "futuur" | "myriad" | "forecastex";
+        PublicPmSourceSlug: "polymarket" | "kalshi" | "rothera" | "limitless" | "smarkets" | "manifold" | "metaculus" | "predictit" | "futuur" | "myriad" | "forecastex" | "gemini";
         PublicPmSource: {
             id: components["schemas"]["PublicPmSourceSlug"];
             name: string;
@@ -1260,6 +1379,127 @@ export interface components {
                 [key: string]: unknown;
             })[];
             enrichment?: {
+                [key: string]: unknown;
+            };
+        };
+        PublicPmDisagreementsResponse: {
+            /**
+             * @description Graph-clustered disagreement rows. Each cluster carries clusterId,
+             *     primaryEventId, title, events[] (PublicPmEvent rows), comparisons[]
+             *     (per-pair matchId/confidence/matchMethod/divergence + a comparison
+             *     with per-outcome eventAProbability/eventBProbability/deltaPoints),
+             *     maxOverallGap, maxOutcomeGap, maxConfidence, and referenceProbability
+             *     when available.
+             */
+            data: {
+                [key: string]: unknown;
+            }[];
+            total: number;
+            hasMore: boolean;
+            pagination: {
+                limit?: number;
+                offset?: number;
+                nextOffset?: number | null;
+            } & {
+                [key: string]: unknown;
+            };
+            meta?: {
+                [key: string]: unknown;
+            };
+        };
+        PublicPmCalibrationResponse: {
+            leadHours: number;
+            minSample: number;
+            methodology?: string;
+            scored: ({
+                source?: string;
+                name?: string;
+                sampleSize?: number;
+                calibrationError?: number;
+                meanWinnerConfidence?: number;
+                reliability?: ({
+                    bucket?: string;
+                    predictedMean?: number;
+                    realizedRate?: number;
+                    pairs?: number;
+                } & {
+                    [key: string]: unknown;
+                })[];
+            } & {
+                [key: string]: unknown;
+            })[];
+            pending: ({
+                source?: string;
+                name?: string;
+                reason?: string;
+            } & {
+                [key: string]: unknown;
+            })[];
+        };
+        PublicPmCanonicalListResponse: {
+            data: ({
+                uuid?: string;
+                slug?: string;
+                title?: string;
+                revision?: number;
+                status?: string;
+                memberCount?: number;
+                /** Format: date-time */
+                createdAt?: string;
+                /** Format: date-time */
+                updatedAt?: string;
+            } & {
+                [key: string]: unknown;
+            })[];
+            pagination: {
+                limit?: number;
+                nextCursor?: number | null;
+            } & {
+                [key: string]: unknown;
+            };
+        };
+        PublicPmCanonicalDetailResponse: {
+            canonical: {
+                [key: string]: unknown;
+            };
+            mergedInto?: {
+                [key: string]: unknown;
+            } | null;
+            members: ({
+                source?: string;
+                sourceName?: string;
+                eventSlug?: string;
+                eventTitle?: string;
+                eventStatus?: string;
+                isAnchor?: boolean;
+                /** @enum {string} */
+                orientation?: "same" | "inverted" | "unknown";
+                confidence?: number;
+                basis?: string | null;
+            } & {
+                [key: string]: unknown;
+            })[];
+            lineage: {
+                [key: string]: unknown;
+            }[];
+        };
+        PublicPmVolumeHistoryResponse: {
+            days: ({
+                day?: string;
+                volume24h?: number | null;
+                bySource?: ({
+                    source?: string;
+                    name?: string;
+                    volume24h?: number | null;
+                } & {
+                    [key: string]: unknown;
+                })[];
+            } & {
+                [key: string]: unknown;
+            })[];
+            /** Format: date-time */
+            updatedAt: string;
+            meta?: {
                 [key: string]: unknown;
             };
         };
@@ -4159,6 +4399,134 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    getPublicPredictionMarketDisagreements: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                sort?: "confidence_desc" | "divergence_desc" | "max_outcome_delta_desc";
+                minDivergence?: number;
+                /** @description Restrict both sides of every pair to real-money market venues. */
+                sourceKind?: "market";
+                /** @description Require both matched events to be currently open. */
+                status?: "open";
+                maxSnapshotAgeMinutes?: number;
+                /**
+                 * @description Drops any pair where a side is an unpriced/untraded placeholder or
+                 *     fails a quote-dead liveness check. Set false only for research/debug.
+                 */
+                requirePriced?: boolean;
+                fiat?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paginated disagreement clusters with pairwise comparisons */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPmDisagreementsResponse"];
+                };
+            };
+            500: components["responses"]["ServerError"];
+        };
+    };
+    getPublicPredictionMarketCalibration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Scored + pending per-venue calibration */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPmCalibrationResponse"];
+                };
+            };
+            500: components["responses"]["ServerError"];
+        };
+    };
+    listPublicPredictionMarketCanonicalEvents: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paginated canonical directory */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPmCanonicalListResponse"];
+                };
+            };
+            500: components["responses"]["ServerError"];
+        };
+    };
+    getPublicPredictionMarketCanonicalEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Canonical event detail */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPmCanonicalDetailResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    getPublicPredictionMarketVolumeHistory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Daily global + per-venue volume series */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPmVolumeHistoryResponse"];
+                };
+            };
             500: components["responses"]["ServerError"];
         };
     };
