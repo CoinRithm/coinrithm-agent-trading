@@ -88,7 +88,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     pollIntervalMs: intEnv(env, "SCHEDULER_POLL_MS", 5000, 250),
     maxConcurrent: intEnv(env, "SCHEDULER_MAX_CONCURRENT", 6, 1),
     claimBatch: intEnv(env, "SCHEDULER_CLAIM_BATCH", 20, 1),
-    nvidiaRpm: intEnv(env, "SCHEDULER_NVIDIA_RPM", 40, 1),
+    // 40 -> 15 (owner, 2026-08-05): the NVIDIA free-tier ~40 RPM/key is
+    // SHARED with the aggregator's enrichment judges (news/topics/match —
+    // the critical lane) and the social desk's news judge. At 40 the agent
+    // fleet alone could eat the whole quota and starve every judge lane to
+    // ~20% cadence (observed 08-03..05: growing unjudged-news backlog).
+    // 15 is BOTH the cap (judges always keep ≥~25 RPM headroom) and the
+    // agents' guaranteed floor (they can always spend up to 15 RPM, so the
+    // fleet never goes stale for the day). Fleet demand at the 180s cadence
+    // is ~9 RPM for 26 shared-key agents, comfortably inside the floor.
+    nvidiaRpm: intEnv(env, "SCHEDULER_NVIDIA_RPM", 15, 1),
     groqRpm: intEnv(env, "SCHEDULER_GROQ_RPM", 30, 1),
     healthPort: healthPortRaw ? intEnv(env, "HEALTH_PORT", 8080, 1) : undefined,
   };
