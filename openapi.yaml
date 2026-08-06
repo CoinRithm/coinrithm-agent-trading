@@ -1688,6 +1688,91 @@ paths:
         "503":
           description: Stream at client capacity; retry later.
 
+  /api/prediction-markets/sources:
+    get:
+      operationId: getPublicPredictionMarketSources
+      tags: [public-pm-data]
+      summary: Per-venue comparison with coverage-ledger evidence
+      description: |
+        Keyless per-venue stats, resolution evidence and the Gate-2 coverage
+        ledger.
+
+        Read `coverage.completenessClass` literally: it reports what the LATEST
+        catalog sweep observed (`open_sweep_exhausted` = the adapter enumerated
+        the open set; `open_sweep_bounded` = it stopped at a provider page
+        ceiling or volume floor; `unknown` = no recent sweep evidence). It does
+        NOT assert that CoinRithm holds the venue's complete lifetime universe
+        — that stronger claim is `coverage.universeVerified`, which is `false`
+        for every venue until externally verified against a venue-published
+        total. Do not paraphrase either field as "complete coverage".
+
+        `anyResolutionRate` and `providerResolutionRate` share one denominator
+        (closed events) but are different facts: any recorded resolution vs a
+        provider-verified one. `catalogFirstSeenDay` is when CoinRithm first
+        saw the catalog; `probabilityHistoryStartDay` is how far stored
+        probability history actually reaches, and is null when none is held.
+      security: []
+      parameters:
+        - name: fiat
+          in: query
+          schema: { type: string, default: USD }
+      responses:
+        "200":
+          description: Venue comparison rows, each with optional coverage evidence
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicPmSourcesResponse" }
+        "429":
+          description: Public request rate limit exceeded; honor `Retry-After`.
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /api/prediction-markets/events/{source}/{slug}/revisions:
+    get:
+      operationId: getPublicPredictionMarketEventRevisions
+      tags: [public-pm-data]
+      summary: Append-only correction history and point-in-time reconstruction
+      description: |
+        Every correction CoinRithm has made to this event's published facts,
+        newest first — what changed, from what to what, why, on whose evidence
+        (ingest run and raw-capture file), with which parser, and which earlier
+        statement it supersedes. Nothing is overwritten; corrections append.
+
+        `effectiveAt` is when the change became true AT THE SOURCE (the venue's
+        own settlement time) and is null when the venue states none — it is
+        never back-filled with the observation time. `observedAt` is when
+        CoinRithm saw it. The two routinely differ by weeks.
+
+        With `asOf`, the response also carries `reconstructed`: the state
+        CoinRithm was publishing at that instant, folded by OBSERVATION time.
+        That answers "what did you show on day X" — cite it rather than
+        inferring past state from current values.
+
+        An event with no corrections returns an empty `revisions` array, which
+        is a real answer, not an error.
+      security: []
+      parameters:
+        - name: source
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/PublicPmSourceSlug" }
+        - name: slug
+          in: path
+          required: true
+          schema: { type: string, minLength: 1 }
+        - name: asOf
+          in: query
+          description: ISO-8601 instant; adds the reconstructed state as of then.
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          description: Correction history, optionally with reconstructed state
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicPmEventRevisionsResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
   /api/prediction-markets/sources/health:
     get:
       operationId: getPublicPredictionMarketSourceHealth
@@ -2448,6 +2533,143 @@ components:
             type: object
             additionalProperties: true
       required: [trades, coverage]
+
+    PublicPmCoverage:
+      type: object
+      additionalProperties: true
+      description: |
+        Gate-2 coverage ledger for one venue. Every nullable field means
+        "not known", never zero — do not render a null as 0 or as evidence
+        of absence.
+      properties:
+        computedAt: { type: string, format: date-time }
+        completenessClass:
+          type: string
+          enum: [open_sweep_exhausted, open_sweep_bounded, unknown]
+          description: |
+            What the LATEST catalog sweep observed. NOT a claim that the
+            venue's lifetime universe is held — see universeVerified.
+        universeVerified:
+          type: boolean
+          description: |
+            True only when coverage has been externally verified against a
+            venue-published total. Currently false for every venue.
+        universeEstimate:
+          type: [integer, "null"]
+          description: Upstream-reported total where the venue exposes one.
+        enumeratedTotal: { type: integer }
+        openCount: { type: integer }
+        closedCount: { type: integer }
+        resolvedProviderCount: { type: integer }
+        anyResolutionRate:
+          type: [number, "null"]
+          description: Closed events with ANY recorded resolution / closed events.
+        providerResolutionRate:
+          type: [number, "null"]
+          description: Closed events with a PROVIDER-verified resolution / closed events.
+        freshnessP50Seconds: { type: [integer, "null"] }
+        freshnessP95Seconds: { type: [integer, "null"] }
+        freshnessP99Seconds: { type: [integer, "null"] }
+        catalogFirstSeenDay:
+          type: [string, "null"]
+          format: date
+          description: When CoinRithm first saw this catalog. Not history depth.
+        probabilityHistoryStartDay:
+          type: [string, "null"]
+          format: date
+          description: |
+            How far stored probability history actually reaches. Null when no
+            probability history is held for the venue.
+        missingFieldRates:
+          type: [object, "null"]
+          additionalProperties: true
+        approvedMatchCount: { type: [integer, "null"] }
+        avgMatchConfidence: { type: [number, "null"] }
+        lastFullReconciliationAt: { type: [string, "null"], format: date-time }
+
+    PublicPmSourcesResponse:
+      type: object
+      additionalProperties: true
+      properties:
+        sources:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+            properties:
+              id: { type: string }
+              name: { type: string }
+              coverage:
+                oneOf:
+                  - { $ref: "#/components/schemas/PublicPmCoverage" }
+                  - type: "null"
+                description: Null until the ledger has computed for this venue.
+      required: [sources]
+
+    PublicPmEventRevision:
+      type: object
+      additionalProperties: true
+      properties:
+        id: { type: integer }
+        field:
+          type: string
+          description: Dotted path of the corrected fact, e.g. resolution.winner.
+        prevValue: {}
+        nextValue: {}
+        reasonCode:
+          type: string
+          description: |
+            Stable machine code, never free text: resolution_set,
+            resolution_reversal, resolution_cleared, resolution_time_corrected,
+            resolution_state_changed, member_added, member_removed,
+            orientation_changed, merged_into, split_from, created.
+        effectiveAt:
+          type: [string, "null"]
+          format: date-time
+          description: |
+            When the change became true at the SOURCE. Null when the venue
+            states none; never back-filled with the observation time.
+        observedAt: { type: string, format: date-time }
+        evidence:
+          type: object
+          additionalProperties: true
+          description: |
+            Provenance for this correction. runId and captureId are null for
+            watch-lane resolution changes, which re-fetch a single event by id
+            rather than deriving from a daily sweep capture.
+          properties:
+            runId: { type: [integer, "null"] }
+            captureId: { type: [integer, "null"] }
+            parserVersion: { type: [string, "null"] }
+            matcherVersion: { type: [string, "null"] }
+            buildSha: { type: [string, "null"] }
+        supersedesId:
+          type: [integer, "null"]
+          description: The earlier revision of the same field this replaces.
+
+    PublicPmEventRevisionsResponse:
+      type: object
+      additionalProperties: true
+      properties:
+        subjectKey:
+          type: string
+          description: Stable identity, "<sourceSlug>:<externalEventId>".
+        revisions:
+          type: array
+          items: { $ref: "#/components/schemas/PublicPmEventRevision" }
+        truncated:
+          type: boolean
+          description: |
+            True when the newest-first revision page hit its cap. Reconstruction
+            is unaffected — asOf reads its own complete, time-bounded set.
+        asOf: { type: string, format: date-time }
+        reconstructed:
+          type: object
+          additionalProperties: true
+          description: |
+            Field values CoinRithm was publishing at asOf, folded by
+            OBSERVATION time. Present only when asOf is supplied.
+      required: [subjectKey, revisions]
 
     PublicPmSourcesHealthResponse:
       type: object
