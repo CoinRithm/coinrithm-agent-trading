@@ -1,124 +1,116 @@
 # coinrithm-sdk
-A client library for accessing CoinRithm Agent Trading API
+
+Python client for the CoinRithm Agent Trading API — paper trading, prediction-market
+data, futures simulation, and the public PM data surface, generated from the same
+OpenAPI contract that drives the hosted MCP at `mcp.coinrithm.com`.
+
+- API base URL: `https://api.coinrithm.com`
+- Authentication: CoinRithm API key (`crk_live_…`), created in the CoinRithm
+  dashboard, sent as a bearer token.
+- The API is paper-only: no real funds ever move.
+
+## Install
+
+```bash
+pip install coinrithm-sdk
+```
+
+(or from this repo: `pip install ./packages/sdk-python`)
 
 ## Usage
-First, create a client:
+
+Public prediction-market data needs no authentication:
 
 ```python
 from coinrithm_sdk import Client
+from coinrithm_sdk.api.public_pm_data import get_public_prediction_market_overview
 
-client = Client(base_url="https://api.example.com")
+with Client(base_url="https://api.coinrithm.com") as client:
+    overview = get_public_prediction_market_overview.sync(client=client)
+    print(overview)
 ```
 
-If the endpoints you're going to hit require authentication, use `AuthenticatedClient` instead:
+Authenticated (trading/account) endpoints use `AuthenticatedClient` with your
+`crk_live_…` key:
 
 ```python
 from coinrithm_sdk import AuthenticatedClient
+from coinrithm_sdk.api.identity import whoami
 
-client = AuthenticatedClient(base_url="https://api.example.com", token="SuperSecretToken")
+with AuthenticatedClient(
+    base_url="https://api.coinrithm.com",
+    token="crk_live_your_key_here",
+) as client:
+    me = whoami.sync(client=client)
+    print(me)
 ```
 
-Now call your endpoint and use your models:
+Every endpoint module offers four call styles:
+
+1. `sync` — blocking, returns the parsed model (or `None`)
+2. `sync_detailed` — blocking, returns a `Response` with `status_code`,
+   headers and the parsed body
+3. `asyncio` — async variant of `sync`
+4. `asyncio_detailed` — async variant of `sync_detailed`
 
 ```python
-from coinrithm_sdk.models import MyDataModel
-from coinrithm_sdk.api.my_tag import get_my_data_model
-from coinrithm_sdk.types import Response
+from coinrithm_sdk.api.public_pm_data import search_public_prediction_market_events
 
-with client as client:
-    my_data: MyDataModel = get_my_data_model.sync(client=client)
-    # or if you need more info (e.g. status_code)
-    response: Response[MyDataModel] = get_my_data_model.sync_detailed(client=client)
+events = await search_public_prediction_market_events.asyncio(
+    client=client, q="bitcoin"
+)
 ```
 
-Or do the same thing with an async version:
+## Endpoint groups
 
-```python
-from coinrithm_sdk.models import MyDataModel
-from coinrithm_sdk.api.my_tag import get_my_data_model
-from coinrithm_sdk.types import Response
+| Module | What it covers |
+| --- | --- |
+| `api.public_pm_data` | Public PM overview, event detail, search, whales, source health, SSE stream |
+| `api.prediction_markets` | Paper PM trading: discover, quote, open/close mock positions |
+| `api.futures` | Paper futures: quote, open/close, stop-loss/take-profit |
+| `api.reads` | Portfolio, open orders, trade history (delta polling with `asOf`) |
+| `api.ledger` | Agent action ledger reads |
+| `api.identity` | `whoami` key introspection |
 
-async with client as client:
-    my_data: MyDataModel = await get_my_data_model.asyncio(client=client)
-    response: Response[MyDataModel] = await get_my_data_model.asyncio_detailed(client=client)
-```
+## TLS / certificates
 
-By default, when you're calling an HTTPS API it will attempt to verify that SSL is working correctly. Using certificate verification is highly recommended most of the time, but sometimes you may need to authenticate to a server (especially an internal server) using a custom certificate bundle.
+Certificate verification is on by default. For a custom CA bundle:
 
 ```python
 client = AuthenticatedClient(
-    base_url="https://internal_api.example.com", 
-    token="SuperSecretToken",
+    base_url="https://api.coinrithm.com",
+    token="crk_live_your_key_here",
     verify_ssl="/path/to/certificate_bundle.pem",
 )
 ```
 
-You can also disable certificate validation altogether, but beware that **this is a security risk**.
+`verify_ssl=False` disables validation entirely — a security risk, keep it to
+local debugging.
 
-```python
-client = AuthenticatedClient(
-    base_url="https://internal_api.example.com", 
-    token="SuperSecretToken", 
-    verify_ssl=False
-)
-```
+## Advanced customization
 
-Things to know:
-1. Every path/method combo becomes a Python module with four functions:
-    1. `sync`: Blocking request that returns parsed data (if successful) or `None`
-    1. `sync_detailed`: Blocking request that always returns a `Request`, optionally with `parsed` set if the request was successful.
-    1. `asyncio`: Like `sync` but async instead of blocking
-    1. `asyncio_detailed`: Like `sync_detailed` but async instead of blocking
-
-1. All path/query params, and bodies become method arguments.
-1. If your endpoint had any tags on it, the first tag will be used as a module name for the function (my_tag above)
-1. Any endpoint which did not have a tag will be in `coinrithm_sdk.api.default`
-
-## Advanced customizations
-
-There are more settings on the generated `Client` class which let you control more runtime behavior, check out the docstring on that class for more info. You can also customize the underlying `httpx.Client` or `httpx.AsyncClient` (depending on your use-case):
+The generated `Client` exposes httpx options directly:
 
 ```python
 from coinrithm_sdk import Client
 
 def log_request(request):
-    print(f"Request event hook: {request.method} {request.url} - Waiting for response")
-
-def log_response(response):
-    request = response.request
-    print(f"Response event hook: {request.method} {request.url} - Status {response.status_code}")
+    print(f"{request.method} {request.url} — waiting for response")
 
 client = Client(
-    base_url="https://api.example.com",
-    httpx_args={"event_hooks": {"request": [log_request], "response": [log_response]}},
+    base_url="https://api.coinrithm.com",
+    timeout=30.0,
+    httpx_args={"event_hooks": {"request": [log_request]}},
 )
-
-# Or get the underlying httpx client to modify directly with client.get_httpx_client() or client.get_async_httpx_client()
 ```
 
-You can even set the httpx client directly, but beware that this will override any existing settings (e.g., base_url):
+You can also swap in a fully custom `httpx.Client`/`httpx.AsyncClient` via
+`client.set_httpx_client(...)` / `client.set_async_httpx_client(...)` (re-set
+`base_url` and shared headers when you do).
 
-```python
-import httpx
-from coinrithm_sdk import Client
+## Regenerating
 
-client = Client(
-    base_url="https://api.example.com",
-)
-# Note that base_url needs to be re-set, as would any shared cookies, headers, etc.
-client.set_httpx_client(httpx.Client(base_url="https://api.example.com", proxies="http://localhost:8030"))
-```
-
-## Building / publishing this package
-This project uses [Poetry](https://python-poetry.org/) to manage dependencies  and packaging.  Here are the basics:
-1. Update the metadata in pyproject.toml (e.g. authors, version)
-1. If you're using a private repository, configure it with Poetry
-    1. `poetry config repositories.<your-repository-name> <url-to-your-repository>`
-    1. `poetry config http-basic.<your-repository-name> <username> <password>`
-1. Publish the client with `poetry publish --build -r <your-repository-name>` or, if for public PyPI, just `poetry publish --build`
-
-If you want to install this client into another project without publishing it (e.g. for development) then:
-1. If that project **is using Poetry**, you can simply do `poetry add <path-to-this-client>` from that project
-1. If that project is not using Poetry:
-    1. Build a wheel with `poetry build -f wheel`
-    1. Install that wheel from the other project `pip install <path-to-wheel>`
+This package is generated from [`openapi.yaml`](../../openapi.yaml) with
+`openapi-python-client`. Regenerate after any contract change, and keep this
+README's examples pointing at real endpoint modules — never the generator
+placeholders (`api.example.com`, `MyDataModel`) the backbone audit flagged.

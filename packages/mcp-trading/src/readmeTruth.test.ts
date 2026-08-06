@@ -92,10 +92,12 @@ describe("public docs stay truthful", () => {
     }
   });
 
-  it("pm_data_events tool description names all eleven venues", () => {
+  it("pm_data_events tool description names all twelve venues", () => {
     const tools = readFileSync(join(__dirname, "tools.ts"), "utf-8");
     const packageReadme = readFileSync(join(pkgRoot, "README.md"), "utf-8");
-    // Canonical venue list (prod overview bySource, 2026-07-08). If a venue
+    // Canonical venue list (prod overview bySource; Gemini added migration
+    // 179, list refreshed 2026-08-06 — the backbone audit caught this test
+    // asserting 'ALL 12' wording while enumerating only eleven). If a venue
     // is added or removed, update the tool description AND this list.
     const venues = [
       "Polymarket",
@@ -109,7 +111,9 @@ describe("public docs stay truthful", () => {
       "Futuur",
       "Myriad",
       "ForecastEx",
+      "Gemini",
     ];
+    expect(venues).toHaveLength(12);
     expect(tools).toContain("ALL 12");
     expect(tools).not.toMatch(/ALL (seven|eight|nine|ten|7|8|9|10)/i);
     expect(packageReadme).toContain("12 venues");
