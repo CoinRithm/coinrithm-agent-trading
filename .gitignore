@@ -9,3 +9,6 @@ examples/**/.*.state.json
 __pycache__/
 *.pyc
 tools/mcp-publisher/
+
+# Local deploy worktrees (created by the deploy script, never committed)
+.deploy-worktrees/

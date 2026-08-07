@@ -33,6 +33,34 @@ Mint a personal API key (`crk_live_…`) in your CoinRithm profile. Scopes:
 `read`, `trade:spot`, `trade:futures`, `trade:pm`. Rate limits: 120 req/min
 per key, 20 trade-writes/min.
 
+## Streaming (Server-Sent Events)
+
+`GET /api/prediction-markets/stream` is a **long-lived Server-Sent Events**
+feed (keyless; named events `deltas`, `whale`, `resolution` + `: hb` heartbeats
+every ~15s). **Do not call it with a plain `client.GET('/api/prediction-markets/stream')`**
+— the default JSON parse buffers the body to completion, and because the stream
+never closes the call hangs until your timeout fires. Consume it as a stream
+instead:
+
+```ts
+// Browser — EventSource (the endpoint is keyless):
+const es = new EventSource(
+  'https://api.coinrithm.com/api/prediction-markets/stream',
+);
+es.addEventListener('deltas', (e) => console.log(JSON.parse(e.data)));
+es.addEventListener('whale', (e) => console.log(JSON.parse(e.data)));
+
+// Node / typed client — opt out of body buffering with parseAs: 'stream',
+// then read SSE frames off the ReadableStream yourself:
+const { data } = await client.GET('/api/prediction-markets/stream', {
+  parseAs: 'stream',
+});
+// `data` is a ReadableStream<Uint8Array>; decode and split on `\n\n`.
+```
+
+Treat a silence much longer than the ~15s heartbeat as a dead connection and
+reconnect (the server sends a `retry: 5000` hint on connect).
+
 ## Regenerate from the contract
 
 ```bash
