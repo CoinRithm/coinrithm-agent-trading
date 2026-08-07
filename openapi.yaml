@@ -3,12 +3,44 @@ info:
   title: CoinRithm Agent Trading API
   version: "1.6.0"
   termsOfService: https://www.coinrithm.com/en/terms-of-use
+  x-api-lifecycle:
+    contract: v1
+    stability: stable
+    # v1 covers exactly the paths enumerated in this document.
+    compatibility: additive-only
+    # Field removal / rename / type change / semantic change requires a new
+    # versioned prefix; it is never done in place.
+    breakingChangePolicy: new-prefix-required
+    outOfContract:
+      - /api/internal/*
+      - session-authenticated application endpoints
   description: |
     Programmatic **paper-trading** surface for AI agents on CoinRithm.
 
     **Version note:** `info.version` (1.6.0) is the API contract version and is
     distinct from the npm package version (@coinrithm/mcp-trading 0.7.4). They
     are versioned independently; a package update does not imply an API change.
+
+    **Contract v1 (stability).** The paths enumerated in this document are
+    contract **v1**. Within v1 we guarantee: a documented field keeps its name
+    and meaning, is never silently removed, and is never repurposed; new fields
+    and new endpoints may be added at any time, so treat responses as open
+    maps. A breaking change — removing or renaming a documented field, changing
+    its type, or changing the meaning of a value — requires a new versioned
+    prefix, announced before the old one is withdrawn.
+
+    v1 is a CONTRACT over these paths, not a URL prefix: the paths stay at
+    `/api/...` and are not being moved. Moving them would break every existing
+    caller, including published npm builds and shipped mobile binaries that can
+    never be updated for users who do not upgrade.
+
+    **Explicitly OUT of contract** (undocumented, may change without notice):
+    `/api/internal/*` (server-to-server, token-gated) and the session-cookie
+    application endpoints the website itself uses — `/api/auth`,
+    `/api/dashboard`, `/api/settings`, `/api/portfolio`, `/api/order`,
+    `/api/watchlist`, `/api/agents`, `/api/mock-trade`, `/api/league-page`.
+    Those co-evolve with the product surface; only what is documented here
+    carries the v1 guarantee.
 
     All trading here is simulated: a 50,000 virtual-mUSD paper account, cash coin
     `USDT` (coinId `825`). Nothing touches real money or a real exchange. **Not
@@ -1687,6 +1719,84 @@ paths:
                 description: SSE frames (`event:` + `data:` JSON lines)
         "503":
           description: Stream at client capacity; retry later.
+
+  /api/prediction-markets/event/{source}/{slug}/price-history:
+    get:
+      operationId: getPublicPredictionMarketPriceHistory
+      tags: [public-pm-data]
+      summary: Probability history for one event
+      description: |
+        Time series of outcome probabilities. Documented here because it is
+        advertised on the public API page and in llms-full.txt — a contract
+        that claims to BE the documented surface cannot leave an advertised
+        endpoint undocumented.
+
+        Depth varies by venue and is not uniform: check
+        `coverage.probabilityHistoryStartDay` on /sources before assuming a
+        window exists. A venue can have a long catalog and shallow history.
+      security: []
+      parameters:
+        - name: source
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/PublicPmSourceSlug" }
+        - name: slug
+          in: path
+          required: true
+          schema: { type: string, minLength: 1 }
+        - name: interval
+          in: query
+          description: Bucket size; venue support varies.
+          schema: { type: string, enum: ["1h", "1d", "1w", "max"], default: "1d" }
+      responses:
+        "200":
+          description: Probability points, oldest first
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                properties:
+                  markets:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+                      properties:
+                        market: { type: string }
+                        history:
+                          type: array
+                          items:
+                            type: object
+                            additionalProperties: true
+                            properties:
+                              t: { type: integer, description: Unix ms }
+                              p: { type: number, description: Probability 0..1 }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /api/prediction-markets/whales/wallets:
+    get:
+      operationId: getPublicPredictionMarketWhaleWallets
+      tags: [public-pm-data]
+      summary: Aggregated large-trader wallet activity
+      description: |
+        Wallet-level aggregation behind the public whales surface. On-chain
+        venues only, so absence of a wallet is not evidence of absence of
+        trading — it means the venue does not expose one.
+      security: []
+      responses:
+        "200":
+          description: Wallet rows with aggregated flow
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "429":
+          description: Public request rate limit exceeded; honor `Retry-After`.
+        "500": { $ref: "#/components/responses/ServerError" }
 
   /api/prediction-markets/sources:
     get:
