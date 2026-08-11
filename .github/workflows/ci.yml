@@ -11,6 +11,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # Secret scan (audit reliability lane, 2026-08-11). A STEP inside the
+      # main job, not a parallel job, and the plain binary rather than the
+      # gitleaks-action - both lessons from the coinrithm frontend rollout
+      # (2026-08-06): a separate job needed its own runner + checkout and was
+      # routinely cancelled by follow-up pushes, making CI a false red; the
+      # Docker-image action was too slow for the same reason. Config:
+      # .gitleaks.toml (default ruleset in full + line-anchored allowlists for
+      # verified false positives). Proven before landing: clean `git archive`
+      # checkout scans exit 0, and a planted correctly-shaped canary PAT next
+      # to an allowlisted line still fails the scan.
+      - name: Secret scan
+        run: |
+          set -euo pipefail
+          VERSION=8.28.0
+          URL="https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz"
+          curl -sSfL "$URL" | tar -xz gitleaks
+          ./gitleaks dir . --no-banner --redact --exit-code 1
       - uses: actions/setup-node@v4
         with:
           node-version: 20

@@ -1,0 +1,26 @@
+# Secret-scan configuration for coinrithm-agent-trading.
+#
+# The default ruleset is KEPT IN FULL (`useDefault = true`); this file only
+# adds narrowly-scoped allowlists for verified false positives (triage
+# 2026-08-11, audit reliability lane). Entries are REGEX-ONLY and
+# line-anchored on purpose — a `paths` entry exempts the whole FILE (gitleaks
+# treats path/regex as OR), so a real secret committed beside an allowlisted
+# constant would be silently ignored. Match the secret's SHAPE + its own
+# declaration, never its location. Do not broaden these to silence a future
+# finding: verify what it is first, then add another narrow entry WITH the
+# reason.
+
+[extend]
+useDefault = true
+
+# Deliberately fake agent API keys in test fixtures. Both are anchored on
+# their exact fake literals — a REAL crk_live key pasted anywhere (including
+# right next to these lines) still fails the scan.
+# 1. packages/mcp-trading/src/agent/resolve.test.ts — YAML config fixture.
+# 2. packages/scheduler/src/crypto.test.ts — envelope-encryption round-trip.
+[[allowlists]]
+regexTarget = "line"
+regexes = [
+  '''apiKey: crk_live_AbCdEfGh12345678_a1b2c3''',
+  '''const secret = "crk_live_abc123_DEF456";''',
+]
