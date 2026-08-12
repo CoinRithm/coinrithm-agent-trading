@@ -1618,6 +1618,45 @@ paths:
               schema: { $ref: "#/components/schemas/PublicPmCalibrationResponse" }
         "500": { $ref: "#/components/responses/ServerError" }
 
+  /api/prediction-markets/consensus-methodology:
+    get:
+      operationId: getPublicPredictionMarketConsensusMethodology
+      tags: [public-pm-data]
+      summary: The versioned methodology behind Consensus Probability
+      description: |
+        Keyless, DB-free disclosure of exactly how the cross-venue Consensus
+        Probability is computed: venue eligibility, one-voice-per-venue
+        weighting, the liquidity-capped weighted MEDIAN estimator, the spread
+        rule, the binary/leader kinds, and the stated limitations.
+
+        Every served `referenceProbability` carries `methodologyVersion` and
+        `methodologyUrl`; this endpoint is what that URL resolves to. Pin the
+        version alongside any number you store — it is what lets you tell
+        whether a probability you cached was produced the same way as today's.
+
+        A published version's terms never change. If the computation changes,
+        the version changes with it.
+
+        Consensus Probability is CoinRithm Data — computed by CoinRithm, free to
+        cite with attribution. It is NOT venue market data and carries no venue
+        redistribution rights.
+      security: []
+      responses:
+        "200":
+          description: The versioned methodology descriptor
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                properties:
+                  schema: { type: string, enum: [coinrithm.consensusMethodology.v1] }
+                  version:
+                    type: string
+                    description: e.g. consensus_probability_v1. Pin this next to any stored number.
+                  methodology: { type: object, additionalProperties: true }
+                  licence: { type: string }
+
   /api/prediction-markets/canonical:
     get:
       operationId: listPublicPredictionMarketCanonicalEvents

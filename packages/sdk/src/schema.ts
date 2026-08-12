@@ -784,6 +784,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/prediction-markets/consensus-methodology": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The versioned methodology behind Consensus Probability
+         * @description Keyless, DB-free disclosure of exactly how the cross-venue Consensus
+         *     Probability is computed: venue eligibility, one-voice-per-venue
+         *     weighting, the liquidity-capped weighted MEDIAN estimator, the spread
+         *     rule, the binary/leader kinds, and the stated limitations.
+         *
+         *     Every served `referenceProbability` carries `methodologyVersion` and
+         *     `methodologyUrl`; this endpoint is what that URL resolves to. Pin the
+         *     version alongside any number you store — it is what lets you tell
+         *     whether a probability you cached was produced the same way as today's.
+         *
+         *     A published version's terms never change. If the computation changes,
+         *     the version changes with it.
+         *
+         *     Consensus Probability is CoinRithm Data — computed by CoinRithm, free to
+         *     cite with attribution. It is NOT venue market data and carries no venue
+         *     redistribution rights.
+         */
+        get: operations["getPublicPredictionMarketConsensusMethodology"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/prediction-markets/canonical": {
         parameters: {
             query?: never;
@@ -4757,6 +4792,37 @@ export interface operations {
                 };
             };
             500: components["responses"]["ServerError"];
+        };
+    };
+    getPublicPredictionMarketConsensusMethodology: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The versioned methodology descriptor */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        schema?: "coinrithm.consensusMethodology.v1";
+                        /** @description e.g. consensus_probability_v1. Pin this next to any stored number. */
+                        version?: string;
+                        methodology?: {
+                            [key: string]: unknown;
+                        };
+                        licence?: string;
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
         };
     };
     listPublicPredictionMarketCanonicalEvents: {
