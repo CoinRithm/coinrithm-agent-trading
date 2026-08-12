@@ -796,6 +796,15 @@ export interface paths {
          * @description Keyless cursor-paged directory of active canonical events — CoinRithm's
          *     stable cross-venue identity for one real-world question, independent of
          *     any single venue's slug.
+         *
+         *     The identifier is specified as an adoptable standard, including its
+         *     permanence guarantees and the rule that a merged key never 404s:
+         *     https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/EVENT_ID_STANDARD.md
+         *
+         *     Lists ACTIVE canonicals only; merged ones remain resolvable by key via
+         *     the detail endpoint. A canonical exists only where at least two venues
+         *     listed the same question, so this is a cross-venue cluster directory
+         *     rather than a catalogue of every event.
          */
         get: operations["listPublicPredictionMarketCanonicalEvents"];
         put?: never;
@@ -820,6 +829,17 @@ export interface paths {
          *     and provenance basis, plus an append-only judgment lineage. A MERGED
          *     canonical still resolves (status='merged' + mergedInto pointer) so a
          *     stable key never 404s.
+         *
+         *     Full specification — identifier permanence, orientation semantics, the
+         *     adoption steps, and what is deliberately NOT guaranteed:
+         *     https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/EVENT_ID_STANDARD.md
+         *
+         *     `orientation: flipped` means the member is stated BACKWARDS relative to
+         *     the anchor: read its probability as 100 - p before comparing. `unknown`
+         *     means not yet judged and is served as-is — never collapse it to `same`,
+         *     which is the silent error this field exists to prevent. `title` is a
+         *     snapshot taken at creation and is never refreshed; read
+         *     members[].eventTitle for current venue wording.
          */
         get: operations["getPublicPredictionMarketCanonicalEvent"];
         put?: never;
