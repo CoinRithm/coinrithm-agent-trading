@@ -5,6 +5,32 @@ ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (t
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
 versioned separately (see `openapi.yaml` `info.version`, currently `1.6.0`).
 
+## 0.7.5
+
+**Release-hygiene bump. Everything below was already merged but never
+reached npm** — the 0.7.4 tarball was published 2026-07-26T23:01:11Z and
+five commits landed after that instant without a version bump, so the
+repository's 0.7.4 and the published 0.7.4 were different code under one
+version number. This release makes the published artifact match the
+source again.
+
+- **Security.** MCP dependency audit fixes, 6 findings to 0 (`da65e9e`).
+  Anyone on published 0.7.4 is running the pre-audit dependency set.
+- **`pm_data` Gemini exposure** for agents (`3ab04ae`).
+- **Venue methodology and health** exposed as tools (`74cc495`).
+- **Reproducible decision receipts** persisted by the agent runner
+  (`8bebc9e`).
+- **Docs.** Contract version drift corrected and the placeholder SDK
+  README replaced, so the docs stop advertising an install that 404s
+  (`6d61b92`).
+
+No tool was renamed or removed; this is additive plus a dependency
+refresh.
+
+⚠ Publishing this package is a **manual** step — `publish-mcp.yml` only
+pushes `server.json` to the MCP registry, it does not run `npm publish`.
+That asymmetry is exactly how the drift above accumulated unnoticed.
+
 ## 0.7.4
 
 Docs-only. No tool behavior change, no API-surface change.
