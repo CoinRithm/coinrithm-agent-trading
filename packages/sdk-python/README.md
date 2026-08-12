@@ -11,11 +11,17 @@ OpenAPI contract that drives the hosted MCP at `mcp.coinrithm.com`.
 
 ## Install
 
+> **Not published to PyPI yet.** `pip install coinrithm-sdk` currently returns
+> 404 — this README used to print that command anyway, which meant anyone
+> following our own docs hit a dead end on their first step. Install from this
+> repository until the package ships.
+
 ```bash
-pip install coinrithm-sdk
+# From a clone of this repository
+pip install ./packages/sdk-python
 ```
 
-(or from this repo: `pip install ./packages/sdk-python`)
+The PyPI instruction returns once the package is actually on PyPI — not before.
 
 ## Usage
 
