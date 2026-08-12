@@ -44,8 +44,10 @@ it throttles nobody). No published monthly cap. All currently-public endpoints,
 Enforcement is 429 + `Retry-After` only — never a ban, never a bill.
 
 **FREE (keyed) — $0**
-100,000 req/month · 120 req/min · 20 trade-writes/min · 30 days history · 1 key.
+250,000 req/month · 120 req/min · 20 trade-writes/min · 30 days history · 1 key.
 Hard cap, no card on file, so it is structurally incapable of generating a bill.
+Non-commercial — commercial use requires Builder at ANY volume, which is the
+real conversion lever, not the quota.
 
 **BUILDER — $29/month** ($278/yr)
 1M req/month · 300 req/min · **commercial licence** · 1 year history + `asOf`
@@ -73,10 +75,30 @@ not ours to sell (see §5).
   price step for a 5x volume step and undercuts every direct competitor's $249.
 - **No $999 tier printed.** Printing an enterprise number next to a $0 keyless
   tier invites SLA/DPA/DR questions with near-zero expected value.
-- **Free keyed at 100,000** — between the proposed 250k (which eats the product)
-  and 25k (below plausible p99). 4x PMXT, 6.7x CMC, 10x CoinGecko Demo.
-  **Binding rule: publish only after the per-key p99 probe. If p99 > 100k, raise
-  the free quota. Never throttle real users to make a paid tier look better.**
+- **Free keyed at 250,000 — RAISED from 100,000 by the binding rule, which
+  fired.** The rule said: publish only after the per-key p99 probe, and if p99
+  exceeds 100k, raise the quota rather than throttle real users.
+
+  PROBE (prod, 2026-08-12, 90 days of AgentActionEvent per key per month; this
+  is a FLOOR — actions <= requests, since reads do not all emit an action):
+  ```
+  67 key-months over 37 distinct keys
+  p10       76     p25   32,720     p50  105,702
+  p75  280,745     p95  563,676     p99  995,437
+  <=100k: 29/67 (43%)   <=250k: 48/67 (72%)   <=1M: 67/67 (100%)
+  ```
+  100,000 would have throttled 57% of real key-months — the MEDIAN key already
+  exceeds it. The critique that argued 250k "eats the product" reasoned from a
+  mean of ~225-240k, but mean is the wrong statistic for quota sizing: it is
+  dragged by a few heavy keys. p50 is 105k and p75 is 281k.
+
+  250,000 fits a genuine single agent (p75) while staying 4x below Builder's 1M,
+  so scale is still a real upgrade trigger. Conversion is driven by the
+  COMMERCIAL LICENCE, which Builder gates at any volume — not by starving the
+  free tier. This product's users run autonomous agents that poll continuously;
+  comparables like CoinGecko's 10k and CMC's 15k are sized for humans checking
+  prices, and copying them here would make the free tier useless for the actual
+  use case.
 - **No overage billing at launch.** `apiKeyUsage.ts` says in its own header that
   it is fire-and-forget Redis INCR that degrades to null and can never reject a
   request. You cannot invoice off that. Over quota → throttle to free rate.
@@ -190,7 +212,8 @@ Nothing else is needed from the owner until the card is published.
 3. Per-venue rights matrix (12 venues): what may be resold, per agreement
 4. Draft API Terms with the derived-vs-raw boundary + bulk carve-out
 5. Durable Postgres monthly usage rollup (the Redis counter cannot be invoiced off)
-6. Per-key p99 probe → confirm or raise the 100k free quota
+6. ~~Per-key p99 probe → confirm or raise the free quota~~ **DONE — quota
+   raised 100k → 250k on the evidence above**
 7. Email the 28 existing users individually; grant Founding Developer
 8. Open the Paddle account
 9. Publish the card: 90 days notice, 60 days soft enforcement
