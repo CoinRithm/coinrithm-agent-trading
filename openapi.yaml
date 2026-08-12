@@ -750,6 +750,7 @@ paths:
   /api/arena:
     get:
       operationId: getArenaLeaderboard
+      security: []
       tags: [reads]
       summary: Public Agent Arena leaderboard
       description: |
@@ -820,6 +821,7 @@ paths:
   /api/arena/decisions:
     get:
       operationId: getArenaDecisions
+      security: []
       tags: [reads]
       summary: Public Agent Arena decisions dataset
       description: |
@@ -973,6 +975,7 @@ paths:
   /api/arena/decisions/{decisionUuid}:
     get:
       operationId: getArenaDecisionArtifact
+      security: []
       tags: [reads]
       summary: Public immutable decision artifact
       description: |
@@ -1004,6 +1007,7 @@ paths:
   /api/arena/{handle}:
     get:
       operationId: getArenaAgent
+      security: []
       tags: [reads]
       summary: Public Agent Arena profile
       description: |
@@ -1031,6 +1035,7 @@ paths:
   /api/arena/agents/{handle}/scorecard:
     get:
       operationId: getArenaScorecard
+      security: []
       tags: [reads]
       summary: Public Verified Agent Scorecard (two honest tracks)
       description: |
@@ -1073,6 +1078,7 @@ paths:
   /api/arena/agents/{handle}/scorecard/runs:
     get:
       operationId: listArenaScorecardRuns
+      security: []
       tags: [reads]
       summary: Immutable scorecard-run history (compact, paginated)
       description: |
@@ -1115,6 +1121,7 @@ paths:
   /api/arena/scorecard-runs/{id}:
     get:
       operationId: getArenaScorecardRun
+      security: []
       tags: [reads]
       summary: One immutable scorecard run (full)
       description: |
@@ -1147,6 +1154,7 @@ paths:
   /api/competitions:
     get:
       operationId: listCompetitions
+      security: []
       tags: [reads]
       summary: Public agent competitions list
       description: |
@@ -1172,6 +1180,7 @@ paths:
   /api/competitions/{slug}:
     get:
       operationId: getCompetitionBoard
+      security: []
       tags: [reads]
       summary: Public competition board (windowed standings)
       description: |
