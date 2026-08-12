@@ -1,9 +1,24 @@
 [tool.poetry]
 name = "coinrithm-sdk"
+# Tracks the API CONTRACT version (openapi.yaml info.version), not the MCP
+# package version — the generated client is only meaningful against a contract.
 version = "1.6.0"
-description = "A client library for accessing CoinRithm Agent Trading API"
-authors = []
+description = "Typed Python client for the CoinRithm Agent Trading API — paper trading only, generated from the OpenAPI 3.1 contract."
+authors = ["CoinRithm <support@coinrithm.com>"]
+license = "MIT"
 readme = "README.md"
+homepage = "https://coinrithm.com/agentic-trading"
+repository = "https://github.com/CoinRithm/coinrithm-agent-trading"
+documentation = "https://coinrithm.github.io/coinrithm-agent-trading/"
+keywords = ["coinrithm", "prediction-markets", "paper-trading", "openapi", "mcp"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "Typing :: Typed",
+]
 packages = [
     { include = "coinrithm_sdk" },
 ]
