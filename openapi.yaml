@@ -1758,7 +1758,19 @@ paths:
         24-hour aggregates. Availability can be live, delayed or unavailable;
         play-money and unverifiable activity are excluded. A large print is
         information, not a recommendation.
+
+        The tape is a single cached payload of at most 50 trades. `limit`
+        narrows what is returned from it — useful for an embed or a
+        low-bandwidth client that wants 5 rows rather than 50. It cannot widen
+        the tape: values above 50 clamp, and a missing or malformed value
+        returns the full tape rather than a 400.
       security: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: Trades to return, 1-50. Clamps rather than erroring.
+          schema: { type: integer, minimum: 1, maximum: 50, default: 50 }
       responses:
         "200":
           description: Latest 50 accepted trades, aggregate statistics and venue coverage

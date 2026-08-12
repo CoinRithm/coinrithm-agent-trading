@@ -921,6 +921,12 @@ export interface paths {
          *     24-hour aggregates. Availability can be live, delayed or unavailable;
          *     play-money and unverifiable activity are excluded. A large print is
          *     information, not a recommendation.
+         *
+         *     The tape is a single cached payload of at most 50 trades. `limit`
+         *     narrows what is returned from it — useful for an embed or a
+         *     low-bandwidth client that wants 5 rows rather than 50. It cannot widen
+         *     the tape: values above 50 clamp, and a missing or malformed value
+         *     returns the full tape rather than a 400.
          */
         get: operations["getPublicPredictionMarketWhales"];
         put?: never;
@@ -4897,7 +4903,10 @@ export interface operations {
     };
     getPublicPredictionMarketWhales: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Trades to return, 1-50. Clamps rather than erroring. */
+                limit?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
