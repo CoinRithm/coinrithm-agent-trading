@@ -48,6 +48,10 @@ function traceHeaders(trace?: AgentTrace): Record<string, string> {
     h["X-CoinRithm-Strategy-Label"] = trace.strategyLabel;
   if (typeof trace.confidence === "number")
     h["X-CoinRithm-Confidence"] = String(trace.confidence);
+  if (trace.observationHash)
+    h["X-CoinRithm-Observation-Hash"] = trace.observationHash;
+  if (trace.indicatorVersion)
+    h["X-CoinRithm-Indicator-Version"] = trace.indicatorVersion;
   return h;
 }
 

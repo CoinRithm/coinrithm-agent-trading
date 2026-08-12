@@ -12,6 +12,7 @@ import { join, dirname } from "node:path";
 import { resolveAgent } from "./resolve.js";
 import { buildSpec } from "./skill.js";
 import { buildManifest, serializeManifest, writeManifest } from "./manifest.js";
+import { INDICATOR_VERSION } from "./indicators.js";
 
 let dir: string;
 beforeEach(() => {
@@ -77,6 +78,7 @@ describe("manifest", () => {
     );
     expect(parsed.schema).toBe("coinrithm.manifest.v1");
     expect(parsed.configHash).toMatch(/^sha256:/);
+    expect(parsed.indicatorVersion).toBe(INDICATOR_VERSION);
     expect(parsed.resolvedSpec.risk.maxLeverage).toBe(3);
     expect(out).toContain("manifest.lock.json");
   });

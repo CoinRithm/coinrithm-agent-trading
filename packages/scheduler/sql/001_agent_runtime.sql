@@ -80,6 +80,10 @@ ALTER TABLE agent_runtime.agent_cycles ADD COLUMN IF NOT EXISTS estimated_cost_u
 ALTER TABLE agent_runtime.agent_cycles ADD COLUMN IF NOT EXISTS decision_type TEXT;
 ALTER TABLE agent_runtime.agent_cycles ADD COLUMN IF NOT EXISTS write_attempted INTEGER;
 ALTER TABLE agent_runtime.agent_cycles ADD COLUMN IF NOT EXISTS write_accepted INTEGER;
+-- D16 reproducibility receipt: privacy-safe hash of the exact structured model
+-- input plus the versioned deterministic indicator algorithm that produced it.
+ALTER TABLE agent_runtime.agent_cycles ADD COLUMN IF NOT EXISTS observation_hash TEXT;
+ALTER TABLE agent_runtime.agent_cycles ADD COLUMN IF NOT EXISTS indicator_version TEXT;
 
 CREATE INDEX IF NOT EXISTS agent_cycles_agent_ts_idx
   ON agent_runtime.agent_cycles (agent_id, ts DESC);

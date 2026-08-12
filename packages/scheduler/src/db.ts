@@ -45,10 +45,89 @@ export interface CycleRecord {
   decisionType?: string;
   writeAttempted?: number;
   writeAccepted?: number;
+  observationHash?: string;
+  indicatorVersion?: string;
 }
 
 export function createPool(databaseUrl: string): Pool {
-  return new Pool({ connectionString: databaseUrl, max: 10 });
+  const pool = new Pool({ connectionString: databaseUrl, max: 10 });
+  // `pg` emits an EventEmitter `error` when an IDLE pooled connection dies
+  // (not through a query Promise). Without a listener Node treats it as an
+  // uncaught exception; a routine Postgres restart killed the whole scheduler
+  // this way on 2026-08-12. pg removes the dead client itself, so log the event
+  // and let the next query acquire a fresh connection.
+  pool.on("error", (error) => {
+    console.error(
+      "[scheduler] idle postgres client dropped:",
+      error instanceof Error ? error.message : String(error),
+    );
+  });
+  return pool;
+}
+
+const TRANSIENT_DATABASE_CODES = new Set([
+  "57P01", // admin_shutdown
+  "57P02", // crash_shutdown
+  "57P03", // cannot_connect_now / recovery
+  "08000", // connection_exception
+  "08001", // unable_to_establish_sqlconnection
+  "08003", // connection_does_not_exist
+  "08004", // sqlserver_rejected_establishment_of_sqlconnection
+  "08006", // connection_failure
+  "ECONNREFUSED",
+  "ECONNRESET",
+  "ENETUNREACH",
+  "EHOSTUNREACH",
+  "ETIMEDOUT",
+]);
+
+export function isTransientDatabaseError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const e = error as { code?: unknown; message?: unknown };
+  if (typeof e.code === "string" && TRANSIENT_DATABASE_CODES.has(e.code))
+    return true;
+  const message = typeof e.message === "string" ? e.message : "";
+  return /connection terminated|connection refused|server closed the connection|the database system is (starting|shutting down|in recovery)/i.test(
+    message,
+  );
+}
+
+export async function retryDatabaseStartup(
+  operation: () => Promise<void>,
+  options: {
+    sleep?: (ms: number) => Promise<void>;
+    onRetry?: (attempt: number, delayMs: number, code: string) => void;
+    initialDelayMs?: number;
+    maxDelayMs?: number;
+  } = {},
+): Promise<void> {
+  const sleep =
+    options.sleep ??
+    ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const initialDelayMs = options.initialDelayMs ?? 1_000;
+  const maxDelayMs = options.maxDelayMs ?? 30_000;
+  let attempt = 0;
+  for (;;) {
+    try {
+      await operation();
+      return;
+    } catch (error) {
+      if (!isTransientDatabaseError(error)) throw error;
+      attempt += 1;
+      const delayMs = Math.min(
+        maxDelayMs,
+        initialDelayMs * 2 ** Math.min(attempt - 1, 10),
+      );
+      const code =
+        error &&
+        typeof error === "object" &&
+        typeof (error as { code?: unknown }).code === "string"
+          ? String((error as { code: string }).code)
+          : "connection_error";
+      options.onRetry?.(attempt, delayMs, code);
+      await sleep(delayMs);
+    }
+  }
 }
 
 export async function migrate(pool: Pool): Promise<void> {
@@ -236,8 +315,9 @@ export async function recordCycle(
   await pool.query(
     `INSERT INTO agent_runtime.agent_cycles
        (agent_id, decision, skip_reason, rationale, confidence, raw_model_output, model_failed, disabled, actions, log, error,
-        trigger_codes, llm_call_made, tokens_in, tokens_out, estimated_cost_usd, decision_type, write_attempted, write_accepted)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
+        trigger_codes, llm_call_made, tokens_in, tokens_out, estimated_cost_usd, decision_type, write_attempted, write_accepted,
+        observation_hash, indicator_version)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)`,
     [
       agentId,
       rec.decision,
@@ -262,6 +342,8 @@ export async function recordCycle(
       rec.decisionType ?? null,
       rec.writeAttempted ?? null,
       rec.writeAccepted ?? null,
+      rec.observationHash ?? null,
+      rec.indicatorVersion ?? null,
     ],
   );
 }
@@ -287,8 +369,9 @@ export async function persistCycleResult(
     await client.query(
       `INSERT INTO agent_runtime.agent_cycles
          (agent_id, decision, skip_reason, rationale, confidence, raw_model_output, model_failed, disabled, actions, log, error,
-          trigger_codes, llm_call_made, tokens_in, tokens_out, estimated_cost_usd, decision_type, write_attempted, write_accepted)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
+          trigger_codes, llm_call_made, tokens_in, tokens_out, estimated_cost_usd, decision_type, write_attempted, write_accepted,
+          observation_hash, indicator_version)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)`,
       [
         agentId,
         c.decision,
@@ -311,6 +394,8 @@ export async function persistCycleResult(
         c.decisionType ?? null,
         c.writeAttempted ?? null,
         c.writeAccepted ?? null,
+        c.observationHash ?? null,
+        c.indicatorVersion ?? null,
       ],
     );
     if (args.disableReason) {

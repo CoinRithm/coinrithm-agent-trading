@@ -158,6 +158,8 @@ describe("runCycle", () => {
     expect(r.decision).toBe("act");
     expect(r.planned[0].accepted).toBe(true);
     expect(r.planned[0].executed).toBe(false);
+    expect(r.observationHash).toMatch(/^sha256:[a-f0-9]{64}$/);
+    expect(r.indicatorVersion).toBe("coinrithm.indicators.v1");
     expect(client.openFutures).not.toHaveBeenCalled();
   });
 
@@ -166,6 +168,14 @@ describe("runCycle", () => {
     const r = await runCycle(deps({ live: true }, client));
     expect(client.futuresQuote).toHaveBeenCalled();
     expect(client.openFutures).toHaveBeenCalledTimes(1);
+    expect(client.openFutures).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentTrace: expect.objectContaining({
+          observationHash: r.observationHash,
+          indicatorVersion: r.indicatorVersion,
+        }),
+      }),
+    );
     expect(r.planned[0].executed).toBe(true);
   });
 

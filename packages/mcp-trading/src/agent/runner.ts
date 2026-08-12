@@ -37,6 +37,7 @@ import {
 } from "./state.js";
 import { asObj, asNum, asStr } from "./extract.js";
 import { parseCadenceMs, sleep } from "./util.js";
+import { buildObservationReceipt } from "./observationReceipt.js";
 
 export interface RunnerDeps {
   client: CoinRithmClient;
@@ -437,6 +438,10 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
   // OBSERVE
   const obs = await observe(client, spec, state, baseTrace);
   const observation = obs.observation;
+  const observationReceipt = buildObservationReceipt(observation);
+  // Reads build the observation, so its hash cannot exist before they finish.
+  // From this point every durable write carries the exact decision-input receipt.
+  Object.assign(baseTrace, observationReceipt);
   accrueRealized(state, observation.newClosedTrades);
   state.cursor = observation.syncCursor;
   for (const t of observation.newClosedTrades) {
@@ -500,6 +505,7 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
       disabled: true,
       disabledReason: state.disabledReason,
       live,
+      ...observationReceipt,
     };
   }
 
@@ -507,7 +513,13 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
     state.consecutiveRejectCycles += 1;
     saveState(stateFile, state);
     log(`skip: ${obs.skip}`);
-    return { decision: "skip", skipReason: obs.skip, planned: [], live };
+    return {
+      decision: "skip",
+      skipReason: obs.skip,
+      planned: [],
+      live,
+      ...observationReceipt,
+    };
   }
 
   // GATE (slice 2): only SPEND an LLM call when a deterministic trigger fires — a
@@ -534,6 +546,7 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
       estimatedCostUsd: 0,
       writeAttempted: 0,
       writeAccepted: 0,
+      ...observationReceipt,
     };
   }
   // DECIDE. Two paths share the same downstream validate+act loop:
@@ -608,6 +621,7 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
         decisionType: "model_error",
         writeAttempted: 0,
         writeAccepted: 0,
+        ...observationReceipt,
       };
     }
     const parsed = parseDecision(res.text);
@@ -628,6 +642,7 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
         decisionType: "model_error",
         writeAttempted: 0,
         writeAccepted: 0,
+        ...observationReceipt,
       };
     }
     state.consecutiveModelFailures = 0;
@@ -671,6 +686,7 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
       writeAttempted: decision.actions.length,
       writeAccepted: 0,
       ...(postedOpportunity ? { opportunity: postedOpportunity } : {}),
+      ...observationReceipt,
     };
   }
 
@@ -890,23 +906,26 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
     const seq = state.intentSeq[intentKey] ?? 0;
     const idem = `${runId}:${intentKey}:${seq}`;
     const meta = action as { confidence?: number; rationaleSummary?: string };
-    const trace = makeTrace(
-      runId,
-      decisionId,
-      spec,
-      meta.confidence ?? decision.confidence,
-      // The trade's "why" on the Arena live floor. Prefer the model's per-action
-      // summary; else the decision rationale, but kept HONEST about this action's
-      // market (a multi-action decision's rationale can be about a DIFFERENT market
-      // than a secondary trade — see rationaleForAction). Sanitized short reasoning
-      // only — never raw chain-of-thought.
-      rationaleForAction(
-        action,
-        decision.rationale,
-        meta.rationaleSummary,
-        decision.actions.length,
+    const trace = {
+      ...makeTrace(
+        runId,
+        decisionId,
+        spec,
+        meta.confidence ?? decision.confidence,
+        // The trade's "why" on the Arena live floor. Prefer the model's per-action
+        // summary; else the decision rationale, but kept HONEST about this action's
+        // market (a multi-action decision's rationale can be about a DIFFERENT market
+        // than a secondary trade — see rationaleForAction). Sanitized short reasoning
+        // only — never raw chain-of-thought.
+        rationaleForAction(
+          action,
+          decision.rationale,
+          meta.rationaleSummary,
+          decision.actions.length,
+        ),
       ),
-    );
+      ...observationReceipt,
+    };
     const r = await executeAction(
       client,
       action,
@@ -998,6 +1017,7 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
     writeAttempted: decision.actions.length,
     writeAccepted: planned.filter((p) => p.accepted).length,
     ...(postedOpportunity ? { opportunity: postedOpportunity } : {}),
+    ...observationReceipt,
   };
 }
 

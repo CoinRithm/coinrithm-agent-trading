@@ -12,12 +12,14 @@ import {
   RUNNER_VERSION,
   MANIFEST_SCHEMA,
 } from "./version.js";
+import { INDICATOR_VERSION } from "./indicators.js";
 
 export interface AgentManifest {
   schema: string;
   spec: string;
   resolverVersion: string;
   runnerVersion: string;
+  indicatorVersion: string;
   resolvedConfig: Record<string, unknown>; // merged frontmatter, pre-defaults
   resolvedSpec: AgentSpec; // post buildSpec + defaults
   provenance: Provenance;
@@ -35,6 +37,7 @@ export function buildManifest(
     stableStringify({
       resolvedSpec: spec,
       resolverVersion: RESOLVER_VERSION,
+      indicatorVersion: INDICATOR_VERSION,
       schema: MANIFEST_SCHEMA,
     }),
   );
@@ -43,6 +46,7 @@ export function buildManifest(
     spec: spec.spec || "coinrithm.agent.v1",
     resolverVersion: RESOLVER_VERSION,
     runnerVersion: RUNNER_VERSION,
+    indicatorVersion: INDICATOR_VERSION,
     resolvedConfig: resolved.rawFrontmatter,
     resolvedSpec: spec,
     provenance: resolved.provenance,

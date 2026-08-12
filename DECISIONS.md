@@ -324,9 +324,11 @@ author a flagship quant-rigorous reference agent that exercises the full spec.
   via the `nvidia` preset is seeded as the scheduler default for Mia (see
   `packages/scheduler/scripts/seed-house-agents.mjs`). The observation-enrichment
   from D14's caveat (`observe()` candle-fetch → `computeIndicators`) is also wired
-  and live (see `packages/mcp-trading/src/agent/observe.ts`). Remaining open item:
-  `{ observationHash, indicatorVersion }` stamping in the trace/manifest for
-  fully reproducible per-decision eval (the structured-input gap from D16).
+  and live (see `packages/mcp-trading/src/agent/observe.ts`). The structured-input
+  gap from D16 is also shipped: every observed cycle emits a deterministic
+  `{ observationHash, indicatorVersion }` receipt, hosted cycles persist it, live
+  writes carry it in their trace, and manifests pin the indicator version. The
+  receipt stores no raw prompt, observation payload, or model reasoning.
 - **Hosted scheduler ("free run") — SHIPPED (see D15).** `packages/scheduler/`
   is built and deployed: DB-driven, stateless, at-most-once-per-window, with
   AES-256-GCM encrypted keys and house-agent seeding. CoinRithm runs the same

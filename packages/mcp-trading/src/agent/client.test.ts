@@ -58,4 +58,26 @@ describe("CoinRithmClient", () => {
     expect(calledUrl).toContain("%2F"); // the slash is encoded
     expect(calledUrl).not.toContain("with?weird"); // raw query chars not leaked
   });
+
+  it("sends the observation receipt as trace headers", async () => {
+    let headers: HeadersInit | undefined;
+    const fetchFn = vi.fn(async (_url: string, init?: RequestInit) => {
+      headers = init?.headers;
+      return new Response("{}", { status: 200 });
+    });
+    const c = new CoinRithmClient({
+      apiKey: "k",
+      fetchFn: fetchFn as unknown as typeof fetch,
+    });
+
+    await c.me({
+      observationHash: `sha256:${"a".repeat(64)}`,
+      indicatorVersion: "coinrithm.indicators.v1",
+    });
+
+    expect(headers).toMatchObject({
+      "X-CoinRithm-Observation-Hash": `sha256:${"a".repeat(64)}`,
+      "X-CoinRithm-Indicator-Version": "coinrithm.indicators.v1",
+    });
+  });
 });

@@ -179,6 +179,8 @@ export async function runAgentOnce(
         decisionType: result.decisionType,
         writeAttempted: result.writeAttempted,
         writeAccepted: result.writeAccepted,
+        observationHash: result.observationHash,
+        indicatorVersion: result.indicatorVersion,
       },
       disableReason: result.disabled
         ? (result.disabledReason ?? "kill-switch")

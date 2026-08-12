@@ -11,6 +11,10 @@
 // Every function returns null when there are too few candles, so callers can
 // omit an indicator from the observation rather than emit a misleading number.
 
+// Bump whenever indicator inputs, defaults, formulas, rounding, or output
+// semantics change. Stored beside each observation hash and in manifest.lock.
+export const INDICATOR_VERSION = "coinrithm.indicators.v1";
+
 export interface Candle {
   open: number;
   high: number;

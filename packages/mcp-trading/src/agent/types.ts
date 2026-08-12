@@ -547,6 +547,8 @@ export interface AgentTrace {
   strategyLabel?: string;
   confidence?: number;
   rationaleSummary?: string;
+  observationHash?: string;
+  indicatorVersion?: string;
 }
 
 export interface ApiResult {
@@ -586,6 +588,10 @@ export interface CycleResult {
   disabled?: boolean;
   disabledReason?: string;
   live: boolean;
+  // Privacy-safe decision-input receipt. The digest binds the exact structured
+  // Observation; the version identifies the deterministic indicator algorithm.
+  observationHash?: string;
+  indicatorVersion?: string;
   // ── Metering (slice 2): per-cycle usage accounting — the data the future credit
   // system + tier pricing read. Recorded for EVERY cycle (incl. gated heartbeats).
   triggerCodes?: string[]; // which gate triggers fired this cycle
