@@ -816,7 +816,7 @@ export interface paths {
         /**
          * Get one canonical event's members and judgment lineage
          * @description Keyless canonical-event detail by UUID or slug: venue members with
-         *     orientation (same/inverted/unknown — never price-inferred), confidence
+         *     orientation (same/flipped/unknown — never price-inferred), confidence
          *     and provenance basis, plus an append-only judgment lineage. A MERGED
          *     canonical still resolves (status='merged' + mergedInto pointer) so a
          *     stable key never 404s.
@@ -903,6 +903,127 @@ export interface paths {
          *     session. This is an information feed, not a recommendation stream.
          */
         get: operations["streamPublicPredictionMarketEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/prediction-markets/event/{source}/{slug}/price-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Probability history for one event
+         * @description Time series of outcome probabilities. Documented here because it is
+         *     advertised on the public API page and in llms-full.txt — a contract
+         *     that claims to BE the documented surface cannot leave an advertised
+         *     endpoint undocumented.
+         *
+         *     Depth varies by venue and is not uniform: check
+         *     `coverage.probabilityHistoryStartDay` on /sources before assuming a
+         *     window exists. A venue can have a long catalog and shallow history.
+         */
+        get: operations["getPublicPredictionMarketPriceHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/prediction-markets/whales/wallets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Aggregated large-trader wallet activity
+         * @description Wallet-level aggregation behind the public whales surface. On-chain
+         *     venues only, so absence of a wallet is not evidence of absence of
+         *     trading — it means the venue does not expose one.
+         */
+        get: operations["getPublicPredictionMarketWhaleWallets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/prediction-markets/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Per-venue comparison with coverage-ledger evidence
+         * @description Keyless per-venue stats, resolution evidence and the Gate-2 coverage
+         *     ledger.
+         *
+         *     Read `coverage.completenessClass` literally: it reports what the LATEST
+         *     catalog sweep observed (`open_sweep_exhausted` = the adapter enumerated
+         *     the open set; `open_sweep_bounded` = it stopped at a provider page
+         *     ceiling or volume floor; `unknown` = no recent sweep evidence). It does
+         *     NOT assert that CoinRithm holds the venue's complete lifetime universe
+         *     — that stronger claim is `coverage.universeVerified`, which is `false`
+         *     for every venue until externally verified against a venue-published
+         *     total. Do not paraphrase either field as "complete coverage".
+         *
+         *     `anyResolutionRate` and `providerResolutionRate` share one denominator
+         *     (closed events) but are different facts: any recorded resolution vs a
+         *     provider-verified one. `catalogFirstSeenDay` is when CoinRithm first
+         *     saw the catalog; `probabilityHistoryStartDay` is how far stored
+         *     probability history actually reaches, and is null when none is held.
+         */
+        get: operations["getPublicPredictionMarketSources"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/prediction-markets/events/{source}/{slug}/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Append-only correction history and point-in-time reconstruction
+         * @description Every correction CoinRithm has made to this event's published facts,
+         *     newest first — what changed, from what to what, why, on whose evidence
+         *     (ingest run and raw-capture file), with which parser, and which earlier
+         *     statement it supersedes. Nothing is overwritten; corrections append.
+         *
+         *     `effectiveAt` is when the change became true AT THE SOURCE (the venue's
+         *     own settlement time) and is null when the venue states none — it is
+         *     never back-filled with the observation time. `observedAt` is when
+         *     CoinRithm saw it. The two routinely differ by weeks.
+         *
+         *     With `asOf`, the response also carries `reconstructed`: the state
+         *     CoinRithm was publishing at that instant, folded by OBSERVATION time.
+         *     That answers "what did you show on day X" — cite it rather than
+         *     inferring past state from current values.
+         *
+         *     An event with no corrections returns an empty `revisions` array, which
+         *     is a real answer, not an error.
+         */
+        get: operations["getPublicPredictionMarketEventRevisions"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1215,8 +1336,11 @@ export interface components {
         PublicPmOutcome: {
             externalMarketId?: string;
             name: string;
-            /** @description Provider-implied probability on a 0–100 scale. */
+            /** @description Provider-implied probability on a 0–100 scale (raw venue quote; may include vig, so a book's outcomes can sum above 100). */
             probability?: number | null;
+            /** @description Vig-removed display probability on a 0–100 scale, proportionally normalized so a complete exclusive book sums to ~100. Null when the book is not a complete exclusive book (threshold ladders, partial catalogs, non-market sources). The raw `probability` remains the executable venue quote. */
+            normalizedProbability?: number | null;
+            /** @description 24h probability move in PERCENTAGE POINTS on the 0–100 scale (e.g. 5.5 means +5.5 points), NOT a fraction and not a relative percent change. */
             priceChange24h?: number | null;
         } & {
             [key: string]: unknown;
@@ -1244,6 +1368,14 @@ export interface components {
             bestAsk?: number | null;
             spread?: number | null;
             source: components["schemas"]["PublicPmSource"];
+            /** @description Leading-outcome 24h probability move in PERCENTAGE POINTS on the 0–100 scale, NOT a fraction. */
+            priceChange24h?: number | null;
+            /** @description Leading-outcome 7d probability move in PERCENTAGE POINTS on the 0–100 scale, NOT a fraction. */
+            priceChange7d?: number | null;
+            /** @description Book-level probability basis: `basis` is `normalized_complete_book` when outcomes carry normalizedProbability (with `rawSum` and `overroundPoints`), else `raw_quotes`. */
+            probabilityBook?: {
+                [key: string]: unknown;
+            } | null;
             outcomes: components["schemas"]["PublicPmOutcome"][];
             /** @description Canonical matched-venue reference with venue count and spread. */
             referenceProbability?: {
@@ -1345,6 +1477,132 @@ export interface components {
             coverage: {
                 [key: string]: unknown;
             }[];
+        };
+        /**
+         * @description Gate-2 coverage ledger for one venue. Every nullable field means
+         *     "not known", never zero — do not render a null as 0 or as evidence
+         *     of absence.
+         */
+        PublicPmCoverage: {
+            /** Format: date-time */
+            computedAt?: string;
+            /**
+             * @description What the LATEST catalog sweep observed. NOT a claim that the
+             *     venue's lifetime universe is held — see universeVerified.
+             * @enum {string}
+             */
+            completenessClass?: "open_sweep_exhausted" | "open_sweep_bounded" | "unknown";
+            /**
+             * @description True only when coverage has been externally verified against a
+             *     venue-published total. Currently false for every venue.
+             */
+            universeVerified?: boolean;
+            /** @description Upstream-reported total where the venue exposes one. */
+            universeEstimate?: number | null;
+            enumeratedTotal?: number;
+            openCount?: number;
+            closedCount?: number;
+            resolvedProviderCount?: number;
+            /** @description Closed events with ANY recorded resolution / closed events. */
+            anyResolutionRate?: number | null;
+            /** @description Closed events with a PROVIDER-verified resolution / closed events. */
+            providerResolutionRate?: number | null;
+            freshnessP50Seconds?: number | null;
+            freshnessP95Seconds?: number | null;
+            freshnessP99Seconds?: number | null;
+            /**
+             * Format: date
+             * @description When CoinRithm first saw this catalog. Not history depth.
+             */
+            catalogFirstSeenDay?: string | null;
+            /**
+             * Format: date
+             * @description How far stored probability history actually reaches. Null when no
+             *     probability history is held for the venue.
+             */
+            probabilityHistoryStartDay?: string | null;
+            missingFieldRates?: {
+                [key: string]: unknown;
+            } | null;
+            approvedMatchCount?: number | null;
+            avgMatchConfidence?: number | null;
+            /** Format: date-time */
+            lastFullReconciliationAt?: string | null;
+        } & {
+            [key: string]: unknown;
+        };
+        PublicPmSourcesResponse: {
+            sources: ({
+                id?: string;
+                name?: string;
+                /** @description Null until the ledger has computed for this venue. */
+                coverage?: components["schemas"]["PublicPmCoverage"] | null;
+            } & {
+                [key: string]: unknown;
+            })[];
+        } & {
+            [key: string]: unknown;
+        };
+        PublicPmEventRevision: {
+            id?: number;
+            /** @description Dotted path of the corrected fact, e.g. resolution.winner. */
+            field?: string;
+            prevValue?: unknown;
+            nextValue?: unknown;
+            /**
+             * @description Stable machine code, never free text: resolution_set,
+             *     resolution_reversal, resolution_cleared, resolution_time_corrected,
+             *     resolution_state_changed, member_added, member_removed,
+             *     orientation_changed, merged_into, split_from, created.
+             */
+            reasonCode?: string;
+            /**
+             * Format: date-time
+             * @description When the change became true at the SOURCE. Null when the venue
+             *     states none; never back-filled with the observation time.
+             */
+            effectiveAt?: string | null;
+            /** Format: date-time */
+            observedAt?: string;
+            /**
+             * @description Provenance for this correction. runId and captureId are null for
+             *     watch-lane resolution changes, which re-fetch a single event by id
+             *     rather than deriving from a daily sweep capture.
+             */
+            evidence?: {
+                runId?: number | null;
+                captureId?: number | null;
+                parserVersion?: string | null;
+                matcherVersion?: string | null;
+                buildSha?: string | null;
+            } & {
+                [key: string]: unknown;
+            };
+            /** @description The earlier revision of the same field this replaces. */
+            supersedesId?: number | null;
+        } & {
+            [key: string]: unknown;
+        };
+        PublicPmEventRevisionsResponse: {
+            /** @description Stable identity, "<sourceSlug>:<externalEventId>". */
+            subjectKey: string;
+            revisions: components["schemas"]["PublicPmEventRevision"][];
+            /**
+             * @description True when the newest-first revision page hit its cap. Reconstruction
+             *     is unaffected — asOf reads its own complete, time-bounded set.
+             */
+            truncated?: boolean;
+            /** Format: date-time */
+            asOf?: string;
+            /**
+             * @description Field values CoinRithm was publishing at asOf, folded by
+             *     OBSERVATION time. Present only when asOf is supplied.
+             */
+            reconstructed?: {
+                [key: string]: unknown;
+            };
+        } & {
+            [key: string]: unknown;
         };
         PublicPmSourcesHealthResponse: {
             /** Format: date-time */
@@ -1473,7 +1731,7 @@ export interface components {
                 eventStatus?: string;
                 isAnchor?: boolean;
                 /** @enum {string} */
-                orientation?: "same" | "inverted" | "unknown";
+                orientation?: "same" | "flipped" | "unknown";
                 confidence?: number;
                 basis?: string | null;
             } & {
@@ -1861,11 +2119,24 @@ export interface components {
             provenance?: components["schemas"]["DecisionProvenance"] | null;
         };
         /**
-         * @description Compact, versioned market microstructure snapshot frozen onto a paper PM
-         *     position at open (decision) time — the durable research record of what the
-         *     market looked like when the agent acted. Every market field is nullable:
-         *     null = not observed at entry (a field the live snapshot lacked, or an
-         *     event outside a cross-venue cluster), never a fabricated zero.
+         * @description Compact, versioned snapshot frozen onto a paper PM position at open
+         *     (decision) time — the durable research record of what the market looked
+         *     like when the agent acted. Every market field is nullable: null = not
+         *     observed at entry (a field the live snapshot lacked, or an event outside a
+         *     cross-venue cluster), never a fabricated zero.
+         *
+         *     VENUE ORDER-BOOK FIELDS ARE WITHHELD on the public dataset. `volume24h`,
+         *     `liquidity`, `spread`, `bestBid` and `bestAsk` belong to the venue, and
+         *     most venues' terms prohibit redistributing their market data absent
+         *     written permission — `GET /api/arena/decisions` is a public, cursor-
+         *     walkable bulk feed, so those five are served as null and the object
+         *     carries `marketDataRedacted: true` whenever anything was withheld.
+         *
+         *     Read the marker before reading the nulls: WITHOUT `marketDataRedacted`, a
+         *     null still means "not observed at entry". WITH it, the value existed and
+         *     we are not licensed to republish it. Fields CoinRithm computed or
+         *     transacted at — `chosenProbability`, `referenceProbability`,
+         *     `referenceVenueCount` — are never redacted.
          */
         EntryContext: {
             /** @description Snapshot schema version (currently 1). */
@@ -1894,6 +2165,14 @@ export interface components {
             referenceProbability?: number | null;
             /** @description Real-money venues behind referenceProbability. */
             referenceVenueCount?: number | null;
+            /**
+             * @description Present and true ONLY when venue order-book fields were withheld for
+             *     redistribution reasons. Absent means nothing was withheld — so a null
+             *     field on a snapshot without this marker was genuinely not observed at
+             *     entry. Never emitted as false.
+             * @enum {boolean}
+             */
+            marketDataRedacted?: true;
         };
         /**
          * @description The decision-time COHORT descriptor frozen into a NON-opened opportunity
@@ -4586,6 +4865,140 @@ export interface operations {
                 };
                 content?: never;
             };
+        };
+    };
+    getPublicPredictionMarketPriceHistory: {
+        parameters: {
+            query?: {
+                /** @description Bucket size; venue support varies. */
+                interval?: "1h" | "1d" | "1w" | "max";
+            };
+            header?: never;
+            path: {
+                source: components["schemas"]["PublicPmSourceSlug"];
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Probability points, oldest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        markets?: ({
+                            market?: string;
+                            history?: ({
+                                /** @description Unix ms */
+                                t?: number;
+                                /** @description Probability 0..1 */
+                                p?: number;
+                            } & {
+                                [key: string]: unknown;
+                            })[];
+                        } & {
+                            [key: string]: unknown;
+                        })[];
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    getPublicPredictionMarketWhaleWallets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Wallet rows with aggregated flow */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Public request rate limit exceeded; honor `Retry-After`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            500: components["responses"]["ServerError"];
+        };
+    };
+    getPublicPredictionMarketSources: {
+        parameters: {
+            query?: {
+                fiat?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Venue comparison rows, each with optional coverage evidence */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPmSourcesResponse"];
+                };
+            };
+            /** @description Public request rate limit exceeded; honor `Retry-After`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            500: components["responses"]["ServerError"];
+        };
+    };
+    getPublicPredictionMarketEventRevisions: {
+        parameters: {
+            query?: {
+                /** @description ISO-8601 instant; adds the reconstructed state as of then. */
+                asOf?: string;
+            };
+            header?: never;
+            path: {
+                source: components["schemas"]["PublicPmSourceSlug"];
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Correction history, optionally with reconstructed state */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPmEventRevisionsResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["ServerError"];
         };
     };
     getPublicPredictionMarketSourceHealth: {

@@ -1650,7 +1650,7 @@ paths:
       summary: Get one canonical event's members and judgment lineage
       description: |
         Keyless canonical-event detail by UUID or slug: venue members with
-        orientation (same/inverted/unknown — never price-inferred), confidence
+        orientation (same/flipped/unknown — never price-inferred), confidence
         and provenance basis, plus an append-only judgment lineage. A MERGED
         canonical still resolves (status='merged' + mergedInto pointer) so a
         stable key never 404s.
@@ -2962,7 +2962,7 @@ components:
               eventTitle: { type: string }
               eventStatus: { type: string }
               isAnchor: { type: boolean }
-              orientation: { type: string, enum: [same, inverted, unknown] }
+              orientation: { type: string, enum: [same, flipped, unknown] }
               confidence: { type: number }
               basis: { type: [string, "null"] }
         lineage:
