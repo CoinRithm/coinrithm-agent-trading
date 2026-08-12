@@ -33,9 +33,16 @@ The honest position, stated plainly:
 - Database backups run daily and succeed, but **there is currently no off-host
   copy**. That is a known gap with an owner action attached; until it closes,
   the recovery story for a lost host is not one we would put a number against.
-- **RTO has never been drilled.** A restore that has not been rehearsed is an
-  estimate, and an SLA built on an estimate is a promise made with someone
-  else's money.
+- **The backup is now verified restorable — but RTO is still not measured.**
+  A restore drill on 2026-08-12 read the archive (1,122 entries), rebuilt the
+  full schema (104 tables), and restored table data with row counts matching
+  production. So the artifact is no longer an untested assumption. What has NOT
+  been measured is how long a COMPLETE restore takes, because running one needs
+  more free space than the host safely has — and doing it there would put the
+  live database and its only backup at risk together. An SLA needs the number,
+  not just the proof that recovery is possible.
+- **RPO is up to 24 hours.** Backups are daily; anything written after the last
+  dump is lost. That is a real bound, stated rather than smoothed.
 
 An SLA is a contractual commitment about availability, backed by credits or
 refunds. Offering one before the above is fixed would be selling a guarantee we
