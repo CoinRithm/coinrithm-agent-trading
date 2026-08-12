@@ -784,6 +784,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/healthz": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Liveness probe
+         * @description Plain-text liveness check. Returns HTTP 200 with the body `ok` when the
+         *     API process is serving. Keyless, unrated, and intentionally trivial —
+         *     poll it as often as your monitoring needs.
+         *
+         *     It answers exactly one question: is the process up. It does NOT assert
+         *     that the database is reachable, that ingestion is current, or that any
+         *     venue is fresh. Deep checks are deliberately localhost-only, because
+         *     exposing dependency topology publicly is a gift to an attacker.
+         *
+         *     For DATA freshness rather than process liveness, poll
+         *     `/api/prediction-markets/sources/health`, which reports per-venue ingest
+         *     lag, freshness tier against a published SLO, and degraded flags.
+         *
+         *     NOTE: CoinRithm publishes no uptime SLA today, and this endpoint is not
+         *     one. See the repository's status notes for why an SLA has not been
+         *     offered yet.
+         */
+        get: operations["getHealthz"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/prediction-markets/consensus-methodology": {
         parameters: {
             query?: never;
@@ -4810,6 +4845,26 @@ export interface operations {
                 };
             };
             500: components["responses"]["ServerError"];
+        };
+    };
+    getHealthz: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The process is serving */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": "ok";
+                };
+            };
         };
     };
     getPublicPredictionMarketConsensusMethodology: {
