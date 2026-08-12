@@ -3411,11 +3411,24 @@ components:
     EntryContext:
       type: object
       description: |
-        Compact, versioned market microstructure snapshot frozen onto a paper PM
-        position at open (decision) time — the durable research record of what the
-        market looked like when the agent acted. Every market field is nullable:
-        null = not observed at entry (a field the live snapshot lacked, or an
-        event outside a cross-venue cluster), never a fabricated zero.
+        Compact, versioned snapshot frozen onto a paper PM position at open
+        (decision) time — the durable research record of what the market looked
+        like when the agent acted. Every market field is nullable: null = not
+        observed at entry (a field the live snapshot lacked, or an event outside a
+        cross-venue cluster), never a fabricated zero.
+
+        VENUE ORDER-BOOK FIELDS ARE WITHHELD on the public dataset. `volume24h`,
+        `liquidity`, `spread`, `bestBid` and `bestAsk` belong to the venue, and
+        most venues' terms prohibit redistributing their market data absent
+        written permission — `GET /api/arena/decisions` is a public, cursor-
+        walkable bulk feed, so those five are served as null and the object
+        carries `marketDataRedacted: true` whenever anything was withheld.
+
+        Read the marker before reading the nulls: WITHOUT `marketDataRedacted`, a
+        null still means "not observed at entry". WITH it, the value existed and
+        we are not licensed to republish it. Fields CoinRithm computed or
+        transacted at — `chosenProbability`, `referenceProbability`,
+        `referenceVenueCount` — are never redacted.
       properties:
         v: { type: integer, description: Snapshot schema version (currently 1). }
         capturedAt:
@@ -3442,6 +3455,14 @@ components:
         referenceVenueCount:
           type: [integer, "null"]
           description: Real-money venues behind referenceProbability.
+        marketDataRedacted:
+          type: boolean
+          enum: [true]
+          description: |
+            Present and true ONLY when venue order-book fields were withheld for
+            redistribution reasons. Absent means nothing was withheld — so a null
+            field on a snapshot without this marker was genuinely not observed at
+            entry. Never emitted as false.
 
     OpportunityCohortContext:
       type: object

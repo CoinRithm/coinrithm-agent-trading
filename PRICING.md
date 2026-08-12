@@ -179,15 +179,87 @@ revenue-share. They forbid training on Licensed Data.
 2. **`/api/arena/decisions` was commented "research/fine-tuning".** That invited
    precisely what the venue agreements forbid. Corrected.
 
+### 3. `/api/arena/decisions` republished venue order books — CLOSED, and the
+### earlier recommendation in this file was wrong
+
+The exposure was real: keyless, cursor-paginated, 250 rows/request with
+`hasMore: true` and a JSONL bulk mode, and `entryContext` carried raw venue
+order-book fields (`bestBid`, `bestAsk`, `spread`, `liquidity`, `volume24h`).
+
+**This file previously recommended moving `entryContext` behind a key, sequenced
+with the tier launch. That fix does not work, and the per-venue rights research
+is what showed it.** Kalshi's Data Terms of Use prohibit *"providing archived or
+cached datasets containing Kalshi Data to another person or entity"* — a paying,
+authenticated customer is still another person or entity. Authentication would
+have closed the competitive leak while leaving the licensing breach fully intact,
+and it would have shipped later, under a tier launch, with a false sense that the
+problem was handled.
+
+Shipped instead: a venue rights registry (`backend-v2/src/lib/venueDataRights.ts`)
+carrying each venue's verbatim clause, source URL and retrieval date, which the
+dataset layer consults before emitting venue market data. The five order-book
+fields are withheld; everything CoinRithm computed or transacted at survives. The
+dataset stays keyless and permanent — it is the citation asset, and deleting it
+would be the Heroku mistake.
+
+Two details that make the fix honest rather than merely quiet:
+
+- A redacted snapshot carries `marketDataRedacted: true`. This dataset's standing
+  contract is that a null means "honestly unknown, never inferred"; nulling five
+  fields silently would have told every consumer they were never captured, which
+  is false. The marker is what keeps the null true.
+- The single-artifact endpoint (`/decisions/:uuid`) is deliberately NOT redacted:
+  `decisionContext` sits inside `ARTIFACT_FIELDS_V1`, so redacting it would break
+  every published truth receipt's hash verification. One decision behind an opaque
+  uuid is a citation; a cursor-walkable feed is the "archived or cached dataset"
+  the clauses name. Walking uuids to reconstruct is possible in principle and
+  per-key metering is the control — a boundary counsel should confirm.
+
+### Per-venue rights matrix — the finding that reframes Queue 2
+
+Terms read live 2026-08-12 for all twelve venues. **Not one affirmatively grants
+redistribution of its market data.** Five expressly prohibit it absent written
+permission; seven could not be read in full and are recorded as `unverified`,
+which the gate treats exactly like prohibited.
+
+| Venue | Redistribution | Basis |
+|---|---|---|
+| Kalshi | prohibited | Data ToS §I: personal, non-commercial; expressly excludes "providing archived or cached datasets containing Kalshi Data to another person or entity" |
+| Futuur | prohibited | "resell, transfer or make commercial use of … bets, markets or associated metadata" barred absent written permission |
+| Manifold | prohibited | Content licensed for "personal, non-commercial use"; no use "for any revenue-generating endeavor" |
+| Metaculus | prohibited | Bars automated access outright, not merely resale |
+| Limitless | prohibited | No copy/distribute/license/sell of Platform Content without prior written permission |
+| Polymarket, Gemini, Myriad, Smarkets, PredictIt, ForecastEx, Rothera | unverified | Client-rendered pages, per-state agreements, PDFs, or 403 to automated retrieval |
+
+**This is not a setback — it is the argument for the moat the charter already
+wants.** Venue prices are borrowed; canonical Event IDs, cross-venue matching,
+consensus probability, calibration, corrections and coverage ledgers are facts
+CoinRithm computed and owns outright. The rights research did not narrow the
+product, it identified which layer was ever really sellable.
+
+Three consequences for the tier card:
+
+1. **Pro's "resolution-provenance corpus" and any bulk export must be scoped to
+   CoinRithm-authored fields.** Already the stated intent in §5; now it is a hard
+   boundary rather than a preference.
+2. **Kalshi's approval is an INGESTION licence, not a redistribution licence.**
+   The 2026-07-28 approval was scoped to evaluation-only / no-training / neutral
+   comparison. Selling Kalshi market data needs a separate written grant. An API
+   key grants access; it does not grant the right to republish.
+3. **Limitless is the cheapest entry to move to `cleared`** — an active partner
+   relationship with an open devrel channel makes written permission genuinely
+   obtainable. A friendly Telegram group is not prior written permission. Ask.
+
 ### Still open (decide before publishing the card)
 
-`/api/arena/decisions` is keyless, cursor-paginated, 250 rows/request with
-`hasMore: true` — the full dataset is walkable, and `entryContext` carries raw
-venue order-book fields (`bestBid`, `bestAsk`, `spread`, `liquidity`). That is
-both a redistribution-clause exposure and a leak of the derived history Pro is
-meant to sell. Recommended: keep the dataset keyless and permanent (it is the
-citation asset — deleting it is the Heroku mistake), but move `entryContext`
-behind a key. Breaking change; sequence it with the tier launch, not before.
+- Read the seven `unverified` venues' terms and replace the placeholders. Two
+  need a human: Myriad 403s automated retrieval, Rothera's terms are in
+  participant-agreement PDFs.
+- Counsel sign-off on the derived-vs-raw boundary and on the single-artifact
+  carve-out above.
+- The clause (b) contradiction is unchanged: our terms forbid customers from
+  bulk-extracting while Pro plans to sell bulk exports. Do not ship the SKU
+  before the carve-out.
 
 ## 6. What the owner must provide
 
