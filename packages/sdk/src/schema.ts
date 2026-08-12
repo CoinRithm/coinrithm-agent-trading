@@ -1033,6 +1033,18 @@ export interface paths {
          * @description Keyless per-venue stats, resolution evidence and the Gate-2 coverage
          *     ledger.
          *
+         *     `stats` AND `coverage` ARE COMPUTED AT DIFFERENT TIMES — do not
+         *     reconcile them. `stats.*` is computed live while serving this request.
+         *     `coverage.*` is a periodic BATCH snapshot stamped with
+         *     `coverage.computedAt` (all venues share one run timestamp). So
+         *     `stats.totalEvents >= coverage.enumeratedTotal` is the EXPECTED
+         *     ordering, and the gap is simply what was ingested since the last ledger
+         *     run: measured 2026-08-12 with a 48-minute-old ledger, the gap was 234
+         *     events across 12 venues, zero for low-throughput venues and largest for
+         *     the busiest one (Polymarket, 138). A gap in the OTHER direction —
+         *     `coverage` exceeding `stats` — would be a real defect; that is the
+         *     comparison worth alerting on.
+         *
          *     Read `coverage.completenessClass` literally: it reports what the LATEST
          *     catalog sweep observed (`open_sweep_exhausted` = the adapter enumerated
          *     the open set; `open_sweep_bounded` = it stopped at a provider page
