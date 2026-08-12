@@ -179,8 +179,7 @@ revenue-share. They forbid training on Licensed Data.
 2. **`/api/arena/decisions` was commented "research/fine-tuning".** That invited
    precisely what the venue agreements forbid. Corrected.
 
-### 3. `/api/arena/decisions` republished venue order books — CLOSED, and the
-### earlier recommendation in this file was wrong
+### 3. `/api/arena/decisions` republished venue order books — CLOSED, and this file's earlier recommendation was wrong
 
 The exposure was real: keyless, cursor-paginated, 250 rows/request with
 `hasMore: true` and a JSONL bulk mode, and `entryContext` carried raw venue
@@ -257,9 +256,33 @@ Three consequences for the tier card:
   participant-agreement PDFs.
 - Counsel sign-off on the derived-vs-raw boundary and on the single-artifact
   carve-out above.
-- The clause (b) contradiction is unchanged: our terms forbid customers from
-  bulk-extracting while Pro plans to sell bulk exports. Do not ship the SKU
-  before the carve-out.
+- **Clause (b) now has a proposed resolution — see `API_TERMS.md` (DRAFT).**
+  The fix is to stop treating "Market Data" as one undifferentiated thing. The
+  bulk-extraction bar applies to **Venue Market Data**; bulk export of
+  **CoinRithm Data** is what the paid tier licenses. Same sentence, two layers,
+  contradiction gone.
+
+  Two things that draft changes about how Pro must be built, not just worded:
+
+  1. **"We derived it" does not exit a licence.** Gemini's API Agreement
+     expressly contemplates "Gemini Market Data or Derived Data" reaching third
+     parties under dedicated agreements. The defensible claim is not that we
+     transformed a venue's numbers but that CoinRithm Data answers questions no
+     venue asked, computed over clusters CoinRithm defined.
+  2. **The operative test is invertibility.** If a customer could reconstruct a
+     venue's order book from the export, we sold the venue's order book. That is
+     a constraint on how the bulk-export SKU is BUILT, not on how it is
+     described. Design it lossy with respect to any single venue's feed.
+
+  Still gated on counsel; do not ship the SKU before sign-off.
+
+- **A false statement was live in `openapi.yaml` and is now corrected.** The
+  Acceptable Use block asserted that venue Market Data "is licensed to CoinRithm
+  by those venues." It is not — zero of twelve grant redistribution. That was the
+  single worst sentence in the document, because it is the one a venue's counsel
+  would quote back. Replaced with the honest position: we pass through a right to
+  read, we do not represent that we hold redistribution rights, and anyone who
+  needs them should go to the venue.
 
 ## 6. What the owner must provide
 

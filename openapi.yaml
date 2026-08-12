@@ -91,19 +91,37 @@ info:
 
     ## Acceptable use of Market Data
 
-    Market Data (prices, probabilities, order books, volumes, event/market
-    metadata, and settlement outcomes sourced from third-party
-    prediction-market venues) is licensed to CoinRithm by those venues and
-    provided subject to CoinRithm's Terms of Use. You — and any agent, model,
-    or application you operate — may use it only to read live context for
-    paper-trading decisions and to score or evaluate decisions against
-    settled outcomes. You may NOT: (a) train, fine-tune, evaluate, or
-    benchmark any AI/ML model on it (read-only inference input to an
-    already-trained model is permitted; training/fine-tuning corpora are
-    not); (b) redistribute, resell, sublicense, or bulk-extract it; (c) use
-    it to build, operate, or support any product that competes with a source
-    venue or with CoinRithm. Full terms:
-    https://www.coinrithm.com/en/terms-of-use
+    Two layers travel through this API and they carry different rights. The
+    distinction matters to you, so it is stated plainly rather than buried.
+
+    **Venue Market Data** — prices, probabilities, order books, quotes,
+    volumes, open interest, venue event/market metadata, and venue-reported
+    settlement outcomes, as published by third-party prediction-market
+    venues. **This is not CoinRithm's to give away.** CoinRithm accesses it
+    under each venue's own terms and passes through a limited right to READ
+    it; CoinRithm does not represent that it holds redistribution rights in
+    it. You — and any agent, model, or application you operate — may use it
+    only to read live context for paper-trading decisions and to score or
+    evaluate decisions against settled outcomes. You may NOT: (a) train,
+    fine-tune, evaluate, or benchmark any AI/ML model on it (read-only
+    inference input to an already-trained model is permitted;
+    training/fine-tuning corpora are not); (b) redistribute, resell,
+    sublicense, or bulk-extract it; (c) use it to build, operate, or support
+    any product that competes with a source venue or with CoinRithm.
+    If you need redistribution rights in a venue's data, obtain them from
+    that venue. We cannot grant what we were not granted.
+
+    **CoinRithm Data** — facts CoinRithm created rather than collected:
+    canonical CoinRithm Event IDs and the cross-venue clusters they name,
+    matching and orientation decisions, consensus/reference probability and
+    its versioned methodology, calibration and Brier scoring, the coverage
+    ledger and its completeness classifications, corrections and revision
+    lineage, resolution-provenance classifications, and decision artifacts
+    (UUIDs, content hashes, attestations, signatures). Redistribution rights
+    in this layer are granted by plan; the keyless tier remains read-and-cite
+    with attribution, free and permanent.
+
+    Full terms: https://www.coinrithm.com/en/terms-of-use
   # NOT MIT. In OpenAPI, info.license describes the API this document
   # DESCRIBES, not the document file. Declaring MIT here granted the rights to
   # "use, copy, modify, merge, publish, distribute, sublicense, and/or sell"
