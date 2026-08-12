@@ -1964,6 +1964,13 @@ paths:
         for every venue until externally verified against a venue-published
         total. Do not paraphrase either field as "complete coverage".
 
+        `coverage.openUniverseVerified` sits between the two and is the only
+        universe claim we can currently substantiate: it is `true` where the
+        OPEN set has been reconciled against a venue-supplied total
+        (`openUniverseTotalBasis` says how that total was obtained). A `false`
+        `universeVerified` therefore does NOT mean nothing is verified — check
+        `openUniverseVerified` before concluding that.
+
         `anyResolutionRate` and `providerResolutionRate` share one denominator
         (closed events) but are different facts: any recorded resolution vs a
         provider-verified one. `catalogFirstSeenDay` is when CoinRithm first
@@ -2815,6 +2822,29 @@ components:
         universeEstimate:
           type: [integer, "null"]
           description: Upstream-reported total where the venue exposes one.
+        openUniverseVerified:
+          type: boolean
+          description: |
+            True when the OPEN set has been reconciled against a venue-supplied
+            total. This is a weaker but REAL claim than `universeVerified`,
+            which covers the lifetime universe and is false everywhere. Do not
+            read a false here as "unverified coverage" — read it as "the venue
+            publishes no total we can check the open set against".
+        openUniverseProviderTotal:
+          type: [integer, "null"]
+          description: |
+            The venue-supplied count of open markets that `openUniverseEnumerated`
+            was checked against. Null when the venue publishes no such total.
+        openUniverseTotalBasis:
+          type: [string, "null"]
+          description: |
+            How that total was obtained — `published_total` (the venue states a
+            count) or `unpaginated_universe` (the venue returns its whole open
+            set in one unpaginated response, so enumeration IS the total).
+            Null when there is no total.
+        openUniverseEnumerated:
+          type: [integer, "null"]
+          description: Open markets CoinRithm enumerated in the latest sweep.
         enumeratedTotal: { type: integer }
         openCount: { type: integer }
         closedCount: { type: integer }
@@ -2838,6 +2868,25 @@ components:
           description: |
             How far stored probability history actually reaches. Null when no
             probability history is held for the venue.
+        historyStartDay:
+          type: [string, "null"]
+          format: date
+          deprecated: true
+          description: |
+            DEPRECATED alias of `catalogFirstSeenDay`, still served so existing
+            consumers do not break. The original name read as history DEPTH
+            when it only ever meant "when we first saw the catalog"; migrate to
+            `catalogFirstSeenDay` for that fact, or to
+            `probabilityHistoryStartDay` if depth is what you actually want.
+        resolutionCoverageRate:
+          type: [number, "null"]
+          deprecated: true
+          description: |
+            DEPRECATED alias of `anyResolutionRate`, still served so existing
+            consumers do not break. It was previously read as provider-verified
+            coverage, which overstated it — use `anyResolutionRate` for any
+            recorded resolution, or `providerResolutionRate` for the verified
+            subset.
         missingFieldRates:
           type: [object, "null"]
           additionalProperties: true
