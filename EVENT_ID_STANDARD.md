@@ -169,7 +169,42 @@ Note the second member is `unknown`, not `same`. Two tennis markets with the
 same two players still need proof of which side each YES refers to, and that
 proof had not been established. That is the standard working correctly.
 
-## 8. Coverage, honestly
+## 8. Embedding a card
+
+Every canonical event renders as an SVG you can drop anywhere an image goes:
+
+```html
+<img
+  src="https://api.coinrithm.com/api/prediction-markets/canonical/1953ff97-850c-4467-b3d0-ff01e4bb7a0b/card.svg"
+  alt="CoinRithm consensus probability"
+  width="480" height="200">
+```
+
+Markdown works too, which means READMEs and issue threads:
+
+```markdown
+![consensus](https://api.coinrithm.com/api/prediction-markets/canonical/<uuid>/card.svg)
+```
+
+It is an `<img>`, not an iframe or a script, so it survives a CMS that strips
+scripts, a newsletter, and an RSS reader — and it asks you to trust no
+JavaScript of ours. The card shows the question, the consensus probability, the
+contributing venue count and the spread, and it stamps `crid:<first-8>` and the
+methodology version into the corner so the number stays traceable to both the
+question and the method.
+
+Behaviour worth knowing before you rely on it:
+
+- **It never breaks your page.** An unknown key renders an "Unknown market"
+  card (with a 404 status); an internal error renders "Temporarily unavailable"
+  with `no-store`. You will not get a broken-image icon.
+- **No consensus is stated, not implied.** A question with no cross-venue
+  number renders "No cross-venue consensus yet" rather than a dash that reads
+  as zero.
+- **Cached 5 minutes.** Long enough to absorb traffic, short enough not to be
+  stale on a live question.
+
+## 9. Coverage, honestly
 
 Sampled 1,200 active canonicals from the live directory on 2026-08-12:
 
