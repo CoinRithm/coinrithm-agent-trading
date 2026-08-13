@@ -3061,9 +3061,36 @@ components:
             properties:
               source: { type: string }
               name: { type: string }
-              sampleSize: { type: integer }
+              sampleSize:
+                type: integer
+                description: >-
+                  Events actually scored: those whose t-24h snapshot captured
+                  the market's COMPLETE outcome book. Read alongside `excluded`
+                  — the exclusion rate differs sharply by venue, so sampleSize
+                  is not comparable across venues on its own.
               calibrationError: { type: number }
               meanWinnerConfidence: { type: number }
+              excluded:
+                type: object
+                additionalProperties: true
+                description: >-
+                  Cohort events NOT scored, by reason. Published so a consumer
+                  can see how much of a venue's corpus stands behind the number.
+                properties:
+                  noLeadPoint:
+                    type: integer
+                    description: No timeline point at or before resolvedAt - 24h.
+                  partialBookAtLead:
+                    type: integer
+                    description: >-
+                      The t-24h snapshot held only part of the event's outcome
+                      set. Scoring those would condition inclusion on whether
+                      the eventual winner happened to be captured.
+                  winnerNotAnOutcome:
+                    type: integer
+                    description: >-
+                      Complete book, but the declared winner is not one of the
+                      event's outcomes — a resolution-provenance defect.
               reliability:
                 type: array
                 items:
