@@ -556,6 +556,8 @@ already uses:
 | Path | Best for |
 | --- | --- |
 | **MCP** (hosted `https://mcp.coinrithm.com/mcp` or `npx -y @coinrithm/mcp-trading`) | Claude Desktop / Code, Cursor, Codex, any MCP client |
+| **TypeScript SDK** — `npm install @coinrithm/sdk` | Typed client generated from `openapi.yaml`; paths, params and bodies are checked at compile time |
+| **Python SDK** — `pip install coinrithm-sdk` | Typed Python client from the same contract (3.10+); public PM data needs no key |
 | **ChatGPT Actions / Gemini tools** via [`openapi.yaml`](./openapi.yaml) | Custom GPTs, Gemini function calling — see [`QUICKSTART.md`](./QUICKSTART.md) |
 | [`examples/vercel-ai-sdk.ts`](./examples/vercel-ai-sdk.ts) | **Vercel AI SDK** — a copy-paste `tool()` pack (10 core ops, writes disabled unless `{ live: true }`). Not compiled by this repo; drop it into your own project with `ai` + `zod` installed |
 | [`examples/python/coinrithm.py`](./examples/python/coinrithm.py) | **Python** — a zero-dependency (stdlib `urllib`) client class covering the same ops |

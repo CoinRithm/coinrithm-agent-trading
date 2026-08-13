@@ -11,22 +11,17 @@ real money. Not financial advice.
 
 ## Install
 
-> **Not published to npm yet.** `npm install @coinrithm/sdk` currently returns
-> 404 — this README used to print that command anyway, which meant anyone
-> following our own docs hit a dead end on their first step. Install from this
-> repository until the package ships. (`@coinrithm/mcp-trading` **is** published
-> and unaffected; the scope is live, this package simply is not in it yet.)
-
 ```bash
-# From a clone of this repository
-npm install ./packages/sdk
-
-# Or straight from git
-npm install github:CoinRithm/coinrithm-agent-trading#main --workspace-root
+npm install @coinrithm/sdk
 ```
 
-The published-package instruction returns once the package is actually on npm —
-not before.
+Published on npm as [`@coinrithm/sdk`](https://www.npmjs.com/package/@coinrithm/sdk).
+
+Installing from a clone still works if you want to track `main`:
+
+```bash
+npm install ./packages/sdk
+```
 
 ## Use
 

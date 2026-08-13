@@ -2,7 +2,7 @@
 name = "coinrithm-sdk"
 # Tracks the API CONTRACT version (openapi.yaml info.version), not the MCP
 # package version — the generated client is only meaningful against a contract.
-version = "1.6.0"
+version = "1.6.1"
 description = "Typed Python client for the CoinRithm Agent Trading API — paper trading only, generated from the OpenAPI 3.1 contract."
 authors = ["CoinRithm <support@coinrithm.com>"]
 license = "MIT"

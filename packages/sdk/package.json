@@ -1,6 +1,6 @@
 {
   "name": "@coinrithm/sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Typed TypeScript SDK for the CoinRithm Agent Trading API (paper trading only) — generated from the OpenAPI 3.1 contract.",
   "license": "MIT",
   "publishConfig": {
