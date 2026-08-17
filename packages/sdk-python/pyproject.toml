@@ -1,15 +1,13 @@
-[tool.poetry]
+[project]
 name = "coinrithm-sdk"
-# Tracks the API CONTRACT version (openapi.yaml info.version), not the MCP
-# package version — the generated client is only meaningful against a contract.
+# PyPI distribution version. The generated API contract version remains the
+# canonical openapi.yaml info.version and can advance independently.
 version = "1.6.1"
 description = "Typed Python client for the CoinRithm Agent Trading API — paper trading only, generated from the OpenAPI 3.1 contract."
-authors = ["CoinRithm <support@coinrithm.com>"]
+authors = [{ name = "CoinRithm", email = "support@coinrithm.com" }]
 license = "MIT"
 readme = "README.md"
-homepage = "https://coinrithm.com/agentic-trading"
-repository = "https://github.com/CoinRithm/coinrithm-agent-trading"
-documentation = "https://coinrithm.github.io/coinrithm-agent-trading/"
+requires-python = ">=3.10,<4.0"
 keywords = ["coinrithm", "prediction-markets", "paper-trading", "openapi", "mcp"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -19,16 +17,27 @@ classifiers = [
     "Topic :: Office/Business :: Financial :: Investment",
     "Typing :: Typed",
 ]
+dependencies = [
+    "attrs>=22.2.0",
+    "httpx>=0.23.0,<0.29.0",
+    "python-dateutil>=2.8.0,<3.0.0",
+]
+
+[project.urls]
+Homepage = "https://coinrithm.com/agentic-trading"
+Repository = "https://github.com/CoinRithm/coinrithm-agent-trading"
+Documentation = "https://coinrithm.github.io/coinrithm-agent-trading/"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3,<9",
+]
+
+[tool.poetry]
 packages = [
     { include = "coinrithm_sdk" },
 ]
 include = ["coinrithm_sdk/py.typed"]
-
-[tool.poetry.dependencies]
-python = "^3.10"
-httpx = ">=0.23.0,<0.29.0"
-attrs = ">=22.2.0"
-python-dateutil = "^2.8.0"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

@@ -6,6 +6,32 @@ on:
   pull_request:
 
 jobs:
+  # The published PyPI SDK: deterministic Python 3.12 environment, generated
+  # client behavior, and installable artifacts. uv.lock is committed.
+  python-sdk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/sdk-python
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv and Python 3.12
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.12.0"
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: packages/sdk-python/uv.lock
+
+      - name: Python SDK — locked install, test, compile, build
+        run: |
+          uv sync --locked
+          uv run pytest -q
+          uv run python -m compileall -q coinrithm_sdk
+          uv build
+          uv run --isolated --no-project --with ./dist/coinrithm_sdk-*.whl \
+            python -c "from coinrithm_sdk import Client; assert Client(base_url='https://api.coinrithm.com')"
+
   # The published npm package: MCP server + agent runner (both live here).
   mcp-trading:
     runs-on: ubuntu-latest
