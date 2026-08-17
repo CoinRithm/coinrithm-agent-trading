@@ -1089,6 +1089,13 @@ export interface paths {
          *     for every venue until externally verified against a venue-published
          *     total. Do not paraphrase either field as "complete coverage".
          *
+         *     `coverage.openUniverseVerified` sits between the two and is the only
+         *     universe claim we can currently substantiate: it is `true` where the
+         *     OPEN set has been reconciled against a venue-supplied total
+         *     (`openUniverseTotalBasis` says how that total was obtained). A `false`
+         *     `universeVerified` therefore does NOT mean nothing is verified — check
+         *     `openUniverseVerified` before concluding that.
+         *
          *     `anyResolutionRate` and `providerResolutionRate` share one denominator
          *     (closed events) but are different facts: any recorded resolution vs a
          *     provider-verified one. `catalogFirstSeenDay` is when CoinRithm first
@@ -1607,6 +1614,28 @@ export interface components {
             universeVerified?: boolean;
             /** @description Upstream-reported total where the venue exposes one. */
             universeEstimate?: number | null;
+            /**
+             * @description True when the OPEN set has been reconciled against a venue-supplied
+             *     total. This is a weaker but REAL claim than `universeVerified`,
+             *     which covers the lifetime universe and is false everywhere. Do not
+             *     read a false here as "unverified coverage" — read it as "the venue
+             *     publishes no total we can check the open set against".
+             */
+            openUniverseVerified?: boolean;
+            /**
+             * @description The venue-supplied count of open markets that `openUniverseEnumerated`
+             *     was checked against. Null when the venue publishes no such total.
+             */
+            openUniverseProviderTotal?: number | null;
+            /**
+             * @description How that total was obtained — `published_total` (the venue states a
+             *     count) or `unpaginated_universe` (the venue returns its whole open
+             *     set in one unpaginated response, so enumeration IS the total).
+             *     Null when there is no total.
+             */
+            openUniverseTotalBasis?: string | null;
+            /** @description Open markets CoinRithm enumerated in the latest sweep. */
+            openUniverseEnumerated?: number | null;
             enumeratedTotal?: number;
             openCount?: number;
             closedCount?: number;
@@ -1629,6 +1658,25 @@ export interface components {
              *     probability history is held for the venue.
              */
             probabilityHistoryStartDay?: string | null;
+            /**
+             * Format: date
+             * @deprecated
+             * @description DEPRECATED alias of `catalogFirstSeenDay`, still served so existing
+             *     consumers do not break. The original name read as history DEPTH
+             *     when it only ever meant "when we first saw the catalog"; migrate to
+             *     `catalogFirstSeenDay` for that fact, or to
+             *     `probabilityHistoryStartDay` if depth is what you actually want.
+             */
+            historyStartDay?: string | null;
+            /**
+             * @deprecated
+             * @description DEPRECATED alias of `anyResolutionRate`, still served so existing
+             *     consumers do not break. It was previously read as provider-verified
+             *     coverage, which overstated it — use `anyResolutionRate` for any
+             *     recorded resolution, or `providerResolutionRate` for the verified
+             *     subset.
+             */
+            resolutionCoverageRate?: number | null;
             missingFieldRates?: {
                 [key: string]: unknown;
             } | null;
@@ -1780,9 +1828,21 @@ export interface components {
             scored: ({
                 source?: string;
                 name?: string;
+                /** @description Events actually scored: those whose t-24h snapshot captured the market's COMPLETE outcome book. Read alongside `excluded` — the exclusion rate differs sharply by venue, so sampleSize is not comparable across venues on its own. */
                 sampleSize?: number;
                 calibrationError?: number;
                 meanWinnerConfidence?: number;
+                /** @description Cohort events NOT scored, by reason. Published so a consumer can see how much of a venue's corpus stands behind the number. */
+                excluded?: {
+                    /** @description No timeline point at or before resolvedAt - 24h. */
+                    noLeadPoint?: number;
+                    /** @description The t-24h snapshot held only part of the event's outcome set. Scoring those would condition inclusion on whether the eventual winner happened to be captured. */
+                    partialBookAtLead?: number;
+                    /** @description Complete book, but the declared winner is not one of the event's outcomes — a resolution-provenance defect. */
+                    winnerNotAnOutcome?: number;
+                } & {
+                    [key: string]: unknown;
+                };
                 reliability?: ({
                     bucket?: string;
                     predictedMean?: number;
