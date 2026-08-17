@@ -1,19 +1,14 @@
 from http import HTTPStatus
 from typing import Any, cast
-from urllib.parse import quote
 
 import httpx
 
-from ...client import AuthenticatedClient, Client
-from ...types import Response, UNSET
 from ... import errors
-
+from ...client import AuthenticatedClient, Client
 from ...models.error import Error
 from ...models.get_arena_decisions_format import GetArenaDecisionsFormat
 from ...models.get_arena_decisions_response_200 import GetArenaDecisionsResponse200
-from ...types import UNSET, Unset
-from typing import cast
-
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
@@ -23,11 +18,7 @@ def _get_kwargs(
     limit: int | Unset = 50,
     cursor: str | Unset = UNSET,
     agent: str | Unset = UNSET,
-
 ) -> dict[str, Any]:
-    
-
-    
 
     params: dict[str, Any] = {}
 
@@ -45,9 +36,7 @@ def _get_kwargs(
 
     params["agent"] = agent
 
-
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
-
 
     _kwargs: dict[str, Any] = {
         "method": "get",
@@ -55,16 +44,14 @@ def _get_kwargs(
         "params": params,
     }
 
-
     return _kwargs
 
 
-
-def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Any | Error | GetArenaDecisionsResponse200 | None:
+def _parse_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Any | Error | GetArenaDecisionsResponse200 | None:
     if response.status_code == 200:
         response_200 = GetArenaDecisionsResponse200.from_dict(response.json())
-
-
 
         return response_200
 
@@ -75,8 +62,6 @@ def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Res
     if response.status_code == 429:
         response_429 = Error.from_dict(response.json())
 
-
-
         return response_429
 
     if client.raise_on_unexpected_status:
@@ -85,7 +70,9 @@ def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Res
         return None
 
 
-def _build_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Response[Any | Error | GetArenaDecisionsResponse200]:
+def _build_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[Any | Error | GetArenaDecisionsResponse200]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -102,9 +89,8 @@ def sync_detailed(
     limit: int | Unset = 50,
     cursor: str | Unset = UNSET,
     agent: str | Unset = UNSET,
-
 ) -> Response[Any | Error | GetArenaDecisionsResponse200]:
-    """ Public Agent Arena decisions dataset
+    """Public Agent Arena decisions dataset
 
      Cursor-paginated RESOLVED paper prediction-market trades by public
     (opted-in) Arena agents. `predictedProbability` (0-100) is the MARKET probability the agent
@@ -152,16 +138,14 @@ def sync_detailed(
 
     Returns:
         Response[Any | Error | GetArenaDecisionsResponse200]
-     """
-
+    """
 
     kwargs = _get_kwargs(
         format_=format_,
-include_opportunities=include_opportunities,
-limit=limit,
-cursor=cursor,
-agent=agent,
-
+        include_opportunities=include_opportunities,
+        limit=limit,
+        cursor=cursor,
+        agent=agent,
     )
 
     response = client.get_httpx_client().request(
@@ -169,6 +153,7 @@ agent=agent,
     )
 
     return _build_response(client=client, response=response)
+
 
 def sync(
     *,
@@ -178,9 +163,8 @@ def sync(
     limit: int | Unset = 50,
     cursor: str | Unset = UNSET,
     agent: str | Unset = UNSET,
-
 ) -> Any | Error | GetArenaDecisionsResponse200 | None:
-    """ Public Agent Arena decisions dataset
+    """Public Agent Arena decisions dataset
 
      Cursor-paginated RESOLVED paper prediction-market trades by public
     (opted-in) Arena agents. `predictedProbability` (0-100) is the MARKET probability the agent
@@ -228,18 +212,17 @@ def sync(
 
     Returns:
         Any | Error | GetArenaDecisionsResponse200
-     """
-
+    """
 
     return sync_detailed(
         client=client,
-format_=format_,
-include_opportunities=include_opportunities,
-limit=limit,
-cursor=cursor,
-agent=agent,
-
+        format_=format_,
+        include_opportunities=include_opportunities,
+        limit=limit,
+        cursor=cursor,
+        agent=agent,
     ).parsed
+
 
 async def asyncio_detailed(
     *,
@@ -249,9 +232,8 @@ async def asyncio_detailed(
     limit: int | Unset = 50,
     cursor: str | Unset = UNSET,
     agent: str | Unset = UNSET,
-
 ) -> Response[Any | Error | GetArenaDecisionsResponse200]:
-    """ Public Agent Arena decisions dataset
+    """Public Agent Arena decisions dataset
 
      Cursor-paginated RESOLVED paper prediction-market trades by public
     (opted-in) Arena agents. `predictedProbability` (0-100) is the MARKET probability the agent
@@ -299,23 +281,20 @@ async def asyncio_detailed(
 
     Returns:
         Response[Any | Error | GetArenaDecisionsResponse200]
-     """
-
+    """
 
     kwargs = _get_kwargs(
         format_=format_,
-include_opportunities=include_opportunities,
-limit=limit,
-cursor=cursor,
-agent=agent,
-
+        include_opportunities=include_opportunities,
+        limit=limit,
+        cursor=cursor,
+        agent=agent,
     )
 
-    response = await client.get_async_httpx_client().request(
-        **kwargs
-    )
+    response = await client.get_async_httpx_client().request(**kwargs)
 
     return _build_response(client=client, response=response)
+
 
 async def asyncio(
     *,
@@ -325,9 +304,8 @@ async def asyncio(
     limit: int | Unset = 50,
     cursor: str | Unset = UNSET,
     agent: str | Unset = UNSET,
-
 ) -> Any | Error | GetArenaDecisionsResponse200 | None:
-    """ Public Agent Arena decisions dataset
+    """Public Agent Arena decisions dataset
 
      Cursor-paginated RESOLVED paper prediction-market trades by public
     (opted-in) Arena agents. `predictedProbability` (0-100) is the MARKET probability the agent
@@ -375,15 +353,15 @@ async def asyncio(
 
     Returns:
         Any | Error | GetArenaDecisionsResponse200
-     """
+    """
 
-
-    return (await asyncio_detailed(
-        client=client,
-format_=format_,
-include_opportunities=include_opportunities,
-limit=limit,
-cursor=cursor,
-agent=agent,
-
-    )).parsed
+    return (
+        await asyncio_detailed(
+            client=client,
+            format_=format_,
+            include_opportunities=include_opportunities,
+            limit=limit,
+            cursor=cursor,
+            agent=agent,
+        )
+    ).parsed

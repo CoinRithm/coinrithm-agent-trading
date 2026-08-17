@@ -1,63 +1,63 @@
 from __future__ import annotations
 
+import datetime
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from dateutil.parser import isoparse
-from typing import cast
-import datetime
-
 if TYPE_CHECKING:
-  from ..models.public_pm_event_cross_platform_item import PublicPmEventCrossPlatformItem
-  from ..models.public_pm_event_decision_support_type_0 import PublicPmEventDecisionSupportType0
-  from ..models.public_pm_event_freshness import PublicPmEventFreshness
-  from ..models.public_pm_event_quality_type_0 import PublicPmEventQualityType0
-  from ..models.public_pm_event_reference_probability_type_0 import PublicPmEventReferenceProbabilityType0
-  from ..models.public_pm_outcome import PublicPmOutcome
-  from ..models.public_pm_source import PublicPmSource
-
-
-
+    from ..models.public_pm_event_cross_platform_item import PublicPmEventCrossPlatformItem
+    from ..models.public_pm_event_decision_support_type_0 import PublicPmEventDecisionSupportType0
+    from ..models.public_pm_event_freshness import PublicPmEventFreshness
+    from ..models.public_pm_event_probability_book_type_0 import PublicPmEventProbabilityBookType0
+    from ..models.public_pm_event_quality_type_0 import PublicPmEventQualityType0
+    from ..models.public_pm_event_reference_probability_type_0 import PublicPmEventReferenceProbabilityType0
+    from ..models.public_pm_outcome import PublicPmOutcome
+    from ..models.public_pm_source import PublicPmSource
 
 
 T = TypeVar("T", bound="PublicPmEvent")
 
 
-
 @_attrs_define
 class PublicPmEvent:
-    """ 
-        Attributes:
-            id (str):
-            slug (str):
-            title (str):
-            status (str):
-            source (PublicPmSource):
-            outcomes (list[PublicPmOutcome]):
-            description (None | str | Unset):
-            start_date (datetime.datetime | None | Unset):
-            end_date (datetime.datetime | None | Unset):
-            resolved_at (datetime.datetime | None | Unset):
-            freshness (PublicPmEventFreshness | Unset): Observation time, age and source-aware freshness state.
-            volume (float | None | Unset):
-            volume24h (float | None | Unset):
-            liquidity (float | None | Unset):
-            best_bid (float | None | Unset):
-            best_ask (float | None | Unset):
-            spread (float | None | Unset):
-            reference_probability (None | PublicPmEventReferenceProbabilityType0 | Unset): Canonical matched-venue reference
-                with venue count and spread.
-            decision_support (None | PublicPmEventDecisionSupportType0 | Unset):
-            quality (None | PublicPmEventQualityType0 | Unset): Persisted truth-engine decision eligibility and reason
-                codes.
-            cross_platform (list[PublicPmEventCrossPlatformItem] | Unset):
-     """
+    """
+    Attributes:
+        id (str):
+        slug (str):
+        title (str):
+        status (str):
+        source (PublicPmSource):
+        outcomes (list[PublicPmOutcome]):
+        description (None | str | Unset):
+        start_date (datetime.datetime | None | Unset):
+        end_date (datetime.datetime | None | Unset):
+        resolved_at (datetime.datetime | None | Unset):
+        freshness (PublicPmEventFreshness | Unset): Observation time, age and source-aware freshness state.
+        volume (float | None | Unset):
+        volume24h (float | None | Unset):
+        liquidity (float | None | Unset):
+        best_bid (float | None | Unset):
+        best_ask (float | None | Unset):
+        spread (float | None | Unset):
+        price_change_24_h (float | None | Unset): Leading-outcome 24h probability move in PERCENTAGE POINTS on the 0–100
+            scale, NOT a fraction.
+        price_change_7_d (float | None | Unset): Leading-outcome 7d probability move in PERCENTAGE POINTS on the 0–100
+            scale, NOT a fraction.
+        probability_book (None | PublicPmEventProbabilityBookType0 | Unset): Book-level probability basis: `basis` is
+            `normalized_complete_book` when outcomes carry normalizedProbability (with `rawSum` and `overroundPoints`), else
+            `raw_quotes`.
+        reference_probability (None | PublicPmEventReferenceProbabilityType0 | Unset): Canonical matched-venue reference
+            with venue count and spread.
+        decision_support (None | PublicPmEventDecisionSupportType0 | Unset):
+        quality (None | PublicPmEventQualityType0 | Unset): Persisted truth-engine decision eligibility and reason
+            codes.
+        cross_platform (list[PublicPmEventCrossPlatformItem] | Unset):
+    """
 
     id: str
     slug: str
@@ -76,24 +76,21 @@ class PublicPmEvent:
     best_bid: float | None | Unset = UNSET
     best_ask: float | None | Unset = UNSET
     spread: float | None | Unset = UNSET
+    price_change_24_h: float | None | Unset = UNSET
+    price_change_7_d: float | None | Unset = UNSET
+    probability_book: None | PublicPmEventProbabilityBookType0 | Unset = UNSET
     reference_probability: None | PublicPmEventReferenceProbabilityType0 | Unset = UNSET
     decision_support: None | PublicPmEventDecisionSupportType0 | Unset = UNSET
     quality: None | PublicPmEventQualityType0 | Unset = UNSET
     cross_platform: list[PublicPmEventCrossPlatformItem] | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
-        from ..models.public_pm_event_cross_platform_item import PublicPmEventCrossPlatformItem
         from ..models.public_pm_event_decision_support_type_0 import PublicPmEventDecisionSupportType0
-        from ..models.public_pm_event_freshness import PublicPmEventFreshness
+        from ..models.public_pm_event_probability_book_type_0 import PublicPmEventProbabilityBookType0
         from ..models.public_pm_event_quality_type_0 import PublicPmEventQualityType0
         from ..models.public_pm_event_reference_probability_type_0 import PublicPmEventReferenceProbabilityType0
-        from ..models.public_pm_outcome import PublicPmOutcome
-        from ..models.public_pm_source import PublicPmSource
+
         id = self.id
 
         slug = self.slug
@@ -108,8 +105,6 @@ class PublicPmEvent:
         for outcomes_item_data in self.outcomes:
             outcomes_item = outcomes_item_data.to_dict()
             outcomes.append(outcomes_item)
-
-
 
         description: None | str | Unset
         if isinstance(self.description, Unset):
@@ -181,6 +176,26 @@ class PublicPmEvent:
         else:
             spread = self.spread
 
+        price_change_24_h: float | None | Unset
+        if isinstance(self.price_change_24_h, Unset):
+            price_change_24_h = UNSET
+        else:
+            price_change_24_h = self.price_change_24_h
+
+        price_change_7_d: float | None | Unset
+        if isinstance(self.price_change_7_d, Unset):
+            price_change_7_d = UNSET
+        else:
+            price_change_7_d = self.price_change_7_d
+
+        probability_book: dict[str, Any] | None | Unset
+        if isinstance(self.probability_book, Unset):
+            probability_book = UNSET
+        elif isinstance(self.probability_book, PublicPmEventProbabilityBookType0):
+            probability_book = self.probability_book.to_dict()
+        else:
+            probability_book = self.probability_book
+
         reference_probability: dict[str, Any] | None | Unset
         if isinstance(self.reference_probability, Unset):
             reference_probability = UNSET
@@ -212,19 +227,18 @@ class PublicPmEvent:
                 cross_platform_item = cross_platform_item_data.to_dict()
                 cross_platform.append(cross_platform_item)
 
-
-
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-            "id": id,
-            "slug": slug,
-            "title": title,
-            "status": status,
-            "source": source,
-            "outcomes": outcomes,
-        })
+        field_dict.update(
+            {
+                "id": id,
+                "slug": slug,
+                "title": title,
+                "status": status,
+                "source": source,
+                "outcomes": outcomes,
+            }
+        )
         if description is not UNSET:
             field_dict["description"] = description
         if start_date is not UNSET:
@@ -247,6 +261,12 @@ class PublicPmEvent:
             field_dict["bestAsk"] = best_ask
         if spread is not UNSET:
             field_dict["spread"] = spread
+        if price_change_24_h is not UNSET:
+            field_dict["priceChange24h"] = price_change_24_h
+        if price_change_7_d is not UNSET:
+            field_dict["priceChange7d"] = price_change_7_d
+        if probability_book is not UNSET:
+            field_dict["probabilityBook"] = probability_book
         if reference_probability is not UNSET:
             field_dict["referenceProbability"] = reference_probability
         if decision_support is not UNSET:
@@ -258,17 +278,17 @@ class PublicPmEvent:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.public_pm_event_cross_platform_item import PublicPmEventCrossPlatformItem
         from ..models.public_pm_event_decision_support_type_0 import PublicPmEventDecisionSupportType0
         from ..models.public_pm_event_freshness import PublicPmEventFreshness
+        from ..models.public_pm_event_probability_book_type_0 import PublicPmEventProbabilityBookType0
         from ..models.public_pm_event_quality_type_0 import PublicPmEventQualityType0
         from ..models.public_pm_event_reference_probability_type_0 import PublicPmEventReferenceProbabilityType0
         from ..models.public_pm_outcome import PublicPmOutcome
         from ..models.public_pm_source import PublicPmSource
+
         d = dict(src_dict)
         id = d.pop("id")
 
@@ -280,18 +300,12 @@ class PublicPmEvent:
 
         source = PublicPmSource.from_dict(d.pop("source"))
 
-
-
-
         outcomes = []
         _outcomes = d.pop("outcomes")
-        for outcomes_item_data in (_outcomes):
+        for outcomes_item_data in _outcomes:
             outcomes_item = PublicPmOutcome.from_dict(outcomes_item_data)
 
-
-
             outcomes.append(outcomes_item)
-
 
         def _parse_description(data: object) -> None | str | Unset:
             if data is None:
@@ -302,7 +316,6 @@ class PublicPmEvent:
 
         description = _parse_description(d.pop("description", UNSET))
 
-
         def _parse_start_date(data: object) -> datetime.datetime | None | Unset:
             if data is None:
                 return data
@@ -311,9 +324,7 @@ class PublicPmEvent:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                start_date_type_0 = isoparse(data)
-
-
+                start_date_type_0 = datetime.datetime.fromisoformat(data)
 
                 return start_date_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
@@ -321,7 +332,6 @@ class PublicPmEvent:
             return cast(datetime.datetime | None | Unset, data)
 
         start_date = _parse_start_date(d.pop("startDate", UNSET))
-
 
         def _parse_end_date(data: object) -> datetime.datetime | None | Unset:
             if data is None:
@@ -331,9 +341,7 @@ class PublicPmEvent:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                end_date_type_0 = isoparse(data)
-
-
+                end_date_type_0 = datetime.datetime.fromisoformat(data)
 
                 return end_date_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
@@ -341,7 +349,6 @@ class PublicPmEvent:
             return cast(datetime.datetime | None | Unset, data)
 
         end_date = _parse_end_date(d.pop("endDate", UNSET))
-
 
         def _parse_resolved_at(data: object) -> datetime.datetime | None | Unset:
             if data is None:
@@ -351,9 +358,7 @@ class PublicPmEvent:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                resolved_at_type_0 = isoparse(data)
-
-
+                resolved_at_type_0 = datetime.datetime.fromisoformat(data)
 
                 return resolved_at_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
@@ -362,16 +367,12 @@ class PublicPmEvent:
 
         resolved_at = _parse_resolved_at(d.pop("resolvedAt", UNSET))
 
-
         _freshness = d.pop("freshness", UNSET)
         freshness: PublicPmEventFreshness | Unset
-        if isinstance(_freshness,  Unset):
+        if isinstance(_freshness, Unset):
             freshness = UNSET
         else:
             freshness = PublicPmEventFreshness.from_dict(_freshness)
-
-
-
 
         def _parse_volume(data: object) -> float | None | Unset:
             if data is None:
@@ -382,7 +383,6 @@ class PublicPmEvent:
 
         volume = _parse_volume(d.pop("volume", UNSET))
 
-
         def _parse_volume24h(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -391,7 +391,6 @@ class PublicPmEvent:
             return cast(float | None | Unset, data)
 
         volume24h = _parse_volume24h(d.pop("volume24h", UNSET))
-
 
         def _parse_liquidity(data: object) -> float | None | Unset:
             if data is None:
@@ -402,7 +401,6 @@ class PublicPmEvent:
 
         liquidity = _parse_liquidity(d.pop("liquidity", UNSET))
 
-
         def _parse_best_bid(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -411,7 +409,6 @@ class PublicPmEvent:
             return cast(float | None | Unset, data)
 
         best_bid = _parse_best_bid(d.pop("bestBid", UNSET))
-
 
         def _parse_best_ask(data: object) -> float | None | Unset:
             if data is None:
@@ -422,7 +419,6 @@ class PublicPmEvent:
 
         best_ask = _parse_best_ask(d.pop("bestAsk", UNSET))
 
-
         def _parse_spread(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -432,6 +428,40 @@ class PublicPmEvent:
 
         spread = _parse_spread(d.pop("spread", UNSET))
 
+        def _parse_price_change_24_h(data: object) -> float | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(float | None | Unset, data)
+
+        price_change_24_h = _parse_price_change_24_h(d.pop("priceChange24h", UNSET))
+
+        def _parse_price_change_7_d(data: object) -> float | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(float | None | Unset, data)
+
+        price_change_7_d = _parse_price_change_7_d(d.pop("priceChange7d", UNSET))
+
+        def _parse_probability_book(data: object) -> None | PublicPmEventProbabilityBookType0 | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                probability_book_type_0 = PublicPmEventProbabilityBookType0.from_dict(data)
+
+                return probability_book_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(None | PublicPmEventProbabilityBookType0 | Unset, data)
+
+        probability_book = _parse_probability_book(d.pop("probabilityBook", UNSET))
 
         def _parse_reference_probability(data: object) -> None | PublicPmEventReferenceProbabilityType0 | Unset:
             if data is None:
@@ -443,15 +473,12 @@ class PublicPmEvent:
                     raise TypeError()
                 reference_probability_type_0 = PublicPmEventReferenceProbabilityType0.from_dict(data)
 
-
-
                 return reference_probability_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
             return cast(None | PublicPmEventReferenceProbabilityType0 | Unset, data)
 
         reference_probability = _parse_reference_probability(d.pop("referenceProbability", UNSET))
-
 
         def _parse_decision_support(data: object) -> None | PublicPmEventDecisionSupportType0 | Unset:
             if data is None:
@@ -463,15 +490,12 @@ class PublicPmEvent:
                     raise TypeError()
                 decision_support_type_0 = PublicPmEventDecisionSupportType0.from_dict(data)
 
-
-
                 return decision_support_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
             return cast(None | PublicPmEventDecisionSupportType0 | Unset, data)
 
         decision_support = _parse_decision_support(d.pop("decisionSupport", UNSET))
-
 
         def _parse_quality(data: object) -> None | PublicPmEventQualityType0 | Unset:
             if data is None:
@@ -483,15 +507,12 @@ class PublicPmEvent:
                     raise TypeError()
                 quality_type_0 = PublicPmEventQualityType0.from_dict(data)
 
-
-
                 return quality_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
             return cast(None | PublicPmEventQualityType0 | Unset, data)
 
         quality = _parse_quality(d.pop("quality", UNSET))
-
 
         _cross_platform = d.pop("crossPlatform", UNSET)
         cross_platform: list[PublicPmEventCrossPlatformItem] | Unset = UNSET
@@ -500,10 +521,7 @@ class PublicPmEvent:
             for cross_platform_item_data in _cross_platform:
                 cross_platform_item = PublicPmEventCrossPlatformItem.from_dict(cross_platform_item_data)
 
-
-
                 cross_platform.append(cross_platform_item)
-
 
         public_pm_event = cls(
             id=id,
@@ -523,12 +541,14 @@ class PublicPmEvent:
             best_bid=best_bid,
             best_ask=best_ask,
             spread=spread,
+            price_change_24_h=price_change_24_h,
+            price_change_7_d=price_change_7_d,
+            probability_book=probability_book,
             reference_probability=reference_probability,
             decision_support=decision_support,
             quality=quality,
             cross_platform=cross_platform,
         )
-
 
         public_pm_event.additional_properties = d
         return public_pm_event

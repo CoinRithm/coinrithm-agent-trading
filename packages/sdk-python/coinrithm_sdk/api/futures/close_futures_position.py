@@ -1,31 +1,21 @@
 from http import HTTPStatus
-from typing import Any, cast
-from urllib.parse import quote
+from typing import Any
 
 import httpx
 
-from ...client import AuthenticatedClient, Client
-from ...types import Response, UNSET
 from ... import errors
-
+from ...client import AuthenticatedClient, Client
 from ...models.error import Error
 from ...models.futures_close_request import FuturesCloseRequest
 from ...models.futures_position_envelope import FuturesPositionEnvelope
-from typing import cast
-
+from ...types import Response
 
 
 def _get_kwargs(
     *,
     body: FuturesCloseRequest,
-
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
-
-
-    
-
-    
 
     _kwargs: dict[str, Any] = {
         "method": "post",
@@ -34,68 +24,52 @@ def _get_kwargs(
 
     _kwargs["json"] = body.to_dict()
 
-
     headers["Content-Type"] = "application/json"
 
     _kwargs["headers"] = headers
     return _kwargs
 
 
-
-def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Error | FuturesPositionEnvelope | None:
+def _parse_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Error | FuturesPositionEnvelope | None:
     if response.status_code == 200:
         response_200 = FuturesPositionEnvelope.from_dict(response.json())
-
-
 
         return response_200
 
     if response.status_code == 400:
         response_400 = Error.from_dict(response.json())
 
-
-
         return response_400
 
     if response.status_code == 401:
         response_401 = Error.from_dict(response.json())
-
-
 
         return response_401
 
     if response.status_code == 403:
         response_403 = Error.from_dict(response.json())
 
-
-
         return response_403
 
     if response.status_code == 404:
         response_404 = Error.from_dict(response.json())
-
-
 
         return response_404
 
     if response.status_code == 409:
         response_409 = Error.from_dict(response.json())
 
-
-
         return response_409
 
     if response.status_code == 422:
         response_422 = Error.from_dict(response.json())
 
-
-
         return response_422
 
     if response.status_code == 429:
         response_429 = Error.from_dict(response.json())
-
-
 
         return response_429
 
@@ -105,7 +79,9 @@ def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Res
         return None
 
 
-def _build_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Response[Error | FuturesPositionEnvelope]:
+def _build_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[Error | FuturesPositionEnvelope]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -118,9 +94,8 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
     body: FuturesCloseRequest,
-
 ) -> Response[Error | FuturesPositionEnvelope]:
-    """ Close (or partially reduce) a mock futures position
+    """Close (or partially reduce) a mock futures position
 
      Requires scope `trade:futures`. `idempotencyKey` is REQUIRED. `fraction`
     in (0,1] reduces partially; omit (or 1) for a full close. If the mark has
@@ -136,12 +111,10 @@ def sync_detailed(
 
     Returns:
         Response[Error | FuturesPositionEnvelope]
-     """
-
+    """
 
     kwargs = _get_kwargs(
         body=body,
-
     )
 
     response = client.get_httpx_client().request(
@@ -150,13 +123,13 @@ def sync_detailed(
 
     return _build_response(client=client, response=response)
 
+
 def sync(
     *,
     client: AuthenticatedClient | Client,
     body: FuturesCloseRequest,
-
 ) -> Error | FuturesPositionEnvelope | None:
-    """ Close (or partially reduce) a mock futures position
+    """Close (or partially reduce) a mock futures position
 
      Requires scope `trade:futures`. `idempotencyKey` is REQUIRED. `fraction`
     in (0,1] reduces partially; omit (or 1) for a full close. If the mark has
@@ -172,22 +145,20 @@ def sync(
 
     Returns:
         Error | FuturesPositionEnvelope
-     """
-
+    """
 
     return sync_detailed(
         client=client,
-body=body,
-
+        body=body,
     ).parsed
+
 
 async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
     body: FuturesCloseRequest,
-
 ) -> Response[Error | FuturesPositionEnvelope]:
-    """ Close (or partially reduce) a mock futures position
+    """Close (or partially reduce) a mock futures position
 
      Requires scope `trade:futures`. `idempotencyKey` is REQUIRED. `fraction`
     in (0,1] reduces partially; omit (or 1) for a full close. If the mark has
@@ -203,27 +174,23 @@ async def asyncio_detailed(
 
     Returns:
         Response[Error | FuturesPositionEnvelope]
-     """
-
+    """
 
     kwargs = _get_kwargs(
         body=body,
-
     )
 
-    response = await client.get_async_httpx_client().request(
-        **kwargs
-    )
+    response = await client.get_async_httpx_client().request(**kwargs)
 
     return _build_response(client=client, response=response)
+
 
 async def asyncio(
     *,
     client: AuthenticatedClient | Client,
     body: FuturesCloseRequest,
-
 ) -> Error | FuturesPositionEnvelope | None:
-    """ Close (or partially reduce) a mock futures position
+    """Close (or partially reduce) a mock futures position
 
      Requires scope `trade:futures`. `idempotencyKey` is REQUIRED. `fraction`
     in (0,1] reduces partially; omit (or 1) for a full close. If the mark has
@@ -239,11 +206,11 @@ async def asyncio(
 
     Returns:
         Error | FuturesPositionEnvelope
-     """
+    """
 
-
-    return (await asyncio_detailed(
-        client=client,
-body=body,
-
-    )).parsed
+    return (
+        await asyncio_detailed(
+            client=client,
+            body=body,
+        )
+    ).parsed

@@ -1,47 +1,33 @@
 from __future__ import annotations
 
+import datetime
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
 from ..models.pm_discovery_response_meta_source_health_item_status import PmDiscoveryResponseMetaSourceHealthItemStatus
 from ..types import UNSET, Unset
-from dateutil.parser import isoparse
-from typing import cast
-import datetime
-
-
-
-
-
 
 T = TypeVar("T", bound="PmDiscoveryResponseMetaSourceHealthItem")
 
 
-
 @_attrs_define
 class PmDiscoveryResponseMetaSourceHealthItem:
-    """ 
-        Attributes:
-            slug (str | Unset):
-            last_ingest_at (datetime.datetime | None | Unset):
-            ingest_age_seconds (int | None | Unset):
-            status (PmDiscoveryResponseMetaSourceHealthItemStatus | Unset):
-     """
+    """
+    Attributes:
+        slug (str | Unset):
+        last_ingest_at (datetime.datetime | None | Unset):
+        ingest_age_seconds (int | None | Unset):
+        status (PmDiscoveryResponseMetaSourceHealthItemStatus | Unset):
+    """
 
     slug: str | Unset = UNSET
     last_ingest_at: datetime.datetime | None | Unset = UNSET
     ingest_age_seconds: int | None | Unset = UNSET
     status: PmDiscoveryResponseMetaSourceHealthItemStatus | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         slug = self.slug
@@ -64,12 +50,9 @@ class PmDiscoveryResponseMetaSourceHealthItem:
         if not isinstance(self.status, Unset):
             status = self.status.value
 
-
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if slug is not UNSET:
             field_dict["slug"] = slug
         if last_ingest_at is not UNSET:
@@ -80,8 +63,6 @@ class PmDiscoveryResponseMetaSourceHealthItem:
             field_dict["status"] = status
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -96,9 +77,7 @@ class PmDiscoveryResponseMetaSourceHealthItem:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                last_ingest_at_type_0 = isoparse(data)
-
-
+                last_ingest_at_type_0 = datetime.datetime.fromisoformat(data)
 
                 return last_ingest_at_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
@@ -106,7 +85,6 @@ class PmDiscoveryResponseMetaSourceHealthItem:
             return cast(datetime.datetime | None | Unset, data)
 
         last_ingest_at = _parse_last_ingest_at(d.pop("lastIngestAt", UNSET))
-
 
         def _parse_ingest_age_seconds(data: object) -> int | None | Unset:
             if data is None:
@@ -117,16 +95,12 @@ class PmDiscoveryResponseMetaSourceHealthItem:
 
         ingest_age_seconds = _parse_ingest_age_seconds(d.pop("ingestAgeSeconds", UNSET))
 
-
         _status = d.pop("status", UNSET)
         status: PmDiscoveryResponseMetaSourceHealthItemStatus | Unset
-        if isinstance(_status,  Unset):
+        if isinstance(_status, Unset):
             status = UNSET
         else:
             status = PmDiscoveryResponseMetaSourceHealthItemStatus(_status)
-
-
-
 
         pm_discovery_response_meta_source_health_item = cls(
             slug=slug,
@@ -134,7 +108,6 @@ class PmDiscoveryResponseMetaSourceHealthItem:
             ingest_age_seconds=ingest_age_seconds,
             status=status,
         )
-
 
         pm_discovery_response_meta_source_health_item.additional_properties = d
         return pm_discovery_response_meta_source_health_item

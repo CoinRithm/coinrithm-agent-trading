@@ -1,35 +1,27 @@
 from __future__ import annotations
 
+import datetime
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
 from ..models.futures_position_side import FuturesPositionSide
 from ..models.futures_position_status import FuturesPositionStatus
 from ..types import UNSET, Unset
-from dateutil.parser import isoparse
-from typing import cast
-import datetime
 
 if TYPE_CHECKING:
-  from ..models.freshness import Freshness
-  from ..models.futures_position_coin import FuturesPositionCoin
-
-
-
+    from ..models.freshness import Freshness
+    from ..models.futures_position_coin import FuturesPositionCoin
 
 
 T = TypeVar("T", bound="FuturesPosition")
 
 
-
 @_attrs_define
 class FuturesPosition:
-    """ Mock futures position. Live-mark fields (markPrice, unrealizedPnlMusd,
+    """Mock futures position. Live-mark fields (markPrice, unrealizedPnlMusd,
     liquidationDistancePct, atLiquidation) are added only on OPEN positions in
     the list endpoint; they may be null when no live mark is available.
 
@@ -60,7 +52,7 @@ class FuturesPosition:
             unrealized_pnl_musd (float | None | Unset):
             liquidation_distance_pct (float | None | Unset):
             at_liquidation (bool | None | Unset):
-     """
+    """
 
     id: int | Unset = UNSET
     status: FuturesPositionStatus | Unset = UNSET
@@ -88,19 +80,12 @@ class FuturesPosition:
     at_liquidation: bool | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
-        from ..models.freshness import Freshness
-        from ..models.futures_position_coin import FuturesPositionCoin
         id = self.id
 
         status: str | Unset = UNSET
         if not isinstance(self.status, Unset):
             status = self.status.value
-
 
         coin: dict[str, Any] | Unset = UNSET
         if not isinstance(self.coin, Unset):
@@ -109,7 +94,6 @@ class FuturesPosition:
         side: str | Unset = UNSET
         if not isinstance(self.side, Unset):
             side = self.side.value
-
 
         leverage = self.leverage
 
@@ -203,11 +187,9 @@ class FuturesPosition:
         else:
             at_liquidation = self.at_liquidation
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if id is not UNSET:
             field_dict["id"] = id
         if status is not UNSET:
@@ -259,44 +241,34 @@ class FuturesPosition:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.freshness import Freshness
         from ..models.futures_position_coin import FuturesPositionCoin
+
         d = dict(src_dict)
         id = d.pop("id", UNSET)
 
         _status = d.pop("status", UNSET)
         status: FuturesPositionStatus | Unset
-        if isinstance(_status,  Unset):
+        if isinstance(_status, Unset):
             status = UNSET
         else:
             status = FuturesPositionStatus(_status)
 
-
-
-
         _coin = d.pop("coin", UNSET)
         coin: FuturesPositionCoin | Unset
-        if isinstance(_coin,  Unset):
+        if isinstance(_coin, Unset):
             coin = UNSET
         else:
             coin = FuturesPositionCoin.from_dict(_coin)
 
-
-
-
         _side = d.pop("side", UNSET)
         side: FuturesPositionSide | Unset
-        if isinstance(_side,  Unset):
+        if isinstance(_side, Unset):
             side = UNSET
         else:
             side = FuturesPositionSide(_side)
-
-
-
 
         leverage = d.pop("leverage", UNSET)
 
@@ -314,13 +286,10 @@ class FuturesPosition:
 
         _freshness_at_entry = d.pop("freshnessAtEntry", UNSET)
         freshness_at_entry: Freshness | Unset
-        if isinstance(_freshness_at_entry,  Unset):
+        if isinstance(_freshness_at_entry, Unset):
             freshness_at_entry = UNSET
         else:
             freshness_at_entry = Freshness.from_dict(_freshness_at_entry)
-
-
-
 
         def _parse_stop_loss_price(data: object) -> float | None | Unset:
             if data is None:
@@ -331,7 +300,6 @@ class FuturesPosition:
 
         stop_loss_price = _parse_stop_loss_price(d.pop("stopLossPrice", UNSET))
 
-
         def _parse_take_profit_price(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -340,7 +308,6 @@ class FuturesPosition:
             return cast(float | None | Unset, data)
 
         take_profit_price = _parse_take_profit_price(d.pop("takeProfitPrice", UNSET))
-
 
         def _parse_exit_price(data: object) -> float | None | Unset:
             if data is None:
@@ -351,7 +318,6 @@ class FuturesPosition:
 
         exit_price = _parse_exit_price(d.pop("exitPrice", UNSET))
 
-
         def _parse_exit_reason(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -360,7 +326,6 @@ class FuturesPosition:
             return cast(None | str | Unset, data)
 
         exit_reason = _parse_exit_reason(d.pop("exitReason", UNSET))
-
 
         def _parse_realized_pnl_musd(data: object) -> float | None | Unset:
             if data is None:
@@ -371,7 +336,6 @@ class FuturesPosition:
 
         realized_pnl_musd = _parse_realized_pnl_musd(d.pop("realizedPnlMusd", UNSET))
 
-
         def _parse_opened_at(data: object) -> datetime.datetime | None | Unset:
             if data is None:
                 return data
@@ -380,9 +344,7 @@ class FuturesPosition:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                opened_at_type_0 = isoparse(data)
-
-
+                opened_at_type_0 = datetime.datetime.fromisoformat(data)
 
                 return opened_at_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
@@ -390,7 +352,6 @@ class FuturesPosition:
             return cast(datetime.datetime | None | Unset, data)
 
         opened_at = _parse_opened_at(d.pop("openedAt", UNSET))
-
 
         def _parse_closed_at(data: object) -> datetime.datetime | None | Unset:
             if data is None:
@@ -400,9 +361,7 @@ class FuturesPosition:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                closed_at_type_0 = isoparse(data)
-
-
+                closed_at_type_0 = datetime.datetime.fromisoformat(data)
 
                 return closed_at_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
@@ -411,16 +370,12 @@ class FuturesPosition:
 
         closed_at = _parse_closed_at(d.pop("closedAt", UNSET))
 
-
         _created_at = d.pop("createdAt", UNSET)
         created_at: datetime.datetime | Unset
-        if isinstance(_created_at,  Unset):
+        if isinstance(_created_at, Unset):
             created_at = UNSET
         else:
-            created_at = isoparse(_created_at)
-
-
-
+            created_at = datetime.datetime.fromisoformat(_created_at)
 
         def _parse_mark_price(data: object) -> float | None | Unset:
             if data is None:
@@ -431,7 +386,6 @@ class FuturesPosition:
 
         mark_price = _parse_mark_price(d.pop("markPrice", UNSET))
 
-
         def _parse_unrealized_pnl_musd(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -440,7 +394,6 @@ class FuturesPosition:
             return cast(float | None | Unset, data)
 
         unrealized_pnl_musd = _parse_unrealized_pnl_musd(d.pop("unrealizedPnlMusd", UNSET))
-
 
         def _parse_liquidation_distance_pct(data: object) -> float | None | Unset:
             if data is None:
@@ -451,7 +404,6 @@ class FuturesPosition:
 
         liquidation_distance_pct = _parse_liquidation_distance_pct(d.pop("liquidationDistancePct", UNSET))
 
-
         def _parse_at_liquidation(data: object) -> bool | None | Unset:
             if data is None:
                 return data
@@ -460,7 +412,6 @@ class FuturesPosition:
             return cast(bool | None | Unset, data)
 
         at_liquidation = _parse_at_liquidation(d.pop("atLiquidation", UNSET))
-
 
         futures_position = cls(
             id=id,
@@ -488,7 +439,6 @@ class FuturesPosition:
             liquidation_distance_pct=liquidation_distance_pct,
             at_liquidation=at_liquidation,
         )
-
 
         futures_position.additional_properties = d
         return futures_position

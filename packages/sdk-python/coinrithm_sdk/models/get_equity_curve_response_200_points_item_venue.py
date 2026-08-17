@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class GetEquityCurveResponse200PointsItemVenue(str, Enum):
     FUTURES = "futures"
     PM = "pm"

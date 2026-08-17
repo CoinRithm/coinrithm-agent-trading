@@ -1,31 +1,24 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from typing import cast
-
 if TYPE_CHECKING:
-  from ..models.agent_execution_assumptions_cost_model import AgentExecutionAssumptionsCostModel
-  from ..models.agent_execution_assumptions_execution_timing import AgentExecutionAssumptionsExecutionTiming
-
-
-
+    from ..models.agent_execution_assumptions_cost_model import AgentExecutionAssumptionsCostModel
+    from ..models.agent_execution_assumptions_execution_timing import AgentExecutionAssumptionsExecutionTiming
 
 
 T = TypeVar("T", bound="AgentExecutionAssumptions")
 
 
-
 @_attrs_define
 class AgentExecutionAssumptions:
-    """ Versioned paper-execution assumptions attached to private run exports.
+    """Versioned paper-execution assumptions attached to private run exports.
     This is methodology metadata, not a fee/slippage charge schedule.
 
         Attributes:
@@ -35,7 +28,7 @@ class AgentExecutionAssumptions:
             cost_model (AgentExecutionAssumptionsCostModel | Unset):
             execution_timing (AgentExecutionAssumptionsExecutionTiming | Unset):
             reproducibility_caveat (str | Unset):
-     """
+    """
 
     schema: str | Unset = UNSET
     account_model: str | Unset = UNSET
@@ -45,13 +38,7 @@ class AgentExecutionAssumptions:
     reproducibility_caveat: str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
-        from ..models.agent_execution_assumptions_cost_model import AgentExecutionAssumptionsCostModel
-        from ..models.agent_execution_assumptions_execution_timing import AgentExecutionAssumptionsExecutionTiming
         schema = self.schema
 
         account_model = self.account_model
@@ -68,11 +55,9 @@ class AgentExecutionAssumptions:
 
         reproducibility_caveat = self.reproducibility_caveat
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if schema is not UNSET:
             field_dict["schema"] = schema
         if account_model is not UNSET:
@@ -88,12 +73,11 @@ class AgentExecutionAssumptions:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.agent_execution_assumptions_cost_model import AgentExecutionAssumptionsCostModel
         from ..models.agent_execution_assumptions_execution_timing import AgentExecutionAssumptionsExecutionTiming
+
         d = dict(src_dict)
         schema = d.pop("schema", UNSET)
 
@@ -103,23 +87,17 @@ class AgentExecutionAssumptions:
 
         _cost_model = d.pop("costModel", UNSET)
         cost_model: AgentExecutionAssumptionsCostModel | Unset
-        if isinstance(_cost_model,  Unset):
+        if isinstance(_cost_model, Unset):
             cost_model = UNSET
         else:
             cost_model = AgentExecutionAssumptionsCostModel.from_dict(_cost_model)
 
-
-
-
         _execution_timing = d.pop("executionTiming", UNSET)
         execution_timing: AgentExecutionAssumptionsExecutionTiming | Unset
-        if isinstance(_execution_timing,  Unset):
+        if isinstance(_execution_timing, Unset):
             execution_timing = UNSET
         else:
             execution_timing = AgentExecutionAssumptionsExecutionTiming.from_dict(_execution_timing)
-
-
-
 
         reproducibility_caveat = d.pop("reproducibilityCaveat", UNSET)
 
@@ -131,7 +109,6 @@ class AgentExecutionAssumptions:
             execution_timing=execution_timing,
             reproducibility_caveat=reproducibility_caveat,
         )
-
 
         agent_execution_assumptions.additional_properties = d
         return agent_execution_assumptions

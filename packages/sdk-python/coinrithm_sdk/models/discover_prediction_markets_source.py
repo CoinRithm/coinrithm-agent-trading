@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class DiscoverPredictionMarketsSource(str, Enum):
     ALL = "all"
     KALSHI = "kalshi"

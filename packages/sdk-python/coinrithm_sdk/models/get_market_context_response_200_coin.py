@@ -1,35 +1,26 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from typing import cast
-
-
-
-
-
-
 T = TypeVar("T", bound="GetMarketContextResponse200Coin")
-
 
 
 @_attrs_define
 class GetMarketContextResponse200Coin:
-    """ 
-        Attributes:
-            coin_id (str | Unset):
-            symbol (str | Unset):
-            name (str | Unset):
-            market_cap_rank (int | None | Unset):
-            categories (list[str] | Unset): CoinGecko sector tags (canonical English names).
-     """
+    """
+    Attributes:
+        coin_id (str | Unset):
+        symbol (str | Unset):
+        name (str | Unset):
+        market_cap_rank (int | None | Unset):
+        categories (list[str] | Unset): CoinGecko sector tags (canonical English names).
+    """
 
     coin_id: str | Unset = UNSET
     symbol: str | Unset = UNSET
@@ -37,10 +28,6 @@ class GetMarketContextResponse200Coin:
     market_cap_rank: int | None | Unset = UNSET
     categories: list[str] | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         coin_id = self.coin_id
@@ -59,13 +46,9 @@ class GetMarketContextResponse200Coin:
         if not isinstance(self.categories, Unset):
             categories = self.categories
 
-
-
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if coin_id is not UNSET:
             field_dict["coinId"] = coin_id
         if symbol is not UNSET:
@@ -78,8 +61,6 @@ class GetMarketContextResponse200Coin:
             field_dict["categories"] = categories
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -99,9 +80,7 @@ class GetMarketContextResponse200Coin:
 
         market_cap_rank = _parse_market_cap_rank(d.pop("marketCapRank", UNSET))
 
-
         categories = cast(list[str], d.pop("categories", UNSET))
-
 
         get_market_context_response_200_coin = cls(
             coin_id=coin_id,
@@ -110,7 +89,6 @@ class GetMarketContextResponse200Coin:
             market_cap_rank=market_cap_rank,
             categories=categories,
         )
-
 
         get_market_context_response_200_coin.additional_properties = d
         return get_market_context_response_200_coin

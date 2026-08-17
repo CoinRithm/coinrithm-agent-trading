@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class ArenaDecisionResult(str, Enum):
     LOST = "lost"
     WON = "won"

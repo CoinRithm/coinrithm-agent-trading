@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class PmOpportunityResponseOpportunityKind(str, Enum):
     ABSTAINED = "abstained"
     FORECAST_ONLY = "forecast_only"

@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class GetArenaLeaderboardResponse200Window(str, Enum):
     ALL = "all"
     VALUE_0 = "7d"

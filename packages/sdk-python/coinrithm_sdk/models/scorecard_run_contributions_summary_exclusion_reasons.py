@@ -1,44 +1,32 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-
-
-
-
-
-
 T = TypeVar("T", bound="ScorecardRunContributionsSummaryExclusionReasons")
-
 
 
 @_attrs_define
 class ScorecardRunContributionsSummaryExclusionReasons:
-    """ Count of excluded decisions per reason.
+    """Count of excluded decisions per reason.
 
-        Attributes:
-            unsettled (int | Unset):
-            no_forecast (int | Unset):
-            void (int | Unset):
-            below_gate (int | Unset):
-     """
+    Attributes:
+        unsettled (int | Unset):
+        no_forecast (int | Unset):
+        void (int | Unset):
+        below_gate (int | Unset):
+    """
 
     unsettled: int | Unset = UNSET
     no_forecast: int | Unset = UNSET
     void: int | Unset = UNSET
     below_gate: int | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         unsettled = self.unsettled
@@ -49,11 +37,9 @@ class ScorecardRunContributionsSummaryExclusionReasons:
 
         below_gate = self.below_gate
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if unsettled is not UNSET:
             field_dict["unsettled"] = unsettled
         if no_forecast is not UNSET:
@@ -64,8 +50,6 @@ class ScorecardRunContributionsSummaryExclusionReasons:
             field_dict["below_gate"] = below_gate
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -84,7 +68,6 @@ class ScorecardRunContributionsSummaryExclusionReasons:
             void=void,
             below_gate=below_gate,
         )
-
 
         scorecard_run_contributions_summary_exclusion_reasons.additional_properties = d
         return scorecard_run_contributions_summary_exclusion_reasons

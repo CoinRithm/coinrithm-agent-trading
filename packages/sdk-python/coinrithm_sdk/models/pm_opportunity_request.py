@@ -1,64 +1,57 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
 from ..models.pm_opportunity_request_kind import PmOpportunityRequestKind
 from ..types import UNSET, Unset
-from typing import cast
 
 if TYPE_CHECKING:
-  from ..models.agent_trace_metadata import AgentTraceMetadata
-  from ..models.decision_provenance_report import DecisionProvenanceReport
-  from ..models.pm_opportunity_request_cohort import PmOpportunityRequestCohort
-
-
-
+    from ..models.agent_trace_metadata import AgentTraceMetadata
+    from ..models.decision_provenance_report import DecisionProvenanceReport
+    from ..models.pm_opportunity_request_cohort import PmOpportunityRequestCohort
 
 
 T = TypeVar("T", bound="PmOpportunityRequest")
 
 
-
 @_attrs_define
 class PmOpportunityRequest:
-    """ 
-        Attributes:
-            kind (PmOpportunityRequestKind): abstained = evaluated markets but did not bet; forecast_only = formed
-                your OWN probability without trading (forecastProbability required);
-                quote_expired = a validated open the server rejected at act time.
-            source (str | Unset): Optional subject market source slug.
-            slug (str | Unset): Optional subject event slug.
-            outcome_external_market_id (str | Unset): Optional case-sensitive outcome/market id of the subject.
-            forecast_probability (float | Unset): Your OWN probability (1-99) the chosen side wins. REQUIRED for
-                forecast_only; omit for the other kinds. Never echo the market price.
-            market_probability (float | Unset): The market price (0-100) you observed. Optional.
-            reason_code (str | Unset): Short structured reason (e.g. no_edge, stale_data).
-            cohort (PmOpportunityRequestCohort | Unset): Opportunity-cohort breadth, frozen into the artifact's
-                decisionContext.
-            decision_id (str | Unset): Your own decision id — idempotency key within your API key.
-            run_id (str | Unset): Your own run id for grouping.
-            agent_trace (AgentTraceMetadata | Unset): Optional private trace metadata supplied by a user-run agent.
-                CoinRithm
-                stores only this structured summary; do not send chain-of-thought,
-                secrets, emails, or private account identity.
-            provenance (DecisionProvenanceReport | Unset): OPTIONAL self-reported provenance you attach to a pm/open or
-                pm/opportunity
-                so the durable artifact can record WHAT RAN to produce the decision. Every
-                field here is SELF-REPORTED and carries NO trust on its own. Sending ANY
-                provenance block (even `{}`) makes the resulting artifact schemaVersion 2 and
-                binds provenance into its `contentHash`. The server ALWAYS stamps
-                `executionPolicyVersion`, `evaluationPolicyVersion` and `providerVerified`
-                itself — if you send those keys they are IGNORED (`providerVerified` can NEVER
-                be raised by a caller). `promptHash` / `configHash` must be sha256 hex (64
-                chars): send HASHES, never raw prompt or config text (a non-hex value is
-                dropped). Unknown keys are ignored; oversized values are capped.
-     """
+    """
+    Attributes:
+        kind (PmOpportunityRequestKind): abstained = evaluated markets but did not bet; forecast_only = formed
+            your OWN probability without trading (forecastProbability required);
+            quote_expired = a validated open the server rejected at act time.
+        source (str | Unset): Optional subject market source slug.
+        slug (str | Unset): Optional subject event slug.
+        outcome_external_market_id (str | Unset): Optional case-sensitive outcome/market id of the subject.
+        forecast_probability (float | Unset): Your OWN probability (1-99) the chosen side wins. REQUIRED for
+            forecast_only; omit for the other kinds. Never echo the market price.
+        market_probability (float | Unset): The market price (0-100) you observed. Optional.
+        reason_code (str | Unset): Short structured reason (e.g. no_edge, stale_data).
+        cohort (PmOpportunityRequestCohort | Unset): Opportunity-cohort breadth, frozen into the artifact's
+            decisionContext.
+        decision_id (str | Unset): Your own decision id — idempotency key within your API key.
+        run_id (str | Unset): Your own run id for grouping.
+        agent_trace (AgentTraceMetadata | Unset): Optional private trace metadata supplied by a user-run agent.
+            CoinRithm
+            stores only this structured summary; do not send chain-of-thought,
+            secrets, emails, or private account identity.
+        provenance (DecisionProvenanceReport | Unset): OPTIONAL self-reported provenance you attach to a pm/open or
+            pm/opportunity
+            so the durable artifact can record WHAT RAN to produce the decision. Every
+            field here is SELF-REPORTED and carries NO trust on its own. Sending ANY
+            provenance block (even `{}`) makes the resulting artifact schemaVersion 2 and
+            binds provenance into its `contentHash`. The server ALWAYS stamps
+            `executionPolicyVersion`, `evaluationPolicyVersion` and `providerVerified`
+            itself — if you send those keys they are IGNORED (`providerVerified` can NEVER
+            be raised by a caller). `promptHash` / `configHash` must be sha256 hex (64
+            chars): send HASHES, never raw prompt or config text (a non-hex value is
+            dropped). Unknown keys are ignored; oversized values are capped.
+    """
 
     kind: PmOpportunityRequestKind
     source: str | Unset = UNSET
@@ -74,14 +67,7 @@ class PmOpportunityRequest:
     provenance: DecisionProvenanceReport | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
-        from ..models.agent_trace_metadata import AgentTraceMetadata
-        from ..models.decision_provenance_report import DecisionProvenanceReport
-        from ..models.pm_opportunity_request_cohort import PmOpportunityRequestCohort
         kind = self.kind.value
 
         source = self.source
@@ -112,12 +98,13 @@ class PmOpportunityRequest:
         if not isinstance(self.provenance, Unset):
             provenance = self.provenance.to_dict()
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-            "kind": kind,
-        })
+        field_dict.update(
+            {
+                "kind": kind,
+            }
+        )
         if source is not UNSET:
             field_dict["source"] = source
         if slug is not UNSET:
@@ -143,18 +130,14 @@ class PmOpportunityRequest:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.agent_trace_metadata import AgentTraceMetadata
         from ..models.decision_provenance_report import DecisionProvenanceReport
         from ..models.pm_opportunity_request_cohort import PmOpportunityRequestCohort
+
         d = dict(src_dict)
         kind = PmOpportunityRequestKind(d.pop("kind"))
-
-
-
 
         source = d.pop("source", UNSET)
 
@@ -170,13 +153,10 @@ class PmOpportunityRequest:
 
         _cohort = d.pop("cohort", UNSET)
         cohort: PmOpportunityRequestCohort | Unset
-        if isinstance(_cohort,  Unset):
+        if isinstance(_cohort, Unset):
             cohort = UNSET
         else:
             cohort = PmOpportunityRequestCohort.from_dict(_cohort)
-
-
-
 
         decision_id = d.pop("decisionId", UNSET)
 
@@ -184,23 +164,17 @@ class PmOpportunityRequest:
 
         _agent_trace = d.pop("agentTrace", UNSET)
         agent_trace: AgentTraceMetadata | Unset
-        if isinstance(_agent_trace,  Unset):
+        if isinstance(_agent_trace, Unset):
             agent_trace = UNSET
         else:
             agent_trace = AgentTraceMetadata.from_dict(_agent_trace)
 
-
-
-
         _provenance = d.pop("provenance", UNSET)
         provenance: DecisionProvenanceReport | Unset
-        if isinstance(_provenance,  Unset):
+        if isinstance(_provenance, Unset):
             provenance = UNSET
         else:
             provenance = DecisionProvenanceReport.from_dict(_provenance)
-
-
-
 
         pm_opportunity_request = cls(
             kind=kind,
@@ -216,7 +190,6 @@ class PmOpportunityRequest:
             agent_trace=agent_trace,
             provenance=provenance,
         )
-
 
         pm_opportunity_request.additional_properties = d
         return pm_opportunity_request

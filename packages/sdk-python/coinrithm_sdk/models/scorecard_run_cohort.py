@@ -1,29 +1,20 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
 from ..models.scorecard_run_cohort_universe import ScorecardRunCohortUniverse
 from ..types import UNSET, Unset
-from typing import cast
-
-
-
-
-
 
 T = TypeVar("T", bound="ScorecardRunCohort")
 
 
-
 @_attrs_define
 class ScorecardRunCohort:
-    """ The frozen cohort DEFINITION a run scored over (the folded EvaluationCohort).
+    """The frozen cohort DEFINITION a run scored over (the folded EvaluationCohort).
     Today the scorecard is all-universe, so this records that; a future cohort
     run pins category/source/horizon.
 
@@ -33,7 +24,7 @@ class ScorecardRunCohort:
             category (None | str | Unset):
             source (None | str | Unset):
             horizon (None | str | Unset):
-     """
+    """
 
     v: int | Unset = UNSET
     universe: ScorecardRunCohortUniverse | Unset = UNSET
@@ -42,17 +33,12 @@ class ScorecardRunCohort:
     horizon: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
         v = self.v
 
         universe: str | Unset = UNSET
         if not isinstance(self.universe, Unset):
             universe = self.universe.value
-
 
         category: None | str | Unset
         if isinstance(self.category, Unset):
@@ -72,11 +58,9 @@ class ScorecardRunCohort:
         else:
             horizon = self.horizon
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if v is not UNSET:
             field_dict["v"] = v
         if universe is not UNSET:
@@ -90,8 +74,6 @@ class ScorecardRunCohort:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
@@ -99,13 +81,10 @@ class ScorecardRunCohort:
 
         _universe = d.pop("universe", UNSET)
         universe: ScorecardRunCohortUniverse | Unset
-        if isinstance(_universe,  Unset):
+        if isinstance(_universe, Unset):
             universe = UNSET
         else:
             universe = ScorecardRunCohortUniverse(_universe)
-
-
-
 
         def _parse_category(data: object) -> None | str | Unset:
             if data is None:
@@ -116,7 +95,6 @@ class ScorecardRunCohort:
 
         category = _parse_category(d.pop("category", UNSET))
 
-
         def _parse_source(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -125,7 +103,6 @@ class ScorecardRunCohort:
             return cast(None | str | Unset, data)
 
         source = _parse_source(d.pop("source", UNSET))
-
 
         def _parse_horizon(data: object) -> None | str | Unset:
             if data is None:
@@ -136,7 +113,6 @@ class ScorecardRunCohort:
 
         horizon = _parse_horizon(d.pop("horizon", UNSET))
 
-
         scorecard_run_cohort = cls(
             v=v,
             universe=universe,
@@ -144,7 +120,6 @@ class ScorecardRunCohort:
             source=source,
             horizon=horizon,
         )
-
 
         scorecard_run_cohort.additional_properties = d
         return scorecard_run_cohort

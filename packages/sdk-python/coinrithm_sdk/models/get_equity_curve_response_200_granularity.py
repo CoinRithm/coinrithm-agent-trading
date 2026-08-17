@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class GetEquityCurveResponse200Granularity(str, Enum):
     DAILY = "daily"
     REALIZED = "realized"

@@ -1,44 +1,31 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from typing import cast
-
-
-
-
-
-
 T = TypeVar("T", bound="GetMarketContextResponse200Sentiment")
-
 
 
 @_attrs_define
 class GetMarketContextResponse200Sentiment:
-    """ 
-        Attributes:
-            bullish_votes (int | Unset):
-            bearish_votes (int | Unset):
-            total_votes (int | Unset):
-            bullish_pct (int | None | Unset):
-     """
+    """
+    Attributes:
+        bullish_votes (int | Unset):
+        bearish_votes (int | Unset):
+        total_votes (int | Unset):
+        bullish_pct (int | None | Unset):
+    """
 
     bullish_votes: int | Unset = UNSET
     bearish_votes: int | Unset = UNSET
     total_votes: int | Unset = UNSET
     bullish_pct: int | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         bullish_votes = self.bullish_votes
@@ -53,11 +40,9 @@ class GetMarketContextResponse200Sentiment:
         else:
             bullish_pct = self.bullish_pct
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if bullish_votes is not UNSET:
             field_dict["bullishVotes"] = bullish_votes
         if bearish_votes is not UNSET:
@@ -68,8 +53,6 @@ class GetMarketContextResponse200Sentiment:
             field_dict["bullishPct"] = bullish_pct
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -89,14 +72,12 @@ class GetMarketContextResponse200Sentiment:
 
         bullish_pct = _parse_bullish_pct(d.pop("bullishPct", UNSET))
 
-
         get_market_context_response_200_sentiment = cls(
             bullish_votes=bullish_votes,
             bearish_votes=bearish_votes,
             total_votes=total_votes,
             bullish_pct=bullish_pct,
         )
-
 
         get_market_context_response_200_sentiment.additional_properties = d
         return get_market_context_response_200_sentiment

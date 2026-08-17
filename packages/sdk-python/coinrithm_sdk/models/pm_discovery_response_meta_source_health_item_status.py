@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class PmDiscoveryResponseMetaSourceHealthItemStatus(str, Enum):
     FRESH = "fresh"
     NEVER_INGESTED = "never_ingested"

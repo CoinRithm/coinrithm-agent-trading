@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class AgentRunOutcomeSummaryCoverage(str, Enum):
     COMPLETE = "complete"
     NONE = "none"

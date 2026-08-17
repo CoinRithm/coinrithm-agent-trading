@@ -1,36 +1,28 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-
-
-
-
-
-
 T = TypeVar("T", bound="AgentPortfolioEquity")
-
 
 
 @_attrs_define
 class AgentPortfolioEquity:
-    """ 
-        Attributes:
-            total_usd (float | Unset): Current paper equity in USD (cash + positions).
-            available (float | Unset): spendable cash (mUSD)
-            frozen (float | Unset): cash reserved by open spot orders (mUSD)
-            frozen_pm (float | Unset): cash reserved by open PM positions (mUSD)
-            frozen_futures (float | Unset): cash reserved as futures margin (mUSD)
-            cash_total (float | Unset): available + frozen + frozenPm + frozenFutures — the canonical
-                spendable-plus-held cash total (mUSD).
-     """
+    """
+    Attributes:
+        total_usd (float | Unset): Current paper equity in USD (cash + positions).
+        available (float | Unset): spendable cash (mUSD)
+        frozen (float | Unset): cash reserved by open spot orders (mUSD)
+        frozen_pm (float | Unset): cash reserved by open PM positions (mUSD)
+        frozen_futures (float | Unset): cash reserved as futures margin (mUSD)
+        cash_total (float | Unset): available + frozen + frozenPm + frozenFutures — the canonical
+            spendable-plus-held cash total (mUSD).
+    """
 
     total_usd: float | Unset = UNSET
     available: float | Unset = UNSET
@@ -39,10 +31,6 @@ class AgentPortfolioEquity:
     frozen_futures: float | Unset = UNSET
     cash_total: float | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         total_usd = self.total_usd
@@ -57,11 +45,9 @@ class AgentPortfolioEquity:
 
         cash_total = self.cash_total
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if total_usd is not UNSET:
             field_dict["totalUsd"] = total_usd
         if available is not UNSET:
@@ -76,8 +62,6 @@ class AgentPortfolioEquity:
             field_dict["cashTotal"] = cash_total
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -102,7 +86,6 @@ class AgentPortfolioEquity:
             frozen_futures=frozen_futures,
             cash_total=cash_total,
         )
-
 
         agent_portfolio_equity.additional_properties = d
         return agent_portfolio_equity

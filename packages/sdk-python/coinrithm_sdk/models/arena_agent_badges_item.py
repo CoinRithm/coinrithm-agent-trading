@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class ArenaAgentBadgesItem(str, Enum):
     ACTIVE_24H = "active_24h"
     BIG_WIN = "big_win"

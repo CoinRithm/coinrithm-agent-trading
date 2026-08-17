@@ -1,36 +1,25 @@
 from http import HTTPStatus
-from typing import Any, cast
-from urllib.parse import quote
+from typing import Any
 
 import httpx
 
-from ...client import AuthenticatedClient, Client
-from ...types import Response, UNSET
 from ... import errors
-
+from ...client import AuthenticatedClient, Client
 from ...models.error import Error
 from ...models.wallet import Wallet
-from ...types import UNSET, Unset
-from typing import cast
-
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     *,
     coin_id: str | Unset = UNSET,
-
 ) -> dict[str, Any]:
-    
-
-    
 
     params: dict[str, Any] = {}
 
     params["coinId"] = coin_id
 
-
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
-
 
     _kwargs: dict[str, Any] = {
         "method": "get",
@@ -38,44 +27,32 @@ def _get_kwargs(
         "params": params,
     }
 
-
     return _kwargs
-
 
 
 def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Error | Wallet | None:
     if response.status_code == 200:
         response_200 = Wallet.from_dict(response.json())
 
-
-
         return response_200
 
     if response.status_code == 401:
         response_401 = Error.from_dict(response.json())
-
-
 
         return response_401
 
     if response.status_code == 403:
         response_403 = Error.from_dict(response.json())
 
-
-
         return response_403
 
     if response.status_code == 404:
         response_404 = Error.from_dict(response.json())
 
-
-
         return response_404
 
     if response.status_code == 429:
         response_429 = Error.from_dict(response.json())
-
-
 
         return response_429
 
@@ -98,9 +75,8 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
     coin_id: str | Unset = UNSET,
-
 ) -> Response[Error | Wallet]:
-    """ Raw wallet balances incl. frozen partitions
+    """Raw wallet balances incl. frozen partitions
 
      USDT cash with its three frozen partitions (spot orders, PM, futures),
     plus one optional coin asset if `coinId` is given. Requires scope `read`.
@@ -114,12 +90,10 @@ def sync_detailed(
 
     Returns:
         Response[Error | Wallet]
-     """
-
+    """
 
     kwargs = _get_kwargs(
         coin_id=coin_id,
-
     )
 
     response = client.get_httpx_client().request(
@@ -128,13 +102,13 @@ def sync_detailed(
 
     return _build_response(client=client, response=response)
 
+
 def sync(
     *,
     client: AuthenticatedClient | Client,
     coin_id: str | Unset = UNSET,
-
 ) -> Error | Wallet | None:
-    """ Raw wallet balances incl. frozen partitions
+    """Raw wallet balances incl. frozen partitions
 
      USDT cash with its three frozen partitions (spot orders, PM, futures),
     plus one optional coin asset if `coinId` is given. Requires scope `read`.
@@ -148,22 +122,20 @@ def sync(
 
     Returns:
         Error | Wallet
-     """
-
+    """
 
     return sync_detailed(
         client=client,
-coin_id=coin_id,
-
+        coin_id=coin_id,
     ).parsed
+
 
 async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
     coin_id: str | Unset = UNSET,
-
 ) -> Response[Error | Wallet]:
-    """ Raw wallet balances incl. frozen partitions
+    """Raw wallet balances incl. frozen partitions
 
      USDT cash with its three frozen partitions (spot orders, PM, futures),
     plus one optional coin asset if `coinId` is given. Requires scope `read`.
@@ -177,27 +149,23 @@ async def asyncio_detailed(
 
     Returns:
         Response[Error | Wallet]
-     """
-
+    """
 
     kwargs = _get_kwargs(
         coin_id=coin_id,
-
     )
 
-    response = await client.get_async_httpx_client().request(
-        **kwargs
-    )
+    response = await client.get_async_httpx_client().request(**kwargs)
 
     return _build_response(client=client, response=response)
+
 
 async def asyncio(
     *,
     client: AuthenticatedClient | Client,
     coin_id: str | Unset = UNSET,
-
 ) -> Error | Wallet | None:
-    """ Raw wallet balances incl. frozen partitions
+    """Raw wallet balances incl. frozen partitions
 
      USDT cash with its three frozen partitions (spot orders, PM, futures),
     plus one optional coin asset if `coinId` is given. Requires scope `read`.
@@ -211,11 +179,11 @@ async def asyncio(
 
     Returns:
         Error | Wallet
-     """
+    """
 
-
-    return (await asyncio_detailed(
-        client=client,
-coin_id=coin_id,
-
-    )).parsed
+    return (
+        await asyncio_detailed(
+            client=client,
+            coin_id=coin_id,
+        )
+    ).parsed

@@ -1,54 +1,47 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from typing import cast
-
 if TYPE_CHECKING:
-  from ..models.agent_observation import AgentObservation
-  from ..models.freshness import Freshness
-  from ..models.futures_quote_response_coin import FuturesQuoteResponseCoin
-
-
-
+    from ..models.agent_observation import AgentObservation
+    from ..models.freshness import Freshness
+    from ..models.futures_quote_response_coin import FuturesQuoteResponseCoin
 
 
 T = TypeVar("T", bound="FuturesQuoteResponse")
 
 
-
 @_attrs_define
 class FuturesQuoteResponse:
-    """ 
-        Attributes:
-            eligible (bool | Unset):
-            block_reasons (list[str] | Unset):
-            coin (FuturesQuoteResponseCoin | Unset):
-            side (None | str | Unset):
-            leverage (float | None | Unset):
-            margin_musd (float | None | Unset):
-            min_margin (float | Unset):
-            max_leverage (float | Unset):
-            entry_price (float | None | Unset):
-            notional_musd (float | None | Unset):
-            size_coin (float | None | Unset):
-            liquidation_price (float | None | Unset):
-            maintenance_margin_rate (float | None | Unset):
-            freshness (Freshness | Unset): Data-freshness descriptor. Futures + spot use ageSeconds; PM uses
-                ageMinutes. `status` is a freshness label; `basis` (PM only) names which
-                timestamp the age was measured against.
-            observation (AgentObservation | Unset): Compact provenance block for an agent-facing market observation. It is
-                also stored in the private ledger responseSummary when the request uses
-                agentTrace/run headers, giving run exports a verifiable snapshot of what
-                the agent observed without creating a full market archive.
-     """
+    """
+    Attributes:
+        eligible (bool | Unset):
+        block_reasons (list[str] | Unset):
+        coin (FuturesQuoteResponseCoin | Unset):
+        side (None | str | Unset):
+        leverage (float | None | Unset):
+        margin_musd (float | None | Unset):
+        min_margin (float | Unset):
+        max_leverage (float | Unset):
+        entry_price (float | None | Unset):
+        notional_musd (float | None | Unset):
+        size_coin (float | None | Unset):
+        liquidation_price (float | None | Unset):
+        maintenance_margin_rate (float | None | Unset):
+        freshness (Freshness | Unset): Data-freshness descriptor. Futures + spot use ageSeconds; PM uses
+            ageMinutes. `status` is a freshness label; `basis` (PM only) names which
+            timestamp the age was measured against.
+        observation (AgentObservation | Unset): Compact provenance block for an agent-facing market observation. It is
+            also stored in the private ledger responseSummary when the request uses
+            agentTrace/run headers, giving run exports a verifiable snapshot of what
+            the agent observed without creating a full market archive.
+    """
 
     eligible: bool | Unset = UNSET
     block_reasons: list[str] | Unset = UNSET
@@ -67,21 +60,12 @@ class FuturesQuoteResponse:
     observation: AgentObservation | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
-        from ..models.agent_observation import AgentObservation
-        from ..models.freshness import Freshness
-        from ..models.futures_quote_response_coin import FuturesQuoteResponseCoin
         eligible = self.eligible
 
         block_reasons: list[str] | Unset = UNSET
         if not isinstance(self.block_reasons, Unset):
             block_reasons = self.block_reasons
-
-
 
         coin: dict[str, Any] | Unset = UNSET
         if not isinstance(self.coin, Unset):
@@ -147,11 +131,9 @@ class FuturesQuoteResponse:
         if not isinstance(self.observation, Unset):
             observation = self.observation.to_dict()
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if eligible is not UNSET:
             field_dict["eligible"] = eligible
         if block_reasons is not UNSET:
@@ -185,28 +167,23 @@ class FuturesQuoteResponse:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.agent_observation import AgentObservation
         from ..models.freshness import Freshness
         from ..models.futures_quote_response_coin import FuturesQuoteResponseCoin
+
         d = dict(src_dict)
         eligible = d.pop("eligible", UNSET)
 
         block_reasons = cast(list[str], d.pop("blockReasons", UNSET))
 
-
         _coin = d.pop("coin", UNSET)
         coin: FuturesQuoteResponseCoin | Unset
-        if isinstance(_coin,  Unset):
+        if isinstance(_coin, Unset):
             coin = UNSET
         else:
             coin = FuturesQuoteResponseCoin.from_dict(_coin)
-
-
-
 
         def _parse_side(data: object) -> None | str | Unset:
             if data is None:
@@ -217,7 +194,6 @@ class FuturesQuoteResponse:
 
         side = _parse_side(d.pop("side", UNSET))
 
-
         def _parse_leverage(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -227,7 +203,6 @@ class FuturesQuoteResponse:
 
         leverage = _parse_leverage(d.pop("leverage", UNSET))
 
-
         def _parse_margin_musd(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -236,7 +211,6 @@ class FuturesQuoteResponse:
             return cast(float | None | Unset, data)
 
         margin_musd = _parse_margin_musd(d.pop("marginMusd", UNSET))
-
 
         min_margin = d.pop("minMargin", UNSET)
 
@@ -251,7 +225,6 @@ class FuturesQuoteResponse:
 
         entry_price = _parse_entry_price(d.pop("entryPrice", UNSET))
 
-
         def _parse_notional_musd(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -260,7 +233,6 @@ class FuturesQuoteResponse:
             return cast(float | None | Unset, data)
 
         notional_musd = _parse_notional_musd(d.pop("notionalMusd", UNSET))
-
 
         def _parse_size_coin(data: object) -> float | None | Unset:
             if data is None:
@@ -271,7 +243,6 @@ class FuturesQuoteResponse:
 
         size_coin = _parse_size_coin(d.pop("sizeCoin", UNSET))
 
-
         def _parse_liquidation_price(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -280,7 +251,6 @@ class FuturesQuoteResponse:
             return cast(float | None | Unset, data)
 
         liquidation_price = _parse_liquidation_price(d.pop("liquidationPrice", UNSET))
-
 
         def _parse_maintenance_margin_rate(data: object) -> float | None | Unset:
             if data is None:
@@ -291,26 +261,19 @@ class FuturesQuoteResponse:
 
         maintenance_margin_rate = _parse_maintenance_margin_rate(d.pop("maintenanceMarginRate", UNSET))
 
-
         _freshness = d.pop("freshness", UNSET)
         freshness: Freshness | Unset
-        if isinstance(_freshness,  Unset):
+        if isinstance(_freshness, Unset):
             freshness = UNSET
         else:
             freshness = Freshness.from_dict(_freshness)
 
-
-
-
         _observation = d.pop("observation", UNSET)
         observation: AgentObservation | Unset
-        if isinstance(_observation,  Unset):
+        if isinstance(_observation, Unset):
             observation = UNSET
         else:
             observation = AgentObservation.from_dict(_observation)
-
-
-
 
         futures_quote_response = cls(
             eligible=eligible,
@@ -329,7 +292,6 @@ class FuturesQuoteResponse:
             freshness=freshness,
             observation=observation,
         )
-
 
         futures_quote_response.additional_properties = d
         return futures_quote_response

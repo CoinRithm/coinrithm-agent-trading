@@ -1,77 +1,62 @@
 from http import HTTPStatus
-from typing import Any, cast
+from typing import Any
 from urllib.parse import quote
 
 import httpx
 
-from ...client import AuthenticatedClient, Client
-from ...types import Response, UNSET
 from ... import errors
-
+from ...client import AuthenticatedClient, Client
 from ...models.error import Error
 from ...models.public_pm_event_detail_response import PublicPmEventDetailResponse
 from ...models.public_pm_source_slug import PublicPmSourceSlug
-from ...types import UNSET, Unset
-from typing import cast
-
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     source: PublicPmSourceSlug,
     slug: str,
     *,
-    fiat: str | Unset = 'USD',
-
+    fiat: str | Unset = "USD",
 ) -> dict[str, Any]:
-    
-
-    
 
     params: dict[str, Any] = {}
 
     params["fiat"] = fiat
 
-
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
-
 
     _kwargs: dict[str, Any] = {
         "method": "get",
-        "url": "/api/prediction-markets/events/{source}/{slug}".format(source=quote(str(source), safe=""),slug=quote(str(slug), safe=""),),
+        "url": "/api/prediction-markets/events/{source}/{slug}".format(
+            source=quote(str(source), safe=""),
+            slug=quote(str(slug), safe=""),
+        ),
         "params": params,
     }
-
 
     return _kwargs
 
 
-
-def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Error | PublicPmEventDetailResponse | None:
+def _parse_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Error | PublicPmEventDetailResponse | None:
     if response.status_code == 200:
         response_200 = PublicPmEventDetailResponse.from_dict(response.json())
-
-
 
         return response_200
 
     if response.status_code == 400:
         response_400 = Error.from_dict(response.json())
 
-
-
         return response_400
 
     if response.status_code == 404:
         response_404 = Error.from_dict(response.json())
 
-
-
         return response_404
 
     if response.status_code == 500:
         response_500 = Error.from_dict(response.json())
-
-
 
         return response_500
 
@@ -81,7 +66,9 @@ def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Res
         return None
 
 
-def _build_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Response[Error | PublicPmEventDetailResponse]:
+def _build_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[Error | PublicPmEventDetailResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -95,10 +82,9 @@ def sync_detailed(
     slug: str,
     *,
     client: AuthenticatedClient | Client,
-    fiat: str | Unset = 'USD',
-
+    fiat: str | Unset = "USD",
 ) -> Response[Error | PublicPmEventDetailResponse]:
-    """ Get full event evidence and cross-venue comparisons
+    """Get full event evidence and cross-venue comparisons
 
      Provider-rich event detail including outcomes, snapshots, resolution
     provenance, related markets/news, recent large trades, volume history
@@ -116,14 +102,12 @@ def sync_detailed(
 
     Returns:
         Response[Error | PublicPmEventDetailResponse]
-     """
-
+    """
 
     kwargs = _get_kwargs(
         source=source,
-slug=slug,
-fiat=fiat,
-
+        slug=slug,
+        fiat=fiat,
     )
 
     response = client.get_httpx_client().request(
@@ -132,15 +116,15 @@ fiat=fiat,
 
     return _build_response(client=client, response=response)
 
+
 def sync(
     source: PublicPmSourceSlug,
     slug: str,
     *,
     client: AuthenticatedClient | Client,
-    fiat: str | Unset = 'USD',
-
+    fiat: str | Unset = "USD",
 ) -> Error | PublicPmEventDetailResponse | None:
-    """ Get full event evidence and cross-venue comparisons
+    """Get full event evidence and cross-venue comparisons
 
      Provider-rich event detail including outcomes, snapshots, resolution
     provenance, related markets/news, recent large trades, volume history
@@ -158,26 +142,24 @@ def sync(
 
     Returns:
         Error | PublicPmEventDetailResponse
-     """
-
+    """
 
     return sync_detailed(
         source=source,
-slug=slug,
-client=client,
-fiat=fiat,
-
+        slug=slug,
+        client=client,
+        fiat=fiat,
     ).parsed
+
 
 async def asyncio_detailed(
     source: PublicPmSourceSlug,
     slug: str,
     *,
     client: AuthenticatedClient | Client,
-    fiat: str | Unset = 'USD',
-
+    fiat: str | Unset = "USD",
 ) -> Response[Error | PublicPmEventDetailResponse]:
-    """ Get full event evidence and cross-venue comparisons
+    """Get full event evidence and cross-venue comparisons
 
      Provider-rich event detail including outcomes, snapshots, resolution
     provenance, related markets/news, recent large trades, volume history
@@ -195,31 +177,27 @@ async def asyncio_detailed(
 
     Returns:
         Response[Error | PublicPmEventDetailResponse]
-     """
-
+    """
 
     kwargs = _get_kwargs(
         source=source,
-slug=slug,
-fiat=fiat,
-
+        slug=slug,
+        fiat=fiat,
     )
 
-    response = await client.get_async_httpx_client().request(
-        **kwargs
-    )
+    response = await client.get_async_httpx_client().request(**kwargs)
 
     return _build_response(client=client, response=response)
+
 
 async def asyncio(
     source: PublicPmSourceSlug,
     slug: str,
     *,
     client: AuthenticatedClient | Client,
-    fiat: str | Unset = 'USD',
-
+    fiat: str | Unset = "USD",
 ) -> Error | PublicPmEventDetailResponse | None:
-    """ Get full event evidence and cross-venue comparisons
+    """Get full event evidence and cross-venue comparisons
 
      Provider-rich event detail including outcomes, snapshots, resolution
     provenance, related markets/news, recent large trades, volume history
@@ -237,13 +215,13 @@ async def asyncio(
 
     Returns:
         Error | PublicPmEventDetailResponse
-     """
+    """
 
-
-    return (await asyncio_detailed(
-        source=source,
-slug=slug,
-client=client,
-fiat=fiat,
-
-    )).parsed
+    return (
+        await asyncio_detailed(
+            source=source,
+            slug=slug,
+            client=client,
+            fiat=fiat,
+        )
+    ).parsed

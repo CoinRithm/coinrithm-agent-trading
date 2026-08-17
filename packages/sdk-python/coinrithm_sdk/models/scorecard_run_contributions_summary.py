@@ -1,30 +1,25 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from typing import cast
-
 if TYPE_CHECKING:
-  from ..models.scorecard_run_contributions_summary_exclusion_reasons import ScorecardRunContributionsSummaryExclusionReasons
-
-
-
+    from ..models.scorecard_run_contributions_summary_exclusion_reasons import (
+        ScorecardRunContributionsSummaryExclusionReasons,
+    )
 
 
 T = TypeVar("T", bound="ScorecardRunContributionsSummary")
 
 
-
 @_attrs_define
 class ScorecardRunContributionsSummary:
-    """ Summary of the run's immutable inclusion/exclusion record. The mean of the
+    """Summary of the run's immutable inclusion/exclusion record. The mean of the
     INCLUDED per-decision contributions reconciles to
     resultJson.forecastSkill.metrics when the run was ranked.
 
@@ -37,7 +32,7 @@ class ScorecardRunContributionsSummary:
             mean_brier_contribution (float | None | Unset): Mean of the included per-decision Brier contributions (null when
                 none included).
             mean_log_score_contribution (float | None | Unset): Mean of the included per-decision log-score contributions.
-     """
+    """
 
     total: int | Unset = UNSET
     included: int | Unset = UNSET
@@ -47,12 +42,7 @@ class ScorecardRunContributionsSummary:
     mean_log_score_contribution: float | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
-        from ..models.scorecard_run_contributions_summary_exclusion_reasons import ScorecardRunContributionsSummaryExclusionReasons
         total = self.total
 
         included = self.included
@@ -75,11 +65,9 @@ class ScorecardRunContributionsSummary:
         else:
             mean_log_score_contribution = self.mean_log_score_contribution
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if total is not UNSET:
             field_dict["total"] = total
         if included is not UNSET:
@@ -95,11 +83,12 @@ class ScorecardRunContributionsSummary:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.scorecard_run_contributions_summary_exclusion_reasons import ScorecardRunContributionsSummaryExclusionReasons
+        from ..models.scorecard_run_contributions_summary_exclusion_reasons import (
+            ScorecardRunContributionsSummaryExclusionReasons,
+        )
+
         d = dict(src_dict)
         total = d.pop("total", UNSET)
 
@@ -109,13 +98,10 @@ class ScorecardRunContributionsSummary:
 
         _exclusion_reasons = d.pop("exclusionReasons", UNSET)
         exclusion_reasons: ScorecardRunContributionsSummaryExclusionReasons | Unset
-        if isinstance(_exclusion_reasons,  Unset):
+        if isinstance(_exclusion_reasons, Unset):
             exclusion_reasons = UNSET
         else:
             exclusion_reasons = ScorecardRunContributionsSummaryExclusionReasons.from_dict(_exclusion_reasons)
-
-
-
 
         def _parse_mean_brier_contribution(data: object) -> float | None | Unset:
             if data is None:
@@ -126,7 +112,6 @@ class ScorecardRunContributionsSummary:
 
         mean_brier_contribution = _parse_mean_brier_contribution(d.pop("meanBrierContribution", UNSET))
 
-
         def _parse_mean_log_score_contribution(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -136,7 +121,6 @@ class ScorecardRunContributionsSummary:
 
         mean_log_score_contribution = _parse_mean_log_score_contribution(d.pop("meanLogScoreContribution", UNSET))
 
-
         scorecard_run_contributions_summary = cls(
             total=total,
             included=included,
@@ -145,7 +129,6 @@ class ScorecardRunContributionsSummary:
             mean_brier_contribution=mean_brier_contribution,
             mean_log_score_contribution=mean_log_score_contribution,
         )
-
 
         scorecard_run_contributions_summary.additional_properties = d
         return scorecard_run_contributions_summary

@@ -1,20 +1,15 @@
 from http import HTTPStatus
-from typing import Any, cast
-from urllib.parse import quote
+from typing import Any
 
 import httpx
 
-from ...client import AuthenticatedClient, Client
-from ...types import Response, UNSET
 from ... import errors
-
+from ...client import AuthenticatedClient, Client
 from ...models.error import Error
 from ...models.public_pm_events_response import PublicPmEventsResponse
 from ...models.public_pm_source_slug import PublicPmSourceSlug
 from ...models.search_public_prediction_market_events_sort import SearchPublicPredictionMarketEventsSort
-from ...types import UNSET, Unset
-from typing import cast
-
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
@@ -27,12 +22,8 @@ def _get_kwargs(
     source: PublicPmSourceSlug | Unset = UNSET,
     sort: SearchPublicPredictionMarketEventsSort | Unset = SearchPublicPredictionMarketEventsSort.BEST,
     tradeable: bool | Unset = False,
-    fiat: str | Unset = 'USD',
-
+    fiat: str | Unset = "USD",
 ) -> dict[str, Any]:
-    
-
-    
 
     params: dict[str, Any] = {}
 
@@ -62,9 +53,7 @@ def _get_kwargs(
 
     params["fiat"] = fiat
 
-
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
-
 
     _kwargs: dict[str, Any] = {
         "method": "get",
@@ -72,30 +61,24 @@ def _get_kwargs(
         "params": params,
     }
 
-
     return _kwargs
 
 
-
-def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Error | PublicPmEventsResponse | None:
+def _parse_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Error | PublicPmEventsResponse | None:
     if response.status_code == 200:
         response_200 = PublicPmEventsResponse.from_dict(response.json())
-
-
 
         return response_200
 
     if response.status_code == 400:
         response_400 = Error.from_dict(response.json())
 
-
-
         return response_400
 
     if response.status_code == 500:
         response_500 = Error.from_dict(response.json())
-
-
 
         return response_500
 
@@ -105,7 +88,9 @@ def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Res
         return None
 
 
-def _build_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Response[Error | PublicPmEventsResponse]:
+def _build_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[Error | PublicPmEventsResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -125,10 +110,9 @@ def sync_detailed(
     source: PublicPmSourceSlug | Unset = UNSET,
     sort: SearchPublicPredictionMarketEventsSort | Unset = SearchPublicPredictionMarketEventsSort.BEST,
     tradeable: bool | Unset = False,
-    fiat: str | Unset = 'USD',
-
+    fiat: str | Unset = "USD",
 ) -> Response[Error | PublicPmEventsResponse]:
-    """ Search events across all prediction-market venues
+    """Search events across all prediction-market venues
 
      Keyless event search across Polymarket, Kalshi, Rothera, Limitless,
     Smarkets, Manifold, Metaculus, PredictIt, Futuur, Myriad and ForecastEx.
@@ -154,20 +138,18 @@ def sync_detailed(
 
     Returns:
         Response[Error | PublicPmEventsResponse]
-     """
-
+    """
 
     kwargs = _get_kwargs(
         limit=limit,
-offset=offset,
-q=q,
-tag=tag,
-status=status,
-source=source,
-sort=sort,
-tradeable=tradeable,
-fiat=fiat,
-
+        offset=offset,
+        q=q,
+        tag=tag,
+        status=status,
+        source=source,
+        sort=sort,
+        tradeable=tradeable,
+        fiat=fiat,
     )
 
     response = client.get_httpx_client().request(
@@ -175,6 +157,7 @@ fiat=fiat,
     )
 
     return _build_response(client=client, response=response)
+
 
 def sync(
     *,
@@ -187,10 +170,9 @@ def sync(
     source: PublicPmSourceSlug | Unset = UNSET,
     sort: SearchPublicPredictionMarketEventsSort | Unset = SearchPublicPredictionMarketEventsSort.BEST,
     tradeable: bool | Unset = False,
-    fiat: str | Unset = 'USD',
-
+    fiat: str | Unset = "USD",
 ) -> Error | PublicPmEventsResponse | None:
-    """ Search events across all prediction-market venues
+    """Search events across all prediction-market venues
 
      Keyless event search across Polymarket, Kalshi, Rothera, Limitless,
     Smarkets, Manifold, Metaculus, PredictIt, Futuur, Myriad and ForecastEx.
@@ -216,22 +198,21 @@ def sync(
 
     Returns:
         Error | PublicPmEventsResponse
-     """
-
+    """
 
     return sync_detailed(
         client=client,
-limit=limit,
-offset=offset,
-q=q,
-tag=tag,
-status=status,
-source=source,
-sort=sort,
-tradeable=tradeable,
-fiat=fiat,
-
+        limit=limit,
+        offset=offset,
+        q=q,
+        tag=tag,
+        status=status,
+        source=source,
+        sort=sort,
+        tradeable=tradeable,
+        fiat=fiat,
     ).parsed
+
 
 async def asyncio_detailed(
     *,
@@ -244,10 +225,9 @@ async def asyncio_detailed(
     source: PublicPmSourceSlug | Unset = UNSET,
     sort: SearchPublicPredictionMarketEventsSort | Unset = SearchPublicPredictionMarketEventsSort.BEST,
     tradeable: bool | Unset = False,
-    fiat: str | Unset = 'USD',
-
+    fiat: str | Unset = "USD",
 ) -> Response[Error | PublicPmEventsResponse]:
-    """ Search events across all prediction-market venues
+    """Search events across all prediction-market venues
 
      Keyless event search across Polymarket, Kalshi, Rothera, Limitless,
     Smarkets, Manifold, Metaculus, PredictIt, Futuur, Myriad and ForecastEx.
@@ -273,27 +253,24 @@ async def asyncio_detailed(
 
     Returns:
         Response[Error | PublicPmEventsResponse]
-     """
-
+    """
 
     kwargs = _get_kwargs(
         limit=limit,
-offset=offset,
-q=q,
-tag=tag,
-status=status,
-source=source,
-sort=sort,
-tradeable=tradeable,
-fiat=fiat,
-
+        offset=offset,
+        q=q,
+        tag=tag,
+        status=status,
+        source=source,
+        sort=sort,
+        tradeable=tradeable,
+        fiat=fiat,
     )
 
-    response = await client.get_async_httpx_client().request(
-        **kwargs
-    )
+    response = await client.get_async_httpx_client().request(**kwargs)
 
     return _build_response(client=client, response=response)
+
 
 async def asyncio(
     *,
@@ -306,10 +283,9 @@ async def asyncio(
     source: PublicPmSourceSlug | Unset = UNSET,
     sort: SearchPublicPredictionMarketEventsSort | Unset = SearchPublicPredictionMarketEventsSort.BEST,
     tradeable: bool | Unset = False,
-    fiat: str | Unset = 'USD',
-
+    fiat: str | Unset = "USD",
 ) -> Error | PublicPmEventsResponse | None:
-    """ Search events across all prediction-market venues
+    """Search events across all prediction-market venues
 
      Keyless event search across Polymarket, Kalshi, Rothera, Limitless,
     Smarkets, Manifold, Metaculus, PredictIt, Futuur, Myriad and ForecastEx.
@@ -335,19 +311,19 @@ async def asyncio(
 
     Returns:
         Error | PublicPmEventsResponse
-     """
+    """
 
-
-    return (await asyncio_detailed(
-        client=client,
-limit=limit,
-offset=offset,
-q=q,
-tag=tag,
-status=status,
-source=source,
-sort=sort,
-tradeable=tradeable,
-fiat=fiat,
-
-    )).parsed
+    return (
+        await asyncio_detailed(
+            client=client,
+            limit=limit,
+            offset=offset,
+            q=q,
+            tag=tag,
+            status=status,
+            source=source,
+            sort=sort,
+            tradeable=tradeable,
+            fiat=fiat,
+        )
+    ).parsed

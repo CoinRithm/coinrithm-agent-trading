@@ -1,34 +1,37 @@
 from __future__ import annotations
 
+import datetime
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from dateutil.parser import isoparse
-from typing import cast
-import datetime
-
-
-
-
-
-
 T = TypeVar("T", bound="EntryContext")
-
 
 
 @_attrs_define
 class EntryContext:
-    """ Compact, versioned market microstructure snapshot frozen onto a paper PM
-    position at open (decision) time — the durable research record of what the
-    market looked like when the agent acted. Every market field is nullable:
-    null = not observed at entry (a field the live snapshot lacked, or an
-    event outside a cross-venue cluster), never a fabricated zero.
+    """Compact, versioned snapshot frozen onto a paper PM position at open
+    (decision) time — the durable research record of what the market looked
+    like when the agent acted. Every market field is nullable: null = not
+    observed at entry (a field the live snapshot lacked, or an event outside a
+    cross-venue cluster), never a fabricated zero.
+
+    VENUE ORDER-BOOK FIELDS ARE WITHHELD on the public dataset. `volume24h`,
+    `liquidity`, `spread`, `bestBid` and `bestAsk` belong to the venue, and
+    most venues' terms prohibit redistributing their market data absent
+    written permission — `GET /api/arena/decisions` is a public, cursor-
+    walkable bulk feed, so those five are served as null and the object
+    carries `marketDataRedacted: true` whenever anything was withheld.
+
+    Read the marker before reading the nulls: WITHOUT `marketDataRedacted`, a
+    null still means "not observed at entry". WITH it, the value existed and
+    we are not licensed to republish it. Fields CoinRithm computed or
+    transacted at — `chosenProbability`, `referenceProbability`,
+    `referenceVenueCount` — are never redacted.
 
         Attributes:
             v (int | Unset): Snapshot schema version (currently 1).
@@ -43,7 +46,11 @@ class EntryContext:
             reference_probability (float | None | Unset): Cross-venue liquidity-weighted median reference probability
                 (0-100).
             reference_venue_count (int | None | Unset): Real-money venues behind referenceProbability.
-     """
+            market_data_redacted (bool | Unset): Present and true ONLY when venue order-book fields were withheld for
+                redistribution reasons. Absent means nothing was withheld — so a null
+                field on a snapshot without this marker was genuinely not observed at
+                entry. Never emitted as false.
+    """
 
     v: int | Unset = UNSET
     captured_at: datetime.datetime | Unset = UNSET
@@ -56,11 +63,8 @@ class EntryContext:
     best_ask: float | None | Unset = UNSET
     reference_probability: float | None | Unset = UNSET
     reference_venue_count: int | None | Unset = UNSET
+    market_data_redacted: bool | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         v = self.v
@@ -125,11 +129,11 @@ class EntryContext:
         else:
             reference_venue_count = self.reference_venue_count
 
+        market_data_redacted = self.market_data_redacted
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if v is not UNSET:
             field_dict["v"] = v
         if captured_at is not UNSET:
@@ -152,10 +156,10 @@ class EntryContext:
             field_dict["referenceProbability"] = reference_probability
         if reference_venue_count is not UNSET:
             field_dict["referenceVenueCount"] = reference_venue_count
+        if market_data_redacted is not UNSET:
+            field_dict["marketDataRedacted"] = market_data_redacted
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -164,13 +168,10 @@ class EntryContext:
 
         _captured_at = d.pop("capturedAt", UNSET)
         captured_at: datetime.datetime | Unset
-        if isinstance(_captured_at,  Unset):
+        if isinstance(_captured_at, Unset):
             captured_at = UNSET
         else:
-            captured_at = isoparse(_captured_at)
-
-
-
+            captured_at = datetime.datetime.fromisoformat(_captured_at)
 
         def _parse_market_as_of(data: object) -> datetime.datetime | None | Unset:
             if data is None:
@@ -180,9 +181,7 @@ class EntryContext:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                market_as_of_type_0 = isoparse(data)
-
-
+                market_as_of_type_0 = datetime.datetime.fromisoformat(data)
 
                 return market_as_of_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
@@ -190,7 +189,6 @@ class EntryContext:
             return cast(datetime.datetime | None | Unset, data)
 
         market_as_of = _parse_market_as_of(d.pop("marketAsOf", UNSET))
-
 
         def _parse_chosen_probability(data: object) -> float | None | Unset:
             if data is None:
@@ -201,7 +199,6 @@ class EntryContext:
 
         chosen_probability = _parse_chosen_probability(d.pop("chosenProbability", UNSET))
 
-
         def _parse_volume24h(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -210,7 +207,6 @@ class EntryContext:
             return cast(float | None | Unset, data)
 
         volume24h = _parse_volume24h(d.pop("volume24h", UNSET))
-
 
         def _parse_liquidity(data: object) -> float | None | Unset:
             if data is None:
@@ -221,7 +217,6 @@ class EntryContext:
 
         liquidity = _parse_liquidity(d.pop("liquidity", UNSET))
 
-
         def _parse_spread(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -230,7 +225,6 @@ class EntryContext:
             return cast(float | None | Unset, data)
 
         spread = _parse_spread(d.pop("spread", UNSET))
-
 
         def _parse_best_bid(data: object) -> float | None | Unset:
             if data is None:
@@ -241,7 +235,6 @@ class EntryContext:
 
         best_bid = _parse_best_bid(d.pop("bestBid", UNSET))
 
-
         def _parse_best_ask(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -250,7 +243,6 @@ class EntryContext:
             return cast(float | None | Unset, data)
 
         best_ask = _parse_best_ask(d.pop("bestAsk", UNSET))
-
 
         def _parse_reference_probability(data: object) -> float | None | Unset:
             if data is None:
@@ -261,7 +253,6 @@ class EntryContext:
 
         reference_probability = _parse_reference_probability(d.pop("referenceProbability", UNSET))
 
-
         def _parse_reference_venue_count(data: object) -> int | None | Unset:
             if data is None:
                 return data
@@ -271,6 +262,7 @@ class EntryContext:
 
         reference_venue_count = _parse_reference_venue_count(d.pop("referenceVenueCount", UNSET))
 
+        market_data_redacted = d.pop("marketDataRedacted", UNSET)
 
         entry_context = cls(
             v=v,
@@ -284,8 +276,8 @@ class EntryContext:
             best_ask=best_ask,
             reference_probability=reference_probability,
             reference_venue_count=reference_venue_count,
+            market_data_redacted=market_data_redacted,
         )
-
 
         entry_context.additional_properties = d
         return entry_context

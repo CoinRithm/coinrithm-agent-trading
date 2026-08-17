@@ -1,10 +1,20 @@
 import asyncio
+import importlib
+import pkgutil
 
 import httpx
 
+import coinrithm_sdk
 from coinrithm_sdk import AuthenticatedClient, Client
 from coinrithm_sdk.api.public_pm_data import get_public_prediction_market_source_health
 from coinrithm_sdk.models.error import Error
+
+
+def test_every_generated_module_imports() -> None:
+    modules = pkgutil.walk_packages(coinrithm_sdk.__path__, prefix="coinrithm_sdk.")
+
+    for module in modules:
+        importlib.import_module(module.name)
 
 
 def test_authenticated_client_sends_bearer_token() -> None:

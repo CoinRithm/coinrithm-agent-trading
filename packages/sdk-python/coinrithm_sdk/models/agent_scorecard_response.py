@@ -1,33 +1,26 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
 from ..models.agent_scorecard_response_calibration_basis import AgentScorecardResponseCalibrationBasis
 from ..types import UNSET, Unset
-from typing import cast
 
 if TYPE_CHECKING:
-  from ..models.agent_forecast_skill import AgentForecastSkill
-  from ..models.scorecard import Scorecard
-  from ..models.scorecard_run_pointer import ScorecardRunPointer
-
-
-
+    from ..models.agent_forecast_skill import AgentForecastSkill
+    from ..models.scorecard import Scorecard
+    from ..models.scorecard_run_pointer import ScorecardRunPointer
 
 
 T = TypeVar("T", bound="AgentScorecardResponse")
 
 
-
 @_attrs_define
 class AgentScorecardResponse:
-    """ The public Verified Scorecard envelope for one agent — two honest tracks
+    """The public Verified Scorecard envelope for one agent — two honest tracks
     plus machine-readable basis + policy stamps.
 
         Attributes:
@@ -57,7 +50,7 @@ class AgentScorecardResponse:
                 computed read to a frozen, verifiable point-in-time run. `null` when no
                 run has been recorded yet. NOT part of a stored run's `resultJson` (it
                 is a decoration added only when serving the live scorecard).
-     """
+    """
 
     scorecard: None | Scorecard | Unset = UNSET
     calibration_basis: AgentScorecardResponseCalibrationBasis | Unset = UNSET
@@ -67,14 +60,10 @@ class AgentScorecardResponse:
     latest_run: None | ScorecardRunPointer | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
-        from ..models.agent_forecast_skill import AgentForecastSkill
         from ..models.scorecard import Scorecard
         from ..models.scorecard_run_pointer import ScorecardRunPointer
+
         scorecard: dict[str, Any] | None | Unset
         if isinstance(self.scorecard, Unset):
             scorecard = UNSET
@@ -86,7 +75,6 @@ class AgentScorecardResponse:
         calibration_basis: str | Unset = UNSET
         if not isinstance(self.calibration_basis, Unset):
             calibration_basis = self.calibration_basis.value
-
 
         forecast_skill: dict[str, Any] | Unset = UNSET
         if not isinstance(self.forecast_skill, Unset):
@@ -104,11 +92,9 @@ class AgentScorecardResponse:
         else:
             latest_run = self.latest_run
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if scorecard is not UNSET:
             field_dict["scorecard"] = scorecard
         if calibration_basis is not UNSET:
@@ -124,14 +110,14 @@ class AgentScorecardResponse:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.agent_forecast_skill import AgentForecastSkill
         from ..models.scorecard import Scorecard
         from ..models.scorecard_run_pointer import ScorecardRunPointer
+
         d = dict(src_dict)
+
         def _parse_scorecard(data: object) -> None | Scorecard | Unset:
             if data is None:
                 return data
@@ -142,8 +128,6 @@ class AgentScorecardResponse:
                     raise TypeError()
                 scorecard_type_0 = Scorecard.from_dict(data)
 
-
-
                 return scorecard_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
@@ -151,26 +135,19 @@ class AgentScorecardResponse:
 
         scorecard = _parse_scorecard(d.pop("scorecard", UNSET))
 
-
         _calibration_basis = d.pop("calibrationBasis", UNSET)
         calibration_basis: AgentScorecardResponseCalibrationBasis | Unset
-        if isinstance(_calibration_basis,  Unset):
+        if isinstance(_calibration_basis, Unset):
             calibration_basis = UNSET
         else:
             calibration_basis = AgentScorecardResponseCalibrationBasis(_calibration_basis)
 
-
-
-
         _forecast_skill = d.pop("forecastSkill", UNSET)
         forecast_skill: AgentForecastSkill | Unset
-        if isinstance(_forecast_skill,  Unset):
+        if isinstance(_forecast_skill, Unset):
             forecast_skill = UNSET
         else:
             forecast_skill = AgentForecastSkill.from_dict(_forecast_skill)
-
-
-
 
         evaluation_policy_version = d.pop("evaluationPolicyVersion", UNSET)
 
@@ -186,15 +163,12 @@ class AgentScorecardResponse:
                     raise TypeError()
                 latest_run_type_0 = ScorecardRunPointer.from_dict(data)
 
-
-
                 return latest_run_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
             return cast(None | ScorecardRunPointer | Unset, data)
 
         latest_run = _parse_latest_run(d.pop("latestRun", UNSET))
-
 
         agent_scorecard_response = cls(
             scorecard=scorecard,
@@ -204,7 +178,6 @@ class AgentScorecardResponse:
             execution_policy_version=execution_policy_version,
             latest_run=latest_run,
         )
-
 
         agent_scorecard_response.additional_properties = d
         return agent_scorecard_response

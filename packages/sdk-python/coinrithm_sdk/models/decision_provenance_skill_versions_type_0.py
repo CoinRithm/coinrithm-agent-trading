@@ -1,50 +1,31 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
-
-
-
-
-
-
 T = TypeVar("T", bound="DecisionProvenanceSkillVersionsType0")
-
 
 
 @_attrs_define
 class DecisionProvenanceSkillVersionsType0:
-    """ SELF-REPORTED {skillId: version}.
-
-     """
+    """SELF-REPORTED {skillId: version}."""
 
     additional_properties: dict[str, str] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
-        
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        decision_provenance_skill_versions_type_0 = cls(
-        )
-
+        decision_provenance_skill_versions_type_0 = cls()
 
         decision_provenance_skill_versions_type_0.additional_properties = d
         return decision_provenance_skill_versions_type_0

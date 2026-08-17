@@ -1,34 +1,27 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
-
-from ..types import UNSET, Unset
 
 from ..models.decision_provenance_runtime_kind_type_1 import DecisionProvenanceRuntimeKindType1
 from ..models.decision_provenance_runtime_kind_type_2_type_1 import DecisionProvenanceRuntimeKindType2Type1
 from ..models.decision_provenance_runtime_kind_type_3_type_1 import DecisionProvenanceRuntimeKindType3Type1
 from ..types import UNSET, Unset
-from typing import cast
 
 if TYPE_CHECKING:
-  from ..models.decision_provenance_evidence_ref_type_0 import DecisionProvenanceEvidenceRefType0
-  from ..models.decision_provenance_skill_versions_type_0 import DecisionProvenanceSkillVersionsType0
-
-
-
+    from ..models.decision_provenance_evidence_ref_type_0 import DecisionProvenanceEvidenceRefType0
+    from ..models.decision_provenance_skill_versions_type_0 import DecisionProvenanceSkillVersionsType0
 
 
 T = TypeVar("T", bound="DecisionProvenance")
 
 
-
 @_attrs_define
 class DecisionProvenance:
-    """ Provenance-v2 as STORED and SERVED on a schemaVersion-2 artifact: WHAT RAN to
+    """Provenance-v2 as STORED and SERVED on a schemaVersion-2 artifact: WHAT RAN to
     produce the decision. The HONESTY SPLIT is load-bearing — server-stamped
     fields are authoritative; caller-reported fields are SELF-REPORTED and carry
     no trust. Present only on schemaVersion-2 rows (null / absent on v1).
@@ -55,13 +48,19 @@ class DecisionProvenance:
             model_name (None | str | Unset):
             evidence_ref (DecisionProvenanceEvidenceRefType0 | None | Unset): Pointers to the observation evidence (never
                 the evidence itself).
-     """
+    """
 
     v: int | Unset = UNSET
     execution_policy_version: str | Unset = UNSET
     evaluation_policy_version: str | Unset = UNSET
     provider_verified: bool | Unset = UNSET
-    runtime_kind: DecisionProvenanceRuntimeKindType1 | DecisionProvenanceRuntimeKindType2Type1 | DecisionProvenanceRuntimeKindType3Type1 | None | Unset = UNSET
+    runtime_kind: (
+        DecisionProvenanceRuntimeKindType1
+        | DecisionProvenanceRuntimeKindType2Type1
+        | DecisionProvenanceRuntimeKindType3Type1
+        | None
+        | Unset
+    ) = UNSET
     package_version: None | str | Unset = UNSET
     bundle_id: None | str | Unset = UNSET
     bundle_version: None | str | Unset = UNSET
@@ -73,13 +72,10 @@ class DecisionProvenance:
     evidence_ref: DecisionProvenanceEvidenceRefType0 | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
         from ..models.decision_provenance_evidence_ref_type_0 import DecisionProvenanceEvidenceRefType0
         from ..models.decision_provenance_skill_versions_type_0 import DecisionProvenanceSkillVersionsType0
+
         v = self.v
 
         execution_policy_version = self.execution_policy_version
@@ -158,11 +154,9 @@ class DecisionProvenance:
         else:
             evidence_ref = self.evidence_ref
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if v is not UNSET:
             field_dict["v"] = v
         if execution_policy_version is not UNSET:
@@ -194,12 +188,11 @@ class DecisionProvenance:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.decision_provenance_evidence_ref_type_0 import DecisionProvenanceEvidenceRefType0
         from ..models.decision_provenance_skill_versions_type_0 import DecisionProvenanceSkillVersionsType0
+
         d = dict(src_dict)
         v = d.pop("v", UNSET)
 
@@ -209,7 +202,15 @@ class DecisionProvenance:
 
         provider_verified = d.pop("providerVerified", UNSET)
 
-        def _parse_runtime_kind(data: object) -> DecisionProvenanceRuntimeKindType1 | DecisionProvenanceRuntimeKindType2Type1 | DecisionProvenanceRuntimeKindType3Type1 | None | Unset:
+        def _parse_runtime_kind(
+            data: object,
+        ) -> (
+            DecisionProvenanceRuntimeKindType1
+            | DecisionProvenanceRuntimeKindType2Type1
+            | DecisionProvenanceRuntimeKindType3Type1
+            | None
+            | Unset
+        ):
             if data is None:
                 return data
             if isinstance(data, Unset):
@@ -219,8 +220,6 @@ class DecisionProvenance:
                     raise TypeError()
                 runtime_kind_type_1 = DecisionProvenanceRuntimeKindType1(data)
 
-
-
                 return runtime_kind_type_1
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
@@ -228,8 +227,6 @@ class DecisionProvenance:
                 if not isinstance(data, str):
                     raise TypeError()
                 runtime_kind_type_2_type_1 = DecisionProvenanceRuntimeKindType2Type1(data)
-
-
 
                 return runtime_kind_type_2_type_1
             except (TypeError, ValueError, AttributeError, KeyError):
@@ -239,15 +236,19 @@ class DecisionProvenance:
                     raise TypeError()
                 runtime_kind_type_3_type_1 = DecisionProvenanceRuntimeKindType3Type1(data)
 
-
-
                 return runtime_kind_type_3_type_1
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
-            return cast(DecisionProvenanceRuntimeKindType1 | DecisionProvenanceRuntimeKindType2Type1 | DecisionProvenanceRuntimeKindType3Type1 | None | Unset, data)
+            return cast(
+                DecisionProvenanceRuntimeKindType1
+                | DecisionProvenanceRuntimeKindType2Type1
+                | DecisionProvenanceRuntimeKindType3Type1
+                | None
+                | Unset,
+                data,
+            )
 
         runtime_kind = _parse_runtime_kind(d.pop("runtimeKind", UNSET))
-
 
         def _parse_package_version(data: object) -> None | str | Unset:
             if data is None:
@@ -258,7 +259,6 @@ class DecisionProvenance:
 
         package_version = _parse_package_version(d.pop("packageVersion", UNSET))
 
-
         def _parse_bundle_id(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -268,7 +268,6 @@ class DecisionProvenance:
 
         bundle_id = _parse_bundle_id(d.pop("bundleId", UNSET))
 
-
         def _parse_bundle_version(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -277,7 +276,6 @@ class DecisionProvenance:
             return cast(None | str | Unset, data)
 
         bundle_version = _parse_bundle_version(d.pop("bundleVersion", UNSET))
-
 
         def _parse_skill_versions(data: object) -> DecisionProvenanceSkillVersionsType0 | None | Unset:
             if data is None:
@@ -289,15 +287,12 @@ class DecisionProvenance:
                     raise TypeError()
                 skill_versions_type_0 = DecisionProvenanceSkillVersionsType0.from_dict(data)
 
-
-
                 return skill_versions_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
             return cast(DecisionProvenanceSkillVersionsType0 | None | Unset, data)
 
         skill_versions = _parse_skill_versions(d.pop("skillVersions", UNSET))
-
 
         def _parse_prompt_hash(data: object) -> None | str | Unset:
             if data is None:
@@ -308,7 +303,6 @@ class DecisionProvenance:
 
         prompt_hash = _parse_prompt_hash(d.pop("promptHash", UNSET))
 
-
         def _parse_config_hash(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -317,7 +311,6 @@ class DecisionProvenance:
             return cast(None | str | Unset, data)
 
         config_hash = _parse_config_hash(d.pop("configHash", UNSET))
-
 
         def _parse_model_provider(data: object) -> None | str | Unset:
             if data is None:
@@ -328,7 +321,6 @@ class DecisionProvenance:
 
         model_provider = _parse_model_provider(d.pop("modelProvider", UNSET))
 
-
         def _parse_model_name(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -337,7 +329,6 @@ class DecisionProvenance:
             return cast(None | str | Unset, data)
 
         model_name = _parse_model_name(d.pop("modelName", UNSET))
-
 
         def _parse_evidence_ref(data: object) -> DecisionProvenanceEvidenceRefType0 | None | Unset:
             if data is None:
@@ -349,15 +340,12 @@ class DecisionProvenance:
                     raise TypeError()
                 evidence_ref_type_0 = DecisionProvenanceEvidenceRefType0.from_dict(data)
 
-
-
                 return evidence_ref_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
             return cast(DecisionProvenanceEvidenceRefType0 | None | Unset, data)
 
         evidence_ref = _parse_evidence_ref(d.pop("evidenceRef", UNSET))
-
 
         decision_provenance = cls(
             v=v,
@@ -375,7 +363,6 @@ class DecisionProvenance:
             model_name=model_name,
             evidence_ref=evidence_ref,
         )
-
 
         decision_provenance.additional_properties = d
         return decision_provenance

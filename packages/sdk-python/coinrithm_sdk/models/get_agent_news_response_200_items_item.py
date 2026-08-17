@@ -1,42 +1,32 @@
 from __future__ import annotations
 
+import datetime
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from dateutil.parser import isoparse
-from typing import cast
-import datetime
-
-
-
-
-
-
 T = TypeVar("T", bound="GetAgentNewsResponse200ItemsItem")
-
 
 
 @_attrs_define
 class GetAgentNewsResponse200ItemsItem:
-    """ 
-        Attributes:
-            title (str | Unset):
-            source (str | Unset):
-            url (str | Unset):
-            published_at (datetime.datetime | Unset):
-            age_minutes (int | Unset):
-            category (None | str | Unset):
-            sentiment (None | str | Unset): bullish | bearish | neutral
-            sentiment_confidence (float | None | Unset):
-            importance (int | None | Unset): 0–10; 8+ = genuinely market-moving.
-            coins (list[str] | Unset): Which of the requested coins this story concerns.
-     """
+    """
+    Attributes:
+        title (str | Unset):
+        source (str | Unset):
+        url (str | Unset):
+        published_at (datetime.datetime | Unset):
+        age_minutes (int | Unset):
+        category (None | str | Unset):
+        sentiment (None | str | Unset): bullish | bearish | neutral
+        sentiment_confidence (float | None | Unset):
+        importance (int | None | Unset): 0–10; 8+ = genuinely market-moving.
+        coins (list[str] | Unset): Which of the requested coins this story concerns.
+    """
 
     title: str | Unset = UNSET
     source: str | Unset = UNSET
@@ -49,10 +39,6 @@ class GetAgentNewsResponse200ItemsItem:
     importance: int | None | Unset = UNSET
     coins: list[str] | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         title = self.title
@@ -95,13 +81,9 @@ class GetAgentNewsResponse200ItemsItem:
         if not isinstance(self.coins, Unset):
             coins = self.coins
 
-
-
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if title is not UNSET:
             field_dict["title"] = title
         if source is not UNSET:
@@ -125,8 +107,6 @@ class GetAgentNewsResponse200ItemsItem:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
@@ -138,13 +118,10 @@ class GetAgentNewsResponse200ItemsItem:
 
         _published_at = d.pop("publishedAt", UNSET)
         published_at: datetime.datetime | Unset
-        if isinstance(_published_at,  Unset):
+        if isinstance(_published_at, Unset):
             published_at = UNSET
         else:
-            published_at = isoparse(_published_at)
-
-
-
+            published_at = datetime.datetime.fromisoformat(_published_at)
 
         age_minutes = d.pop("ageMinutes", UNSET)
 
@@ -157,7 +134,6 @@ class GetAgentNewsResponse200ItemsItem:
 
         category = _parse_category(d.pop("category", UNSET))
 
-
         def _parse_sentiment(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -166,7 +142,6 @@ class GetAgentNewsResponse200ItemsItem:
             return cast(None | str | Unset, data)
 
         sentiment = _parse_sentiment(d.pop("sentiment", UNSET))
-
 
         def _parse_sentiment_confidence(data: object) -> float | None | Unset:
             if data is None:
@@ -177,7 +152,6 @@ class GetAgentNewsResponse200ItemsItem:
 
         sentiment_confidence = _parse_sentiment_confidence(d.pop("sentimentConfidence", UNSET))
 
-
         def _parse_importance(data: object) -> int | None | Unset:
             if data is None:
                 return data
@@ -187,9 +161,7 @@ class GetAgentNewsResponse200ItemsItem:
 
         importance = _parse_importance(d.pop("importance", UNSET))
 
-
         coins = cast(list[str], d.pop("coins", UNSET))
-
 
         get_agent_news_response_200_items_item = cls(
             title=title,
@@ -203,7 +175,6 @@ class GetAgentNewsResponse200ItemsItem:
             importance=importance,
             coins=coins,
         )
-
 
         get_agent_news_response_200_items_item.additional_properties = d
         return get_agent_news_response_200_items_item

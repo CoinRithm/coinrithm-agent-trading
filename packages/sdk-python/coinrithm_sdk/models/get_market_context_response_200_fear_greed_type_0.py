@@ -1,58 +1,42 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-
-
-
-
-
-
 T = TypeVar("T", bound="GetMarketContextResponse200FearGreedType0")
-
 
 
 @_attrs_define
 class GetMarketContextResponse200FearGreedType0:
-    """ 
-        Attributes:
-            value (int | Unset):
-            label (str | Unset):
-     """
+    """
+    Attributes:
+        value (int | Unset):
+        label (str | Unset):
+    """
 
     value: int | Unset = UNSET
     label: str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         value = self.value
 
         label = self.label
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if value is not UNSET:
             field_dict["value"] = value
         if label is not UNSET:
             field_dict["label"] = label
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -65,7 +49,6 @@ class GetMarketContextResponse200FearGreedType0:
             value=value,
             label=label,
         )
-
 
         get_market_context_response_200_fear_greed_type_0.additional_properties = d
         return get_market_context_response_200_fear_greed_type_0

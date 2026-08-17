@@ -1,36 +1,27 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from typing import cast
-
-
-
-
-
-
 T = TypeVar("T", bound="PmDiscoveryOutcome")
-
 
 
 @_attrs_define
 class PmDiscoveryOutcome:
-    """ 
-        Attributes:
-            external_market_id (str | Unset):
-            name (str | Unset):
-            probability (float | Unset): 0..100
-            token_id (None | str | Unset):
-            eligible (bool | None | Unset): Per-outcome openability (structural + 0<p<100 live yes fill). null
-                when scalars are unavailable.
-     """
+    """
+    Attributes:
+        external_market_id (str | Unset):
+        name (str | Unset):
+        probability (float | Unset): 0..100
+        token_id (None | str | Unset):
+        eligible (bool | None | Unset): Per-outcome openability (structural + 0<p<100 live yes fill). null
+            when scalars are unavailable.
+    """
 
     external_market_id: str | Unset = UNSET
     name: str | Unset = UNSET
@@ -38,10 +29,6 @@ class PmDiscoveryOutcome:
     token_id: None | str | Unset = UNSET
     eligible: bool | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         external_market_id = self.external_market_id
@@ -62,11 +49,9 @@ class PmDiscoveryOutcome:
         else:
             eligible = self.eligible
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if external_market_id is not UNSET:
             field_dict["externalMarketId"] = external_market_id
         if name is not UNSET:
@@ -79,8 +64,6 @@ class PmDiscoveryOutcome:
             field_dict["eligible"] = eligible
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -100,7 +83,6 @@ class PmDiscoveryOutcome:
 
         token_id = _parse_token_id(d.pop("tokenId", UNSET))
 
-
         def _parse_eligible(data: object) -> bool | None | Unset:
             if data is None:
                 return data
@@ -110,7 +92,6 @@ class PmDiscoveryOutcome:
 
         eligible = _parse_eligible(d.pop("eligible", UNSET))
 
-
         pm_discovery_outcome = cls(
             external_market_id=external_market_id,
             name=name,
@@ -118,7 +99,6 @@ class PmDiscoveryOutcome:
             token_id=token_id,
             eligible=eligible,
         )
-
 
         pm_discovery_outcome.additional_properties = d
         return pm_discovery_outcome

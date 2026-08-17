@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class FuturesPositionSide(str, Enum):
     LONG = "long"
     SHORT = "short"

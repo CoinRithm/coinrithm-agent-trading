@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class GetArenaLeaderboardResponse200Source(str, Enum):
     DEMO = "demo"
     LIVE = "live"

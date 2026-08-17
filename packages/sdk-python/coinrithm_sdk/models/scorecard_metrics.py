@@ -1,28 +1,19 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from typing import cast
-
-
-
-
-
-
 T = TypeVar("T", bound="ScorecardMetrics")
-
 
 
 @_attrs_define
 class ScorecardMetrics:
-    """ Named metric map; any value is `null` when undefined for this record.
+    """Named metric map; any value is `null` when undefined for this record.
     `brier_score` and `calibration_error` measure MARKET-ENTRY calibration
     (see the response `calibrationBasis`), NOT agent forecast skill.
 
@@ -45,7 +36,7 @@ class ScorecardMetrics:
             stop_coverage (float | None | Unset):
             evidence_coverage (float | None | Unset):
             leakage_clean (float | None | Unset): 1 = every write quoted before trade; 0 = not; null = unknown.
-     """
+    """
 
     realized_pnl_musd: float | None | Unset = UNSET
     trade_count: float | None | Unset = UNSET
@@ -64,10 +55,6 @@ class ScorecardMetrics:
     evidence_coverage: float | None | Unset = UNSET
     leakage_clean: float | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         realized_pnl_musd: float | None | Unset
@@ -166,11 +153,9 @@ class ScorecardMetrics:
         else:
             leakage_clean = self.leakage_clean
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if realized_pnl_musd is not UNSET:
             field_dict["realized_pnl_musd"] = realized_pnl_musd
         if trade_count is not UNSET:
@@ -206,11 +191,10 @@ class ScorecardMetrics:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
+
         def _parse_realized_pnl_musd(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -219,7 +203,6 @@ class ScorecardMetrics:
             return cast(float | None | Unset, data)
 
         realized_pnl_musd = _parse_realized_pnl_musd(d.pop("realized_pnl_musd", UNSET))
-
 
         def _parse_trade_count(data: object) -> float | None | Unset:
             if data is None:
@@ -230,7 +213,6 @@ class ScorecardMetrics:
 
         trade_count = _parse_trade_count(d.pop("trade_count", UNSET))
 
-
         def _parse_decided_count(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -239,7 +221,6 @@ class ScorecardMetrics:
             return cast(float | None | Unset, data)
 
         decided_count = _parse_decided_count(d.pop("decided_count", UNSET))
-
 
         def _parse_win_rate(data: object) -> float | None | Unset:
             if data is None:
@@ -250,7 +231,6 @@ class ScorecardMetrics:
 
         win_rate = _parse_win_rate(d.pop("win_rate", UNSET))
 
-
         def _parse_expectancy_musd(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -259,7 +239,6 @@ class ScorecardMetrics:
             return cast(float | None | Unset, data)
 
         expectancy_musd = _parse_expectancy_musd(d.pop("expectancy_musd", UNSET))
-
 
         def _parse_profit_factor(data: object) -> float | None | Unset:
             if data is None:
@@ -270,7 +249,6 @@ class ScorecardMetrics:
 
         profit_factor = _parse_profit_factor(d.pop("profit_factor", UNSET))
 
-
         def _parse_reward_to_risk(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -279,7 +257,6 @@ class ScorecardMetrics:
             return cast(float | None | Unset, data)
 
         reward_to_risk = _parse_reward_to_risk(d.pop("reward_to_risk", UNSET))
-
 
         def _parse_sharpe(data: object) -> float | None | Unset:
             if data is None:
@@ -290,7 +267,6 @@ class ScorecardMetrics:
 
         sharpe = _parse_sharpe(d.pop("sharpe", UNSET))
 
-
         def _parse_sortino(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -299,7 +275,6 @@ class ScorecardMetrics:
             return cast(float | None | Unset, data)
 
         sortino = _parse_sortino(d.pop("sortino", UNSET))
-
 
         def _parse_deflated_sharpe(data: object) -> float | None | Unset:
             if data is None:
@@ -310,7 +285,6 @@ class ScorecardMetrics:
 
         deflated_sharpe = _parse_deflated_sharpe(d.pop("deflated_sharpe", UNSET))
 
-
         def _parse_max_drawdown_musd(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -319,7 +293,6 @@ class ScorecardMetrics:
             return cast(float | None | Unset, data)
 
         max_drawdown_musd = _parse_max_drawdown_musd(d.pop("max_drawdown_musd", UNSET))
-
 
         def _parse_brier_score(data: object) -> float | None | Unset:
             if data is None:
@@ -330,7 +303,6 @@ class ScorecardMetrics:
 
         brier_score = _parse_brier_score(d.pop("brier_score", UNSET))
 
-
         def _parse_calibration_error(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -339,7 +311,6 @@ class ScorecardMetrics:
             return cast(float | None | Unset, data)
 
         calibration_error = _parse_calibration_error(d.pop("calibration_error", UNSET))
-
 
         def _parse_stop_coverage(data: object) -> float | None | Unset:
             if data is None:
@@ -350,7 +321,6 @@ class ScorecardMetrics:
 
         stop_coverage = _parse_stop_coverage(d.pop("stop_coverage", UNSET))
 
-
         def _parse_evidence_coverage(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -360,7 +330,6 @@ class ScorecardMetrics:
 
         evidence_coverage = _parse_evidence_coverage(d.pop("evidence_coverage", UNSET))
 
-
         def _parse_leakage_clean(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -369,7 +338,6 @@ class ScorecardMetrics:
             return cast(float | None | Unset, data)
 
         leakage_clean = _parse_leakage_clean(d.pop("leakage_clean", UNSET))
-
 
         scorecard_metrics = cls(
             realized_pnl_musd=realized_pnl_musd,
@@ -389,7 +357,6 @@ class ScorecardMetrics:
             evidence_coverage=evidence_coverage,
             leakage_clean=leakage_clean,
         )
-
 
         scorecard_metrics.additional_properties = d
         return scorecard_metrics

@@ -1,63 +1,55 @@
 from __future__ import annotations
 
+import datetime
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
 from ..models.arena_agent_badges_item import ArenaAgentBadgesItem
 from ..models.arena_agent_source import ArenaAgentSource
 from ..types import UNSET, Unset
-from dateutil.parser import isoparse
-from typing import cast
-import datetime
 
 if TYPE_CHECKING:
-  from ..models.agent_audit_stats import AgentAuditStats
-  from ..models.arena_agent_by_venue import ArenaAgentByVenue
-
-
-
+    from ..models.agent_audit_stats import AgentAuditStats
+    from ..models.arena_agent_by_venue import ArenaAgentByVenue
 
 
 T = TypeVar("T", bound="ArenaAgent")
 
 
-
 @_attrs_define
 class ArenaAgent:
-    """ A public Agent Arena row — name + realized performance only.
+    """A public Agent Arena row — name + realized performance only.
 
-        Attributes:
-            rank (int | Unset):
-            handle (str | Unset):
-            agent_name (str | Unset):
-            source (ArenaAgentSource | Unset):
-            realized_pnl_musd (float | Unset):
-            trade_count (int | Unset):
-            decided_trade_count (int | Unset):
-            win_count (int | Unset):
-            loss_count (int | Unset):
-            win_rate (float | None | Unset):
-            by_venue (ArenaAgentByVenue | Unset):
-            last_trade_at (datetime.datetime | None | Unset):
-            biggest_win_musd (float | Unset): Largest single positive realization across venues (mUSD).
-            sparkline (list[float] | Unset): Daily cumulative realized PnL (mUSD) over the last 44 days — one
-                point per day, oldest to newest; the LAST point always equals
-                realizedPnlMusd. Empty for rows with no dated realizations in the
-                window. On windowed boards (?window=7d|30d) the series covers
-                only the window's days and restarts at 0.
-            badges (list[ArenaAgentBadgesItem] | Unset): Serve-time achievement badges computed from the row.
-            rank_delta (int | None | Unset): Rank movement vs the snapshot taken >= 6h ago (positive = climbed).
-                Null for demo rows or when no prior snapshot exists yet.
-            model (None | str | Unset): SELF-REPORTED model/runtime label set by the key owner (e.g.
-                "Claude", "GPT-4o"). Unverified by CoinRithm — treat as a claim,
-                not a fact. Null if unset.
-            audit_stats (AgentAuditStats | None | Unset): Aggregate public audit counters only; no raw logs or rationale.
-     """
+    Attributes:
+        rank (int | Unset):
+        handle (str | Unset):
+        agent_name (str | Unset):
+        source (ArenaAgentSource | Unset):
+        realized_pnl_musd (float | Unset):
+        trade_count (int | Unset):
+        decided_trade_count (int | Unset):
+        win_count (int | Unset):
+        loss_count (int | Unset):
+        win_rate (float | None | Unset):
+        by_venue (ArenaAgentByVenue | Unset):
+        last_trade_at (datetime.datetime | None | Unset):
+        biggest_win_musd (float | Unset): Largest single positive realization across venues (mUSD).
+        sparkline (list[float] | Unset): Daily cumulative realized PnL (mUSD) over the last 44 days — one
+            point per day, oldest to newest; the LAST point always equals
+            realizedPnlMusd. Empty for rows with no dated realizations in the
+            window. On windowed boards (?window=7d|30d) the series covers
+            only the window's days and restarts at 0.
+        badges (list[ArenaAgentBadgesItem] | Unset): Serve-time achievement badges computed from the row.
+        rank_delta (int | None | Unset): Rank movement vs the snapshot taken >= 6h ago (positive = climbed).
+            Null for demo rows or when no prior snapshot exists yet.
+        model (None | str | Unset): SELF-REPORTED model/runtime label set by the key owner (e.g.
+            "Claude", "GPT-4o"). Unverified by CoinRithm — treat as a claim,
+            not a fact. Null if unset.
+        audit_stats (AgentAuditStats | None | Unset): Aggregate public audit counters only; no raw logs or rationale.
+    """
 
     rank: int | Unset = UNSET
     handle: str | Unset = UNSET
@@ -79,13 +71,9 @@ class ArenaAgent:
     audit_stats: AgentAuditStats | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
         from ..models.agent_audit_stats import AgentAuditStats
-        from ..models.arena_agent_by_venue import ArenaAgentByVenue
+
         rank = self.rank
 
         handle = self.handle
@@ -95,7 +83,6 @@ class ArenaAgent:
         source: str | Unset = UNSET
         if not isinstance(self.source, Unset):
             source = self.source.value
-
 
         realized_pnl_musd = self.realized_pnl_musd
 
@@ -131,16 +118,12 @@ class ArenaAgent:
         if not isinstance(self.sparkline, Unset):
             sparkline = self.sparkline
 
-
-
         badges: list[str] | Unset = UNSET
         if not isinstance(self.badges, Unset):
             badges = []
             for badges_item_data in self.badges:
                 badges_item = badges_item_data.value
                 badges.append(badges_item)
-
-
 
         rank_delta: int | None | Unset
         if isinstance(self.rank_delta, Unset):
@@ -162,11 +145,9 @@ class ArenaAgent:
         else:
             audit_stats = self.audit_stats
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if rank is not UNSET:
             field_dict["rank"] = rank
         if handle is not UNSET:
@@ -206,12 +187,11 @@ class ArenaAgent:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.agent_audit_stats import AgentAuditStats
         from ..models.arena_agent_by_venue import ArenaAgentByVenue
+
         d = dict(src_dict)
         rank = d.pop("rank", UNSET)
 
@@ -221,13 +201,10 @@ class ArenaAgent:
 
         _source = d.pop("source", UNSET)
         source: ArenaAgentSource | Unset
-        if isinstance(_source,  Unset):
+        if isinstance(_source, Unset):
             source = UNSET
         else:
             source = ArenaAgentSource(_source)
-
-
-
 
         realized_pnl_musd = d.pop("realizedPnlMusd", UNSET)
 
@@ -248,16 +225,12 @@ class ArenaAgent:
 
         win_rate = _parse_win_rate(d.pop("winRate", UNSET))
 
-
         _by_venue = d.pop("byVenue", UNSET)
         by_venue: ArenaAgentByVenue | Unset
-        if isinstance(_by_venue,  Unset):
+        if isinstance(_by_venue, Unset):
             by_venue = UNSET
         else:
             by_venue = ArenaAgentByVenue.from_dict(_by_venue)
-
-
-
 
         def _parse_last_trade_at(data: object) -> datetime.datetime | None | Unset:
             if data is None:
@@ -267,9 +240,7 @@ class ArenaAgent:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                last_trade_at_type_0 = isoparse(data)
-
-
+                last_trade_at_type_0 = datetime.datetime.fromisoformat(data)
 
                 return last_trade_at_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
@@ -278,11 +249,9 @@ class ArenaAgent:
 
         last_trade_at = _parse_last_trade_at(d.pop("lastTradeAt", UNSET))
 
-
         biggest_win_musd = d.pop("biggestWinMusd", UNSET)
 
         sparkline = cast(list[float], d.pop("sparkline", UNSET))
-
 
         _badges = d.pop("badges", UNSET)
         badges: list[ArenaAgentBadgesItem] | Unset = UNSET
@@ -291,10 +260,7 @@ class ArenaAgent:
             for badges_item_data in _badges:
                 badges_item = ArenaAgentBadgesItem(badges_item_data)
 
-
-
                 badges.append(badges_item)
-
 
         def _parse_rank_delta(data: object) -> int | None | Unset:
             if data is None:
@@ -305,7 +271,6 @@ class ArenaAgent:
 
         rank_delta = _parse_rank_delta(d.pop("rankDelta", UNSET))
 
-
         def _parse_model(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -314,7 +279,6 @@ class ArenaAgent:
             return cast(None | str | Unset, data)
 
         model = _parse_model(d.pop("model", UNSET))
-
 
         def _parse_audit_stats(data: object) -> AgentAuditStats | None | Unset:
             if data is None:
@@ -326,15 +290,12 @@ class ArenaAgent:
                     raise TypeError()
                 audit_stats_type_0 = AgentAuditStats.from_dict(data)
 
-
-
                 return audit_stats_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
             return cast(AgentAuditStats | None | Unset, data)
 
         audit_stats = _parse_audit_stats(d.pop("auditStats", UNSET))
-
 
         arena_agent = cls(
             rank=rank,
@@ -356,7 +317,6 @@ class ArenaAgent:
             model=model,
             audit_stats=audit_stats,
         )
-
 
         arena_agent.additional_properties = d
         return arena_agent

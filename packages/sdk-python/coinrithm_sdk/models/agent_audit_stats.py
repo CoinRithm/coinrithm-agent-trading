@@ -1,42 +1,33 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from typing import cast
-
-
-
-
-
-
 T = TypeVar("T", bound="AgentAuditStats")
-
 
 
 @_attrs_define
 class AgentAuditStats:
-    """ 
-        Attributes:
-            ledger_event_count (int | Unset):
-            quote_count (int | Unset):
-            write_count (int | Unset):
-            rejection_count (int | Unset):
-            idempotent_replay_count (int | Unset):
-            run_id_event_count (int | Unset): Ledger rows with agentTrace.runId / equivalent header.
-            decision_id_event_count (int | Unset): Ledger rows with agentTrace.decisionId / equivalent header.
-            missing_run_id_count (int | Unset): Ledger rows missing runId trace metadata.
-            missing_decision_id_count (int | Unset): Ledger rows missing decisionId trace metadata.
-            run_trace_coverage (float | None | Unset): runIdEventCount / ledgerEventCount as a 0..1 fraction.
-            decision_trace_coverage (float | None | Unset): decisionIdEventCount / ledgerEventCount as a 0..1 fraction.
-            quote_before_trade_rate (float | None | Unset): Approximate aggregate quote/write coverage from the ledger.
-     """
+    """
+    Attributes:
+        ledger_event_count (int | Unset):
+        quote_count (int | Unset):
+        write_count (int | Unset):
+        rejection_count (int | Unset):
+        idempotent_replay_count (int | Unset):
+        run_id_event_count (int | Unset): Ledger rows with agentTrace.runId / equivalent header.
+        decision_id_event_count (int | Unset): Ledger rows with agentTrace.decisionId / equivalent header.
+        missing_run_id_count (int | Unset): Ledger rows missing runId trace metadata.
+        missing_decision_id_count (int | Unset): Ledger rows missing decisionId trace metadata.
+        run_trace_coverage (float | None | Unset): runIdEventCount / ledgerEventCount as a 0..1 fraction.
+        decision_trace_coverage (float | None | Unset): decisionIdEventCount / ledgerEventCount as a 0..1 fraction.
+        quote_before_trade_rate (float | None | Unset): Approximate aggregate quote/write coverage from the ledger.
+    """
 
     ledger_event_count: int | Unset = UNSET
     quote_count: int | Unset = UNSET
@@ -51,10 +42,6 @@ class AgentAuditStats:
     decision_trace_coverage: float | None | Unset = UNSET
     quote_before_trade_rate: float | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         ledger_event_count = self.ledger_event_count
@@ -93,11 +80,9 @@ class AgentAuditStats:
         else:
             quote_before_trade_rate = self.quote_before_trade_rate
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if ledger_event_count is not UNSET:
             field_dict["ledgerEventCount"] = ledger_event_count
         if quote_count is not UNSET:
@@ -124,8 +109,6 @@ class AgentAuditStats:
             field_dict["quoteBeforeTradeRate"] = quote_before_trade_rate
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -157,7 +140,6 @@ class AgentAuditStats:
 
         run_trace_coverage = _parse_run_trace_coverage(d.pop("runTraceCoverage", UNSET))
 
-
         def _parse_decision_trace_coverage(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -167,7 +149,6 @@ class AgentAuditStats:
 
         decision_trace_coverage = _parse_decision_trace_coverage(d.pop("decisionTraceCoverage", UNSET))
 
-
         def _parse_quote_before_trade_rate(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -176,7 +157,6 @@ class AgentAuditStats:
             return cast(float | None | Unset, data)
 
         quote_before_trade_rate = _parse_quote_before_trade_rate(d.pop("quoteBeforeTradeRate", UNSET))
-
 
         agent_audit_stats = cls(
             ledger_event_count=ledger_event_count,
@@ -192,7 +172,6 @@ class AgentAuditStats:
             decision_trace_coverage=decision_trace_coverage,
             quote_before_trade_rate=quote_before_trade_rate,
         )
-
 
         agent_audit_stats.additional_properties = d
         return agent_audit_stats

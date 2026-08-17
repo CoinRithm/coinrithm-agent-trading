@@ -1,20 +1,15 @@
 from http import HTTPStatus
-from typing import Any, cast
-from urllib.parse import quote
+from typing import Any
 
 import httpx
 
-from ...client import AuthenticatedClient, Client
-from ...types import Response, UNSET
 from ... import errors
-
+from ...client import AuthenticatedClient, Client
 from ...models.discover_prediction_markets_sort import DiscoverPredictionMarketsSort
 from ...models.discover_prediction_markets_source import DiscoverPredictionMarketsSource
 from ...models.error import Error
 from ...models.pm_discovery_response import PmDiscoveryResponse
-from ...types import UNSET, Unset
-from typing import cast
-
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
@@ -24,11 +19,7 @@ def _get_kwargs(
     q: str | Unset = UNSET,
     source: DiscoverPredictionMarketsSource | Unset = DiscoverPredictionMarketsSource.ALL,
     sort: DiscoverPredictionMarketsSort | Unset = DiscoverPredictionMarketsSort.BEST,
-
 ) -> dict[str, Any]:
-    
-
-    
 
     params: dict[str, Any] = {}
 
@@ -50,9 +41,7 @@ def _get_kwargs(
 
     params["sort"] = json_sort
 
-
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
-
 
     _kwargs: dict[str, Any] = {
         "method": "get",
@@ -60,44 +49,34 @@ def _get_kwargs(
         "params": params,
     }
 
-
     return _kwargs
 
 
-
-def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Error | PmDiscoveryResponse | None:
+def _parse_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Error | PmDiscoveryResponse | None:
     if response.status_code == 200:
         response_200 = PmDiscoveryResponse.from_dict(response.json())
-
-
 
         return response_200
 
     if response.status_code == 400:
         response_400 = Error.from_dict(response.json())
 
-
-
         return response_400
 
     if response.status_code == 401:
         response_401 = Error.from_dict(response.json())
-
-
 
         return response_401
 
     if response.status_code == 403:
         response_403 = Error.from_dict(response.json())
 
-
-
         return response_403
 
     if response.status_code == 429:
         response_429 = Error.from_dict(response.json())
-
-
 
         return response_429
 
@@ -107,7 +86,9 @@ def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Res
         return None
 
 
-def _build_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Response[Error | PmDiscoveryResponse]:
+def _build_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[Error | PmDiscoveryResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -124,9 +105,8 @@ def sync_detailed(
     q: str | Unset = UNSET,
     source: DiscoverPredictionMarketsSource | Unset = DiscoverPredictionMarketsSource.ALL,
     sort: DiscoverPredictionMarketsSort | Unset = DiscoverPredictionMarketsSort.BEST,
-
 ) -> Response[Error | PmDiscoveryResponse]:
-    """ Discover active-open prediction markets for quoting
+    """Discover active-open prediction markets for quoting
 
      Finds active-open, quote-ready prediction markets on Kalshi and
     Polymarket by default. Returns source/slug + quoteable outcome
@@ -154,16 +134,14 @@ def sync_detailed(
 
     Returns:
         Response[Error | PmDiscoveryResponse]
-     """
-
+    """
 
     kwargs = _get_kwargs(
         limit=limit,
-offset=offset,
-q=q,
-source=source,
-sort=sort,
-
+        offset=offset,
+        q=q,
+        source=source,
+        sort=sort,
     )
 
     response = client.get_httpx_client().request(
@@ -171,6 +149,7 @@ sort=sort,
     )
 
     return _build_response(client=client, response=response)
+
 
 def sync(
     *,
@@ -180,9 +159,8 @@ def sync(
     q: str | Unset = UNSET,
     source: DiscoverPredictionMarketsSource | Unset = DiscoverPredictionMarketsSource.ALL,
     sort: DiscoverPredictionMarketsSort | Unset = DiscoverPredictionMarketsSort.BEST,
-
 ) -> Error | PmDiscoveryResponse | None:
-    """ Discover active-open prediction markets for quoting
+    """Discover active-open prediction markets for quoting
 
      Finds active-open, quote-ready prediction markets on Kalshi and
     Polymarket by default. Returns source/slug + quoteable outcome
@@ -210,18 +188,17 @@ def sync(
 
     Returns:
         Error | PmDiscoveryResponse
-     """
-
+    """
 
     return sync_detailed(
         client=client,
-limit=limit,
-offset=offset,
-q=q,
-source=source,
-sort=sort,
-
+        limit=limit,
+        offset=offset,
+        q=q,
+        source=source,
+        sort=sort,
     ).parsed
+
 
 async def asyncio_detailed(
     *,
@@ -231,9 +208,8 @@ async def asyncio_detailed(
     q: str | Unset = UNSET,
     source: DiscoverPredictionMarketsSource | Unset = DiscoverPredictionMarketsSource.ALL,
     sort: DiscoverPredictionMarketsSort | Unset = DiscoverPredictionMarketsSort.BEST,
-
 ) -> Response[Error | PmDiscoveryResponse]:
-    """ Discover active-open prediction markets for quoting
+    """Discover active-open prediction markets for quoting
 
      Finds active-open, quote-ready prediction markets on Kalshi and
     Polymarket by default. Returns source/slug + quoteable outcome
@@ -261,23 +237,20 @@ async def asyncio_detailed(
 
     Returns:
         Response[Error | PmDiscoveryResponse]
-     """
-
+    """
 
     kwargs = _get_kwargs(
         limit=limit,
-offset=offset,
-q=q,
-source=source,
-sort=sort,
-
+        offset=offset,
+        q=q,
+        source=source,
+        sort=sort,
     )
 
-    response = await client.get_async_httpx_client().request(
-        **kwargs
-    )
+    response = await client.get_async_httpx_client().request(**kwargs)
 
     return _build_response(client=client, response=response)
+
 
 async def asyncio(
     *,
@@ -287,9 +260,8 @@ async def asyncio(
     q: str | Unset = UNSET,
     source: DiscoverPredictionMarketsSource | Unset = DiscoverPredictionMarketsSource.ALL,
     sort: DiscoverPredictionMarketsSort | Unset = DiscoverPredictionMarketsSort.BEST,
-
 ) -> Error | PmDiscoveryResponse | None:
-    """ Discover active-open prediction markets for quoting
+    """Discover active-open prediction markets for quoting
 
      Finds active-open, quote-ready prediction markets on Kalshi and
     Polymarket by default. Returns source/slug + quoteable outcome
@@ -317,15 +289,15 @@ async def asyncio(
 
     Returns:
         Error | PmDiscoveryResponse
-     """
+    """
 
-
-    return (await asyncio_detailed(
-        client=client,
-limit=limit,
-offset=offset,
-q=q,
-source=source,
-sort=sort,
-
-    )).parsed
+    return (
+        await asyncio_detailed(
+            client=client,
+            limit=limit,
+            offset=offset,
+            q=q,
+            source=source,
+            sort=sort,
+        )
+    ).parsed

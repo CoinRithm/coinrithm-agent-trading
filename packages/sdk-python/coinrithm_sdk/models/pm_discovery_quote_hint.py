@@ -1,35 +1,27 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
 from ..models.pm_discovery_quote_hint_source import PmDiscoveryQuoteHintSource
 from ..types import UNSET, Unset
-
-
-
-
-
 
 T = TypeVar("T", bound="PmDiscoveryQuoteHint")
 
 
-
 @_attrs_define
 class PmDiscoveryQuoteHint:
-    """ 
-        Attributes:
-            endpoint (str | Unset):
-            source (PmDiscoveryQuoteHintSource | Unset):
-            slug (str | Unset):
-            stake_musd_min (float | Unset):
-            outcome_external_market_id_field (str | Unset):
-     """
+    """
+    Attributes:
+        endpoint (str | Unset):
+        source (PmDiscoveryQuoteHintSource | Unset):
+        slug (str | Unset):
+        stake_musd_min (float | Unset):
+        outcome_external_market_id_field (str | Unset):
+    """
 
     endpoint: str | Unset = UNSET
     source: PmDiscoveryQuoteHintSource | Unset = UNSET
@@ -38,10 +30,6 @@ class PmDiscoveryQuoteHint:
     outcome_external_market_id_field: str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
         endpoint = self.endpoint
 
@@ -49,18 +37,15 @@ class PmDiscoveryQuoteHint:
         if not isinstance(self.source, Unset):
             source = self.source.value
 
-
         slug = self.slug
 
         stake_musd_min = self.stake_musd_min
 
         outcome_external_market_id_field = self.outcome_external_market_id_field
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if endpoint is not UNSET:
             field_dict["endpoint"] = endpoint
         if source is not UNSET:
@@ -74,8 +59,6 @@ class PmDiscoveryQuoteHint:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
@@ -83,13 +66,10 @@ class PmDiscoveryQuoteHint:
 
         _source = d.pop("source", UNSET)
         source: PmDiscoveryQuoteHintSource | Unset
-        if isinstance(_source,  Unset):
+        if isinstance(_source, Unset):
             source = UNSET
         else:
             source = PmDiscoveryQuoteHintSource(_source)
-
-
-
 
         slug = d.pop("slug", UNSET)
 
@@ -104,7 +84,6 @@ class PmDiscoveryQuoteHint:
             stake_musd_min=stake_musd_min,
             outcome_external_market_id_field=outcome_external_market_id_field,
         )
-
 
         pm_discovery_quote_hint.additional_properties = d
         return pm_discovery_quote_hint

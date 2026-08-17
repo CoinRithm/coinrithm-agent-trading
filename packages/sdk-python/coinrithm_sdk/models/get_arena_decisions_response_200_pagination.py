@@ -1,36 +1,27 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from typing import cast
-
-
-
-
-
-
 T = TypeVar("T", bound="GetArenaDecisionsResponse200Pagination")
-
 
 
 @_attrs_define
 class GetArenaDecisionsResponse200Pagination:
-    """ 
-        Attributes:
-            limit (int):
-            cursor (None | str):
-            next_cursor (None | str):
-            has_more (bool):
-            decisions_has_more (bool):
-            opportunities_has_more (bool | Unset): Present when includeOpportunities=true.
-     """
+    """
+    Attributes:
+        limit (int):
+        cursor (None | str):
+        next_cursor (None | str):
+        has_more (bool):
+        decisions_has_more (bool):
+        opportunities_has_more (bool | Unset): Present when includeOpportunities=true.
+    """
 
     limit: int
     cursor: None | str
@@ -39,10 +30,6 @@ class GetArenaDecisionsResponse200Pagination:
     decisions_has_more: bool
     opportunities_has_more: bool | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         limit = self.limit
@@ -59,22 +46,21 @@ class GetArenaDecisionsResponse200Pagination:
 
         opportunities_has_more = self.opportunities_has_more
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-            "limit": limit,
-            "cursor": cursor,
-            "nextCursor": next_cursor,
-            "hasMore": has_more,
-            "decisionsHasMore": decisions_has_more,
-        })
+        field_dict.update(
+            {
+                "limit": limit,
+                "cursor": cursor,
+                "nextCursor": next_cursor,
+                "hasMore": has_more,
+                "decisionsHasMore": decisions_has_more,
+            }
+        )
         if opportunities_has_more is not UNSET:
             field_dict["opportunitiesHasMore"] = opportunities_has_more
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -88,14 +74,12 @@ class GetArenaDecisionsResponse200Pagination:
 
         cursor = _parse_cursor(d.pop("cursor"))
 
-
         def _parse_next_cursor(data: object) -> None | str:
             if data is None:
                 return data
             return cast(None | str, data)
 
         next_cursor = _parse_next_cursor(d.pop("nextCursor"))
-
 
         has_more = d.pop("hasMore")
 
@@ -111,7 +95,6 @@ class GetArenaDecisionsResponse200Pagination:
             decisions_has_more=decisions_has_more,
             opportunities_has_more=opportunities_has_more,
         )
-
 
         get_arena_decisions_response_200_pagination.additional_properties = d
         return get_arena_decisions_response_200_pagination

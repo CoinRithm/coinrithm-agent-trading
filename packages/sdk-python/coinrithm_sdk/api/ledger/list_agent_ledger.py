@@ -1,19 +1,14 @@
+import datetime
 from http import HTTPStatus
-from typing import Any, cast
-from urllib.parse import quote
+from typing import Any
 
 import httpx
 
-from ...client import AuthenticatedClient, Client
-from ...types import Response, UNSET
 from ... import errors
-
+from ...client import AuthenticatedClient, Client
+from ...models.agent_ledger_response import AgentLedgerResponse
 from ...models.error import Error
-from ...types import UNSET, Unset
-from dateutil.parser import isoparse
-from typing import cast
-import datetime
-
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
@@ -27,11 +22,7 @@ def _get_kwargs(
     to: datetime.datetime | Unset = UNSET,
     limit: int | Unset = 25,
     offset: int | Unset = 0,
-
 ) -> dict[str, Any]:
-    
-
-    
 
     params: dict[str, Any] = {}
 
@@ -59,9 +50,7 @@ def _get_kwargs(
 
     params["offset"] = offset
 
-
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
-
 
     _kwargs: dict[str, Any] = {
         "method": "get",
@@ -69,30 +58,29 @@ def _get_kwargs(
         "params": params,
     }
 
-
     return _kwargs
 
 
+def _parse_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> AgentLedgerResponse | Error | None:
+    if response.status_code == 200:
+        response_200 = AgentLedgerResponse.from_dict(response.json())
 
-def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Error | None:
+        return response_200
+
     if response.status_code == 401:
         response_401 = Error.from_dict(response.json())
-
-
 
         return response_401
 
     if response.status_code == 403:
         response_403 = Error.from_dict(response.json())
 
-
-
         return response_403
 
     if response.status_code == 429:
         response_429 = Error.from_dict(response.json())
-
-
 
         return response_429
 
@@ -102,7 +90,9 @@ def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Res
         return None
 
 
-def _build_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Response[Error]:
+def _build_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[AgentLedgerResponse | Error]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -123,9 +113,8 @@ def sync_detailed(
     to: datetime.datetime | Unset = UNSET,
     limit: int | Unset = 25,
     offset: int | Unset = 0,
-
-) -> Response[Error]:
-    """ Private action ledger for the current API key
+) -> Response[AgentLedgerResponse | Error]:
+    """Private action ledger for the current API key
 
      Paginated private execution ledger for the calling API key only:
     reads, quotes, writes, rejects, idempotent replays, sanitized
@@ -148,21 +137,19 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Error]
-     """
-
+        Response[AgentLedgerResponse | Error]
+    """
 
     kwargs = _get_kwargs(
         venue=venue,
-event_type=event_type,
-run_id=run_id,
-decision_id=decision_id,
-status=status,
-from_=from_,
-to=to,
-limit=limit,
-offset=offset,
-
+        event_type=event_type,
+        run_id=run_id,
+        decision_id=decision_id,
+        status=status,
+        from_=from_,
+        to=to,
+        limit=limit,
+        offset=offset,
     )
 
     response = client.get_httpx_client().request(
@@ -170,6 +157,7 @@ offset=offset,
     )
 
     return _build_response(client=client, response=response)
+
 
 def sync(
     *,
@@ -183,9 +171,8 @@ def sync(
     to: datetime.datetime | Unset = UNSET,
     limit: int | Unset = 25,
     offset: int | Unset = 0,
-
-) -> Error | None:
-    """ Private action ledger for the current API key
+) -> AgentLedgerResponse | Error | None:
+    """Private action ledger for the current API key
 
      Paginated private execution ledger for the calling API key only:
     reads, quotes, writes, rejects, idempotent replays, sanitized
@@ -208,23 +195,22 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Error
-     """
-
+        AgentLedgerResponse | Error
+    """
 
     return sync_detailed(
         client=client,
-venue=venue,
-event_type=event_type,
-run_id=run_id,
-decision_id=decision_id,
-status=status,
-from_=from_,
-to=to,
-limit=limit,
-offset=offset,
-
+        venue=venue,
+        event_type=event_type,
+        run_id=run_id,
+        decision_id=decision_id,
+        status=status,
+        from_=from_,
+        to=to,
+        limit=limit,
+        offset=offset,
     ).parsed
+
 
 async def asyncio_detailed(
     *,
@@ -238,9 +224,8 @@ async def asyncio_detailed(
     to: datetime.datetime | Unset = UNSET,
     limit: int | Unset = 25,
     offset: int | Unset = 0,
-
-) -> Response[Error]:
-    """ Private action ledger for the current API key
+) -> Response[AgentLedgerResponse | Error]:
+    """Private action ledger for the current API key
 
      Paginated private execution ledger for the calling API key only:
     reads, quotes, writes, rejects, idempotent replays, sanitized
@@ -263,28 +248,25 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Error]
-     """
-
+        Response[AgentLedgerResponse | Error]
+    """
 
     kwargs = _get_kwargs(
         venue=venue,
-event_type=event_type,
-run_id=run_id,
-decision_id=decision_id,
-status=status,
-from_=from_,
-to=to,
-limit=limit,
-offset=offset,
-
+        event_type=event_type,
+        run_id=run_id,
+        decision_id=decision_id,
+        status=status,
+        from_=from_,
+        to=to,
+        limit=limit,
+        offset=offset,
     )
 
-    response = await client.get_async_httpx_client().request(
-        **kwargs
-    )
+    response = await client.get_async_httpx_client().request(**kwargs)
 
     return _build_response(client=client, response=response)
+
 
 async def asyncio(
     *,
@@ -298,9 +280,8 @@ async def asyncio(
     to: datetime.datetime | Unset = UNSET,
     limit: int | Unset = 25,
     offset: int | Unset = 0,
-
-) -> Error | None:
-    """ Private action ledger for the current API key
+) -> AgentLedgerResponse | Error | None:
+    """Private action ledger for the current API key
 
      Paginated private execution ledger for the calling API key only:
     reads, quotes, writes, rejects, idempotent replays, sanitized
@@ -323,20 +304,20 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Error
-     """
+        AgentLedgerResponse | Error
+    """
 
-
-    return (await asyncio_detailed(
-        client=client,
-venue=venue,
-event_type=event_type,
-run_id=run_id,
-decision_id=decision_id,
-status=status,
-from_=from_,
-to=to,
-limit=limit,
-offset=offset,
-
-    )).parsed
+    return (
+        await asyncio_detailed(
+            client=client,
+            venue=venue,
+            event_type=event_type,
+            run_id=run_id,
+            decision_id=decision_id,
+            status=status,
+            from_=from_,
+            to=to,
+            limit=limit,
+            offset=offset,
+        )
+    ).parsed

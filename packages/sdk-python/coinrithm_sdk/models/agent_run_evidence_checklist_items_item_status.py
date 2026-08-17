@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class AgentRunEvidenceChecklistItemsItemStatus(str, Enum):
     FAIL = "fail"
     PASS = "pass"

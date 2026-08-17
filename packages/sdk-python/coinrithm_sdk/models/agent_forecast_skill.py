@@ -1,34 +1,27 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
-
-from ..types import UNSET, Unset
 
 from ..models.agent_forecast_skill_basis import AgentForecastSkillBasis
 from ..models.agent_forecast_skill_schema import AgentForecastSkillSchema
 from ..models.agent_forecast_skill_state import AgentForecastSkillState
 from ..types import UNSET, Unset
-from typing import cast
 
 if TYPE_CHECKING:
-  from ..models.agent_forecast_skill_cohorts_type_0 import AgentForecastSkillCohortsType0
-  from ..models.forecast_skill_metrics import ForecastSkillMetrics
-
-
-
+    from ..models.agent_forecast_skill_cohorts_type_0 import AgentForecastSkillCohortsType0
+    from ..models.forecast_skill_metrics import ForecastSkillMetrics
 
 
 T = TypeVar("T", bound="AgentForecastSkill")
 
 
-
 @_attrs_define
 class AgentForecastSkill:
-    """ Track B — `coinrithm.agent.forecastSkill.v1`. The agent's OWN independent
+    """Track B — `coinrithm.agent.forecastSkill.v1`. The agent's OWN independent
     forecast skill over settled, independently-forecast PM decisions, scored
     vs the market-entry and cross-venue reference baselines, with a
     sample-sufficiency gate so a thin record is never surfaced as a rankable
@@ -54,7 +47,7 @@ class AgentForecastSkill:
             cohorts (AgentForecastSkillCohortsType0 | None | Unset): Reserved eval-2 extension point (per-
                 source/category/horizon); always null under eval-1.
             content_hash (str | Unset): SHA-256 (hex) of the canonicalized block — reproducible fingerprint.
-     """
+    """
 
     schema: AgentForecastSkillSchema | Unset = UNSET
     basis: AgentForecastSkillBasis | Unset = UNSET
@@ -70,29 +63,22 @@ class AgentForecastSkill:
     content_hash: str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
         from ..models.agent_forecast_skill_cohorts_type_0 import AgentForecastSkillCohortsType0
-        from ..models.forecast_skill_metrics import ForecastSkillMetrics
+
         schema: str | Unset = UNSET
         if not isinstance(self.schema, Unset):
             schema = self.schema.value
 
-
         basis: str | Unset = UNSET
         if not isinstance(self.basis, Unset):
             basis = self.basis.value
-
 
         evaluation_policy_version = self.evaluation_policy_version
 
         state: str | Unset = UNSET
         if not isinstance(self.state, Unset):
             state = self.state.value
-
 
         decided_count = self.decided_count
 
@@ -122,11 +108,9 @@ class AgentForecastSkill:
 
         content_hash = self.content_hash
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if schema is not UNSET:
             field_dict["schema"] = schema
         if basis is not UNSET:
@@ -154,44 +138,34 @@ class AgentForecastSkill:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.agent_forecast_skill_cohorts_type_0 import AgentForecastSkillCohortsType0
         from ..models.forecast_skill_metrics import ForecastSkillMetrics
+
         d = dict(src_dict)
         _schema = d.pop("schema", UNSET)
         schema: AgentForecastSkillSchema | Unset
-        if isinstance(_schema,  Unset):
+        if isinstance(_schema, Unset):
             schema = UNSET
         else:
             schema = AgentForecastSkillSchema(_schema)
 
-
-
-
         _basis = d.pop("basis", UNSET)
         basis: AgentForecastSkillBasis | Unset
-        if isinstance(_basis,  Unset):
+        if isinstance(_basis, Unset):
             basis = UNSET
         else:
             basis = AgentForecastSkillBasis(_basis)
-
-
-
 
         evaluation_policy_version = d.pop("evaluationPolicyVersion", UNSET)
 
         _state = d.pop("state", UNSET)
         state: AgentForecastSkillState | Unset
-        if isinstance(_state,  Unset):
+        if isinstance(_state, Unset):
             state = UNSET
         else:
             state = AgentForecastSkillState(_state)
-
-
-
 
         decided_count = d.pop("decidedCount", UNSET)
 
@@ -208,18 +182,14 @@ class AgentForecastSkill:
 
         forecast_coverage = _parse_forecast_coverage(d.pop("forecastCoverage", UNSET))
 
-
         min_settled_forecasts = d.pop("minSettledForecasts", UNSET)
 
         _metrics = d.pop("metrics", UNSET)
         metrics: ForecastSkillMetrics | Unset
-        if isinstance(_metrics,  Unset):
+        if isinstance(_metrics, Unset):
             metrics = UNSET
         else:
             metrics = ForecastSkillMetrics.from_dict(_metrics)
-
-
-
 
         def _parse_cohorts(data: object) -> AgentForecastSkillCohortsType0 | None | Unset:
             if data is None:
@@ -231,15 +201,12 @@ class AgentForecastSkill:
                     raise TypeError()
                 cohorts_type_0 = AgentForecastSkillCohortsType0.from_dict(data)
 
-
-
                 return cohorts_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
             return cast(AgentForecastSkillCohortsType0 | None | Unset, data)
 
         cohorts = _parse_cohorts(d.pop("cohorts", UNSET))
-
 
         content_hash = d.pop("contentHash", UNSET)
 
@@ -257,7 +224,6 @@ class AgentForecastSkill:
             cohorts=cohorts,
             content_hash=content_hash,
         )
-
 
         agent_forecast_skill.additional_properties = d
         return agent_forecast_skill

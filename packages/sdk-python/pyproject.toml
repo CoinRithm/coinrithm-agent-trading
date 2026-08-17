@@ -30,6 +30,7 @@ Documentation = "https://coinrithm.github.io/coinrithm-agent-trading/"
 
 [dependency-groups]
 dev = [
+    "openapi-python-client==0.29.0; python_version >= '3.11'",
     "pytest>=8.3,<9",
 ]
 

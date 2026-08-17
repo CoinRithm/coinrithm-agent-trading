@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class GetCandlesRange(str, Enum):
     VALUE_0 = "1H"
     VALUE_1 = "1D"

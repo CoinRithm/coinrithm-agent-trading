@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class DecisionSupportVolumeTier(str, Enum):
     HIGH = "high"
     LOW = "low"

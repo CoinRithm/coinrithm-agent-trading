@@ -1,36 +1,28 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-
-
-
-
-
-
 T = TypeVar("T", bound="AgentLedgerRetentionPolicy")
-
 
 
 @_attrs_define
 class AgentLedgerRetentionPolicy:
-    """ Bounded retention/cap policy for private agent ledger evidence.
+    """Bounded retention/cap policy for private agent ledger evidence.
 
-        Attributes:
-            schema (str | Unset):
-            retention_days (int | Unset): Rolling private ledger retention window.
-            run_list_scan_limit (int | Unset): Max recent ledger rows scanned to build the settings run list.
-            export_max_rows (int | Unset): Max rows included in one ledger/run export.
-            prune_batch_max (int | Unset): Max rows deleted by one retention prune run.
-            policy (str | Unset):
-     """
+    Attributes:
+        schema (str | Unset):
+        retention_days (int | Unset): Rolling private ledger retention window.
+        run_list_scan_limit (int | Unset): Max recent ledger rows scanned to build the settings run list.
+        export_max_rows (int | Unset): Max rows included in one ledger/run export.
+        prune_batch_max (int | Unset): Max rows deleted by one retention prune run.
+        policy (str | Unset):
+    """
 
     schema: str | Unset = UNSET
     retention_days: int | Unset = UNSET
@@ -39,10 +31,6 @@ class AgentLedgerRetentionPolicy:
     prune_batch_max: int | Unset = UNSET
     policy: str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         schema = self.schema
@@ -57,11 +45,9 @@ class AgentLedgerRetentionPolicy:
 
         policy = self.policy
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if schema is not UNSET:
             field_dict["schema"] = schema
         if retention_days is not UNSET:
@@ -76,8 +62,6 @@ class AgentLedgerRetentionPolicy:
             field_dict["policy"] = policy
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -102,7 +86,6 @@ class AgentLedgerRetentionPolicy:
             prune_batch_max=prune_batch_max,
             policy=policy,
         )
-
 
         agent_ledger_retention_policy.additional_properties = d
         return agent_ledger_retention_policy

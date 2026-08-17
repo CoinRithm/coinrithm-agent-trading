@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class DecisionSupportQualityTier(str, Enum):
     HIGH = "high"
     LOW = "low"

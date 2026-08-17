@@ -1,37 +1,29 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-
-
-
-
-
-
 T = TypeVar("T", bound="AgentPortfolioPnl")
-
 
 
 @_attrs_define
 class AgentPortfolioPnl:
-    """ 
-        Attributes:
-            field_24_h_usd (float | Unset):
-            field_7_d_usd (float | Unset):
-            field_30_d_usd (float | Unset):
-            all_time_usd (float | Unset):
-            field_24_h_pct (float | Unset): 0..1 fraction
-            field_7_d_pct (float | Unset):
-            field_30_d_pct (float | Unset):
-            all_time_pct (float | Unset):
-     """
+    """
+    Attributes:
+        field_24_h_usd (float | Unset):
+        field_7_d_usd (float | Unset):
+        field_30_d_usd (float | Unset):
+        all_time_usd (float | Unset):
+        field_24_h_pct (float | Unset): 0..1 fraction
+        field_7_d_pct (float | Unset):
+        field_30_d_pct (float | Unset):
+        all_time_pct (float | Unset):
+    """
 
     field_24_h_usd: float | Unset = UNSET
     field_7_d_usd: float | Unset = UNSET
@@ -42,10 +34,6 @@ class AgentPortfolioPnl:
     field_30_d_pct: float | Unset = UNSET
     all_time_pct: float | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         field_24_h_usd = self.field_24_h_usd
@@ -64,11 +52,9 @@ class AgentPortfolioPnl:
 
         all_time_pct = self.all_time_pct
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if field_24_h_usd is not UNSET:
             field_dict["24hUsd"] = field_24_h_usd
         if field_7_d_usd is not UNSET:
@@ -87,8 +73,6 @@ class AgentPortfolioPnl:
             field_dict["allTimePct"] = all_time_pct
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -119,7 +103,6 @@ class AgentPortfolioPnl:
             field_30_d_pct=field_30_d_pct,
             all_time_pct=all_time_pct,
         )
-
 
         agent_portfolio_pnl.additional_properties = d
         return agent_portfolio_pnl

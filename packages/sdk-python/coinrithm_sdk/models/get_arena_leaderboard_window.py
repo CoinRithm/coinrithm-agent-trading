@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class GetArenaLeaderboardWindow(str, Enum):
     ALL = "all"
     TODAY = "today"

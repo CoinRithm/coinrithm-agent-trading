@@ -1,34 +1,26 @@
 from __future__ import annotations
 
+import datetime
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from dateutil.parser import isoparse
-from typing import cast
-import datetime
-
 if TYPE_CHECKING:
-  from ..models.agent_scorecard_response import AgentScorecardResponse
-  from ..models.scorecard_run_cohort import ScorecardRunCohort
-  from ..models.scorecard_run_contributions_summary import ScorecardRunContributionsSummary
-
-
-
+    from ..models.agent_scorecard_response import AgentScorecardResponse
+    from ..models.scorecard_run_cohort import ScorecardRunCohort
+    from ..models.scorecard_run_contributions_summary import ScorecardRunContributionsSummary
 
 
 T = TypeVar("T", bound="ScorecardRunDetail")
 
 
-
 @_attrs_define
 class ScorecardRunDetail:
-    """ One full IMMUTABLE scorecard run: the frozen two-track envelope exactly as
+    """One full IMMUTABLE scorecard run: the frozen two-track envelope exactly as
     served when snapshotted, plus its fingerprint, cohort definition and
     contribution summary.
 
@@ -52,7 +44,7 @@ class ScorecardRunDetail:
                 record. The mean of the
                 INCLUDED per-decision contributions reconciles to
                 resultJson.forecastSkill.metrics when the run was ranked.
-     """
+    """
 
     id: int | Unset = UNSET
     api_key_id: int | None | Unset = UNSET
@@ -70,14 +62,9 @@ class ScorecardRunDetail:
     contributions: ScorecardRunContributionsSummary | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
-        from ..models.agent_scorecard_response import AgentScorecardResponse
         from ..models.scorecard_run_cohort import ScorecardRunCohort
-        from ..models.scorecard_run_contributions_summary import ScorecardRunContributionsSummary
+
         id = self.id
 
         api_key_id: int | None | Unset
@@ -126,11 +113,9 @@ class ScorecardRunDetail:
         if not isinstance(self.contributions, Unset):
             contributions = self.contributions.to_dict()
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if id is not UNSET:
             field_dict["id"] = id
         if api_key_id is not UNSET:
@@ -162,13 +147,12 @@ class ScorecardRunDetail:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.agent_scorecard_response import AgentScorecardResponse
         from ..models.scorecard_run_cohort import ScorecardRunCohort
         from ..models.scorecard_run_contributions_summary import ScorecardRunContributionsSummary
+
         d = dict(src_dict)
         id = d.pop("id", UNSET)
 
@@ -181,18 +165,14 @@ class ScorecardRunDetail:
 
         api_key_id = _parse_api_key_id(d.pop("apiKeyId", UNSET))
 
-
         agent = d.pop("agent", UNSET)
 
         _computed_at = d.pop("computedAt", UNSET)
         computed_at: datetime.datetime | Unset
-        if isinstance(_computed_at,  Unset):
+        if isinstance(_computed_at, Unset):
             computed_at = UNSET
         else:
-            computed_at = isoparse(_computed_at)
-
-
-
+            computed_at = datetime.datetime.fromisoformat(_computed_at)
 
         evaluation_policy_version = d.pop("evaluationPolicyVersion", UNSET)
 
@@ -206,7 +186,6 @@ class ScorecardRunDetail:
             return cast(None | str | Unset, data)
 
         window_key = _parse_window_key(d.pop("windowKey", UNSET))
-
 
         input_count = d.pop("inputCount", UNSET)
 
@@ -226,8 +205,6 @@ class ScorecardRunDetail:
                     raise TypeError()
                 cohort_type_0 = ScorecardRunCohort.from_dict(data)
 
-
-
                 return cohort_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
@@ -235,26 +212,19 @@ class ScorecardRunDetail:
 
         cohort = _parse_cohort(d.pop("cohort", UNSET))
 
-
         _result_json = d.pop("resultJson", UNSET)
         result_json: AgentScorecardResponse | Unset
-        if isinstance(_result_json,  Unset):
+        if isinstance(_result_json, Unset):
             result_json = UNSET
         else:
             result_json = AgentScorecardResponse.from_dict(_result_json)
 
-
-
-
         _contributions = d.pop("contributions", UNSET)
         contributions: ScorecardRunContributionsSummary | Unset
-        if isinstance(_contributions,  Unset):
+        if isinstance(_contributions, Unset):
             contributions = UNSET
         else:
             contributions = ScorecardRunContributionsSummary.from_dict(_contributions)
-
-
-
 
         scorecard_run_detail = cls(
             id=id,
@@ -272,7 +242,6 @@ class ScorecardRunDetail:
             result_json=result_json,
             contributions=contributions,
         )
-
 
         scorecard_run_detail.additional_properties = d
         return scorecard_run_detail

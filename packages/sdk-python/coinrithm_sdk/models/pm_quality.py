@@ -1,30 +1,20 @@
 from __future__ import annotations
 
+import datetime
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from dateutil.parser import isoparse
-from typing import cast
-import datetime
-
-
-
-
-
-
 T = TypeVar("T", bound="PmQuality")
-
 
 
 @_attrs_define
 class PmQuality:
-    """ Persisted quality assessment from CoinRithm's truth engine — the
+    """Persisted quality assessment from CoinRithm's truth engine — the
     aggregator's proven, versioned verdict for this event (one current
     state per event, updated when facts change). Markets with critical
     failures remain visible everywhere; `decisionEligible: false` means
@@ -41,7 +31,7 @@ class PmQuality:
             policy_version (str | Unset): Version of the quality policy that produced this verdict (e.g. pm-quality-2).
             assessed_at (datetime.datetime | None | Unset): Source-capture time backing the verdict (freshness SSOT), not a
                 row-write timestamp.
-     """
+    """
 
     decision_eligible: bool | Unset = UNSET
     warning_reasons: list[str] | Unset = UNSET
@@ -50,10 +40,6 @@ class PmQuality:
     assessed_at: datetime.datetime | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
         decision_eligible = self.decision_eligible
 
@@ -61,13 +47,9 @@ class PmQuality:
         if not isinstance(self.warning_reasons, Unset):
             warning_reasons = self.warning_reasons
 
-
-
         block_reasons: list[str] | Unset = UNSET
         if not isinstance(self.block_reasons, Unset):
             block_reasons = self.block_reasons
-
-
 
         policy_version = self.policy_version
 
@@ -79,11 +61,9 @@ class PmQuality:
         else:
             assessed_at = self.assessed_at
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if decision_eligible is not UNSET:
             field_dict["decisionEligible"] = decision_eligible
         if warning_reasons is not UNSET:
@@ -97,8 +77,6 @@ class PmQuality:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
@@ -106,9 +84,7 @@ class PmQuality:
 
         warning_reasons = cast(list[str], d.pop("warningReasons", UNSET))
 
-
         block_reasons = cast(list[str], d.pop("blockReasons", UNSET))
-
 
         policy_version = d.pop("policyVersion", UNSET)
 
@@ -120,9 +96,7 @@ class PmQuality:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                assessed_at_type_0 = isoparse(data)
-
-
+                assessed_at_type_0 = datetime.datetime.fromisoformat(data)
 
                 return assessed_at_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
@@ -131,7 +105,6 @@ class PmQuality:
 
         assessed_at = _parse_assessed_at(d.pop("assessedAt", UNSET))
 
-
         pm_quality = cls(
             decision_eligible=decision_eligible,
             warning_reasons=warning_reasons,
@@ -139,7 +112,6 @@ class PmQuality:
             policy_version=policy_version,
             assessed_at=assessed_at,
         )
-
 
         pm_quality.additional_properties = d
         return pm_quality

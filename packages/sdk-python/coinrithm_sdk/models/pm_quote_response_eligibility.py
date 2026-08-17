@@ -1,35 +1,27 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-
-
-
-
-
-
 T = TypeVar("T", bound="PmQuoteResponseEligibility")
-
 
 
 @_attrs_define
 class PmQuoteResponseEligibility:
-    """ 
-        Attributes:
-            settlement_state (str | Unset):
-            shape (str | Unset):
-            entry_eligible (bool | Unset):
-            alert_eligible (bool | Unset):
-            settlement_eligible (bool | Unset):
-            limbo (Any | Unset):
-     """
+    """
+    Attributes:
+        settlement_state (str | Unset):
+        shape (str | Unset):
+        entry_eligible (bool | Unset):
+        alert_eligible (bool | Unset):
+        settlement_eligible (bool | Unset):
+        limbo (Any | Unset):
+    """
 
     settlement_state: str | Unset = UNSET
     shape: str | Unset = UNSET
@@ -38,10 +30,6 @@ class PmQuoteResponseEligibility:
     settlement_eligible: bool | Unset = UNSET
     limbo: Any | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         settlement_state = self.settlement_state
@@ -56,11 +44,9 @@ class PmQuoteResponseEligibility:
 
         limbo = self.limbo
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if settlement_state is not UNSET:
             field_dict["settlementState"] = settlement_state
         if shape is not UNSET:
@@ -75,8 +61,6 @@ class PmQuoteResponseEligibility:
             field_dict["limbo"] = limbo
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -101,7 +85,6 @@ class PmQuoteResponseEligibility:
             settlement_eligible=settlement_eligible,
             limbo=limbo,
         )
-
 
         pm_quote_response_eligibility.additional_properties = d
         return pm_quote_response_eligibility

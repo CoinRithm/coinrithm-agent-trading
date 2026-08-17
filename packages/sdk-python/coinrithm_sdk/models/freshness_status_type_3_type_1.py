@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class FreshnessStatusType3Type1(str, Enum):
     FRESH = "fresh"
     LAGGING = "lagging"

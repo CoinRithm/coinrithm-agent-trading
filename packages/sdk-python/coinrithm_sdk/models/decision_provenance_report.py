@@ -1,32 +1,25 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
 from ..models.decision_provenance_report_runtime_kind import DecisionProvenanceReportRuntimeKind
 from ..types import UNSET, Unset
-from typing import cast
 
 if TYPE_CHECKING:
-  from ..models.decision_provenance_report_evidence_ref import DecisionProvenanceReportEvidenceRef
-  from ..models.decision_provenance_report_skill_versions import DecisionProvenanceReportSkillVersions
-
-
-
+    from ..models.decision_provenance_report_evidence_ref import DecisionProvenanceReportEvidenceRef
+    from ..models.decision_provenance_report_skill_versions import DecisionProvenanceReportSkillVersions
 
 
 T = TypeVar("T", bound="DecisionProvenanceReport")
 
 
-
 @_attrs_define
 class DecisionProvenanceReport:
-    """ OPTIONAL self-reported provenance you attach to a pm/open or pm/opportunity
+    """OPTIONAL self-reported provenance you attach to a pm/open or pm/opportunity
     so the durable artifact can record WHAT RAN to produce the decision. Every
     field here is SELF-REPORTED and carries NO trust on its own. Sending ANY
     provenance block (even `{}`) makes the resulting artifact schemaVersion 2 and
@@ -51,7 +44,7 @@ class DecisionProvenanceReport:
             model_name (str | Unset):
             evidence_ref (DecisionProvenanceReportEvidenceRef | Unset): Pointers to the observation evidence (never the
                 evidence itself).
-     """
+    """
 
     runtime_kind: DecisionProvenanceReportRuntimeKind | Unset = UNSET
     package_version: str | Unset = UNSET
@@ -65,17 +58,10 @@ class DecisionProvenanceReport:
     evidence_ref: DecisionProvenanceReportEvidenceRef | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
-        from ..models.decision_provenance_report_evidence_ref import DecisionProvenanceReportEvidenceRef
-        from ..models.decision_provenance_report_skill_versions import DecisionProvenanceReportSkillVersions
         runtime_kind: str | Unset = UNSET
         if not isinstance(self.runtime_kind, Unset):
             runtime_kind = self.runtime_kind.value
-
 
         package_version = self.package_version
 
@@ -99,11 +85,9 @@ class DecisionProvenanceReport:
         if not isinstance(self.evidence_ref, Unset):
             evidence_ref = self.evidence_ref.to_dict()
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if runtime_kind is not UNSET:
             field_dict["runtimeKind"] = runtime_kind
         if package_version is not UNSET:
@@ -127,22 +111,18 @@ class DecisionProvenanceReport:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.decision_provenance_report_evidence_ref import DecisionProvenanceReportEvidenceRef
         from ..models.decision_provenance_report_skill_versions import DecisionProvenanceReportSkillVersions
+
         d = dict(src_dict)
         _runtime_kind = d.pop("runtimeKind", UNSET)
         runtime_kind: DecisionProvenanceReportRuntimeKind | Unset
-        if isinstance(_runtime_kind,  Unset):
+        if isinstance(_runtime_kind, Unset):
             runtime_kind = UNSET
         else:
             runtime_kind = DecisionProvenanceReportRuntimeKind(_runtime_kind)
-
-
-
 
         package_version = d.pop("packageVersion", UNSET)
 
@@ -152,13 +132,10 @@ class DecisionProvenanceReport:
 
         _skill_versions = d.pop("skillVersions", UNSET)
         skill_versions: DecisionProvenanceReportSkillVersions | Unset
-        if isinstance(_skill_versions,  Unset):
+        if isinstance(_skill_versions, Unset):
             skill_versions = UNSET
         else:
             skill_versions = DecisionProvenanceReportSkillVersions.from_dict(_skill_versions)
-
-
-
 
         prompt_hash = d.pop("promptHash", UNSET)
 
@@ -170,13 +147,10 @@ class DecisionProvenanceReport:
 
         _evidence_ref = d.pop("evidenceRef", UNSET)
         evidence_ref: DecisionProvenanceReportEvidenceRef | Unset
-        if isinstance(_evidence_ref,  Unset):
+        if isinstance(_evidence_ref, Unset):
             evidence_ref = UNSET
         else:
             evidence_ref = DecisionProvenanceReportEvidenceRef.from_dict(_evidence_ref)
-
-
-
 
         decision_provenance_report = cls(
             runtime_kind=runtime_kind,
@@ -190,7 +164,6 @@ class DecisionProvenanceReport:
             model_name=model_name,
             evidence_ref=evidence_ref,
         )
-
 
         decision_provenance_report.additional_properties = d
         return decision_provenance_report

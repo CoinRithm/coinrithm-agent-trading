@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class PmOpportunityResponseResult(str, Enum):
     ABSTAINED = "abstained"
     QUOTED = "quoted"

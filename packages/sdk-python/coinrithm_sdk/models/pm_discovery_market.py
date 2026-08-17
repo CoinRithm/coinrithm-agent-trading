@@ -1,67 +1,59 @@
 from __future__ import annotations
 
+import datetime
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
 from ..models.pm_discovery_market_source import PmDiscoveryMarketSource
 from ..types import UNSET, Unset
-from dateutil.parser import isoparse
-from typing import cast
-import datetime
 
 if TYPE_CHECKING:
-  from ..models.decision_support import DecisionSupport
-  from ..models.freshness import Freshness
-  from ..models.pm_discovery_outcome import PmDiscoveryOutcome
-  from ..models.pm_discovery_quote_hint import PmDiscoveryQuoteHint
-  from ..models.pm_quality import PmQuality
-
-
-
+    from ..models.decision_support import DecisionSupport
+    from ..models.freshness import Freshness
+    from ..models.pm_discovery_outcome import PmDiscoveryOutcome
+    from ..models.pm_discovery_quote_hint import PmDiscoveryQuoteHint
+    from ..models.pm_quality import PmQuality
 
 
 T = TypeVar("T", bound="PmDiscoveryMarket")
 
 
-
 @_attrs_define
 class PmDiscoveryMarket:
-    """ 
-        Attributes:
-            source (PmDiscoveryMarketSource | Unset):
-            slug (str | Unset):
-            title (str | Unset):
-            end_date (datetime.datetime | None | Unset):
-            freshness (Freshness | Unset): Data-freshness descriptor. Futures + spot use ageSeconds; PM uses
-                ageMinutes. `status` is a freshness label; `basis` (PM only) names which
-                timestamp the age was measured against.
-            pinned (bool | Unset): True when the market is effectively decided (leading outcome at/
-                above the pinned-probability threshold). Deranked in this listing —
-                agents can skip these without recomputing.
-            eligible (bool | None | Unset): Can an agent open this binary book right now (shared mock-entry
-                gate)? null when scalars are unavailable. Eligible markets are
-                listed first.
-            eligible_block_reasons (list[str] | Unset): Structured reasons the market is not openable (e.g. multi-outcome /
-                non-binary / settled). Empty when eligible or unknown.
-            quality (PmQuality | Unset): Persisted quality assessment from CoinRithm's truth engine — the
-                aggregator's proven, versioned verdict for this event (one current
-                state per event, updated when facts change). Markets with critical
-                failures remain visible everywhere; `decisionEligible: false` means
-                new paper opens are BLOCKED (pm/open returns 422 with these stored
-                reasons) and alerts are suppressed. Omitted entirely when no
-                assessment row exists yet (brand-new events) — never fabricated.
-            outcomes (list[PmDiscoveryOutcome] | Unset):
-            volume24h (float | Unset):
-            liquidity (float | Unset):
-            spread (float | None | Unset):
-            decision_support (DecisionSupport | None | Unset):
-            quote_hint (PmDiscoveryQuoteHint | Unset):
-     """
+    """
+    Attributes:
+        source (PmDiscoveryMarketSource | Unset):
+        slug (str | Unset):
+        title (str | Unset):
+        end_date (datetime.datetime | None | Unset):
+        freshness (Freshness | Unset): Data-freshness descriptor. Futures + spot use ageSeconds; PM uses
+            ageMinutes. `status` is a freshness label; `basis` (PM only) names which
+            timestamp the age was measured against.
+        pinned (bool | Unset): True when the market is effectively decided (leading outcome at/
+            above the pinned-probability threshold). Deranked in this listing —
+            agents can skip these without recomputing.
+        eligible (bool | None | Unset): Can an agent open this binary book right now (shared mock-entry
+            gate)? null when scalars are unavailable. Eligible markets are
+            listed first.
+        eligible_block_reasons (list[str] | Unset): Structured reasons the market is not openable (e.g. multi-outcome /
+            non-binary / settled). Empty when eligible or unknown.
+        quality (PmQuality | Unset): Persisted quality assessment from CoinRithm's truth engine — the
+            aggregator's proven, versioned verdict for this event (one current
+            state per event, updated when facts change). Markets with critical
+            failures remain visible everywhere; `decisionEligible: false` means
+            new paper opens are BLOCKED (pm/open returns 422 with these stored
+            reasons) and alerts are suppressed. Omitted entirely when no
+            assessment row exists yet (brand-new events) — never fabricated.
+        outcomes (list[PmDiscoveryOutcome] | Unset):
+        volume24h (float | Unset):
+        liquidity (float | Unset):
+        spread (float | None | Unset):
+        decision_support (DecisionSupport | None | Unset):
+        quote_hint (PmDiscoveryQuoteHint | Unset):
+    """
 
     source: PmDiscoveryMarketSource | Unset = UNSET
     slug: str | Unset = UNSET
@@ -80,20 +72,12 @@ class PmDiscoveryMarket:
     quote_hint: PmDiscoveryQuoteHint | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
         from ..models.decision_support import DecisionSupport
-        from ..models.freshness import Freshness
-        from ..models.pm_discovery_outcome import PmDiscoveryOutcome
-        from ..models.pm_discovery_quote_hint import PmDiscoveryQuoteHint
-        from ..models.pm_quality import PmQuality
+
         source: str | Unset = UNSET
         if not isinstance(self.source, Unset):
             source = self.source.value
-
 
         slug = self.slug
 
@@ -123,8 +107,6 @@ class PmDiscoveryMarket:
         if not isinstance(self.eligible_block_reasons, Unset):
             eligible_block_reasons = self.eligible_block_reasons
 
-
-
         quality: dict[str, Any] | Unset = UNSET
         if not isinstance(self.quality, Unset):
             quality = self.quality.to_dict()
@@ -135,8 +117,6 @@ class PmDiscoveryMarket:
             for outcomes_item_data in self.outcomes:
                 outcomes_item = outcomes_item_data.to_dict()
                 outcomes.append(outcomes_item)
-
-
 
         volume24h = self.volume24h
 
@@ -160,11 +140,9 @@ class PmDiscoveryMarket:
         if not isinstance(self.quote_hint, Unset):
             quote_hint = self.quote_hint.to_dict()
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if source is not UNSET:
             field_dict["source"] = source
         if slug is not UNSET:
@@ -198,8 +176,6 @@ class PmDiscoveryMarket:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.decision_support import DecisionSupport
@@ -207,16 +183,14 @@ class PmDiscoveryMarket:
         from ..models.pm_discovery_outcome import PmDiscoveryOutcome
         from ..models.pm_discovery_quote_hint import PmDiscoveryQuoteHint
         from ..models.pm_quality import PmQuality
+
         d = dict(src_dict)
         _source = d.pop("source", UNSET)
         source: PmDiscoveryMarketSource | Unset
-        if isinstance(_source,  Unset):
+        if isinstance(_source, Unset):
             source = UNSET
         else:
             source = PmDiscoveryMarketSource(_source)
-
-
-
 
         slug = d.pop("slug", UNSET)
 
@@ -230,9 +204,7 @@ class PmDiscoveryMarket:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                end_date_type_0 = isoparse(data)
-
-
+                end_date_type_0 = datetime.datetime.fromisoformat(data)
 
                 return end_date_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
@@ -241,16 +213,12 @@ class PmDiscoveryMarket:
 
         end_date = _parse_end_date(d.pop("endDate", UNSET))
 
-
         _freshness = d.pop("freshness", UNSET)
         freshness: Freshness | Unset
-        if isinstance(_freshness,  Unset):
+        if isinstance(_freshness, Unset):
             freshness = UNSET
         else:
             freshness = Freshness.from_dict(_freshness)
-
-
-
 
         pinned = d.pop("pinned", UNSET)
 
@@ -263,19 +231,14 @@ class PmDiscoveryMarket:
 
         eligible = _parse_eligible(d.pop("eligible", UNSET))
 
-
         eligible_block_reasons = cast(list[str], d.pop("eligibleBlockReasons", UNSET))
-
 
         _quality = d.pop("quality", UNSET)
         quality: PmQuality | Unset
-        if isinstance(_quality,  Unset):
+        if isinstance(_quality, Unset):
             quality = UNSET
         else:
             quality = PmQuality.from_dict(_quality)
-
-
-
 
         _outcomes = d.pop("outcomes", UNSET)
         outcomes: list[PmDiscoveryOutcome] | Unset = UNSET
@@ -284,10 +247,7 @@ class PmDiscoveryMarket:
             for outcomes_item_data in _outcomes:
                 outcomes_item = PmDiscoveryOutcome.from_dict(outcomes_item_data)
 
-
-
                 outcomes.append(outcomes_item)
-
 
         volume24h = d.pop("volume24h", UNSET)
 
@@ -302,7 +262,6 @@ class PmDiscoveryMarket:
 
         spread = _parse_spread(d.pop("spread", UNSET))
 
-
         def _parse_decision_support(data: object) -> DecisionSupport | None | Unset:
             if data is None:
                 return data
@@ -313,8 +272,6 @@ class PmDiscoveryMarket:
                     raise TypeError()
                 decision_support_type_0 = DecisionSupport.from_dict(data)
 
-
-
                 return decision_support_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
@@ -322,16 +279,12 @@ class PmDiscoveryMarket:
 
         decision_support = _parse_decision_support(d.pop("decisionSupport", UNSET))
 
-
         _quote_hint = d.pop("quoteHint", UNSET)
         quote_hint: PmDiscoveryQuoteHint | Unset
-        if isinstance(_quote_hint,  Unset):
+        if isinstance(_quote_hint, Unset):
             quote_hint = UNSET
         else:
             quote_hint = PmDiscoveryQuoteHint.from_dict(_quote_hint)
-
-
-
 
         pm_discovery_market = cls(
             source=source,
@@ -350,7 +303,6 @@ class PmDiscoveryMarket:
             decision_support=decision_support,
             quote_hint=quote_hint,
         )
-
 
         pm_discovery_market.additional_properties = d
         return pm_discovery_market

@@ -1,21 +1,15 @@
+import datetime
 from http import HTTPStatus
-from typing import Any, cast
-from urllib.parse import quote
+from typing import Any
 
 import httpx
 
-from ...client import AuthenticatedClient, Client
-from ...types import Response, UNSET
 from ... import errors
-
+from ...client import AuthenticatedClient, Client
 from ...models.error import Error
 from ...models.get_my_trades_response_200 import GetMyTradesResponse200
 from ...models.get_my_trades_venue import GetMyTradesVenue
-from ...types import UNSET, Unset
-from dateutil.parser import isoparse
-from typing import cast
-import datetime
-
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
@@ -23,11 +17,7 @@ def _get_kwargs(
     venue: GetMyTradesVenue | Unset = GetMyTradesVenue.ALL,
     limit: int | Unset = 25,
     updated_since: datetime.datetime | Unset = UNSET,
-
 ) -> dict[str, Any]:
-    
-
-    
 
     params: dict[str, Any] = {}
 
@@ -44,9 +34,7 @@ def _get_kwargs(
         json_updated_since = updated_since.isoformat()
     params["updatedSince"] = json_updated_since
 
-
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
-
 
     _kwargs: dict[str, Any] = {
         "method": "get",
@@ -54,37 +42,29 @@ def _get_kwargs(
         "params": params,
     }
 
-
     return _kwargs
 
 
-
-def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Error | GetMyTradesResponse200 | None:
+def _parse_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Error | GetMyTradesResponse200 | None:
     if response.status_code == 200:
         response_200 = GetMyTradesResponse200.from_dict(response.json())
-
-
 
         return response_200
 
     if response.status_code == 401:
         response_401 = Error.from_dict(response.json())
 
-
-
         return response_401
 
     if response.status_code == 403:
         response_403 = Error.from_dict(response.json())
 
-
-
         return response_403
 
     if response.status_code == 429:
         response_429 = Error.from_dict(response.json())
-
-
 
         return response_429
 
@@ -94,7 +74,9 @@ def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Res
         return None
 
 
-def _build_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Response[Error | GetMyTradesResponse200]:
+def _build_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[Error | GetMyTradesResponse200]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -109,9 +91,8 @@ def sync_detailed(
     venue: GetMyTradesVenue | Unset = GetMyTradesVenue.ALL,
     limit: int | Unset = 25,
     updated_since: datetime.datetime | Unset = UNSET,
-
 ) -> Response[Error | GetMyTradesResponse200]:
-    """ Unified realized-PnL trade log
+    """Unified realized-PnL trade log
 
      CLOSED trades across all venues (spot fills, closed/liquidated futures,
     settled prediction-markets) merged into one realized-PnL log, most-recent
@@ -134,14 +115,12 @@ def sync_detailed(
 
     Returns:
         Response[Error | GetMyTradesResponse200]
-     """
-
+    """
 
     kwargs = _get_kwargs(
         venue=venue,
-limit=limit,
-updated_since=updated_since,
-
+        limit=limit,
+        updated_since=updated_since,
     )
 
     response = client.get_httpx_client().request(
@@ -150,15 +129,15 @@ updated_since=updated_since,
 
     return _build_response(client=client, response=response)
 
+
 def sync(
     *,
     client: AuthenticatedClient | Client,
     venue: GetMyTradesVenue | Unset = GetMyTradesVenue.ALL,
     limit: int | Unset = 25,
     updated_since: datetime.datetime | Unset = UNSET,
-
 ) -> Error | GetMyTradesResponse200 | None:
-    """ Unified realized-PnL trade log
+    """Unified realized-PnL trade log
 
      CLOSED trades across all venues (spot fills, closed/liquidated futures,
     settled prediction-markets) merged into one realized-PnL log, most-recent
@@ -181,16 +160,15 @@ def sync(
 
     Returns:
         Error | GetMyTradesResponse200
-     """
-
+    """
 
     return sync_detailed(
         client=client,
-venue=venue,
-limit=limit,
-updated_since=updated_since,
-
+        venue=venue,
+        limit=limit,
+        updated_since=updated_since,
     ).parsed
+
 
 async def asyncio_detailed(
     *,
@@ -198,9 +176,8 @@ async def asyncio_detailed(
     venue: GetMyTradesVenue | Unset = GetMyTradesVenue.ALL,
     limit: int | Unset = 25,
     updated_since: datetime.datetime | Unset = UNSET,
-
 ) -> Response[Error | GetMyTradesResponse200]:
-    """ Unified realized-PnL trade log
+    """Unified realized-PnL trade log
 
      CLOSED trades across all venues (spot fills, closed/liquidated futures,
     settled prediction-markets) merged into one realized-PnL log, most-recent
@@ -223,21 +200,18 @@ async def asyncio_detailed(
 
     Returns:
         Response[Error | GetMyTradesResponse200]
-     """
-
+    """
 
     kwargs = _get_kwargs(
         venue=venue,
-limit=limit,
-updated_since=updated_since,
-
+        limit=limit,
+        updated_since=updated_since,
     )
 
-    response = await client.get_async_httpx_client().request(
-        **kwargs
-    )
+    response = await client.get_async_httpx_client().request(**kwargs)
 
     return _build_response(client=client, response=response)
+
 
 async def asyncio(
     *,
@@ -245,9 +219,8 @@ async def asyncio(
     venue: GetMyTradesVenue | Unset = GetMyTradesVenue.ALL,
     limit: int | Unset = 25,
     updated_since: datetime.datetime | Unset = UNSET,
-
 ) -> Error | GetMyTradesResponse200 | None:
-    """ Unified realized-PnL trade log
+    """Unified realized-PnL trade log
 
      CLOSED trades across all venues (spot fills, closed/liquidated futures,
     settled prediction-markets) merged into one realized-PnL log, most-recent
@@ -270,13 +243,13 @@ async def asyncio(
 
     Returns:
         Error | GetMyTradesResponse200
-     """
+    """
 
-
-    return (await asyncio_detailed(
-        client=client,
-venue=venue,
-limit=limit,
-updated_since=updated_since,
-
-    )).parsed
+    return (
+        await asyncio_detailed(
+            client=client,
+            venue=venue,
+            limit=limit,
+            updated_since=updated_since,
+        )
+    ).parsed

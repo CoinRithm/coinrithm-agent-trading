@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class ArenaDecisionOpportunityKind(str, Enum):
     ABSTAINED = "abstained"
     EXECUTION_REJECTED = "execution_rejected"

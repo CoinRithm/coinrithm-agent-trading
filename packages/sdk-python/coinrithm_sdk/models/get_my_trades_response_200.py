@@ -1,40 +1,32 @@
 from __future__ import annotations
 
+import datetime
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from dateutil.parser import isoparse
-from typing import cast
-import datetime
-
 if TYPE_CHECKING:
-  from ..models.get_my_trades_response_200_trades_item import GetMyTradesResponse200TradesItem
-
-
-
+    from ..models.get_my_trades_response_200_trades_item import GetMyTradesResponse200TradesItem
 
 
 T = TypeVar("T", bound="GetMyTradesResponse200")
 
 
-
 @_attrs_define
 class GetMyTradesResponse200:
-    """ 
-        Attributes:
-            wallet_id (int | None | Unset):
-            venue (str | Unset):
-            count (int | Unset):
-            updated_since (datetime.datetime | None | Unset):
-            as_of (datetime.datetime | Unset): Use as the next updatedSince cursor.
-            trades (list[GetMyTradesResponse200TradesItem] | Unset):
-     """
+    """
+    Attributes:
+        wallet_id (int | None | Unset):
+        venue (str | Unset):
+        count (int | Unset):
+        updated_since (datetime.datetime | None | Unset):
+        as_of (datetime.datetime | Unset): Use as the next updatedSince cursor.
+        trades (list[GetMyTradesResponse200TradesItem] | Unset):
+    """
 
     wallet_id: int | None | Unset = UNSET
     venue: str | Unset = UNSET
@@ -44,12 +36,7 @@ class GetMyTradesResponse200:
     trades: list[GetMyTradesResponse200TradesItem] | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
-        from ..models.get_my_trades_response_200_trades_item import GetMyTradesResponse200TradesItem
         wallet_id: int | None | Unset
         if isinstance(self.wallet_id, Unset):
             wallet_id = UNSET
@@ -79,13 +66,9 @@ class GetMyTradesResponse200:
                 trades_item = trades_item_data.to_dict()
                 trades.append(trades_item)
 
-
-
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if wallet_id is not UNSET:
             field_dict["walletId"] = wallet_id
         if venue is not UNSET:
@@ -101,12 +84,12 @@ class GetMyTradesResponse200:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.get_my_trades_response_200_trades_item import GetMyTradesResponse200TradesItem
+
         d = dict(src_dict)
+
         def _parse_wallet_id(data: object) -> int | None | Unset:
             if data is None:
                 return data
@@ -115,7 +98,6 @@ class GetMyTradesResponse200:
             return cast(int | None | Unset, data)
 
         wallet_id = _parse_wallet_id(d.pop("walletId", UNSET))
-
 
         venue = d.pop("venue", UNSET)
 
@@ -129,9 +111,7 @@ class GetMyTradesResponse200:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                updated_since_type_0 = isoparse(data)
-
-
+                updated_since_type_0 = datetime.datetime.fromisoformat(data)
 
                 return updated_since_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
@@ -140,16 +120,12 @@ class GetMyTradesResponse200:
 
         updated_since = _parse_updated_since(d.pop("updatedSince", UNSET))
 
-
         _as_of = d.pop("asOf", UNSET)
         as_of: datetime.datetime | Unset
-        if isinstance(_as_of,  Unset):
+        if isinstance(_as_of, Unset):
             as_of = UNSET
         else:
-            as_of = isoparse(_as_of)
-
-
-
+            as_of = datetime.datetime.fromisoformat(_as_of)
 
         _trades = d.pop("trades", UNSET)
         trades: list[GetMyTradesResponse200TradesItem] | Unset = UNSET
@@ -158,10 +134,7 @@ class GetMyTradesResponse200:
             for trades_item_data in _trades:
                 trades_item = GetMyTradesResponse200TradesItem.from_dict(trades_item_data)
 
-
-
                 trades.append(trades_item)
-
 
         get_my_trades_response_200 = cls(
             wallet_id=wallet_id,
@@ -171,7 +144,6 @@ class GetMyTradesResponse200:
             as_of=as_of,
             trades=trades,
         )
-
 
         get_my_trades_response_200.additional_properties = d
         return get_my_trades_response_200

@@ -1,34 +1,24 @@
 from __future__ import annotations
 
+import datetime
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
-
-from ..types import UNSET, Unset
 
 from ..models.freshness_basis import FreshnessBasis
 from ..models.freshness_status_type_1 import FreshnessStatusType1
 from ..models.freshness_status_type_2_type_1 import FreshnessStatusType2Type1
 from ..models.freshness_status_type_3_type_1 import FreshnessStatusType3Type1
 from ..types import UNSET, Unset
-from dateutil.parser import isoparse
-from typing import cast
-import datetime
-
-
-
-
-
 
 T = TypeVar("T", bound="Freshness")
 
 
-
 @_attrs_define
 class Freshness:
-    """ Data-freshness descriptor. Futures + spot use ageSeconds; PM uses
+    """Data-freshness descriptor. Futures + spot use ageSeconds; PM uses
     ageMinutes. `status` is a freshness label; `basis` (PM only) names which
     timestamp the age was measured against.
 
@@ -40,7 +30,7 @@ class Freshness:
                 lagging (PM only) | stale | unknown. PM lagging>=45m &
                 stale>=2h; spot/futures stale>120s.
             basis (FreshnessBasis | Unset): PM only — which timestamp the age was measured against.
-     """
+    """
 
     as_of: datetime.datetime | None | Unset = UNSET
     age_seconds: float | None | Unset = UNSET
@@ -48,10 +38,6 @@ class Freshness:
     status: FreshnessStatusType1 | FreshnessStatusType2Type1 | FreshnessStatusType3Type1 | None | Unset = UNSET
     basis: FreshnessBasis | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         as_of: None | str | Unset
@@ -90,12 +76,9 @@ class Freshness:
         if not isinstance(self.basis, Unset):
             basis = self.basis.value
 
-
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if as_of is not UNSET:
             field_dict["asOf"] = as_of
         if age_seconds is not UNSET:
@@ -109,11 +92,10 @@ class Freshness:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
+
         def _parse_as_of(data: object) -> datetime.datetime | None | Unset:
             if data is None:
                 return data
@@ -122,9 +104,7 @@ class Freshness:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                as_of_type_0 = isoparse(data)
-
-
+                as_of_type_0 = datetime.datetime.fromisoformat(data)
 
                 return as_of_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
@@ -132,7 +112,6 @@ class Freshness:
             return cast(datetime.datetime | None | Unset, data)
 
         as_of = _parse_as_of(d.pop("asOf", UNSET))
-
 
         def _parse_age_seconds(data: object) -> float | None | Unset:
             if data is None:
@@ -143,7 +122,6 @@ class Freshness:
 
         age_seconds = _parse_age_seconds(d.pop("ageSeconds", UNSET))
 
-
         def _parse_age_minutes(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -153,8 +131,9 @@ class Freshness:
 
         age_minutes = _parse_age_minutes(d.pop("ageMinutes", UNSET))
 
-
-        def _parse_status(data: object) -> FreshnessStatusType1 | FreshnessStatusType2Type1 | FreshnessStatusType3Type1 | None | Unset:
+        def _parse_status(
+            data: object,
+        ) -> FreshnessStatusType1 | FreshnessStatusType2Type1 | FreshnessStatusType3Type1 | None | Unset:
             if data is None:
                 return data
             if isinstance(data, Unset):
@@ -164,8 +143,6 @@ class Freshness:
                     raise TypeError()
                 status_type_1 = FreshnessStatusType1(data)
 
-
-
                 return status_type_1
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
@@ -173,8 +150,6 @@ class Freshness:
                 if not isinstance(data, str):
                     raise TypeError()
                 status_type_2_type_1 = FreshnessStatusType2Type1(data)
-
-
 
                 return status_type_2_type_1
             except (TypeError, ValueError, AttributeError, KeyError):
@@ -184,25 +159,21 @@ class Freshness:
                     raise TypeError()
                 status_type_3_type_1 = FreshnessStatusType3Type1(data)
 
-
-
                 return status_type_3_type_1
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
-            return cast(FreshnessStatusType1 | FreshnessStatusType2Type1 | FreshnessStatusType3Type1 | None | Unset, data)
+            return cast(
+                FreshnessStatusType1 | FreshnessStatusType2Type1 | FreshnessStatusType3Type1 | None | Unset, data
+            )
 
         status = _parse_status(d.pop("status", UNSET))
 
-
         _basis = d.pop("basis", UNSET)
         basis: FreshnessBasis | Unset
-        if isinstance(_basis,  Unset):
+        if isinstance(_basis, Unset):
             basis = UNSET
         else:
             basis = FreshnessBasis(_basis)
-
-
-
 
         freshness = cls(
             as_of=as_of,
@@ -211,7 +182,6 @@ class Freshness:
             status=status,
             basis=basis,
         )
-
 
         freshness.additional_properties = d
         return freshness

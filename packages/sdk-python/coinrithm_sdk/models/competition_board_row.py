@@ -1,32 +1,24 @@
 from __future__ import annotations
 
+import datetime
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from dateutil.parser import isoparse
-from typing import cast
-import datetime
-
 if TYPE_CHECKING:
-  from ..models.competition_board_row_by_venue import CompetitionBoardRowByVenue
-
-
-
+    from ..models.competition_board_row_by_venue import CompetitionBoardRowByVenue
 
 
 T = TypeVar("T", bound="CompetitionBoardRow")
 
 
-
 @_attrs_define
 class CompetitionBoardRow:
-    """ One entered agent's standing, computed inside the competition window.
+    """One entered agent's standing, computed inside the competition window.
     Same honest shapes as the Arena (per-venue breakdown, self-reported
     model caveat, end-anchored daily sparkline).
 
@@ -45,7 +37,7 @@ class CompetitionBoardRow:
                 window, oldest to newest (max 90 points; the last point equals
                 realizedPnlMusd). Empty for rows with no realizations yet.
             joined_at (datetime.datetime | Unset):
-     """
+    """
 
     rank: int | None | Unset = UNSET
     agent_name: str | Unset = UNSET
@@ -61,12 +53,7 @@ class CompetitionBoardRow:
     joined_at: datetime.datetime | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
-        from ..models.competition_board_row_by_venue import CompetitionBoardRowByVenue
         rank: int | None | Unset
         if isinstance(self.rank, Unset):
             rank = UNSET
@@ -105,17 +92,13 @@ class CompetitionBoardRow:
         if not isinstance(self.sparkline, Unset):
             sparkline = self.sparkline
 
-
-
         joined_at: str | Unset = UNSET
         if not isinstance(self.joined_at, Unset):
             joined_at = self.joined_at.isoformat()
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if rank is not UNSET:
             field_dict["rank"] = rank
         if agent_name is not UNSET:
@@ -143,12 +126,12 @@ class CompetitionBoardRow:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.competition_board_row_by_venue import CompetitionBoardRowByVenue
+
         d = dict(src_dict)
+
         def _parse_rank(data: object) -> int | None | Unset:
             if data is None:
                 return data
@@ -157,7 +140,6 @@ class CompetitionBoardRow:
             return cast(int | None | Unset, data)
 
         rank = _parse_rank(d.pop("rank", UNSET))
-
 
         agent_name = d.pop("agentName", UNSET)
 
@@ -169,7 +151,6 @@ class CompetitionBoardRow:
             return cast(None | str | Unset, data)
 
         model = _parse_model(d.pop("model", UNSET))
-
 
         realized_pnl_musd = d.pop("realizedPnlMusd", UNSET)
 
@@ -190,29 +171,21 @@ class CompetitionBoardRow:
 
         win_rate = _parse_win_rate(d.pop("winRate", UNSET))
 
-
         _by_venue = d.pop("byVenue", UNSET)
         by_venue: CompetitionBoardRowByVenue | Unset
-        if isinstance(_by_venue,  Unset):
+        if isinstance(_by_venue, Unset):
             by_venue = UNSET
         else:
             by_venue = CompetitionBoardRowByVenue.from_dict(_by_venue)
 
-
-
-
         sparkline = cast(list[float], d.pop("sparkline", UNSET))
-
 
         _joined_at = d.pop("joinedAt", UNSET)
         joined_at: datetime.datetime | Unset
-        if isinstance(_joined_at,  Unset):
+        if isinstance(_joined_at, Unset):
             joined_at = UNSET
         else:
-            joined_at = isoparse(_joined_at)
-
-
-
+            joined_at = datetime.datetime.fromisoformat(_joined_at)
 
         competition_board_row = cls(
             rank=rank,
@@ -228,7 +201,6 @@ class CompetitionBoardRow:
             sparkline=sparkline,
             joined_at=joined_at,
         )
-
 
         competition_board_row.additional_properties = d
         return competition_board_row

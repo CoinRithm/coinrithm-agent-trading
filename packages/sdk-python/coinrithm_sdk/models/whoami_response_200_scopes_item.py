@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class WhoamiResponse200ScopesItem(str, Enum):
     READ = "read"
     TRADEFUTURES = "trade:futures"

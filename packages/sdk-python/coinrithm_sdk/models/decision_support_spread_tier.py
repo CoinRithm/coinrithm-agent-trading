@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class DecisionSupportSpreadTier(str, Enum):
     MODERATE = "moderate"
     TIGHT = "tight"

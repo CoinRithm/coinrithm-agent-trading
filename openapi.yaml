@@ -3284,6 +3284,7 @@ components:
           additionalProperties: true
         responseSummary:
           type: [object, array, string, number, boolean, "null"]
+          items: {}
         blockReasons:
           type: array
           items: { type: string }
@@ -5013,6 +5014,7 @@ components:
             Snapshot of the event's outcomes (names + probabilities) frozen at
             entry — the basis the position was priced against.
           type: [object, array, "null"]
+          items: {}
         freshnessAtEntry: { $ref: "#/components/schemas/Freshness" }
         eventStatusAtEntry:
           type: [string, "null"]

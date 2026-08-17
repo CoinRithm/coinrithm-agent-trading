@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class FuturesPositionStatus(str, Enum):
     CLOSED = "closed"
     LIQUIDATED = "liquidated"

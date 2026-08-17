@@ -1,35 +1,26 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from typing import cast
-
-
-
-
-
-
 T = TypeVar("T", bound="GetMarketContextResponse200PriceType0")
-
 
 
 @_attrs_define
 class GetMarketContextResponse200PriceType0:
-    """ 
-        Attributes:
-            usd (float | Unset):
-            change1h (float | None | Unset):
-            change24h (float | None | Unset):
-            change7d (float | None | Unset):
-            market_cap_usd (float | None | Unset):
-     """
+    """
+    Attributes:
+        usd (float | Unset):
+        change1h (float | None | Unset):
+        change24h (float | None | Unset):
+        change7d (float | None | Unset):
+        market_cap_usd (float | None | Unset):
+    """
 
     usd: float | Unset = UNSET
     change1h: float | None | Unset = UNSET
@@ -37,10 +28,6 @@ class GetMarketContextResponse200PriceType0:
     change7d: float | None | Unset = UNSET
     market_cap_usd: float | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         usd = self.usd
@@ -69,11 +56,9 @@ class GetMarketContextResponse200PriceType0:
         else:
             market_cap_usd = self.market_cap_usd
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if usd is not UNSET:
             field_dict["usd"] = usd
         if change1h is not UNSET:
@@ -86,8 +71,6 @@ class GetMarketContextResponse200PriceType0:
             field_dict["marketCapUsd"] = market_cap_usd
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -103,7 +86,6 @@ class GetMarketContextResponse200PriceType0:
 
         change1h = _parse_change1h(d.pop("change1h", UNSET))
 
-
         def _parse_change24h(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -112,7 +94,6 @@ class GetMarketContextResponse200PriceType0:
             return cast(float | None | Unset, data)
 
         change24h = _parse_change24h(d.pop("change24h", UNSET))
-
 
         def _parse_change7d(data: object) -> float | None | Unset:
             if data is None:
@@ -123,7 +104,6 @@ class GetMarketContextResponse200PriceType0:
 
         change7d = _parse_change7d(d.pop("change7d", UNSET))
 
-
         def _parse_market_cap_usd(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -133,7 +113,6 @@ class GetMarketContextResponse200PriceType0:
 
         market_cap_usd = _parse_market_cap_usd(d.pop("marketCapUsd", UNSET))
 
-
         get_market_context_response_200_price_type_0 = cls(
             usd=usd,
             change1h=change1h,
@@ -141,7 +120,6 @@ class GetMarketContextResponse200PriceType0:
             change7d=change7d,
             market_cap_usd=market_cap_usd,
         )
-
 
         get_market_context_response_200_price_type_0.additional_properties = d
         return get_market_context_response_200_price_type_0

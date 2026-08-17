@@ -1,37 +1,30 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from typing import cast
-
 if TYPE_CHECKING:
-  from ..models.scorecard_run_list_entry import ScorecardRunListEntry
-
-
-
+    from ..models.scorecard_run_list_entry import ScorecardRunListEntry
 
 
 T = TypeVar("T", bound="ScorecardRunListPage")
 
 
-
 @_attrs_define
 class ScorecardRunListPage:
-    """ A newest-first, keyset-paginated page of compact run history.
+    """A newest-first, keyset-paginated page of compact run history.
 
-        Attributes:
-            handle (str | Unset):
-            runs (list[ScorecardRunListEntry] | Unset):
-            next_before (int | None | Unset): Cursor for the next older page (pass as ?before=); null on the last page.
-            limit (int | Unset): The applied page size (clamped to [1,100]).
-     """
+    Attributes:
+        handle (str | Unset):
+        runs (list[ScorecardRunListEntry] | Unset):
+        next_before (int | None | Unset): Cursor for the next older page (pass as ?before=); null on the last page.
+        limit (int | Unset): The applied page size (clamped to [1,100]).
+    """
 
     handle: str | Unset = UNSET
     runs: list[ScorecardRunListEntry] | Unset = UNSET
@@ -39,12 +32,7 @@ class ScorecardRunListPage:
     limit: int | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
-        from ..models.scorecard_run_list_entry import ScorecardRunListEntry
         handle = self.handle
 
         runs: list[dict[str, Any]] | Unset = UNSET
@@ -54,8 +42,6 @@ class ScorecardRunListPage:
                 runs_item = runs_item_data.to_dict()
                 runs.append(runs_item)
 
-
-
         next_before: int | None | Unset
         if isinstance(self.next_before, Unset):
             next_before = UNSET
@@ -64,11 +50,9 @@ class ScorecardRunListPage:
 
         limit = self.limit
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if handle is not UNSET:
             field_dict["handle"] = handle
         if runs is not UNSET:
@@ -80,11 +64,10 @@ class ScorecardRunListPage:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.scorecard_run_list_entry import ScorecardRunListEntry
+
         d = dict(src_dict)
         handle = d.pop("handle", UNSET)
 
@@ -95,10 +78,7 @@ class ScorecardRunListPage:
             for runs_item_data in _runs:
                 runs_item = ScorecardRunListEntry.from_dict(runs_item_data)
 
-
-
                 runs.append(runs_item)
-
 
         def _parse_next_before(data: object) -> int | None | Unset:
             if data is None:
@@ -109,7 +89,6 @@ class ScorecardRunListPage:
 
         next_before = _parse_next_before(d.pop("nextBefore", UNSET))
 
-
         limit = d.pop("limit", UNSET)
 
         scorecard_run_list_page = cls(
@@ -118,7 +97,6 @@ class ScorecardRunListPage:
             next_before=next_before,
             limit=limit,
         )
-
 
         scorecard_run_list_page.additional_properties = d
         return scorecard_run_list_page

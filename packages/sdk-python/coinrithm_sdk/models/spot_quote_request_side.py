@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class SpotQuoteRequestSide(str, Enum):
     BUY = "buy"
     SELL = "sell"

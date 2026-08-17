@@ -1,35 +1,27 @@
 from __future__ import annotations
 
+import datetime
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, TypeVar, cast
+from uuid import UUID
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
 from ..models.agent_decision_artifact_opportunity_kind import AgentDecisionArtifactOpportunityKind
 from ..types import UNSET, Unset
-from dateutil.parser import isoparse
-from typing import cast
-from uuid import UUID
-import datetime
 
 if TYPE_CHECKING:
-  from ..models.decision_provenance import DecisionProvenance
-  from ..models.entry_context import EntryContext
-
-
-
+    from ..models.decision_provenance import DecisionProvenance
+    from ..models.entry_context import EntryContext
 
 
 T = TypeVar("T", bound="AgentDecisionArtifact")
 
 
-
 @_attrs_define
 class AgentDecisionArtifact:
-    """ The immutable, independently-verifiable artifact for one decision (dataset
+    """The immutable, independently-verifiable artifact for one decision (dataset
     v2 public proof). All stored decision fields plus the schema/hash/policy
     versions and the ordered `contentHashFields` list, so a third party can
     recompute and verify `contentHash` off exactly these fields.
@@ -74,7 +66,7 @@ class AgentDecisionArtifact:
                 position settles.
             settled_at (datetime.datetime | None | Unset):
             created_at (datetime.datetime | Unset):
-     """
+    """
 
     decision_uuid: UUID | Unset = UNSET
     schema_version: int | None | Unset = UNSET
@@ -108,13 +100,10 @@ class AgentDecisionArtifact:
     created_at: datetime.datetime | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
         from ..models.decision_provenance import DecisionProvenance
         from ..models.entry_context import EntryContext
+
         decision_uuid: str | Unset = UNSET
         if not isinstance(self.decision_uuid, Unset):
             decision_uuid = str(self.decision_uuid)
@@ -135,12 +124,9 @@ class AgentDecisionArtifact:
         if not isinstance(self.content_hash_fields, Unset):
             content_hash_fields = self.content_hash_fields
 
-
-
         opportunity_kind: str | Unset = UNSET
         if not isinstance(self.opportunity_kind, Unset):
             opportunity_kind = self.opportunity_kind.value
-
 
         reason_code: None | str | Unset
         if isinstance(self.reason_code, Unset):
@@ -280,11 +266,9 @@ class AgentDecisionArtifact:
         if not isinstance(self.created_at, Unset):
             created_at = self.created_at.isoformat()
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if decision_uuid is not UNSET:
             field_dict["decisionUuid"] = decision_uuid
         if schema_version is not UNSET:
@@ -348,22 +332,18 @@ class AgentDecisionArtifact:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.decision_provenance import DecisionProvenance
         from ..models.entry_context import EntryContext
+
         d = dict(src_dict)
         _decision_uuid = d.pop("decisionUuid", UNSET)
         decision_uuid: UUID | Unset
-        if isinstance(_decision_uuid,  Unset):
+        if isinstance(_decision_uuid, Unset):
             decision_uuid = UNSET
         else:
             decision_uuid = UUID(_decision_uuid)
-
-
-
 
         def _parse_schema_version(data: object) -> int | None | Unset:
             if data is None:
@@ -374,7 +354,6 @@ class AgentDecisionArtifact:
 
         schema_version = _parse_schema_version(d.pop("schemaVersion", UNSET))
 
-
         def _parse_content_hash(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -384,19 +363,14 @@ class AgentDecisionArtifact:
 
         content_hash = _parse_content_hash(d.pop("contentHash", UNSET))
 
-
         content_hash_fields = cast(list[str], d.pop("contentHashFields", UNSET))
-
 
         _opportunity_kind = d.pop("opportunityKind", UNSET)
         opportunity_kind: AgentDecisionArtifactOpportunityKind | Unset
-        if isinstance(_opportunity_kind,  Unset):
+        if isinstance(_opportunity_kind, Unset):
             opportunity_kind = UNSET
         else:
             opportunity_kind = AgentDecisionArtifactOpportunityKind(_opportunity_kind)
-
-
-
 
         def _parse_reason_code(data: object) -> None | str | Unset:
             if data is None:
@@ -406,7 +380,6 @@ class AgentDecisionArtifact:
             return cast(None | str | Unset, data)
 
         reason_code = _parse_reason_code(d.pop("reasonCode", UNSET))
-
 
         result = d.pop("result", UNSET)
 
@@ -423,7 +396,6 @@ class AgentDecisionArtifact:
 
         api_key_id = _parse_api_key_id(d.pop("apiKeyId", UNSET))
 
-
         agent = d.pop("agent", UNSET)
 
         def _parse_agent_model(data: object) -> None | str | Unset:
@@ -435,7 +407,6 @@ class AgentDecisionArtifact:
 
         agent_model = _parse_agent_model(d.pop("agentModel", UNSET))
 
-
         def _parse_venue(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -444,7 +415,6 @@ class AgentDecisionArtifact:
             return cast(None | str | Unset, data)
 
         venue = _parse_venue(d.pop("venue", UNSET))
-
 
         def _parse_event_title(data: object) -> None | str | Unset:
             if data is None:
@@ -455,7 +425,6 @@ class AgentDecisionArtifact:
 
         event_title = _parse_event_title(d.pop("eventTitle", UNSET))
 
-
         def _parse_event_slug(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -464,7 +433,6 @@ class AgentDecisionArtifact:
             return cast(None | str | Unset, data)
 
         event_slug = _parse_event_slug(d.pop("eventSlug", UNSET))
-
 
         def _parse_event_id(data: object) -> int | None | Unset:
             if data is None:
@@ -475,7 +443,6 @@ class AgentDecisionArtifact:
 
         event_id = _parse_event_id(d.pop("eventId", UNSET))
 
-
         def _parse_side(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -484,7 +451,6 @@ class AgentDecisionArtifact:
             return cast(None | str | Unset, data)
 
         side = _parse_side(d.pop("side", UNSET))
-
 
         def _parse_chosen_outcome(data: object) -> None | str | Unset:
             if data is None:
@@ -495,7 +461,6 @@ class AgentDecisionArtifact:
 
         chosen_outcome = _parse_chosen_outcome(d.pop("chosenOutcome", UNSET))
 
-
         def _parse_agent_forecast_probability(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -504,7 +469,6 @@ class AgentDecisionArtifact:
             return cast(float | None | Unset, data)
 
         agent_forecast_probability = _parse_agent_forecast_probability(d.pop("agentForecastProbability", UNSET))
-
 
         def _parse_market_probability(data: object) -> float | None | Unset:
             if data is None:
@@ -515,7 +479,6 @@ class AgentDecisionArtifact:
 
         market_probability = _parse_market_probability(d.pop("marketProbability", UNSET))
 
-
         def _parse_reference_probability(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -524,7 +487,6 @@ class AgentDecisionArtifact:
             return cast(float | None | Unset, data)
 
         reference_probability = _parse_reference_probability(d.pop("referenceProbability", UNSET))
-
 
         def _parse_reference_venue_count(data: object) -> int | None | Unset:
             if data is None:
@@ -535,7 +497,6 @@ class AgentDecisionArtifact:
 
         reference_venue_count = _parse_reference_venue_count(d.pop("referenceVenueCount", UNSET))
 
-
         def _parse_edge_points(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -544,7 +505,6 @@ class AgentDecisionArtifact:
             return cast(float | None | Unset, data)
 
         edge_points = _parse_edge_points(d.pop("edgePoints", UNSET))
-
 
         def _parse_run_id(data: object) -> None | str | Unset:
             if data is None:
@@ -555,7 +515,6 @@ class AgentDecisionArtifact:
 
         run_id = _parse_run_id(d.pop("runId", UNSET))
 
-
         def _parse_decision_id(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -564,7 +523,6 @@ class AgentDecisionArtifact:
             return cast(None | str | Unset, data)
 
         decision_id = _parse_decision_id(d.pop("decisionId", UNSET))
-
 
         def _parse_decision_context(data: object) -> EntryContext | None | Unset:
             if data is None:
@@ -576,15 +534,12 @@ class AgentDecisionArtifact:
                     raise TypeError()
                 decision_context_type_0 = EntryContext.from_dict(data)
 
-
-
                 return decision_context_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
             return cast(EntryContext | None | Unset, data)
 
         decision_context = _parse_decision_context(d.pop("decisionContext", UNSET))
-
 
         def _parse_provenance(data: object) -> DecisionProvenance | None | Unset:
             if data is None:
@@ -596,15 +551,12 @@ class AgentDecisionArtifact:
                     raise TypeError()
                 provenance_type_0 = DecisionProvenance.from_dict(data)
 
-
-
                 return provenance_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
             return cast(DecisionProvenance | None | Unset, data)
 
         provenance = _parse_provenance(d.pop("provenance", UNSET))
-
 
         def _parse_settlement_label(data: object) -> None | str | Unset:
             if data is None:
@@ -615,7 +567,6 @@ class AgentDecisionArtifact:
 
         settlement_label = _parse_settlement_label(d.pop("settlementLabel", UNSET))
 
-
         def _parse_settled_at(data: object) -> datetime.datetime | None | Unset:
             if data is None:
                 return data
@@ -624,9 +575,7 @@ class AgentDecisionArtifact:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                settled_at_type_0 = isoparse(data)
-
-
+                settled_at_type_0 = datetime.datetime.fromisoformat(data)
 
                 return settled_at_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
@@ -635,16 +584,12 @@ class AgentDecisionArtifact:
 
         settled_at = _parse_settled_at(d.pop("settledAt", UNSET))
 
-
         _created_at = d.pop("createdAt", UNSET)
         created_at: datetime.datetime | Unset
-        if isinstance(_created_at,  Unset):
+        if isinstance(_created_at, Unset):
             created_at = UNSET
         else:
-            created_at = isoparse(_created_at)
-
-
-
+            created_at = datetime.datetime.fromisoformat(_created_at)
 
         agent_decision_artifact = cls(
             decision_uuid=decision_uuid,
@@ -678,7 +623,6 @@ class AgentDecisionArtifact:
             settled_at=settled_at,
             created_at=created_at,
         )
-
 
         agent_decision_artifact.additional_properties = d
         return agent_decision_artifact

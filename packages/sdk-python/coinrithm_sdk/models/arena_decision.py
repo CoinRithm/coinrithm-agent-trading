@@ -1,36 +1,28 @@
 from __future__ import annotations
 
+import datetime
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, TypeVar, cast
+from uuid import UUID
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
 from ..models.arena_decision_opportunity_kind import ArenaDecisionOpportunityKind
 from ..models.arena_decision_result import ArenaDecisionResult
 from ..types import UNSET, Unset
-from dateutil.parser import isoparse
-from typing import cast
-from uuid import UUID
-import datetime
 
 if TYPE_CHECKING:
-  from ..models.decision_provenance import DecisionProvenance
-  from ..models.entry_context import EntryContext
-
-
-
+    from ..models.decision_provenance import DecisionProvenance
+    from ..models.entry_context import EntryContext
 
 
 T = TypeVar("T", bound="ArenaDecision")
 
 
-
 @_attrs_define
 class ArenaDecision:
-    """ One resolved public-agent paper prediction-market trade. Labelled with the
+    """One resolved public-agent paper prediction-market trade. Labelled with the
     buy-time MARKET probability (`predictedProbability`) and its `brier`
     (market-entry calibration, NOT agent forecast skill), the realised outcome,
     and — when the agent reported its OWN forecast at open —
@@ -109,7 +101,7 @@ class ArenaDecision:
                 policy versions + providerVerified; self-reported runtime/bundle/prompt-
                 hash/config-hash/model/evidence). `null` on schemaVersion-1 rows (never
                 back-filled); hashed into `contentHash` for a v2 row.
-     """
+    """
 
     decision_id: int | Unset = UNSET
     agent: str | Unset = UNSET
@@ -141,13 +133,10 @@ class ArenaDecision:
     provenance: DecisionProvenance | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
         from ..models.decision_provenance import DecisionProvenance
         from ..models.entry_context import EntryContext
+
         decision_id = self.decision_id
 
         agent = self.agent
@@ -177,7 +166,6 @@ class ArenaDecision:
         result: str | Unset = UNSET
         if not isinstance(self.result, Unset):
             result = self.result.value
-
 
         pnl_musd = self.pnl_musd
 
@@ -247,7 +235,6 @@ class ArenaDecision:
         if not isinstance(self.opportunity_kind, Unset):
             opportunity_kind = self.opportunity_kind.value
 
-
         reason_code: None | str | Unset
         if isinstance(self.reason_code, Unset):
             reason_code = UNSET
@@ -274,11 +261,9 @@ class ArenaDecision:
         else:
             provenance = self.provenance
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if decision_id is not UNSET:
             field_dict["decisionId"] = decision_id
         if agent is not UNSET:
@@ -338,12 +323,11 @@ class ArenaDecision:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.decision_provenance import DecisionProvenance
         from ..models.entry_context import EntryContext
+
         d = dict(src_dict)
         decision_id = d.pop("decisionId", UNSET)
 
@@ -357,7 +341,6 @@ class ArenaDecision:
             return cast(None | str | Unset, data)
 
         agent_model = _parse_agent_model(d.pop("agentModel", UNSET))
-
 
         venue = d.pop("venue", UNSET)
 
@@ -377,13 +360,10 @@ class ArenaDecision:
 
         _result = d.pop("result", UNSET)
         result: ArenaDecisionResult | Unset
-        if isinstance(_result,  Unset):
+        if isinstance(_result, Unset):
             result = UNSET
         else:
             result = ArenaDecisionResult(_result)
-
-
-
 
         pnl_musd = d.pop("pnlMusd", UNSET)
 
@@ -395,9 +375,7 @@ class ArenaDecision:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                resolved_at_type_0 = isoparse(data)
-
-
+                resolved_at_type_0 = datetime.datetime.fromisoformat(data)
 
                 return resolved_at_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
@@ -405,7 +383,6 @@ class ArenaDecision:
             return cast(datetime.datetime | None | Unset, data)
 
         resolved_at = _parse_resolved_at(d.pop("resolvedAt", UNSET))
-
 
         def _parse_outcomes_count(data: object) -> int | None | Unset:
             if data is None:
@@ -415,7 +392,6 @@ class ArenaDecision:
             return cast(int | None | Unset, data)
 
         outcomes_count = _parse_outcomes_count(d.pop("outcomesCount", UNSET))
-
 
         brier = d.pop("brier", UNSET)
 
@@ -428,7 +404,6 @@ class ArenaDecision:
 
         agent_forecast_probability = _parse_agent_forecast_probability(d.pop("agentForecastProbability", UNSET))
 
-
         def _parse_market_probability(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -437,7 +412,6 @@ class ArenaDecision:
             return cast(float | None | Unset, data)
 
         market_probability = _parse_market_probability(d.pop("marketProbability", UNSET))
-
 
         def _parse_reference_probability(data: object) -> float | None | Unset:
             if data is None:
@@ -448,7 +422,6 @@ class ArenaDecision:
 
         reference_probability = _parse_reference_probability(d.pop("referenceProbability", UNSET))
 
-
         def _parse_edge_points(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -458,7 +431,6 @@ class ArenaDecision:
 
         edge_points = _parse_edge_points(d.pop("edgePoints", UNSET))
 
-
         def _parse_agent_brier(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -467,7 +439,6 @@ class ArenaDecision:
             return cast(float | None | Unset, data)
 
         agent_brier = _parse_agent_brier(d.pop("agentBrier", UNSET))
-
 
         def _parse_entry_context(data: object) -> EntryContext | None | Unset:
             if data is None:
@@ -479,15 +450,12 @@ class ArenaDecision:
                     raise TypeError()
                 entry_context_type_0 = EntryContext.from_dict(data)
 
-
-
                 return entry_context_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
             return cast(EntryContext | None | Unset, data)
 
         entry_context = _parse_entry_context(d.pop("entryContext", UNSET))
-
 
         def _parse_decision_uuid(data: object) -> None | Unset | UUID:
             if data is None:
@@ -499,8 +467,6 @@ class ArenaDecision:
                     raise TypeError()
                 decision_uuid_type_0 = UUID(data)
 
-
-
                 return decision_uuid_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
@@ -508,16 +474,12 @@ class ArenaDecision:
 
         decision_uuid = _parse_decision_uuid(d.pop("decisionUuid", UNSET))
 
-
         _opportunity_kind = d.pop("opportunityKind", UNSET)
         opportunity_kind: ArenaDecisionOpportunityKind | Unset
-        if isinstance(_opportunity_kind,  Unset):
+        if isinstance(_opportunity_kind, Unset):
             opportunity_kind = UNSET
         else:
             opportunity_kind = ArenaDecisionOpportunityKind(_opportunity_kind)
-
-
-
 
         def _parse_reason_code(data: object) -> None | str | Unset:
             if data is None:
@@ -528,7 +490,6 @@ class ArenaDecision:
 
         reason_code = _parse_reason_code(d.pop("reasonCode", UNSET))
 
-
         def _parse_content_hash(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -538,7 +499,6 @@ class ArenaDecision:
 
         content_hash = _parse_content_hash(d.pop("contentHash", UNSET))
 
-
         def _parse_schema_version(data: object) -> int | None | Unset:
             if data is None:
                 return data
@@ -547,7 +507,6 @@ class ArenaDecision:
             return cast(int | None | Unset, data)
 
         schema_version = _parse_schema_version(d.pop("schemaVersion", UNSET))
-
 
         def _parse_provenance(data: object) -> DecisionProvenance | None | Unset:
             if data is None:
@@ -559,15 +518,12 @@ class ArenaDecision:
                     raise TypeError()
                 provenance_type_0 = DecisionProvenance.from_dict(data)
 
-
-
                 return provenance_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
             return cast(DecisionProvenance | None | Unset, data)
 
         provenance = _parse_provenance(d.pop("provenance", UNSET))
-
 
         arena_decision = cls(
             decision_id=decision_id,
@@ -599,7 +555,6 @@ class ArenaDecision:
             schema_version=schema_version,
             provenance=provenance,
         )
-
 
         arena_decision.additional_properties = d
         return arena_decision

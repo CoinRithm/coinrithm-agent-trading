@@ -1,45 +1,37 @@
 from __future__ import annotations
 
+import datetime
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
 from ..models.get_my_trades_response_200_trades_item_venue import GetMyTradesResponse200TradesItemVenue
 from ..types import UNSET, Unset
-from dateutil.parser import isoparse
-from typing import cast
-import datetime
 
 if TYPE_CHECKING:
-  from ..models.get_my_trades_response_200_trades_item_detail import GetMyTradesResponse200TradesItemDetail
-
-
-
+    from ..models.get_my_trades_response_200_trades_item_detail import GetMyTradesResponse200TradesItemDetail
 
 
 T = TypeVar("T", bound="GetMyTradesResponse200TradesItem")
 
 
-
 @_attrs_define
 class GetMyTradesResponse200TradesItem:
-    """ 
-        Attributes:
-            venue (GetMyTradesResponse200TradesItemVenue | Unset):
-            id (int | Unset):
-            closed_at (datetime.datetime | None | Unset):
-            side (str | Unset):
-            realized_pnl_musd (float | None | Unset):
-            coin_id (None | str | Unset):
-            symbol (None | str | Unset):
-            market (None | str | Unset):
-            outcome (None | str | Unset):
-            detail (GetMyTradesResponse200TradesItemDetail | Unset):
-     """
+    """
+    Attributes:
+        venue (GetMyTradesResponse200TradesItemVenue | Unset):
+        id (int | Unset):
+        closed_at (datetime.datetime | None | Unset):
+        side (str | Unset):
+        realized_pnl_musd (float | None | Unset):
+        coin_id (None | str | Unset):
+        symbol (None | str | Unset):
+        market (None | str | Unset):
+        outcome (None | str | Unset):
+        detail (GetMyTradesResponse200TradesItemDetail | Unset):
+    """
 
     venue: GetMyTradesResponse200TradesItemVenue | Unset = UNSET
     id: int | Unset = UNSET
@@ -53,16 +45,10 @@ class GetMyTradesResponse200TradesItem:
     detail: GetMyTradesResponse200TradesItemDetail | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
-        from ..models.get_my_trades_response_200_trades_item_detail import GetMyTradesResponse200TradesItemDetail
         venue: str | Unset = UNSET
         if not isinstance(self.venue, Unset):
             venue = self.venue.value
-
 
         id = self.id
 
@@ -110,11 +96,9 @@ class GetMyTradesResponse200TradesItem:
         if not isinstance(self.detail, Unset):
             detail = self.detail.to_dict()
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if venue is not UNSET:
             field_dict["venue"] = venue
         if id is not UNSET:
@@ -138,21 +122,17 @@ class GetMyTradesResponse200TradesItem:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.get_my_trades_response_200_trades_item_detail import GetMyTradesResponse200TradesItemDetail
+
         d = dict(src_dict)
         _venue = d.pop("venue", UNSET)
         venue: GetMyTradesResponse200TradesItemVenue | Unset
-        if isinstance(_venue,  Unset):
+        if isinstance(_venue, Unset):
             venue = UNSET
         else:
             venue = GetMyTradesResponse200TradesItemVenue(_venue)
-
-
-
 
         id = d.pop("id", UNSET)
 
@@ -164,9 +144,7 @@ class GetMyTradesResponse200TradesItem:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                closed_at_type_0 = isoparse(data)
-
-
+                closed_at_type_0 = datetime.datetime.fromisoformat(data)
 
                 return closed_at_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
@@ -174,7 +152,6 @@ class GetMyTradesResponse200TradesItem:
             return cast(datetime.datetime | None | Unset, data)
 
         closed_at = _parse_closed_at(d.pop("closedAt", UNSET))
-
 
         side = d.pop("side", UNSET)
 
@@ -187,7 +164,6 @@ class GetMyTradesResponse200TradesItem:
 
         realized_pnl_musd = _parse_realized_pnl_musd(d.pop("realizedPnlMusd", UNSET))
 
-
         def _parse_coin_id(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -196,7 +172,6 @@ class GetMyTradesResponse200TradesItem:
             return cast(None | str | Unset, data)
 
         coin_id = _parse_coin_id(d.pop("coinId", UNSET))
-
 
         def _parse_symbol(data: object) -> None | str | Unset:
             if data is None:
@@ -207,7 +182,6 @@ class GetMyTradesResponse200TradesItem:
 
         symbol = _parse_symbol(d.pop("symbol", UNSET))
 
-
         def _parse_market(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -216,7 +190,6 @@ class GetMyTradesResponse200TradesItem:
             return cast(None | str | Unset, data)
 
         market = _parse_market(d.pop("market", UNSET))
-
 
         def _parse_outcome(data: object) -> None | str | Unset:
             if data is None:
@@ -227,16 +200,12 @@ class GetMyTradesResponse200TradesItem:
 
         outcome = _parse_outcome(d.pop("outcome", UNSET))
 
-
         _detail = d.pop("detail", UNSET)
         detail: GetMyTradesResponse200TradesItemDetail | Unset
-        if isinstance(_detail,  Unset):
+        if isinstance(_detail, Unset):
             detail = UNSET
         else:
             detail = GetMyTradesResponse200TradesItemDetail.from_dict(_detail)
-
-
-
 
         get_my_trades_response_200_trades_item = cls(
             venue=venue,
@@ -250,7 +219,6 @@ class GetMyTradesResponse200TradesItem:
             outcome=outcome,
             detail=detail,
         )
-
 
         get_my_trades_response_200_trades_item.additional_properties = d
         return get_my_trades_response_200_trades_item

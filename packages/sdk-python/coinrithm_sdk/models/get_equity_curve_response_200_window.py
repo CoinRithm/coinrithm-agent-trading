@@ -1,42 +1,28 @@
 from __future__ import annotations
 
+import datetime
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from dateutil.parser import isoparse
-from typing import cast
-import datetime
-
-
-
-
-
-
 T = TypeVar("T", bound="GetEquityCurveResponse200Window")
-
 
 
 @_attrs_define
 class GetEquityCurveResponse200Window:
-    """ 
-        Attributes:
-            days (int | Unset):
-            from_ (datetime.datetime | Unset):
-     """
+    """
+    Attributes:
+        days (int | Unset):
+        from_ (datetime.datetime | Unset):
+    """
 
     days: int | Unset = UNSET
     from_: datetime.datetime | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         days = self.days
@@ -45,19 +31,15 @@ class GetEquityCurveResponse200Window:
         if not isinstance(self.from_, Unset):
             from_ = self.from_.isoformat()
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if days is not UNSET:
             field_dict["days"] = days
         if from_ is not UNSET:
             field_dict["from"] = from_
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -66,19 +48,15 @@ class GetEquityCurveResponse200Window:
 
         _from_ = d.pop("from", UNSET)
         from_: datetime.datetime | Unset
-        if isinstance(_from_,  Unset):
+        if isinstance(_from_, Unset):
             from_ = UNSET
         else:
-            from_ = isoparse(_from_)
-
-
-
+            from_ = datetime.datetime.fromisoformat(_from_)
 
         get_equity_curve_response_200_window = cls(
             days=days,
             from_=from_,
         )
-
 
         get_equity_curve_response_200_window.additional_properties = d
         return get_equity_curve_response_200_window

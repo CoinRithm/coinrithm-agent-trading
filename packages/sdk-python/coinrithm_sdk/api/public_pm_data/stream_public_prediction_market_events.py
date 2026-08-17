@@ -1,33 +1,21 @@
 from http import HTTPStatus
 from typing import Any, cast
-from urllib.parse import quote
 
 import httpx
 
-from ...client import AuthenticatedClient, Client
-from ...types import Response, UNSET
 from ... import errors
+from ...client import AuthenticatedClient, Client
+from ...types import Response
 
 
-
-
-def _get_kwargs(
-    
-) -> dict[str, Any]:
-    
-
-    
-
-    
+def _get_kwargs() -> dict[str, Any]:
 
     _kwargs: dict[str, Any] = {
         "method": "get",
         "url": "/api/prediction-markets/stream",
     }
 
-
     return _kwargs
-
 
 
 def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Any | str | None:
@@ -57,9 +45,8 @@ def _build_response(*, client: AuthenticatedClient | Client, response: httpx.Res
 def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
-
 ) -> Response[Any | str]:
-    """ Live SSE stream of price deltas, whale prints and resolutions
+    """Live SSE stream of price deltas, whale prints and resolutions
 
      Keyless Server-Sent Events stream. One connection delivers three named
     event types, each a JSON payload:
@@ -84,12 +71,9 @@ def sync_detailed(
 
     Returns:
         Response[Any | str]
-     """
+    """
 
-
-    kwargs = _get_kwargs(
-        
-    )
+    kwargs = _get_kwargs()
 
     response = client.get_httpx_client().request(
         **kwargs,
@@ -97,12 +81,12 @@ def sync_detailed(
 
     return _build_response(client=client, response=response)
 
+
 def sync(
     *,
     client: AuthenticatedClient | Client,
-
 ) -> Any | str | None:
-    """ Live SSE stream of price deltas, whale prints and resolutions
+    """Live SSE stream of price deltas, whale prints and resolutions
 
      Keyless Server-Sent Events stream. One connection delivers three named
     event types, each a JSON payload:
@@ -127,20 +111,18 @@ def sync(
 
     Returns:
         Any | str
-     """
-
+    """
 
     return sync_detailed(
         client=client,
-
     ).parsed
+
 
 async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
-
 ) -> Response[Any | str]:
-    """ Live SSE stream of price deltas, whale prints and resolutions
+    """Live SSE stream of price deltas, whale prints and resolutions
 
      Keyless Server-Sent Events stream. One connection delivers three named
     event types, each a JSON payload:
@@ -165,25 +147,20 @@ async def asyncio_detailed(
 
     Returns:
         Response[Any | str]
-     """
+    """
 
+    kwargs = _get_kwargs()
 
-    kwargs = _get_kwargs(
-        
-    )
-
-    response = await client.get_async_httpx_client().request(
-        **kwargs
-    )
+    response = await client.get_async_httpx_client().request(**kwargs)
 
     return _build_response(client=client, response=response)
+
 
 async def asyncio(
     *,
     client: AuthenticatedClient | Client,
-
 ) -> Any | str | None:
-    """ Live SSE stream of price deltas, whale prints and resolutions
+    """Live SSE stream of price deltas, whale prints and resolutions
 
      Keyless Server-Sent Events stream. One connection delivers three named
     event types, each a JSON payload:
@@ -208,10 +185,10 @@ async def asyncio(
 
     Returns:
         Any | str
-     """
+    """
 
-
-    return (await asyncio_detailed(
-        client=client,
-
-    )).parsed
+    return (
+        await asyncio_detailed(
+            client=client,
+        )
+    ).parsed

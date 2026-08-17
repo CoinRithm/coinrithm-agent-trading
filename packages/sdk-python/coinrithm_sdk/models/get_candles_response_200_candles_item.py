@@ -1,35 +1,27 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-
-
-
-
-
-
 T = TypeVar("T", bound="GetCandlesResponse200CandlesItem")
-
 
 
 @_attrs_define
 class GetCandlesResponse200CandlesItem:
-    """ 
-        Attributes:
-            t (int | Unset): Candle timestamp, unix SECONDS (UTC).
-            o (float | Unset):
-            h (float | Unset):
-            l (float | Unset):
-            c (float | Unset):
-            v (float | Unset): Volume in USD regardless of fiat.
-     """
+    """
+    Attributes:
+        t (int | Unset): Candle timestamp, unix SECONDS (UTC).
+        o (float | Unset):
+        h (float | Unset):
+        l (float | Unset):
+        c (float | Unset):
+        v (float | Unset): Volume in USD regardless of fiat.
+    """
 
     t: int | Unset = UNSET
     o: float | Unset = UNSET
@@ -38,10 +30,6 @@ class GetCandlesResponse200CandlesItem:
     c: float | Unset = UNSET
     v: float | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         t = self.t
@@ -56,11 +44,9 @@ class GetCandlesResponse200CandlesItem:
 
         v = self.v
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if t is not UNSET:
             field_dict["t"] = t
         if o is not UNSET:
@@ -75,8 +61,6 @@ class GetCandlesResponse200CandlesItem:
             field_dict["v"] = v
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -101,7 +85,6 @@ class GetCandlesResponse200CandlesItem:
             c=c,
             v=v,
         )
-
 
         get_candles_response_200_candles_item.additional_properties = d
         return get_candles_response_200_candles_item

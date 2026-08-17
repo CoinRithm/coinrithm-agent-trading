@@ -1,58 +1,45 @@
 from http import HTTPStatus
-from typing import Any, cast
+from typing import Any
 from urllib.parse import quote
 
 import httpx
 
-from ...client import AuthenticatedClient, Client
-from ...types import Response, UNSET
 from ... import errors
-
+from ...client import AuthenticatedClient, Client
 from ...models.agent_scorecard_response import AgentScorecardResponse
 from ...models.error import Error
-from typing import cast
-
+from ...types import Response
 
 
 def _get_kwargs(
     handle: str,
-
 ) -> dict[str, Any]:
-    
-
-    
-
-    
 
     _kwargs: dict[str, Any] = {
         "method": "get",
-        "url": "/api/arena/agents/{handle}/scorecard".format(handle=quote(str(handle), safe=""),),
+        "url": "/api/arena/agents/{handle}/scorecard".format(
+            handle=quote(str(handle), safe=""),
+        ),
     }
-
 
     return _kwargs
 
 
-
-def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> AgentScorecardResponse | Error | None:
+def _parse_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> AgentScorecardResponse | Error | None:
     if response.status_code == 200:
         response_200 = AgentScorecardResponse.from_dict(response.json())
-
-
 
         return response_200
 
     if response.status_code == 400:
         response_400 = Error.from_dict(response.json())
 
-
-
         return response_400
 
     if response.status_code == 404:
         response_404 = Error.from_dict(response.json())
-
-
 
         return response_404
 
@@ -62,7 +49,9 @@ def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Res
         return None
 
 
-def _build_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Response[AgentScorecardResponse | Error]:
+def _build_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[AgentScorecardResponse | Error]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -75,9 +64,8 @@ def sync_detailed(
     handle: str,
     *,
     client: AuthenticatedClient | Client,
-
 ) -> Response[AgentScorecardResponse | Error]:
-    """ Public Verified Agent Scorecard (two honest tracks)
+    """Public Verified Agent Scorecard (two honest tracks)
 
      One agent's public Verified Scorecard by `handle`, in TWO honest tracks so
     evidence (risk-adjusted return + calibration) outranks raw PnL:
@@ -111,12 +99,10 @@ def sync_detailed(
 
     Returns:
         Response[AgentScorecardResponse | Error]
-     """
-
+    """
 
     kwargs = _get_kwargs(
         handle=handle,
-
     )
 
     response = client.get_httpx_client().request(
@@ -125,13 +111,13 @@ def sync_detailed(
 
     return _build_response(client=client, response=response)
 
+
 def sync(
     handle: str,
     *,
     client: AuthenticatedClient | Client,
-
 ) -> AgentScorecardResponse | Error | None:
-    """ Public Verified Agent Scorecard (two honest tracks)
+    """Public Verified Agent Scorecard (two honest tracks)
 
      One agent's public Verified Scorecard by `handle`, in TWO honest tracks so
     evidence (risk-adjusted return + calibration) outranks raw PnL:
@@ -165,22 +151,20 @@ def sync(
 
     Returns:
         AgentScorecardResponse | Error
-     """
-
+    """
 
     return sync_detailed(
         handle=handle,
-client=client,
-
+        client=client,
     ).parsed
+
 
 async def asyncio_detailed(
     handle: str,
     *,
     client: AuthenticatedClient | Client,
-
 ) -> Response[AgentScorecardResponse | Error]:
-    """ Public Verified Agent Scorecard (two honest tracks)
+    """Public Verified Agent Scorecard (two honest tracks)
 
      One agent's public Verified Scorecard by `handle`, in TWO honest tracks so
     evidence (risk-adjusted return + calibration) outranks raw PnL:
@@ -214,27 +198,23 @@ async def asyncio_detailed(
 
     Returns:
         Response[AgentScorecardResponse | Error]
-     """
-
+    """
 
     kwargs = _get_kwargs(
         handle=handle,
-
     )
 
-    response = await client.get_async_httpx_client().request(
-        **kwargs
-    )
+    response = await client.get_async_httpx_client().request(**kwargs)
 
     return _build_response(client=client, response=response)
+
 
 async def asyncio(
     handle: str,
     *,
     client: AuthenticatedClient | Client,
-
 ) -> AgentScorecardResponse | Error | None:
-    """ Public Verified Agent Scorecard (two honest tracks)
+    """Public Verified Agent Scorecard (two honest tracks)
 
      One agent's public Verified Scorecard by `handle`, in TWO honest tracks so
     evidence (risk-adjusted return + calibration) outranks raw PnL:
@@ -268,11 +248,11 @@ async def asyncio(
 
     Returns:
         AgentScorecardResponse | Error
-     """
+    """
 
-
-    return (await asyncio_detailed(
-        handle=handle,
-client=client,
-
-    )).parsed
+    return (
+        await asyncio_detailed(
+            handle=handle,
+            client=client,
+        )
+    ).parsed

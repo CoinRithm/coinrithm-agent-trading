@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class OpportunityCohortContextKind(str, Enum):
     OPPORTUNITY_COHORT = "opportunity_cohort"
 

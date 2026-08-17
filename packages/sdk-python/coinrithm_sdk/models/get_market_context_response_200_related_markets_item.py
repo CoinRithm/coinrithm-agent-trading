@@ -1,46 +1,39 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from typing import cast
-
 if TYPE_CHECKING:
-  from ..models.decision_support import DecisionSupport
-
-
-
+    from ..models.decision_support import DecisionSupport
 
 
 T = TypeVar("T", bound="GetMarketContextResponse200RelatedMarketsItem")
 
 
-
 @_attrs_define
 class GetMarketContextResponse200RelatedMarketsItem:
-    """ 
-        Attributes:
-            source (str | Unset):
-            title (str | Unset):
-            outcome (None | str | Unset):
-            probability (float | None | Unset): Leading-outcome probability as a 0..1 FRACTION —
-                unlike the PM quote/discovery endpoints, which use
-                0..100. Multiply by 100 before comparing.
-            slug (str | Unset):
-            volume24h (float | Unset):
-            liquidity (float | Unset):
-            decision_support (DecisionSupport | Unset): Pre-computed market-quality grade for a prediction market (the same
-                builder the web event/hub cards use): a quality score + tiered
-                liquidity/volume/spread + risk flags. Lets an agent gauge tradability
-                without running its own analysis. Returned by get_market_context's
-                relatedMarkets and by pm/quote.
-     """
+    """
+    Attributes:
+        source (str | Unset):
+        title (str | Unset):
+        outcome (None | str | Unset):
+        probability (float | None | Unset): Leading-outcome probability as a 0..1 FRACTION —
+            unlike the PM quote/discovery endpoints, which use
+            0..100. Multiply by 100 before comparing.
+        slug (str | Unset):
+        volume24h (float | Unset):
+        liquidity (float | Unset):
+        decision_support (DecisionSupport | Unset): Pre-computed market-quality grade for a prediction market (the same
+            builder the web event/hub cards use): a quality score + tiered
+            liquidity/volume/spread + risk flags. Lets an agent gauge tradability
+            without running its own analysis. Returned by get_market_context's
+            relatedMarkets and by pm/quote.
+    """
 
     source: str | Unset = UNSET
     title: str | Unset = UNSET
@@ -52,12 +45,7 @@ class GetMarketContextResponse200RelatedMarketsItem:
     decision_support: DecisionSupport | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
-        from ..models.decision_support import DecisionSupport
         source = self.source
 
         title = self.title
@@ -84,11 +72,9 @@ class GetMarketContextResponse200RelatedMarketsItem:
         if not isinstance(self.decision_support, Unset):
             decision_support = self.decision_support.to_dict()
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if source is not UNSET:
             field_dict["source"] = source
         if title is not UNSET:
@@ -108,11 +94,10 @@ class GetMarketContextResponse200RelatedMarketsItem:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.decision_support import DecisionSupport
+
         d = dict(src_dict)
         source = d.pop("source", UNSET)
 
@@ -127,7 +112,6 @@ class GetMarketContextResponse200RelatedMarketsItem:
 
         outcome = _parse_outcome(d.pop("outcome", UNSET))
 
-
         def _parse_probability(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -137,7 +121,6 @@ class GetMarketContextResponse200RelatedMarketsItem:
 
         probability = _parse_probability(d.pop("probability", UNSET))
 
-
         slug = d.pop("slug", UNSET)
 
         volume24h = d.pop("volume24h", UNSET)
@@ -146,13 +129,10 @@ class GetMarketContextResponse200RelatedMarketsItem:
 
         _decision_support = d.pop("decisionSupport", UNSET)
         decision_support: DecisionSupport | Unset
-        if isinstance(_decision_support,  Unset):
+        if isinstance(_decision_support, Unset):
             decision_support = UNSET
         else:
             decision_support = DecisionSupport.from_dict(_decision_support)
-
-
-
 
         get_market_context_response_200_related_markets_item = cls(
             source=source,
@@ -164,7 +144,6 @@ class GetMarketContextResponse200RelatedMarketsItem:
             liquidity=liquidity,
             decision_support=decision_support,
         )
-
 
         get_market_context_response_200_related_markets_item.additional_properties = d
         return get_market_context_response_200_related_markets_item

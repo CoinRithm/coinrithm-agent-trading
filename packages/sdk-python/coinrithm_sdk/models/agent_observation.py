@@ -1,34 +1,26 @@
 from __future__ import annotations
 
+import datetime
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from dateutil.parser import isoparse
-from typing import cast
-import datetime
-
 if TYPE_CHECKING:
-  from ..models.agent_observation_dataset import AgentObservationDataset
-  from ..models.agent_observation_inputs import AgentObservationInputs
-  from ..models.freshness import Freshness
-
-
-
+    from ..models.agent_observation_dataset import AgentObservationDataset
+    from ..models.agent_observation_inputs import AgentObservationInputs
+    from ..models.freshness import Freshness
 
 
 T = TypeVar("T", bound="AgentObservation")
 
 
-
 @_attrs_define
 class AgentObservation:
-    """ Compact provenance block for an agent-facing market observation. It is
+    """Compact provenance block for an agent-facing market observation. It is
     also stored in the private ledger responseSummary when the request uses
     agentTrace/run headers, giving run exports a verifiable snapshot of what
     the agent observed without creating a full market archive.
@@ -44,7 +36,7 @@ class AgentObservation:
             dataset (AgentObservationDataset | Unset):
             row_count (int | None | Unset):
             hash_ (str | Unset): Short SHA-256 digest of the observed payload metadata.
-     """
+    """
 
     schema: str | Unset = UNSET
     endpoint: str | Unset = UNSET
@@ -58,14 +50,9 @@ class AgentObservation:
     hash_: str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
-        from ..models.agent_observation_dataset import AgentObservationDataset
-        from ..models.agent_observation_inputs import AgentObservationInputs
         from ..models.freshness import Freshness
+
         schema = self.schema
 
         endpoint = self.endpoint
@@ -108,11 +95,9 @@ class AgentObservation:
 
         hash_ = self.hash_
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if schema is not UNSET:
             field_dict["schema"] = schema
         if endpoint is not UNSET:
@@ -136,13 +121,12 @@ class AgentObservation:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.agent_observation_dataset import AgentObservationDataset
         from ..models.agent_observation_inputs import AgentObservationInputs
         from ..models.freshness import Freshness
+
         d = dict(src_dict)
         schema = d.pop("schema", UNSET)
 
@@ -152,13 +136,10 @@ class AgentObservation:
 
         _observed_at = d.pop("observedAt", UNSET)
         observed_at: datetime.datetime | Unset
-        if isinstance(_observed_at,  Unset):
+        if isinstance(_observed_at, Unset):
             observed_at = UNSET
         else:
-            observed_at = isoparse(_observed_at)
-
-
-
+            observed_at = datetime.datetime.fromisoformat(_observed_at)
 
         def _parse_source_as_of(data: object) -> datetime.datetime | None | Unset:
             if data is None:
@@ -168,9 +149,7 @@ class AgentObservation:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                source_as_of_type_0 = isoparse(data)
-
-
+                source_as_of_type_0 = datetime.datetime.fromisoformat(data)
 
                 return source_as_of_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
@@ -178,7 +157,6 @@ class AgentObservation:
             return cast(datetime.datetime | None | Unset, data)
 
         source_as_of = _parse_source_as_of(d.pop("sourceAsOf", UNSET))
-
 
         def _parse_freshness(data: object) -> Freshness | None | Unset:
             if data is None:
@@ -190,8 +168,6 @@ class AgentObservation:
                     raise TypeError()
                 freshness_type_0 = Freshness.from_dict(data)
 
-
-
                 return freshness_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
@@ -199,26 +175,19 @@ class AgentObservation:
 
         freshness = _parse_freshness(d.pop("freshness", UNSET))
 
-
         _inputs = d.pop("inputs", UNSET)
         inputs: AgentObservationInputs | Unset
-        if isinstance(_inputs,  Unset):
+        if isinstance(_inputs, Unset):
             inputs = UNSET
         else:
             inputs = AgentObservationInputs.from_dict(_inputs)
 
-
-
-
         _dataset = d.pop("dataset", UNSET)
         dataset: AgentObservationDataset | Unset
-        if isinstance(_dataset,  Unset):
+        if isinstance(_dataset, Unset):
             dataset = UNSET
         else:
             dataset = AgentObservationDataset.from_dict(_dataset)
-
-
-
 
         def _parse_row_count(data: object) -> int | None | Unset:
             if data is None:
@@ -228,7 +197,6 @@ class AgentObservation:
             return cast(int | None | Unset, data)
 
         row_count = _parse_row_count(d.pop("rowCount", UNSET))
-
 
         hash_ = d.pop("hash", UNSET)
 
@@ -244,7 +212,6 @@ class AgentObservation:
             row_count=row_count,
             hash_=hash_,
         )
-
 
         agent_observation.additional_properties = d
         return agent_observation

@@ -1,36 +1,28 @@
 from __future__ import annotations
 
+import datetime
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, TypeVar, cast
+from uuid import UUID
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
 from ..models.arena_opportunity_opportunity_kind import ArenaOpportunityOpportunityKind
 from ..types import UNSET, Unset
-from dateutil.parser import isoparse
-from typing import cast
-from uuid import UUID
-import datetime
 
 if TYPE_CHECKING:
-  from ..models.decision_provenance import DecisionProvenance
-  from ..models.entry_context import EntryContext
-  from ..models.opportunity_cohort_context import OpportunityCohortContext
-
-
-
+    from ..models.decision_provenance import DecisionProvenance
+    from ..models.entry_context import EntryContext
+    from ..models.opportunity_cohort_context import OpportunityCohortContext
 
 
 T = TypeVar("T", bound="ArenaOpportunity")
 
 
-
 @_attrs_define
 class ArenaOpportunity:
-    """ A NON-opened opportunity (dataset v2, `?includeOpportunities=true`): a
+    """A NON-opened opportunity (dataset v2, `?includeOpportunities=true`): a
     decision the agent surface evaluated but did NOT open (blocked,
     unpriceable, risk-rejected, abstained). No fill and no settlement, so
     fill-only fields are honestly absent.
@@ -63,7 +55,7 @@ class ArenaOpportunity:
             provenance (DecisionProvenance | None | Unset): v2 (schemaVersion 2). WHAT RAN to produce the opportunity.
                 `null` on
                 schemaVersion-1 rows (no provenance block was reported).
-     """
+    """
 
     decision_uuid: UUID | Unset = UNSET
     schema_version: int | None | Unset = UNSET
@@ -89,14 +81,11 @@ class ArenaOpportunity:
     provenance: DecisionProvenance | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
         from ..models.decision_provenance import DecisionProvenance
         from ..models.entry_context import EntryContext
         from ..models.opportunity_cohort_context import OpportunityCohortContext
+
         decision_uuid: str | Unset = UNSET
         if not isinstance(self.decision_uuid, Unset):
             decision_uuid = str(self.decision_uuid)
@@ -110,7 +99,6 @@ class ArenaOpportunity:
         opportunity_kind: str | Unset = UNSET
         if not isinstance(self.opportunity_kind, Unset):
             opportunity_kind = self.opportunity_kind.value
-
 
         reason_code: None | str | Unset
         if isinstance(self.reason_code, Unset):
@@ -226,11 +214,9 @@ class ArenaOpportunity:
         else:
             provenance = self.provenance
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if decision_uuid is not UNSET:
             field_dict["decisionUuid"] = decision_uuid
         if schema_version is not UNSET:
@@ -278,23 +264,19 @@ class ArenaOpportunity:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.decision_provenance import DecisionProvenance
         from ..models.entry_context import EntryContext
         from ..models.opportunity_cohort_context import OpportunityCohortContext
+
         d = dict(src_dict)
         _decision_uuid = d.pop("decisionUuid", UNSET)
         decision_uuid: UUID | Unset
-        if isinstance(_decision_uuid,  Unset):
+        if isinstance(_decision_uuid, Unset):
             decision_uuid = UNSET
         else:
             decision_uuid = UUID(_decision_uuid)
-
-
-
 
         def _parse_schema_version(data: object) -> int | None | Unset:
             if data is None:
@@ -305,16 +287,12 @@ class ArenaOpportunity:
 
         schema_version = _parse_schema_version(d.pop("schemaVersion", UNSET))
 
-
         _opportunity_kind = d.pop("opportunityKind", UNSET)
         opportunity_kind: ArenaOpportunityOpportunityKind | Unset
-        if isinstance(_opportunity_kind,  Unset):
+        if isinstance(_opportunity_kind, Unset):
             opportunity_kind = UNSET
         else:
             opportunity_kind = ArenaOpportunityOpportunityKind(_opportunity_kind)
-
-
-
 
         def _parse_reason_code(data: object) -> None | str | Unset:
             if data is None:
@@ -325,7 +303,6 @@ class ArenaOpportunity:
 
         reason_code = _parse_reason_code(d.pop("reasonCode", UNSET))
 
-
         def _parse_content_hash(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -334,7 +311,6 @@ class ArenaOpportunity:
             return cast(None | str | Unset, data)
 
         content_hash = _parse_content_hash(d.pop("contentHash", UNSET))
-
 
         agent = d.pop("agent", UNSET)
 
@@ -347,7 +323,6 @@ class ArenaOpportunity:
 
         agent_model = _parse_agent_model(d.pop("agentModel", UNSET))
 
-
         def _parse_venue(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -356,7 +331,6 @@ class ArenaOpportunity:
             return cast(None | str | Unset, data)
 
         venue = _parse_venue(d.pop("venue", UNSET))
-
 
         def _parse_event_title(data: object) -> None | str | Unset:
             if data is None:
@@ -367,7 +341,6 @@ class ArenaOpportunity:
 
         event_title = _parse_event_title(d.pop("eventTitle", UNSET))
 
-
         def _parse_event_slug(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -376,7 +349,6 @@ class ArenaOpportunity:
             return cast(None | str | Unset, data)
 
         event_slug = _parse_event_slug(d.pop("eventSlug", UNSET))
-
 
         def _parse_event_id(data: object) -> int | None | Unset:
             if data is None:
@@ -387,7 +359,6 @@ class ArenaOpportunity:
 
         event_id = _parse_event_id(d.pop("eventId", UNSET))
 
-
         def _parse_side(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -396,7 +367,6 @@ class ArenaOpportunity:
             return cast(None | str | Unset, data)
 
         side = _parse_side(d.pop("side", UNSET))
-
 
         def _parse_chosen_outcome(data: object) -> None | str | Unset:
             if data is None:
@@ -407,7 +377,6 @@ class ArenaOpportunity:
 
         chosen_outcome = _parse_chosen_outcome(d.pop("chosenOutcome", UNSET))
 
-
         def _parse_agent_forecast_probability(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -416,7 +385,6 @@ class ArenaOpportunity:
             return cast(float | None | Unset, data)
 
         agent_forecast_probability = _parse_agent_forecast_probability(d.pop("agentForecastProbability", UNSET))
-
 
         def _parse_market_probability(data: object) -> float | None | Unset:
             if data is None:
@@ -427,7 +395,6 @@ class ArenaOpportunity:
 
         market_probability = _parse_market_probability(d.pop("marketProbability", UNSET))
 
-
         def _parse_reference_probability(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -436,7 +403,6 @@ class ArenaOpportunity:
             return cast(float | None | Unset, data)
 
         reference_probability = _parse_reference_probability(d.pop("referenceProbability", UNSET))
-
 
         def _parse_reference_venue_count(data: object) -> int | None | Unset:
             if data is None:
@@ -447,7 +413,6 @@ class ArenaOpportunity:
 
         reference_venue_count = _parse_reference_venue_count(d.pop("referenceVenueCount", UNSET))
 
-
         def _parse_edge_points(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -457,16 +422,12 @@ class ArenaOpportunity:
 
         edge_points = _parse_edge_points(d.pop("edgePoints", UNSET))
 
-
         _created_at = d.pop("createdAt", UNSET)
         created_at: datetime.datetime | Unset
-        if isinstance(_created_at,  Unset):
+        if isinstance(_created_at, Unset):
             created_at = UNSET
         else:
-            created_at = isoparse(_created_at)
-
-
-
+            created_at = datetime.datetime.fromisoformat(_created_at)
 
         def _parse_entry_context(data: object) -> EntryContext | None | Unset:
             if data is None:
@@ -478,15 +439,12 @@ class ArenaOpportunity:
                     raise TypeError()
                 entry_context_type_0 = EntryContext.from_dict(data)
 
-
-
                 return entry_context_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
             return cast(EntryContext | None | Unset, data)
 
         entry_context = _parse_entry_context(d.pop("entryContext", UNSET))
-
 
         def _parse_cohort(data: object) -> None | OpportunityCohortContext | Unset:
             if data is None:
@@ -498,15 +456,12 @@ class ArenaOpportunity:
                     raise TypeError()
                 cohort_type_0 = OpportunityCohortContext.from_dict(data)
 
-
-
                 return cohort_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
             return cast(None | OpportunityCohortContext | Unset, data)
 
         cohort = _parse_cohort(d.pop("cohort", UNSET))
-
 
         def _parse_provenance(data: object) -> DecisionProvenance | None | Unset:
             if data is None:
@@ -518,15 +473,12 @@ class ArenaOpportunity:
                     raise TypeError()
                 provenance_type_0 = DecisionProvenance.from_dict(data)
 
-
-
                 return provenance_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
             return cast(DecisionProvenance | None | Unset, data)
 
         provenance = _parse_provenance(d.pop("provenance", UNSET))
-
 
         arena_opportunity = cls(
             decision_uuid=decision_uuid,
@@ -552,7 +504,6 @@ class ArenaOpportunity:
             cohort=cohort,
             provenance=provenance,
         )
-
 
         arena_opportunity.additional_properties = d
         return arena_opportunity

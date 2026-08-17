@@ -117,7 +117,21 @@ You can also swap in a fully custom `httpx.Client`/`httpx.AsyncClient` via
 
 ## Regenerating
 
-This package is generated from [`openapi.yaml`](../../openapi.yaml) with
-`openapi-python-client`. Regenerate after any contract change, and keep this
+This package is generated from [`openapi.yaml`](../../openapi.yaml) with the
+version of `openapi-python-client` pinned in `uv.lock`:
+
+```bash
+uv sync --locked
+uv run openapi-python-client generate \
+  --path ../../openapi.yaml \
+  --config openapi-python-client.yaml \
+  --meta none \
+  --output-path coinrithm_sdk \
+  --overwrite \
+  --fail-on-warning
+touch coinrithm_sdk/py.typed
+```
+
+CI runs the same command and fails if generated code drifts. Keep this
 README's examples pointing at real endpoint modules — never the generator
 placeholders (`api.example.com`, `MyDataModel`) the backbone audit flagged.

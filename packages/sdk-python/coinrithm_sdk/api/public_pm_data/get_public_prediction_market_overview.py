@@ -1,31 +1,22 @@
 from http import HTTPStatus
-from typing import Any, cast
-from urllib.parse import quote
+from typing import Any
 
 import httpx
 
-from ...client import AuthenticatedClient, Client
-from ...types import Response, UNSET
 from ... import errors
-
+from ...client import AuthenticatedClient, Client
 from ...models.error import Error
 from ...models.public_pm_overview_response import PublicPmOverviewResponse
 from ...models.public_pm_source_slug import PublicPmSourceSlug
-from ...types import UNSET, Unset
-from typing import cast
-
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     *,
-    status: str | Unset = 'open',
+    status: str | Unset = "open",
     source: PublicPmSourceSlug | Unset = UNSET,
-    fiat: str | Unset = 'USD',
-
+    fiat: str | Unset = "USD",
 ) -> dict[str, Any]:
-    
-
-    
 
     params: dict[str, Any] = {}
 
@@ -39,9 +30,7 @@ def _get_kwargs(
 
     params["fiat"] = fiat
 
-
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
-
 
     _kwargs: dict[str, Any] = {
         "method": "get",
@@ -49,30 +38,24 @@ def _get_kwargs(
         "params": params,
     }
 
-
     return _kwargs
 
 
-
-def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Error | PublicPmOverviewResponse | None:
+def _parse_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Error | PublicPmOverviewResponse | None:
     if response.status_code == 200:
         response_200 = PublicPmOverviewResponse.from_dict(response.json())
-
-
 
         return response_200
 
     if response.status_code == 400:
         response_400 = Error.from_dict(response.json())
 
-
-
         return response_400
 
     if response.status_code == 500:
         response_500 = Error.from_dict(response.json())
-
-
 
         return response_500
 
@@ -82,7 +65,9 @@ def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Res
         return None
 
 
-def _build_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Response[Error | PublicPmOverviewResponse]:
+def _build_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[Error | PublicPmOverviewResponse]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -94,14 +79,13 @@ def _build_response(*, client: AuthenticatedClient | Client, response: httpx.Res
 def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
-    status: str | Unset = 'open',
+    status: str | Unset = "open",
     source: PublicPmSourceSlug | Unset = UNSET,
-    fiat: str | Unset = 'USD',
-
+    fiat: str | Unset = "USD",
 ) -> Response[Error | PublicPmOverviewResponse]:
-    """ Cross-venue prediction-market overview
+    """Cross-venue prediction-market overview
 
-     Keyless CoinRithm-computed overview across all 11 supported venues.
+     Keyless CoinRithm-computed overview across all 12 supported venues.
     Monetary aggregates exclude play-money/points venues. Source-specific
     volume windows and completeness are disclosed in the response and at
     `/api/prediction-markets/sources/health`; do not assume every venue's
@@ -118,14 +102,12 @@ def sync_detailed(
 
     Returns:
         Response[Error | PublicPmOverviewResponse]
-     """
-
+    """
 
     kwargs = _get_kwargs(
         status=status,
-source=source,
-fiat=fiat,
-
+        source=source,
+        fiat=fiat,
     )
 
     response = client.get_httpx_client().request(
@@ -134,17 +116,17 @@ fiat=fiat,
 
     return _build_response(client=client, response=response)
 
+
 def sync(
     *,
     client: AuthenticatedClient | Client,
-    status: str | Unset = 'open',
+    status: str | Unset = "open",
     source: PublicPmSourceSlug | Unset = UNSET,
-    fiat: str | Unset = 'USD',
-
+    fiat: str | Unset = "USD",
 ) -> Error | PublicPmOverviewResponse | None:
-    """ Cross-venue prediction-market overview
+    """Cross-venue prediction-market overview
 
-     Keyless CoinRithm-computed overview across all 11 supported venues.
+     Keyless CoinRithm-computed overview across all 12 supported venues.
     Monetary aggregates exclude play-money/points venues. Source-specific
     volume windows and completeness are disclosed in the response and at
     `/api/prediction-markets/sources/health`; do not assume every venue's
@@ -161,28 +143,26 @@ def sync(
 
     Returns:
         Error | PublicPmOverviewResponse
-     """
-
+    """
 
     return sync_detailed(
         client=client,
-status=status,
-source=source,
-fiat=fiat,
-
+        status=status,
+        source=source,
+        fiat=fiat,
     ).parsed
+
 
 async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
-    status: str | Unset = 'open',
+    status: str | Unset = "open",
     source: PublicPmSourceSlug | Unset = UNSET,
-    fiat: str | Unset = 'USD',
-
+    fiat: str | Unset = "USD",
 ) -> Response[Error | PublicPmOverviewResponse]:
-    """ Cross-venue prediction-market overview
+    """Cross-venue prediction-market overview
 
-     Keyless CoinRithm-computed overview across all 11 supported venues.
+     Keyless CoinRithm-computed overview across all 12 supported venues.
     Monetary aggregates exclude play-money/points venues. Source-specific
     volume windows and completeness are disclosed in the response and at
     `/api/prediction-markets/sources/health`; do not assume every venue's
@@ -199,33 +179,29 @@ async def asyncio_detailed(
 
     Returns:
         Response[Error | PublicPmOverviewResponse]
-     """
-
+    """
 
     kwargs = _get_kwargs(
         status=status,
-source=source,
-fiat=fiat,
-
+        source=source,
+        fiat=fiat,
     )
 
-    response = await client.get_async_httpx_client().request(
-        **kwargs
-    )
+    response = await client.get_async_httpx_client().request(**kwargs)
 
     return _build_response(client=client, response=response)
+
 
 async def asyncio(
     *,
     client: AuthenticatedClient | Client,
-    status: str | Unset = 'open',
+    status: str | Unset = "open",
     source: PublicPmSourceSlug | Unset = UNSET,
-    fiat: str | Unset = 'USD',
-
+    fiat: str | Unset = "USD",
 ) -> Error | PublicPmOverviewResponse | None:
-    """ Cross-venue prediction-market overview
+    """Cross-venue prediction-market overview
 
-     Keyless CoinRithm-computed overview across all 11 supported venues.
+     Keyless CoinRithm-computed overview across all 12 supported venues.
     Monetary aggregates exclude play-money/points venues. Source-specific
     volume windows and completeness are disclosed in the response and at
     `/api/prediction-markets/sources/health`; do not assume every venue's
@@ -242,13 +218,13 @@ async def asyncio(
 
     Returns:
         Error | PublicPmOverviewResponse
-     """
+    """
 
-
-    return (await asyncio_detailed(
-        client=client,
-status=status,
-source=source,
-fiat=fiat,
-
-    )).parsed
+    return (
+        await asyncio_detailed(
+            client=client,
+            status=status,
+            source=source,
+            fiat=fiat,
+        )
+    ).parsed

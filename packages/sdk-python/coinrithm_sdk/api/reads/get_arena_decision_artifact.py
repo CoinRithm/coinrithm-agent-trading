@@ -1,52 +1,41 @@
 from http import HTTPStatus
-from typing import Any, cast
+from typing import Any
 from urllib.parse import quote
+from uuid import UUID
 
 import httpx
 
-from ...client import AuthenticatedClient, Client
-from ...types import Response, UNSET
 from ... import errors
-
+from ...client import AuthenticatedClient, Client
 from ...models.agent_decision_artifact import AgentDecisionArtifact
 from ...models.error import Error
-from typing import cast
-from uuid import UUID
-
+from ...types import Response
 
 
 def _get_kwargs(
     decision_uuid: UUID,
-
 ) -> dict[str, Any]:
-    
-
-    
-
-    
 
     _kwargs: dict[str, Any] = {
         "method": "get",
-        "url": "/api/arena/decisions/{decision_uuid}".format(decision_uuid=quote(str(decision_uuid), safe=""),),
+        "url": "/api/arena/decisions/{decision_uuid}".format(
+            decision_uuid=quote(str(decision_uuid), safe=""),
+        ),
     }
-
 
     return _kwargs
 
 
-
-def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> AgentDecisionArtifact | Error | None:
+def _parse_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> AgentDecisionArtifact | Error | None:
     if response.status_code == 200:
         response_200 = AgentDecisionArtifact.from_dict(response.json())
-
-
 
         return response_200
 
     if response.status_code == 404:
         response_404 = Error.from_dict(response.json())
-
-
 
         return response_404
 
@@ -56,7 +45,9 @@ def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Res
         return None
 
 
-def _build_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Response[AgentDecisionArtifact | Error]:
+def _build_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[AgentDecisionArtifact | Error]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -69,9 +60,8 @@ def sync_detailed(
     decision_uuid: UUID,
     *,
     client: AuthenticatedClient | Client,
-
 ) -> Response[AgentDecisionArtifact | Error]:
-    """ Public immutable decision artifact
+    """Public immutable decision artifact
 
      The immutable, independently-verifiable artifact for ONE decision
     (dataset v2 — public proof). Returns every stored decision field plus
@@ -94,12 +84,10 @@ def sync_detailed(
 
     Returns:
         Response[AgentDecisionArtifact | Error]
-     """
-
+    """
 
     kwargs = _get_kwargs(
         decision_uuid=decision_uuid,
-
     )
 
     response = client.get_httpx_client().request(
@@ -108,13 +96,13 @@ def sync_detailed(
 
     return _build_response(client=client, response=response)
 
+
 def sync(
     decision_uuid: UUID,
     *,
     client: AuthenticatedClient | Client,
-
 ) -> AgentDecisionArtifact | Error | None:
-    """ Public immutable decision artifact
+    """Public immutable decision artifact
 
      The immutable, independently-verifiable artifact for ONE decision
     (dataset v2 — public proof). Returns every stored decision field plus
@@ -137,22 +125,20 @@ def sync(
 
     Returns:
         AgentDecisionArtifact | Error
-     """
-
+    """
 
     return sync_detailed(
         decision_uuid=decision_uuid,
-client=client,
-
+        client=client,
     ).parsed
+
 
 async def asyncio_detailed(
     decision_uuid: UUID,
     *,
     client: AuthenticatedClient | Client,
-
 ) -> Response[AgentDecisionArtifact | Error]:
-    """ Public immutable decision artifact
+    """Public immutable decision artifact
 
      The immutable, independently-verifiable artifact for ONE decision
     (dataset v2 — public proof). Returns every stored decision field plus
@@ -175,27 +161,23 @@ async def asyncio_detailed(
 
     Returns:
         Response[AgentDecisionArtifact | Error]
-     """
-
+    """
 
     kwargs = _get_kwargs(
         decision_uuid=decision_uuid,
-
     )
 
-    response = await client.get_async_httpx_client().request(
-        **kwargs
-    )
+    response = await client.get_async_httpx_client().request(**kwargs)
 
     return _build_response(client=client, response=response)
+
 
 async def asyncio(
     decision_uuid: UUID,
     *,
     client: AuthenticatedClient | Client,
-
 ) -> AgentDecisionArtifact | Error | None:
-    """ Public immutable decision artifact
+    """Public immutable decision artifact
 
      The immutable, independently-verifiable artifact for ONE decision
     (dataset v2 — public proof). Returns every stored decision field plus
@@ -218,11 +200,11 @@ async def asyncio(
 
     Returns:
         AgentDecisionArtifact | Error
-     """
+    """
 
-
-    return (await asyncio_detailed(
-        decision_uuid=decision_uuid,
-client=client,
-
-    )).parsed
+    return (
+        await asyncio_detailed(
+            decision_uuid=decision_uuid,
+            client=client,
+        )
+    ).parsed

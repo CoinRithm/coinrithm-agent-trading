@@ -1,43 +1,31 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-
-
-
-
-
-
 T = TypeVar("T", bound="DecisionSupportFlags")
-
 
 
 @_attrs_define
 class DecisionSupportFlags:
-    """ 
-        Attributes:
-            thin_market (bool | Unset):
-            inactive_market (bool | Unset):
-            high_ambiguity (bool | Unset):
-            near_resolution (bool | Unset):
-     """
+    """
+    Attributes:
+        thin_market (bool | Unset):
+        inactive_market (bool | Unset):
+        high_ambiguity (bool | Unset):
+        near_resolution (bool | Unset):
+    """
 
     thin_market: bool | Unset = UNSET
     inactive_market: bool | Unset = UNSET
     high_ambiguity: bool | Unset = UNSET
     near_resolution: bool | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         thin_market = self.thin_market
@@ -48,11 +36,9 @@ class DecisionSupportFlags:
 
         near_resolution = self.near_resolution
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if thin_market is not UNSET:
             field_dict["thinMarket"] = thin_market
         if inactive_market is not UNSET:
@@ -63,8 +49,6 @@ class DecisionSupportFlags:
             field_dict["nearResolution"] = near_resolution
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -83,7 +67,6 @@ class DecisionSupportFlags:
             high_ambiguity=high_ambiguity,
             near_resolution=near_resolution,
         )
-
 
         decision_support_flags.additional_properties = d
         return decision_support_flags

@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class PmDiscoveryResponseMetaSource(str, Enum):
     ALL = "all"
     KALSHI = "kalshi"

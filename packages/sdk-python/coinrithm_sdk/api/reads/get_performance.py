@@ -1,64 +1,45 @@
 from http import HTTPStatus
-from typing import Any, cast
-from urllib.parse import quote
+from typing import Any
 
 import httpx
 
-from ...client import AuthenticatedClient, Client
-from ...types import Response, UNSET
 from ... import errors
-
+from ...client import AuthenticatedClient, Client
 from ...models.error import Error
 from ...models.get_performance_response_200 import GetPerformanceResponse200
-from typing import cast
+from ...types import Response
 
 
-
-def _get_kwargs(
-    
-) -> dict[str, Any]:
-    
-
-    
-
-    
+def _get_kwargs() -> dict[str, Any]:
 
     _kwargs: dict[str, Any] = {
         "method": "get",
         "url": "/api/agent/performance",
     }
 
-
     return _kwargs
 
 
-
-def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Error | GetPerformanceResponse200 | None:
+def _parse_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Error | GetPerformanceResponse200 | None:
     if response.status_code == 200:
         response_200 = GetPerformanceResponse200.from_dict(response.json())
-
-
 
         return response_200
 
     if response.status_code == 401:
         response_401 = Error.from_dict(response.json())
 
-
-
         return response_401
 
     if response.status_code == 403:
         response_403 = Error.from_dict(response.json())
 
-
-
         return response_403
 
     if response.status_code == 429:
         response_429 = Error.from_dict(response.json())
-
-
 
         return response_429
 
@@ -68,7 +49,9 @@ def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Res
         return None
 
 
-def _build_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Response[Error | GetPerformanceResponse200]:
+def _build_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[Error | GetPerformanceResponse200]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -80,9 +63,8 @@ def _build_response(*, client: AuthenticatedClient | Client, response: httpx.Res
 def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
-
 ) -> Response[Error | GetPerformanceResponse200]:
-    """ The calling key's realized performance
+    """The calling key's realized performance
 
      Realized PnL + win/loss for the calling API key's OWN trades (closed
     records only), total and per venue. winRate is null until there are
@@ -94,12 +76,9 @@ def sync_detailed(
 
     Returns:
         Response[Error | GetPerformanceResponse200]
-     """
+    """
 
-
-    kwargs = _get_kwargs(
-        
-    )
+    kwargs = _get_kwargs()
 
     response = client.get_httpx_client().request(
         **kwargs,
@@ -107,12 +86,12 @@ def sync_detailed(
 
     return _build_response(client=client, response=response)
 
+
 def sync(
     *,
     client: AuthenticatedClient | Client,
-
 ) -> Error | GetPerformanceResponse200 | None:
-    """ The calling key's realized performance
+    """The calling key's realized performance
 
      Realized PnL + win/loss for the calling API key's OWN trades (closed
     records only), total and per venue. winRate is null until there are
@@ -124,20 +103,18 @@ def sync(
 
     Returns:
         Error | GetPerformanceResponse200
-     """
-
+    """
 
     return sync_detailed(
         client=client,
-
     ).parsed
+
 
 async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
-
 ) -> Response[Error | GetPerformanceResponse200]:
-    """ The calling key's realized performance
+    """The calling key's realized performance
 
      Realized PnL + win/loss for the calling API key's OWN trades (closed
     records only), total and per venue. winRate is null until there are
@@ -149,25 +126,20 @@ async def asyncio_detailed(
 
     Returns:
         Response[Error | GetPerformanceResponse200]
-     """
+    """
 
+    kwargs = _get_kwargs()
 
-    kwargs = _get_kwargs(
-        
-    )
-
-    response = await client.get_async_httpx_client().request(
-        **kwargs
-    )
+    response = await client.get_async_httpx_client().request(**kwargs)
 
     return _build_response(client=client, response=response)
+
 
 async def asyncio(
     *,
     client: AuthenticatedClient | Client,
-
 ) -> Error | GetPerformanceResponse200 | None:
-    """ The calling key's realized performance
+    """The calling key's realized performance
 
      Realized PnL + win/loss for the calling API key's OWN trades (closed
     records only), total and per venue. winRate is null until there are
@@ -179,10 +151,10 @@ async def asyncio(
 
     Returns:
         Error | GetPerformanceResponse200
-     """
+    """
 
-
-    return (await asyncio_detailed(
-        client=client,
-
-    )).parsed
+    return (
+        await asyncio_detailed(
+            client=client,
+        )
+    ).parsed

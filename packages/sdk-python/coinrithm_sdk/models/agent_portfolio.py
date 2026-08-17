@@ -1,33 +1,26 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from typing import cast
-
 if TYPE_CHECKING:
-  from ..models.agent_portfolio_equity import AgentPortfolioEquity
-  from ..models.agent_portfolio_open_orders_item import AgentPortfolioOpenOrdersItem
-  from ..models.agent_portfolio_pnl import AgentPortfolioPnl
-  from ..models.agent_portfolio_progression_type_0 import AgentPortfolioProgressionType0
-
-
-
+    from ..models.agent_portfolio_equity import AgentPortfolioEquity
+    from ..models.agent_portfolio_open_orders_item import AgentPortfolioOpenOrdersItem
+    from ..models.agent_portfolio_pnl import AgentPortfolioPnl
+    from ..models.agent_portfolio_progression_type_0 import AgentPortfolioProgressionType0
 
 
 T = TypeVar("T", bound="AgentPortfolio")
 
 
-
 @_attrs_define
 class AgentPortfolio:
-    """ Lean, PII-free portfolio projection served to agents (NOT the human
+    """Lean, PII-free portfolio projection served to agents (NOT the human
     dashboard — no email/username, no per-asset list, no order history).
     Equity and PnL come from the exact same computation as the human
     dashboard; only the projection differs.
@@ -39,7 +32,7 @@ class AgentPortfolio:
             open_orders (list[AgentPortfolioOpenOrdersItem] | Unset): Open (resting) spot orders, same projection as the
                 dashboard.
             progression (AgentPortfolioProgressionType0 | None | Unset): Compact, non-identifying gamification block.
-     """
+    """
 
     wallet_id: int | Unset = UNSET
     equity: AgentPortfolioEquity | Unset = UNSET
@@ -48,15 +41,9 @@ class AgentPortfolio:
     progression: AgentPortfolioProgressionType0 | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
-        from ..models.agent_portfolio_equity import AgentPortfolioEquity
-        from ..models.agent_portfolio_open_orders_item import AgentPortfolioOpenOrdersItem
-        from ..models.agent_portfolio_pnl import AgentPortfolioPnl
         from ..models.agent_portfolio_progression_type_0 import AgentPortfolioProgressionType0
+
         wallet_id = self.wallet_id
 
         equity: dict[str, Any] | Unset = UNSET
@@ -74,8 +61,6 @@ class AgentPortfolio:
                 open_orders_item = open_orders_item_data.to_dict()
                 open_orders.append(open_orders_item)
 
-
-
         progression: dict[str, Any] | None | Unset
         if isinstance(self.progression, Unset):
             progression = UNSET
@@ -84,11 +69,9 @@ class AgentPortfolio:
         else:
             progression = self.progression
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if wallet_id is not UNSET:
             field_dict["walletId"] = wallet_id
         if equity is not UNSET:
@@ -102,36 +85,29 @@ class AgentPortfolio:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.agent_portfolio_equity import AgentPortfolioEquity
         from ..models.agent_portfolio_open_orders_item import AgentPortfolioOpenOrdersItem
         from ..models.agent_portfolio_pnl import AgentPortfolioPnl
         from ..models.agent_portfolio_progression_type_0 import AgentPortfolioProgressionType0
+
         d = dict(src_dict)
         wallet_id = d.pop("walletId", UNSET)
 
         _equity = d.pop("equity", UNSET)
         equity: AgentPortfolioEquity | Unset
-        if isinstance(_equity,  Unset):
+        if isinstance(_equity, Unset):
             equity = UNSET
         else:
             equity = AgentPortfolioEquity.from_dict(_equity)
 
-
-
-
         _pnl = d.pop("pnl", UNSET)
         pnl: AgentPortfolioPnl | Unset
-        if isinstance(_pnl,  Unset):
+        if isinstance(_pnl, Unset):
             pnl = UNSET
         else:
             pnl = AgentPortfolioPnl.from_dict(_pnl)
-
-
-
 
         _open_orders = d.pop("openOrders", UNSET)
         open_orders: list[AgentPortfolioOpenOrdersItem] | Unset = UNSET
@@ -140,10 +116,7 @@ class AgentPortfolio:
             for open_orders_item_data in _open_orders:
                 open_orders_item = AgentPortfolioOpenOrdersItem.from_dict(open_orders_item_data)
 
-
-
                 open_orders.append(open_orders_item)
-
 
         def _parse_progression(data: object) -> AgentPortfolioProgressionType0 | None | Unset:
             if data is None:
@@ -155,15 +128,12 @@ class AgentPortfolio:
                     raise TypeError()
                 progression_type_0 = AgentPortfolioProgressionType0.from_dict(data)
 
-
-
                 return progression_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
             return cast(AgentPortfolioProgressionType0 | None | Unset, data)
 
         progression = _parse_progression(d.pop("progression", UNSET))
-
 
         agent_portfolio = cls(
             wallet_id=wallet_id,
@@ -172,7 +142,6 @@ class AgentPortfolio:
             open_orders=open_orders,
             progression=progression,
         )
-
 
         agent_portfolio.additional_properties = d
         return agent_portfolio

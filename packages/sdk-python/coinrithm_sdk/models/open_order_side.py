@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class OpenOrderSide(str, Enum):
     BUY = "buy"
     SELL = "sell"

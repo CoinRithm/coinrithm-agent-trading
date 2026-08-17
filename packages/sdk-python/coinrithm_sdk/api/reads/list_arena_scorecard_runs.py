@@ -1,18 +1,14 @@
 from http import HTTPStatus
-from typing import Any, cast
+from typing import Any
 from urllib.parse import quote
 
 import httpx
 
-from ...client import AuthenticatedClient, Client
-from ...types import Response, UNSET
 from ... import errors
-
+from ...client import AuthenticatedClient, Client
 from ...models.error import Error
 from ...models.scorecard_run_list_page import ScorecardRunListPage
-from ...types import UNSET, Unset
-from typing import cast
-
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
@@ -20,11 +16,7 @@ def _get_kwargs(
     *,
     limit: int | Unset = 25,
     before: int | Unset = UNSET,
-
 ) -> dict[str, Any]:
-    
-
-    
 
     params: dict[str, Any] = {}
 
@@ -32,40 +24,34 @@ def _get_kwargs(
 
     params["before"] = before
 
-
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
-
 
     _kwargs: dict[str, Any] = {
         "method": "get",
-        "url": "/api/arena/agents/{handle}/scorecard/runs".format(handle=quote(str(handle), safe=""),),
+        "url": "/api/arena/agents/{handle}/scorecard/runs".format(
+            handle=quote(str(handle), safe=""),
+        ),
         "params": params,
     }
-
 
     return _kwargs
 
 
-
-def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Error | ScorecardRunListPage | None:
+def _parse_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Error | ScorecardRunListPage | None:
     if response.status_code == 200:
         response_200 = ScorecardRunListPage.from_dict(response.json())
-
-
 
         return response_200
 
     if response.status_code == 400:
         response_400 = Error.from_dict(response.json())
 
-
-
         return response_400
 
     if response.status_code == 404:
         response_404 = Error.from_dict(response.json())
-
-
 
         return response_404
 
@@ -75,7 +61,9 @@ def _parse_response(*, client: AuthenticatedClient | Client, response: httpx.Res
         return None
 
 
-def _build_response(*, client: AuthenticatedClient | Client, response: httpx.Response) -> Response[Error | ScorecardRunListPage]:
+def _build_response(
+    *, client: AuthenticatedClient | Client, response: httpx.Response
+) -> Response[Error | ScorecardRunListPage]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -90,9 +78,8 @@ def sync_detailed(
     client: AuthenticatedClient | Client,
     limit: int | Unset = 25,
     before: int | Unset = UNSET,
-
 ) -> Response[Error | ScorecardRunListPage]:
-    """ Immutable scorecard-run history (compact, paginated)
+    """Immutable scorecard-run history (compact, paginated)
 
      The append-only history of an agent's IMMUTABLE scorecard snapshots. The
     public scorecard is a COMPUTED READ that silently changes when the
@@ -118,14 +105,12 @@ def sync_detailed(
 
     Returns:
         Response[Error | ScorecardRunListPage]
-     """
-
+    """
 
     kwargs = _get_kwargs(
         handle=handle,
-limit=limit,
-before=before,
-
+        limit=limit,
+        before=before,
     )
 
     response = client.get_httpx_client().request(
@@ -134,15 +119,15 @@ before=before,
 
     return _build_response(client=client, response=response)
 
+
 def sync(
     handle: str,
     *,
     client: AuthenticatedClient | Client,
     limit: int | Unset = 25,
     before: int | Unset = UNSET,
-
 ) -> Error | ScorecardRunListPage | None:
-    """ Immutable scorecard-run history (compact, paginated)
+    """Immutable scorecard-run history (compact, paginated)
 
      The append-only history of an agent's IMMUTABLE scorecard snapshots. The
     public scorecard is a COMPUTED READ that silently changes when the
@@ -168,16 +153,15 @@ def sync(
 
     Returns:
         Error | ScorecardRunListPage
-     """
-
+    """
 
     return sync_detailed(
         handle=handle,
-client=client,
-limit=limit,
-before=before,
-
+        client=client,
+        limit=limit,
+        before=before,
     ).parsed
+
 
 async def asyncio_detailed(
     handle: str,
@@ -185,9 +169,8 @@ async def asyncio_detailed(
     client: AuthenticatedClient | Client,
     limit: int | Unset = 25,
     before: int | Unset = UNSET,
-
 ) -> Response[Error | ScorecardRunListPage]:
-    """ Immutable scorecard-run history (compact, paginated)
+    """Immutable scorecard-run history (compact, paginated)
 
      The append-only history of an agent's IMMUTABLE scorecard snapshots. The
     public scorecard is a COMPUTED READ that silently changes when the
@@ -213,21 +196,18 @@ async def asyncio_detailed(
 
     Returns:
         Response[Error | ScorecardRunListPage]
-     """
-
+    """
 
     kwargs = _get_kwargs(
         handle=handle,
-limit=limit,
-before=before,
-
+        limit=limit,
+        before=before,
     )
 
-    response = await client.get_async_httpx_client().request(
-        **kwargs
-    )
+    response = await client.get_async_httpx_client().request(**kwargs)
 
     return _build_response(client=client, response=response)
+
 
 async def asyncio(
     handle: str,
@@ -235,9 +215,8 @@ async def asyncio(
     client: AuthenticatedClient | Client,
     limit: int | Unset = 25,
     before: int | Unset = UNSET,
-
 ) -> Error | ScorecardRunListPage | None:
-    """ Immutable scorecard-run history (compact, paginated)
+    """Immutable scorecard-run history (compact, paginated)
 
      The append-only history of an agent's IMMUTABLE scorecard snapshots. The
     public scorecard is a COMPUTED READ that silently changes when the
@@ -263,13 +242,13 @@ async def asyncio(
 
     Returns:
         Error | ScorecardRunListPage
-     """
+    """
 
-
-    return (await asyncio_detailed(
-        handle=handle,
-client=client,
-limit=limit,
-before=before,
-
-    )).parsed
+    return (
+        await asyncio_detailed(
+            handle=handle,
+            client=client,
+            limit=limit,
+            before=before,
+        )
+    ).parsed

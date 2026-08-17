@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class GetArenaDecisionsFormat(str, Enum):
     JSON = "json"
     JSONL = "jsonl"

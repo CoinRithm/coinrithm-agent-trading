@@ -1,40 +1,31 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from typing import cast
-
-
-
-
-
-
 T = TypeVar("T", bound="AgentPortfolioOpenOrdersItem")
-
 
 
 @_attrs_define
 class AgentPortfolioOpenOrdersItem:
-    """ 
-        Attributes:
-            id (int | Unset):
-            side (str | Unset):
-            order_type (str | Unset):
-            coin_id (str | Unset):
-            symbol (str | Unset):
-            price (float | str | Unset): "Market" string for market orders, else numeric limit price.
-            quantity (float | Unset):
-            quantity_filled (float | Unset):
-            status (str | Unset):
-            current_price_usd (float | Unset):
-     """
+    """
+    Attributes:
+        id (int | Unset):
+        side (str | Unset):
+        order_type (str | Unset):
+        coin_id (str | Unset):
+        symbol (str | Unset):
+        price (float | str | Unset): "Market" string for market orders, else numeric limit price.
+        quantity (float | Unset):
+        quantity_filled (float | Unset):
+        status (str | Unset):
+        current_price_usd (float | Unset):
+    """
 
     id: int | Unset = UNSET
     side: str | Unset = UNSET
@@ -47,10 +38,6 @@ class AgentPortfolioOpenOrdersItem:
     status: str | Unset = UNSET
     current_price_usd: float | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         id = self.id
@@ -77,11 +64,9 @@ class AgentPortfolioOpenOrdersItem:
 
         current_price_usd = self.current_price_usd
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if id is not UNSET:
             field_dict["id"] = id
         if side is not UNSET:
@@ -105,8 +90,6 @@ class AgentPortfolioOpenOrdersItem:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
@@ -126,7 +109,6 @@ class AgentPortfolioOpenOrdersItem:
             return cast(float | str | Unset, data)
 
         price = _parse_price(d.pop("price", UNSET))
-
 
         quantity = d.pop("quantity", UNSET)
 
@@ -148,7 +130,6 @@ class AgentPortfolioOpenOrdersItem:
             status=status,
             current_price_usd=current_price_usd,
         )
-
 
         agent_portfolio_open_orders_item.additional_properties = d
         return agent_portfolio_open_orders_item

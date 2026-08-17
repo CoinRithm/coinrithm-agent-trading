@@ -1,58 +1,42 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-
-
-
-
-
-
 T = TypeVar("T", bound="AgentRunEvidenceManifestSummaryRelatedEntitiesItem")
-
 
 
 @_attrs_define
 class AgentRunEvidenceManifestSummaryRelatedEntitiesItem:
-    """ 
-        Attributes:
-            type_ (str | Unset):
-            id (str | Unset):
-     """
+    """
+    Attributes:
+        type_ (str | Unset):
+        id (str | Unset):
+    """
 
     type_: str | Unset = UNSET
     id: str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         type_ = self.type_
 
         id = self.id
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if type_ is not UNSET:
             field_dict["type"] = type_
         if id is not UNSET:
             field_dict["id"] = id
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -65,7 +49,6 @@ class AgentRunEvidenceManifestSummaryRelatedEntitiesItem:
             type_=type_,
             id=id,
         )
-
 
         agent_run_evidence_manifest_summary_related_entities_item.additional_properties = d
         return agent_run_evidence_manifest_summary_related_entities_item

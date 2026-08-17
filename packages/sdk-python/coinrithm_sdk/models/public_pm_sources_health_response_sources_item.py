@@ -1,46 +1,40 @@
 from __future__ import annotations
 
+import datetime
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..types import UNSET, Unset
-
 from ..models.public_pm_source_slug import PublicPmSourceSlug
 from ..types import UNSET, Unset
-from dateutil.parser import isoparse
-from typing import cast
-import datetime
 
 if TYPE_CHECKING:
-  from ..models.public_pm_sources_health_response_sources_item_catalog import PublicPmSourcesHealthResponseSourcesItemCatalog
-
-
-
+    from ..models.public_pm_sources_health_response_sources_item_catalog import (
+        PublicPmSourcesHealthResponseSourcesItemCatalog,
+    )
 
 
 T = TypeVar("T", bound="PublicPmSourcesHealthResponseSourcesItem")
 
 
-
 @_attrs_define
 class PublicPmSourcesHealthResponseSourcesItem:
-    """ 
-        Attributes:
-            id (PublicPmSourceSlug | Unset):
-            name (str | Unset):
-            is_active (bool | Unset):
-            last_ingest_at (datetime.datetime | None | Unset):
-            lag_seconds (float | None | Unset):
-            freshness (str | Unset):
-            open_events (int | Unset):
-            total_events (int | Unset):
-            catalog (PublicPmSourcesHealthResponseSourcesItemCatalog | Unset): Latest sweep evidence and provider-bounded
-                completeness truth.
-            degraded (list[str] | Unset): Empty when healthy; otherwise stable reason codes.
-     """
+    """
+    Attributes:
+        id (PublicPmSourceSlug | Unset):
+        name (str | Unset):
+        is_active (bool | Unset):
+        last_ingest_at (datetime.datetime | None | Unset):
+        lag_seconds (float | None | Unset):
+        freshness (str | Unset):
+        open_events (int | Unset):
+        total_events (int | Unset):
+        catalog (PublicPmSourcesHealthResponseSourcesItemCatalog | Unset): Latest sweep evidence and provider-bounded
+            completeness truth.
+        degraded (list[str] | Unset): Empty when healthy; otherwise stable reason codes.
+    """
 
     id: PublicPmSourceSlug | Unset = UNSET
     name: str | Unset = UNSET
@@ -54,16 +48,10 @@ class PublicPmSourcesHealthResponseSourcesItem:
     degraded: list[str] | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
-
-
-
-
     def to_dict(self) -> dict[str, Any]:
-        from ..models.public_pm_sources_health_response_sources_item_catalog import PublicPmSourcesHealthResponseSourcesItemCatalog
         id: str | Unset = UNSET
         if not isinstance(self.id, Unset):
             id = self.id.value
-
 
         name = self.name
 
@@ -97,13 +85,9 @@ class PublicPmSourcesHealthResponseSourcesItem:
         if not isinstance(self.degraded, Unset):
             degraded = self.degraded
 
-
-
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if id is not UNSET:
             field_dict["id"] = id
         if name is not UNSET:
@@ -127,21 +111,19 @@ class PublicPmSourcesHealthResponseSourcesItem:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        from ..models.public_pm_sources_health_response_sources_item_catalog import PublicPmSourcesHealthResponseSourcesItemCatalog
+        from ..models.public_pm_sources_health_response_sources_item_catalog import (
+            PublicPmSourcesHealthResponseSourcesItemCatalog,
+        )
+
         d = dict(src_dict)
         _id = d.pop("id", UNSET)
         id: PublicPmSourceSlug | Unset
-        if isinstance(_id,  Unset):
+        if isinstance(_id, Unset):
             id = UNSET
         else:
             id = PublicPmSourceSlug(_id)
-
-
-
 
         name = d.pop("name", UNSET)
 
@@ -155,9 +137,7 @@ class PublicPmSourcesHealthResponseSourcesItem:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                last_ingest_at_type_0 = isoparse(data)
-
-
+                last_ingest_at_type_0 = datetime.datetime.fromisoformat(data)
 
                 return last_ingest_at_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
@@ -165,7 +145,6 @@ class PublicPmSourcesHealthResponseSourcesItem:
             return cast(datetime.datetime | None | Unset, data)
 
         last_ingest_at = _parse_last_ingest_at(d.pop("lastIngestAt", UNSET))
-
 
         def _parse_lag_seconds(data: object) -> float | None | Unset:
             if data is None:
@@ -176,7 +155,6 @@ class PublicPmSourcesHealthResponseSourcesItem:
 
         lag_seconds = _parse_lag_seconds(d.pop("lagSeconds", UNSET))
 
-
         freshness = d.pop("freshness", UNSET)
 
         open_events = d.pop("openEvents", UNSET)
@@ -185,16 +163,12 @@ class PublicPmSourcesHealthResponseSourcesItem:
 
         _catalog = d.pop("catalog", UNSET)
         catalog: PublicPmSourcesHealthResponseSourcesItemCatalog | Unset
-        if isinstance(_catalog,  Unset):
+        if isinstance(_catalog, Unset):
             catalog = UNSET
         else:
             catalog = PublicPmSourcesHealthResponseSourcesItemCatalog.from_dict(_catalog)
 
-
-
-
         degraded = cast(list[str], d.pop("degraded", UNSET))
-
 
         public_pm_sources_health_response_sources_item = cls(
             id=id,
@@ -208,7 +182,6 @@ class PublicPmSourcesHealthResponseSourcesItem:
             catalog=catalog,
             degraded=degraded,
         )
-
 
         public_pm_sources_health_response_sources_item.additional_properties = d
         return public_pm_sources_health_response_sources_item

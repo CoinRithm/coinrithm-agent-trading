@@ -1,28 +1,19 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from typing import cast
-
-
-
-
-
-
 T = TypeVar("T", bound="ForecastSkillMetrics")
-
 
 
 @_attrs_define
 class ForecastSkillMetrics:
-    """ Track B metrics; all `null` until the sufficiency gate is met. Brier is
+    """Track B metrics; all `null` until the sufficiency gate is met. Brier is
     lower = better.
 
         Attributes:
@@ -36,7 +27,7 @@ class ForecastSkillMetrics:
                 baseline; `null` when unavailable.
             brier_skill_vs_reference (float | None | Unset): 1 − agentBrier/referenceBrier (matched subset). >0 = beat the
                 reference baseline; `null` when unavailable.
-     """
+    """
 
     agent_brier: float | None | Unset = UNSET
     agent_log_score: float | None | Unset = UNSET
@@ -45,10 +36,6 @@ class ForecastSkillMetrics:
     brier_skill_vs_market: float | None | Unset = UNSET
     brier_skill_vs_reference: float | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         agent_brier: float | None | Unset
@@ -87,11 +74,9 @@ class ForecastSkillMetrics:
         else:
             brier_skill_vs_reference = self.brier_skill_vs_reference
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if agent_brier is not UNSET:
             field_dict["agentBrier"] = agent_brier
         if agent_log_score is not UNSET:
@@ -107,11 +92,10 @@ class ForecastSkillMetrics:
 
         return field_dict
 
-
-
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
+
         def _parse_agent_brier(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -120,7 +104,6 @@ class ForecastSkillMetrics:
             return cast(float | None | Unset, data)
 
         agent_brier = _parse_agent_brier(d.pop("agentBrier", UNSET))
-
 
         def _parse_agent_log_score(data: object) -> float | None | Unset:
             if data is None:
@@ -131,7 +114,6 @@ class ForecastSkillMetrics:
 
         agent_log_score = _parse_agent_log_score(d.pop("agentLogScore", UNSET))
 
-
         def _parse_market_brier(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -140,7 +122,6 @@ class ForecastSkillMetrics:
             return cast(float | None | Unset, data)
 
         market_brier = _parse_market_brier(d.pop("marketBrier", UNSET))
-
 
         def _parse_reference_brier(data: object) -> float | None | Unset:
             if data is None:
@@ -151,7 +132,6 @@ class ForecastSkillMetrics:
 
         reference_brier = _parse_reference_brier(d.pop("referenceBrier", UNSET))
 
-
         def _parse_brier_skill_vs_market(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -160,7 +140,6 @@ class ForecastSkillMetrics:
             return cast(float | None | Unset, data)
 
         brier_skill_vs_market = _parse_brier_skill_vs_market(d.pop("brierSkillVsMarket", UNSET))
-
 
         def _parse_brier_skill_vs_reference(data: object) -> float | None | Unset:
             if data is None:
@@ -171,7 +150,6 @@ class ForecastSkillMetrics:
 
         brier_skill_vs_reference = _parse_brier_skill_vs_reference(d.pop("brierSkillVsReference", UNSET))
 
-
         forecast_skill_metrics = cls(
             agent_brier=agent_brier,
             agent_log_score=agent_log_score,
@@ -180,7 +158,6 @@ class ForecastSkillMetrics:
             brier_skill_vs_market=brier_skill_vs_market,
             brier_skill_vs_reference=brier_skill_vs_reference,
         )
-
 
         forecast_skill_metrics.additional_properties = d
         return forecast_skill_metrics

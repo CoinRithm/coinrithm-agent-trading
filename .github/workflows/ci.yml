@@ -49,9 +49,18 @@ jobs:
           enable-cache: true
           cache-dependency-glob: packages/sdk-python/uv.lock
 
-      - name: Python SDK — locked install, test, compile, build
+      - name: Python SDK — regenerate, test, compile, build
         run: |
           uv sync --locked
+          uv run openapi-python-client generate \
+            --path ../../openapi.yaml \
+            --config openapi-python-client.yaml \
+            --meta none \
+            --output-path coinrithm_sdk \
+            --overwrite \
+            --fail-on-warning
+          touch coinrithm_sdk/py.typed
+          git diff --exit-code -- coinrithm_sdk
           uv run pytest -q
           uv run python -m compileall -q coinrithm_sdk
           uv build

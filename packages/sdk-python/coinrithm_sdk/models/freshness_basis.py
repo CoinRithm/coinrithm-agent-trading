@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class FreshnessBasis(str, Enum):
     EVENT_UPDATE = "event_update"
     LATEST_SNAPSHOT = "latest_snapshot"

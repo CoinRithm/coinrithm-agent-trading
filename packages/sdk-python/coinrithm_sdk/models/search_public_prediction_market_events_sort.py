@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class SearchPublicPredictionMarketEventsSort(str, Enum):
     BEST = "best"
     ENDDATE_DESC = "endDate_desc"

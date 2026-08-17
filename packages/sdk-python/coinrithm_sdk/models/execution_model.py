@@ -1,28 +1,19 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-from typing import cast
-
-
-
-
-
-
 T = TypeVar("T", bound="ExecutionModel")
-
 
 
 @_attrs_define
 class ExecutionModel:
-    """ Paper Execution Realism v1 cost disclosure. Paper fills apply a
+    """Paper Execution Realism v1 cost disclosure. Paper fills apply a
     deterministic, fully-disclosed cost so simulated PnL reflects real
     trading friction (a flat round-trip is a small loss, not a free
     breakeven). This is a rehearsal cost model, NOT an exchange fill
@@ -48,7 +39,7 @@ class ExecutionModel:
             estimated_slippage_musd (float | Unset): estimated slippage cost for this trade (mUSD)
             funding_mode (str | Unset):
             assumptions (list[str] | Unset): human-readable list of what is and isn't modeled
-     """
+    """
 
     version: str | Unset = UNSET
     fee_bps: float | Unset = UNSET
@@ -59,10 +50,6 @@ class ExecutionModel:
     funding_mode: str | Unset = UNSET
     assumptions: list[str] | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         version = self.version
@@ -83,13 +70,9 @@ class ExecutionModel:
         if not isinstance(self.assumptions, Unset):
             assumptions = self.assumptions
 
-
-
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if version is not UNSET:
             field_dict["version"] = version
         if fee_bps is not UNSET:
@@ -108,8 +91,6 @@ class ExecutionModel:
             field_dict["assumptions"] = assumptions
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -130,7 +111,6 @@ class ExecutionModel:
 
         assumptions = cast(list[str], d.pop("assumptions", UNSET))
 
-
         execution_model = cls(
             version=version,
             fee_bps=fee_bps,
@@ -141,7 +121,6 @@ class ExecutionModel:
             funding_mode=funding_mode,
             assumptions=assumptions,
         )
-
 
         execution_model.additional_properties = d
         return execution_model

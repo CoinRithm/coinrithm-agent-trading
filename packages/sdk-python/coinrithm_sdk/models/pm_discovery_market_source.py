@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class PmDiscoveryMarketSource(str, Enum):
     KALSHI = "kalshi"
     POLYMARKET = "polymarket"

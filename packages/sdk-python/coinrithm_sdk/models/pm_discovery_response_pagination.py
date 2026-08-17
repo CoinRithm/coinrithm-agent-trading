@@ -1,41 +1,29 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, BinaryIO, TextIO, TYPE_CHECKING, Generator
+from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
-from ..types import UNSET, Unset
-
-
-
-
-
-
 T = TypeVar("T", bound="PmDiscoveryResponsePagination")
-
 
 
 @_attrs_define
 class PmDiscoveryResponsePagination:
-    """ 
-        Attributes:
-            limit (int | Unset):
-            offset (int | Unset):
-            has_more (bool | Unset):
-     """
+    """
+    Attributes:
+        limit (int | Unset):
+        offset (int | Unset):
+        has_more (bool | Unset):
+    """
 
     limit: int | Unset = UNSET
     offset: int | Unset = UNSET
     has_more: bool | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
-
-
-
-
 
     def to_dict(self) -> dict[str, Any]:
         limit = self.limit
@@ -44,11 +32,9 @@ class PmDiscoveryResponsePagination:
 
         has_more = self.has_more
 
-
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
-        field_dict.update({
-        })
+        field_dict.update({})
         if limit is not UNSET:
             field_dict["limit"] = limit
         if offset is not UNSET:
@@ -57,8 +43,6 @@ class PmDiscoveryResponsePagination:
             field_dict["hasMore"] = has_more
 
         return field_dict
-
-
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
@@ -74,7 +58,6 @@ class PmDiscoveryResponsePagination:
             offset=offset,
             has_more=has_more,
         )
-
 
         pm_discovery_response_pagination.additional_properties = d
         return pm_discovery_response_pagination

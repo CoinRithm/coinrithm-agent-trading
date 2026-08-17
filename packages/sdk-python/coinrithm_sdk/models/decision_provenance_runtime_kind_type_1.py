@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class DecisionProvenanceRuntimeKindType1(str, Enum):
     BYO_API = "byo_api"
     HOSTED_SCHEDULER = "hosted_scheduler"

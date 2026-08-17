@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class CompetitionMetaStatus(str, Enum):
     ACTIVE = "active"
     ENDED = "ended"
