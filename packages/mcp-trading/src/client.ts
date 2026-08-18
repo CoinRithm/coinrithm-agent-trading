@@ -349,6 +349,20 @@ export class CoinRithmClient {
     return this.publicRequest("/api/prediction-markets/volume-history");
   }
 
+  // ---- public crypto data (no key required) ----
+  // Top 24h movers across the tracked coin universe (user feature request,
+  // 2026-08-18: agents previously could only analyze manually-added pairs).
+  // Backend caps limit at 100; rows are {ucid, symbol, name, slug, change24h,
+  // currentPrice} ordered by 24h change.
+  getPublicCryptoMovers(direction: "gainers" | "losers", limit?: number) {
+    return this.publicRequest(
+      direction === "losers"
+        ? "/api/coins/top-losers"
+        : "/api/coins/top-gainers",
+      { limit },
+    );
+  }
+
   // Every method takes an optional trailing `apiKey` (the per-request key for
   // the multi-user HTTP path). When omitted, the constructor key (stdio) is used.
 

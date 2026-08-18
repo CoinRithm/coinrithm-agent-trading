@@ -5,6 +5,7 @@ import {
   compactPublicPmEvents,
   compactPublicPmOverview,
   compactPublicPmWhales,
+  compactPublicCryptoMovers,
 } from "./tools.js";
 
 const event = {
@@ -306,5 +307,48 @@ describe("compact public prediction-market MCP responses", () => {
     expect(compactPublicPmDisagreements("upstream error")).toBe(
       "upstream error",
     );
+  });
+});
+
+describe("compactPublicCryptoMovers", () => {
+  it("coerces string numerics, drops ucid, keeps identity fields", () => {
+    const rows = [
+      {
+        ucid: "1",
+        symbol: "PRCL",
+        name: "Parcl",
+        slug: "parcl",
+        change24h: "61.04",
+        currentPrice: "0.1234",
+      },
+    ];
+    expect(compactPublicCryptoMovers(rows)).toEqual([
+      {
+        symbol: "PRCL",
+        name: "Parcl",
+        slug: "parcl",
+        change24hPct: 61.04,
+        priceUsd: 0.1234,
+      },
+    ]);
+  });
+
+  it("passes through non-coercible values and non-array payloads honestly", () => {
+    const rows = [
+      {
+        symbol: "X",
+        name: "X",
+        slug: "x",
+        change24h: "n/a",
+        currentPrice: null,
+      },
+    ];
+    const compact = compactPublicCryptoMovers(rows) as Array<
+      Record<string, unknown>
+    >;
+    expect(compact[0].change24hPct).toBe("n/a");
+    expect(compactPublicCryptoMovers({ error: "down" })).toEqual({
+      error: "down",
+    });
   });
 });

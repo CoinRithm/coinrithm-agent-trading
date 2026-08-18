@@ -561,6 +561,27 @@ export function compactPublicPmWhales(data: unknown, limit: number): unknown {
   return { ...data, trades };
 }
 
+// Crypto movers rows arrive as {ucid, symbol, name, slug, change24h,
+// currentPrice} with the numerics as STRINGS (backend SQL fn passthrough).
+// Coerce so a brain never string-compares "9.5" > "12"; drop the internal
+// ucid. A row that fails coercion passes through untouched — honesty over
+// polish, same rule as every other compactor here.
+export function compactPublicCryptoMovers(data: unknown): unknown {
+  if (!Array.isArray(data)) return data;
+  return data.map((row) => {
+    if (!isJsonRecord(row)) return row;
+    const change = Number(row.change24h);
+    const price = Number(row.currentPrice);
+    return {
+      symbol: row.symbol,
+      name: row.name,
+      slug: row.slug,
+      change24hPct: Number.isFinite(change) ? change : row.change24h,
+      priceUsd: Number.isFinite(price) ? price : row.currentPrice,
+    };
+  });
+}
+
 const MATCH_PAIR_FIELDS = [
   "matchId",
   "confidence",
@@ -2400,5 +2421,46 @@ export function registerTools(
       annotations: readOnlyAnnotations("Global prediction-market volume trend"),
     },
     async () => present(await client.getPublicPmVolumeHistory()),
+  );
+
+  server.registerTool(
+    "get_crypto_movers",
+    {
+      title: "Top 24h crypto movers (universe scan)",
+      description:
+        "Free public scan of CoinRithm's tracked crypto universe for the " +
+        "biggest 24h price moves — top gainers or top losers, ordered by " +
+        "24h change percent. Use this to DISCOVER candidates beyond your " +
+        "watchlist (abnormal rapid moves), then deep-analyze each candidate " +
+        "with get_candles (OHLC + indicators) and get_market_context " +
+        "(sentiment, news) before any trade decision. Rows carry symbol, " +
+        "name, slug, change24hPct and priceUsd; data refreshes on the ~60s " +
+        "core price tick. No API key required.",
+      inputSchema: {
+        direction: z
+          .enum(["gainers", "losers"])
+          .optional()
+          .describe("Scan direction (default gainers)."),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(100)
+          .optional()
+          .describe("Rows to return, 1-100 (default 20)."),
+      },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations("Top 24h crypto movers"),
+    },
+    async ({ direction, limit }) =>
+      present(
+        mapSuccessfulBody(
+          await client.getPublicCryptoMovers(
+            direction ?? "gainers",
+            limit ?? 20,
+          ),
+          compactPublicCryptoMovers,
+        ),
+      ),
   );
 }
