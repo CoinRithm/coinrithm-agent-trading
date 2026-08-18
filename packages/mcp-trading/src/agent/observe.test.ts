@@ -756,3 +756,70 @@ describe("observe", () => {
     expect(observation.watch.find((w) => w.coinId)?.indicators).toBeUndefined();
   });
 });
+
+describe("universe_scan capability", () => {
+  const scanSpec = {
+    ...spec,
+    capabilities: [...spec.capabilities, "universe_scan"] as typeof spec.capabilities,
+  };
+
+  it("resolves top movers into discovered watch entries and passes the rest as context", async () => {
+    const c = fakeClient({
+      cryptoMovers: async () =>
+        okData([
+          { symbol: "AAA", name: "Aaa", change24h: "61.0", currentPrice: "1.5" },
+          { symbol: "BBB", name: "Bbb", change24h: "40.0", currentPrice: "2.5" },
+          { symbol: "CCC", name: "Ccc", change24h: "30.0", currentPrice: "3.5" },
+          { symbol: "DDD", name: "Ddd", change24h: "20.0", currentPrice: "4.5" },
+          { symbol: "EEE", name: "Eee", change24h: "10.0", currentPrice: "5.5" },
+        ]),
+    });
+    const { observation } = await observe(c, scanSpec, newState("r"));
+    const discovered = observation.watch.filter((w) => w.discovered);
+    expect(discovered.map((w) => w.symbol)).toEqual(["AAA", "BBB", "CCC"]);
+    // Remaining movers ride as compact context, not tradable entries.
+    expect(observation.universeMovers?.map((m) => m.symbol)).toEqual([
+      "DDD",
+      "EEE",
+    ]);
+  });
+
+  it("excludes watchlist and blocklist symbols from discovery", async () => {
+    const watchSym = spec.risk.watchlist[0];
+    const blockSpec = {
+      ...scanSpec,
+      risk: { ...scanSpec.risk, blocklist: ["EVIL"] },
+    };
+    const c = fakeClient({
+      cryptoMovers: async () =>
+        okData([
+          { symbol: watchSym, name: "Dup", change24h: "99", currentPrice: "1" },
+          { symbol: "EVIL", name: "Evil", change24h: "98", currentPrice: "1" },
+          { symbol: "FINE", name: "Fine", change24h: "50", currentPrice: "1" },
+        ]),
+    });
+    const { observation } = await observe(c, blockSpec, newState("r"));
+    const discovered = observation.watch.filter((w) => w.discovered);
+    expect(discovered.map((w) => w.symbol)).toEqual(["FINE"]);
+  });
+
+  it("degrades to no universe section when the movers call fails", async () => {
+    const c = fakeClient({
+      cryptoMovers: async () => ({ ok: false, status: 500, data: {} }),
+    });
+    const { observation, skip } = await observe(c, scanSpec, newState("r"));
+    expect(skip).toBeUndefined();
+    expect(observation.watch.some((w) => w.discovered)).toBe(false);
+    expect(observation.universeMovers).toBeUndefined();
+  });
+
+  it("does nothing without the capability", async () => {
+    const c = fakeClient({
+      cryptoMovers: async () => {
+        throw new Error("must not be called");
+      },
+    });
+    const { observation } = await observe(c, spec, newState("r"));
+    expect(observation.watch.some((w) => w.discovered)).toBe(false);
+  });
+});

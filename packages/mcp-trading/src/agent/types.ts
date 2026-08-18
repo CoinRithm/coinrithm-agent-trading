@@ -151,10 +151,20 @@ export interface ObjectiveConfig {
 // slice. `websearch` = external lookups (an injection surface + a cost — it can
 // inform reasoning but NEVER widen a cap, since caps live in the runner);
 // `indicators` = runner-computed RSI/MACD/etc. fed into the observation.
+// `universe_scan` (2026-08-18, direct user request): each cycle the runner
+// pulls the top 24h movers across CoinRithm's tracked coin universe, resolves
+// the top few into FULL watch entries (price, sentiment, indicators when that
+// capability is also on) and appends them to the observation marked
+// `discovered: true`. Downstream is unchanged by design: a discovered entry
+// passes through the exact same risk gates as a watchlist symbol (blocklist
+// still wins, caps/SL rules unchanged) — the capability widens the CANDIDATE
+// SET for one cycle, never any cap. Off by default; without it the universe
+// is invisible and only manual watchlist pairs are analyzed.
 export const ALLOWED_CAPABILITIES = [
   "websearch",
   "indicators",
   "news",
+  "universe_scan",
 ] as const;
 export type Capability = (typeof ALLOWED_CAPABILITIES)[number];
 
@@ -221,6 +231,10 @@ export interface WatchEntry {
   // from candles when the agent declares the `indicators` capability. Omitted
   // otherwise or when the candle fetch fails/is too sparse.
   indicators?: IndicatorSet;
+  // true = this entry came from the `universe_scan` capability's top-movers
+  // sweep, not the spec watchlist. Valid for THIS cycle only; the prompt labels
+  // it so the model knows it is a discovered candidate, not a standing holding.
+  discovered?: boolean;
 }
 
 export interface OpenPosition {
@@ -359,6 +373,15 @@ export interface Observation {
   newClosedTrades: Array<Record<string, unknown>>; // fired stops/liqs/settlements
   polledBeforeWrite: boolean; // whether this cycle synced /trades first
   news?: NewsItem[]; // recent high-importance watchlist news (only with `news` capability)
+  // Universe context beyond the resolved candidates (only with `universe_scan`):
+  // the remaining top movers as symbol + 24h change, so the model sees breadth
+  // without the runner paying a resolve/market call per row.
+  universeMovers?: Array<{
+    symbol: string;
+    name?: string;
+    change24hPct?: number;
+    priceUsd?: number;
+  }>;
 }
 
 // ───────────────────────── Model decision + actions ─────────────────────────

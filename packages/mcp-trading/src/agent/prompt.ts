@@ -104,6 +104,15 @@ export function buildSystemPrompt(
           "- a null field = not enough data; ignore it. These INFORM your decision; they never widen a cap.",
         ]
       : []),
+    ...(spec.capabilities.includes("universe_scan")
+      ? [
+          "",
+          "## Universe scan (discovered movers) — candidates beyond your watchlist",
+          "Watch entries with `discovered: true` are today's strongest 24h movers across the WHOLE tracked universe, resolved with the same price/sentiment (and indicators) data as your watchlist. observation.universeMovers lists further movers as symbol + 24h change only (context — you cannot trade those directly this cycle).",
+          "- Treat a discovered candidate like any other symbol: analyze it for catalysts, exhaustion and reversal BEFORE acting. A big 24h pump is as often a top as a beginning — chasing green candles blind is how discovery loses money.",
+          "- All your normal risk rules apply unchanged: caps, stops, blocklist, confidence floor. Discovery widens what you can SEE, never what you may risk.",
+        ]
+      : []),
     ...(spec.capabilities.includes("news")
       ? [
           "",
@@ -200,6 +209,7 @@ export function buildUserPrompt(
       watch: obs.watch,
       setups: obs.setups,
       news: obs.news,
+      universeMovers: obs.universeMovers,
       marketMood: obs.marketMood,
       newClosedTrades: obs.newClosedTrades.slice(0, 20),
       polledBeforeWrite: obs.polledBeforeWrite,

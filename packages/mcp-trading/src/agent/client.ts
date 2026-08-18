@@ -157,6 +157,19 @@ export class CoinRithmClient {
   resolve(q: string, trace?: AgentTrace) {
     return this.request("GET", "/api/agent/resolve", { query: { q }, trace });
   }
+  // Keyless public universe scan (top 24h movers). The Bearer header rides
+  // along harmlessly — the /api/coins routes are public and ignore it.
+  cryptoMovers(
+    direction: "gainers" | "losers",
+    limit: number,
+    trace?: AgentTrace,
+  ) {
+    return this.request(
+      "GET",
+      direction === "losers" ? "/api/coins/top-losers" : "/api/coins/top-gainers",
+      { query: { limit }, trace },
+    );
+  }
   market(coinId: string, trace?: AgentTrace) {
     return this.request(
       "GET",

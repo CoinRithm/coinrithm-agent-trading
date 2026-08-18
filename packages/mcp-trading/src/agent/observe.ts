@@ -31,6 +31,12 @@ export interface ObserveOutput {
 // short cadence the hosted house agents run on. Probe-verified 2026-06-17.
 const INDICATOR_RANGE = "1D";
 
+// `universe_scan` bounds: how many top movers to pull, and how many of those
+// to fully resolve into tradable watch entries (each resolved row costs a
+// resolve + market [+ candles] call).
+const UNIVERSE_SCAN_LIMIT = 15;
+const UNIVERSE_RESOLVE_TOP = 3;
+
 // Watchlist symbols -> the coin NAMES prediction-market titles use, so an agent
 // discovers PM markets about the coins it actually has a price view on.
 const PM_COIN_NAMES: Record<string, string> = {
@@ -348,6 +354,67 @@ export async function observe(
     watch.push(entry);
   }
 
+  // `universe_scan` capability (2026-08-18, direct user request): discover the
+  // top 24h movers across the whole tracked universe, resolve the strongest
+  // few into FULL watch entries (marked discovered) and pass the remainder as
+  // compact context. Bounds: one movers call + up to
+  // UNIVERSE_RESOLVE_TOP resolve/market(+candles) calls per cycle — the same
+  // per-symbol cost as ~3 extra watchlist rows, all against CoinRithm's own
+  // API (never the model quota). Failures degrade to "no universe section",
+  // never a skipped cycle. Watchlist + blocklist symbols are excluded up
+  // front so a discovered row can never duplicate or bypass the deny-list.
+  let universeMovers: Observation["universeMovers"];
+  if (spec.capabilities.includes("universe_scan")) {
+    const mv = await client.cryptoMovers("gainers", UNIVERSE_SCAN_LIMIT, trace);
+    if (mv.ok && Array.isArray(mv.data)) {
+      const excluded = new Set(
+        [...spec.risk.watchlist, ...(spec.risk.blocklist ?? [])].map((s) =>
+          s.toUpperCase(),
+        ),
+      );
+      const rows = mv.data
+        .map(asObj)
+        .map((r) => ({
+          symbol: (asStr(r.symbol) ?? "").toUpperCase(),
+          name: asStr(r.name),
+          change24hPct: asNum(r.change24h),
+          priceUsd: asNum(r.currentPrice),
+        }))
+        .filter((r) => r.symbol && !excluded.has(r.symbol));
+
+      const resolveTop = rows.slice(0, UNIVERSE_RESOLVE_TOP);
+      for (const row of resolveTop) {
+        const rs = await client.resolve(row.symbol, trace);
+        const match = asObj(asObj(rs.data).match);
+        const coinId =
+          rs.ok && match.coinId != null ? String(match.coinId) : null;
+        if (!coinId) continue;
+        const mk = await client.market(coinId, trace);
+        const m = asObj(mk.data);
+        const price = asObj(m.price);
+        const entry: WatchEntry = {
+          symbol: row.symbol,
+          coinId,
+          name: asStr(match.name) ?? row.name,
+          priceUsd: asNum(price.usd) ?? row.priceUsd,
+          change1h: asNum(price.change1h),
+          change24h: asNum(price.change24h) ?? row.change24hPct,
+          change7d: asNum(price.change7d),
+          sentimentBullishPct: asNum(asObj(m.sentiment).bullishPct) ?? undefined,
+          freshness: freshnessOf(asObj(m.observation)),
+          discovered: true,
+        };
+        if (wantIndicators) {
+          const ind = await fetchIndicators(client, coinId, trace);
+          if (ind) entry.indicators = ind;
+        }
+        watch.push(entry);
+      }
+      const context = rows.slice(UNIVERSE_RESOLVE_TOP);
+      if (context.length > 0) universeMovers = context;
+    }
+  }
+
   // Spot resting orders (for cancel + affordability) — only if spot is enabled.
   const wantSpot = spec.venues.includes("spot");
   const wantPm = spec.venues.includes("pm");
@@ -610,6 +677,7 @@ export async function observe(
     syncCursor,
     newClosedTrades,
     polledBeforeWrite,
+    universeMovers,
   };
 
   // Skip only when there is NOTHING actionable: no coin resolved (futures/spot)
