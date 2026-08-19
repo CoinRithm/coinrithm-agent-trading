@@ -130,6 +130,22 @@ cause an unintended or oversized trade:
   only on confirmed success; a corrupt state file refuses to run; a per-agent
   lock prevents two runners racing one state file.
 
+## Capabilities and the event-driven gate
+
+`capabilities:` in `agent.md` controls what each cycle's observation carries —
+and whether the agent ever wakes at all. The runner is **event-driven by
+default**: a model call is spent only when a deterministic scan flags a real
+setup, a position is open, or an eligible PM market is on the board. Those
+setups are computed **from indicators**, so an agent without
+`capabilities: [indicators]` on a flat tape has nothing to fire on and
+heartbeats forever without a single model call. Declare at least
+`[indicators]` (the scaffold now does). Optional extras: `universe_scan`
+(each cycle also discovers the market's top 24h movers beyond the watchlist,
+promoted into tradable candidates under the same risk caps and blocklist) and
+`news` (recent high-importance items for the agent's coins, discovered movers
+included). `websearch` is reserved — accepted by the validator but not yet
+implemented; declaring it does nothing today.
+
 ## Venues
 
 The runner trades CoinRithm **spot, futures, and prediction markets** — declare

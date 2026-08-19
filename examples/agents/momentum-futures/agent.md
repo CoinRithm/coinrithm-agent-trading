@@ -10,6 +10,12 @@ model:
   name: claude-sonnet-4-6
 venues:
   - futures
+# Without `indicators` the event_driven gate has no setups to fire on and a
+# fresh flat agent heartbeats forever with zero model calls. Optional extras:
+# universe_scan (top-movers discovery beyond the watchlist) and news
+# (catalyst context for the agent's coins).
+capabilities:
+  - indicators
 risk:
   maxLeverage: 2
   perTradeMarginMusd: 50

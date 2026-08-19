@@ -84,7 +84,15 @@ async function fetchIndicators(
   coinId: string,
   trace?: AgentTrace,
 ): Promise<IndicatorSet | null> {
-  const cr = await client.candles(coinId, INDICATOR_RANGE, trace);
+  // The try honors the documented tolerance for SYNCHRONOUS throws too (an
+  // unexpected client error must degrade to price-only context, never kill
+  // the cycle).
+  let cr: Awaited<ReturnType<CoinRithmClient["candles"]>>;
+  try {
+    cr = await client.candles(coinId, INDICATOR_RANGE, trace);
+  } catch {
+    return null;
+  }
   if (!cr.ok) return null;
   // Endpoint shape: { candles: [{ t, o, h, l, c, v }] } ascending (oldest first).
   const candles: Candle[] = [];

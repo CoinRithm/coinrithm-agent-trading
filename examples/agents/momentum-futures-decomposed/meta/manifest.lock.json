@@ -1,16 +1,17 @@
 {
-  "configHash": "sha256:4390a05bc7378da2bce6d0227e5e80f204fba475f4fea85e5273626d2b295d2f",
+  "configHash": "sha256:362922eb0c007c8a4400e1da5c7c5c8ad07d64118a5ce34455303bdac254842b",
   "contentHashes": {
-    "agent.md": "sha256:778dd0eddae2236fe22f7af2452895d09c3150406357718576004edb5dd1e834",
+    "agent.md": "sha256:4740a27b688c2a06e9a2aaee44fc87ba6428f1692dd06808ec7afc5c431a0ef8",
     "character/abstention.yaml": "sha256:2440bba7a71f3ef5589c1390113f73b1862d316564373105c1faf731d69c588d",
     "character/limits.yaml": "sha256:10eb058c34fc1bfb87780c65878ecb68f6aead5cee8c5faa10542a947a25dab2",
     "character/persona.md": "sha256:4677ce1c64c1b2da6314edc8bb139b7c98a09c860bde7a129850db6a215d9b8f",
     "character/risk.yaml": "sha256:e93242b35aefaa5a3b025e8b5eb4dbc2c294ec666a88bc50a3a88e4fbaf65cd3",
     "character/thesis.md": "sha256:85606dbc8e3af8e19ba55bbb1c23035b7795691ec4dcf79632aaed2f8483c560",
-    "functionality/coinrithm.yaml": "sha256:19d5449a0f4ad678e4aed3b684de1198174cf4c09f4e776f909a9504460d2c7d",
+    "functionality/coinrithm.yaml": "sha256:bc8daf44822547a15514c8e92cf4028fb496f1088e6a466d9e9dac9cfe28d1b0",
     "runtime.yaml": "sha256:a2dde8ea84ccfc8be5e4b731f3cb77b6ffa67b74fc778649a2990ea287b11013",
     "safety/killSwitch.yaml": "sha256:d7d3cf9d3920ab2083f4a0d0ccd6fc0c2c9284977d4e864b9ace437b0d4e30c9"
   },
+  "indicatorVersion": "coinrithm.indicators.v1",
   "provenance": {
     "includeOrder": [],
     "mergeOrder": [
@@ -26,6 +27,7 @@
     ],
     "sources": {
       "abstention": "character/abstention.yaml",
+      "capabilities": "agent.md",
       "description": "agent.md",
       "functionality": "functionality/coinrithm.yaml",
       "killSwitch": "safety/killSwitch.yaml",
@@ -50,6 +52,9 @@
       "onStaleData": true,
       "onWeakSignal": true
     },
+    "capabilities": [
+      "indicators"
+    ],
     "description": "Trend-following CoinRithm paper-trading agent (momentum-futures, conservative).",
     "killSwitch": {
       "maxConsecutiveModelFailures": 10,
@@ -113,7 +118,9 @@
       "onStaleData": true,
       "onWeakSignal": true
     },
-    "capabilities": [],
+    "capabilities": [
+      "indicators"
+    ],
     "description": "Trend-following CoinRithm paper-trading agent (momentum-futures, conservative).",
     "killSwitch": {
       "maxConsecutiveModelFailures": 10,

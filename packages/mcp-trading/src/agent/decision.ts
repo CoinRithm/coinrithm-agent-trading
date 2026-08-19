@@ -73,6 +73,13 @@ const futuresSetSltp = z
     positionId: num(z.number()),
     stopLossPrice: num(z.number()).nullable().optional(),
     takeProfitPrice: num(z.number()).nullable().optional(),
+    // Accepted-and-unused: the output contract asks for per-action confidence,
+    // so models copy it onto EVERY action. The two schemas that lacked it were
+    // fail-closing whole decisions under .strict() (~180-200 discarded
+    // fleet-wide per day, live-measured 2026-08-19). Same tolerance the four
+    // trade actions already have.
+    confidence,
+    rationaleSummary: z.string().optional(),
   })
   .strict();
 
@@ -94,6 +101,9 @@ const spotCancel = z
   .object({
     type: z.literal("spot_cancel"),
     orderId: num(z.number()),
+    // Same accepted-and-unused tolerance as futures_set_sltp above.
+    confidence,
+    rationaleSummary: z.string().optional(),
   })
   .strict();
 

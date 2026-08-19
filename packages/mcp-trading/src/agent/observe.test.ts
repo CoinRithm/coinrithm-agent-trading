@@ -6,7 +6,14 @@ import { newState } from "./state.js";
 import { CoinRithmClient } from "./client.js";
 
 const okData = (data: unknown) => ({ ok: true, status: 200, data });
-const spec = parseSkill(renderFolderOfOne("a", "conservative")).spec;
+// The scaffold now declares capabilities: [indicators] (dormancy fix,
+// 2026-08-19); this suite's base spec strips them so the many tests that do
+// not stub client.candles keep exercising the capability-less path. The
+// indicators/news/universe_scan describes opt back in per test.
+const spec = {
+  ...parseSkill(renderFolderOfOne("a", "conservative")).spec,
+  capabilities: [] as ReturnType<typeof parseSkill>["spec"]["capabilities"],
+};
 
 function fakeClient(over: Record<string, unknown> = {}): CoinRithmClient {
   return {

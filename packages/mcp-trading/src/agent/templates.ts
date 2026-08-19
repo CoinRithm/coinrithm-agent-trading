@@ -120,6 +120,12 @@ export function buildAgentObject(
     trigger: { cadence: p.cadence, timezone: "UTC" },
     model: { provider: "anthropic", name: "claude-sonnet-4-6" },
     venues: ["futures"],
+    // Without `indicators` the event_driven gate has no setups to fire on and
+    // a fresh flat agent heartbeats forever with ZERO model calls (audit
+    // 2026-08-19: every scaffold was born dormant). Optional extras a user
+    // can add: "universe_scan" (top-movers discovery beyond the watchlist)
+    // and "news" (catalyst context for its coins).
+    capabilities: ["indicators"],
     risk: {
       maxLeverage: p.leverage,
       perTradeMarginMusd: p.margin,

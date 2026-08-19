@@ -255,3 +255,33 @@ describe("parseDecision", () => {
     });
   });
 });
+
+describe("action confidence tolerance (fleet fail-closed fix, 2026-08-19)", () => {
+  it("accepts the confidence key on futures_set_sltp and spot_cancel instead of fail-closing the whole decision", () => {
+    // Exact observed failing shape: the contract asks for per-action
+    // confidence, models copy it onto EVERY action, and the two schemas
+    // without the key discarded the entire decision under .strict().
+    const out = parseDecision(
+      JSON.stringify({
+        decision: "act",
+        confidence: 0.7,
+        reason: "manage",
+        actions: [
+          {
+            type: "futures_set_sltp",
+            positionId: 12,
+            stopLossPrice: 100,
+            confidence: 0.7,
+          },
+          { type: "spot_cancel", orderId: 4, confidence: "0.6" },
+        ],
+      }),
+    );
+    expect(out.ok).toBe(true);
+    if (out.ok) {
+      expect(out.decision.actions).toHaveLength(2);
+      expect(out.decision.actions[0].type).toBe("futures_set_sltp");
+      expect(out.decision.actions[1].type).toBe("spot_cancel");
+    }
+  });
+});
