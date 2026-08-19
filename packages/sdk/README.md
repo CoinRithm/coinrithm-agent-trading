@@ -32,9 +32,23 @@ const client = createClient({ apiKey: process.env.COINRITHM_API_KEY });
 
 // Fully typed: paths, params and bodies come from the OpenAPI contract.
 const { data, error } = await client.GET('/api/agent/portfolio');
-const quote = await client.POST('/api/agent/orders/quote', {
-  body: { coinId: 1, side: 'buy', amountMusd: 100 },
+
+// coinId is the UCID as a STRING ("1" = BTC), and spot quotes take a base-coin
+// `quantity`, not a mUSD amount. Both are enforced at compile time.
+const quote = await client.POST('/api/agent/spot/quote', {
+  body: { coinId: '1', side: 'buy', quantity: 0.01 },
 });
+```
+
+Keyless research surfaces need no key on the same client — e.g. the universe
+scan behind `get_crypto_movers`:
+
+```ts
+const movers = await client.GET('/api/coins/top-gainers', {
+  params: { query: { limit: 20 } },
+});
+// Rows are a bare array; `ucid` is the coinId every other endpoint takes, and
+// `change24h` / `currentPrice` arrive as decimal STRINGS.
 ```
 
 Mint a personal API key (`crk_live_…`) in your CoinRithm profile. Scopes:
