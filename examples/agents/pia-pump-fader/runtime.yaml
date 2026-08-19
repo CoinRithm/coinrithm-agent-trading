@@ -1,0 +1,10 @@
+mode: self-host
+model:
+  provider: anthropic
+  name: claude-sonnet-4-6
+trigger:
+  # 10 minutes: fast enough to catch exhaustion forming after a discovered
+  # pump, slow enough that WATCH cycles stay cheap. Pump fades develop over
+  # hours; a 1-minute cadence only burns model budget.
+  cadence: 10m
+  timezone: UTC

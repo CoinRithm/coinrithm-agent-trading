@@ -1,0 +1,7 @@
+onStaleData: true
+onWeakSignal: true
+onMissingQuote: true
+onInsufficientBalance: true
+# High floor on purpose: Pia acts on confirmed exhaustion after a qualifying
+# pump, which is rare and should feel convicted when it happens.
+minConfidence: 0.6

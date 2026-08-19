@@ -1,0 +1,5 @@
+maxDrawdownMusd: 2000
+maxConsecutiveRejects: 0
+# The runner floors model-failure disables at 10; 15 tolerates free-model flake.
+maxConsecutiveModelFailures: 15
+onRateLimitPressure: true

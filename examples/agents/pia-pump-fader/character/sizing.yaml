@@ -1,0 +1,4 @@
+# Soft guidance the model reads (enforced caps live in risk.yaml/limits.yaml).
+riskRewardMin: 1.5
+riskPerTradePct: 1
+kellyFraction: 0.2

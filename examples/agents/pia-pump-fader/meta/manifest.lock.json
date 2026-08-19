@@ -1,0 +1,213 @@
+{
+  "configHash": "sha256:f1f4296586df817a262346e0dda7113d9f45d1b319715882842537182ceb439b",
+  "contentHashes": {
+    "agent.md": "sha256:0cc59582ff3e77149ee3dd460eafe40cf7e24f4243b0ead2f87db8b182652e49",
+    "character/abstention.yaml": "sha256:5a3022ee3b58c763d4a3a6dcf0933b548779996f2e08ad963fb4ce0a1d696ec8",
+    "character/limits.yaml": "sha256:7313e401743737fae95b708df0cba7fe7647bda6d3b85c9a4a6a9c1b5edff914",
+    "character/persona.md": "sha256:ab6536d686f77e3b64fe4b7d790116680a479a8159c4161ddc1a4099a8e69cef",
+    "character/risk.yaml": "sha256:e801165e6fca61dc05a7e7978709f061e46186c57439ac6bad63eebe67ca6caa",
+    "character/sizing.yaml": "sha256:35c947dba11d3d07f2cadcdba0953d41d1d9551e8c136b0a5e18a373c73f1bc1",
+    "character/skills/fade-entry.md": "sha256:592abe5bed1851396ffbe952c7405ac7a25bdc96c624958129fd82de7f3ca196",
+    "character/skills/pump-detection.md": "sha256:381a49db2d53ed95d5c1f0ab178e7210c2089ed729be68136df40a3440ba15aa",
+    "character/thesis.md": "sha256:5c6a7f8097af426f556fbc769600256ed42f6bd432728a463523c753452db978",
+    "functionality/coinrithm.yaml": "sha256:13223af5daab80bf3026dfb93650344ef32854b9c89467cc382041630f9df34f",
+    "journal/notes.md": "sha256:7d5b4eaafe70b270bb37d7c8bd69b426d0f3848d0119681e4268969997e9d721",
+    "runtime.yaml": "sha256:8850d61097139e64b8c5b4b8254ac537f45d17872373f37261689edbba9462db",
+    "safety/killSwitch.yaml": "sha256:688349a6ecb27203e94f56ac8473ab663f2ae1718f3127cb0d9d4df55f209ee1"
+  },
+  "indicatorVersion": "coinrithm.indicators.v1",
+  "provenance": {
+    "includeOrder": [
+      "pump-detection",
+      "fade-entry"
+    ],
+    "mergeOrder": [
+      "agent.md",
+      "runtime.yaml",
+      "character/sizing.yaml",
+      "character/risk.yaml",
+      "character/limits.yaml",
+      "character/abstention.yaml",
+      "safety/killSwitch.yaml",
+      "character/skills/pump-detection.md",
+      "character/skills/fade-entry.md",
+      "character/thesis.md",
+      "character/persona.md",
+      "journal/notes.md",
+      "functionality/coinrithm.yaml"
+    ],
+    "sources": {
+      "abstention": "character/abstention.yaml",
+      "capabilities": "agent.md",
+      "description": "agent.md",
+      "functionality": "functionality/coinrithm.yaml",
+      "include": "agent.md",
+      "killSwitch": "safety/killSwitch.yaml",
+      "limits": "character/limits.yaml",
+      "mode": "runtime.yaml",
+      "model": "runtime.yaml",
+      "name": "agent.md",
+      "objective": "agent.md",
+      "risk": "character/risk.yaml",
+      "sizing": "character/sizing.yaml",
+      "spec": "agent.md",
+      "sync": "agent.md",
+      "trigger": "runtime.yaml",
+      "venues": "agent.md"
+    }
+  },
+  "resolvedConfig": {
+    "abstention": {
+      "minConfidence": 0.6,
+      "onInsufficientBalance": true,
+      "onMissingQuote": true,
+      "onStaleData": true,
+      "onWeakSignal": true
+    },
+    "capabilities": [
+      "indicators",
+      "universe_scan",
+      "news"
+    ],
+    "description": "A selective pump-fade CoinRithm paper agent that discovers abnormal upward moves with universe_scan, investigates the cause with news, waits for exhaustion, and only then paper-shorts the confirmed reversal. HOLD is her default action.",
+    "include": [
+      "pump-detection",
+      "fade-entry"
+    ],
+    "killSwitch": {
+      "maxConsecutiveModelFailures": 15,
+      "maxConsecutiveRejects": 0,
+      "maxDrawdownMusd": 2000,
+      "onRateLimitPressure": true
+    },
+    "limits": {
+      "maxDailyLossMusd": 900,
+      "maxOpenMarginMusd": 1200,
+      "maxTradesPerDay": 4,
+      "maxWritesPerCycle": 1
+    },
+    "mode": "self-host",
+    "model": {
+      "name": "claude-sonnet-4-6",
+      "provider": "anthropic"
+    },
+    "name": "Pump-Fade Pia",
+    "objective": {
+      "horizon": "7d",
+      "primary": "risk_adjusted",
+      "secondary": [
+        "drawdown_control",
+        "calibration"
+      ]
+    },
+    "risk": {
+      "blocklist": [
+        "BTC",
+        "ETH"
+      ],
+      "maxConcurrentPositions": 2,
+      "maxLeverage": 2,
+      "perTradeMarginMusd": 600,
+      "requireStopLoss": true,
+      "watchlist": [
+        "BTC",
+        "ETH"
+      ]
+    },
+    "sizing": {
+      "kellyFraction": 0.2,
+      "riskPerTradePct": 1,
+      "riskRewardMin": 1.5
+    },
+    "spec": "coinrithm.agent.v1",
+    "sync": {
+      "requirePollBeforeWrite": true
+    },
+    "trigger": {
+      "cadence": "10m",
+      "timezone": "UTC"
+    },
+    "venues": [
+      "futures",
+      "pm"
+    ]
+  },
+  "resolvedSpec": {
+    "abstention": {
+      "minConfidence": 0.6,
+      "onInsufficientBalance": true,
+      "onMissingQuote": true,
+      "onStaleData": true,
+      "onWeakSignal": true
+    },
+    "capabilities": [
+      "indicators",
+      "universe_scan",
+      "news"
+    ],
+    "description": "A selective pump-fade CoinRithm paper agent that discovers abnormal upward moves with universe_scan, investigates the cause with news, waits for exhaustion, and only then paper-shorts the confirmed reversal. HOLD is her default action.",
+    "killSwitch": {
+      "maxConsecutiveModelFailures": 15,
+      "maxConsecutiveRejects": 0,
+      "maxDrawdownMusd": 2000,
+      "onRateLimitPressure": true
+    },
+    "limits": {
+      "maxDailyLossMusd": 900,
+      "maxOpenMarginMusd": 1200,
+      "maxTradesPerDay": 4,
+      "maxWritesPerCycle": 1
+    },
+    "model": {
+      "name": "claude-sonnet-4-6",
+      "provider": "anthropic"
+    },
+    "name": "Pump-Fade Pia",
+    "objective": {
+      "horizon": "7d",
+      "primary": "risk_adjusted",
+      "secondary": [
+        "drawdown_control",
+        "calibration"
+      ]
+    },
+    "risk": {
+      "blocklist": [
+        "BTC",
+        "ETH"
+      ],
+      "maxConcurrentPositions": 2,
+      "maxLeverage": 2,
+      "perTradeMarginMusd": 600,
+      "requireStopLoss": true,
+      "watchlist": [
+        "BTC",
+        "ETH"
+      ]
+    },
+    "spec": "coinrithm.agent.v1",
+    "sync": {
+      "requirePollBeforeWrite": true
+    },
+    "trigger": {
+      "cadence": "10m",
+      "timezone": "UTC"
+    },
+    "triggerPolicy": {
+      "alwaysManageOpenPositions": true,
+      "debounceMinutes": 0,
+      "maxLlmCallsPerHour": 0,
+      "mode": "event_driven",
+      "pmEvalCooldownMinutes": 10,
+      "skipLlmWhenNoTrigger": true
+    },
+    "venues": [
+      "futures",
+      "pm"
+    ]
+  },
+  "resolverVersion": "1",
+  "runnerVersion": "0.1.0",
+  "schema": "coinrithm.manifest.v1",
+  "spec": "coinrithm.agent.v1"
+}

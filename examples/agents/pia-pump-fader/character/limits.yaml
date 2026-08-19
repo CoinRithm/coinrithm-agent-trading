@@ -1,0 +1,6 @@
+# A selective fader: few, deliberate trades. The daily cap is a REAL bound here
+# (unlike the always-on house agents) because low frequency is the strategy.
+maxTradesPerDay: 4
+maxWritesPerCycle: 1
+maxDailyLossMusd: 900
+maxOpenMarginMusd: 1200

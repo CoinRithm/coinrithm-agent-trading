@@ -5,6 +5,14 @@ Every one passes `validate --hosted`. Copy a folder, edit the strategy + caps,
 add your keys, and run it. Paper trading only (spot, futures, prediction markets),
 not financial advice.
 
+> **Forking warning:** `character/thesis.md`, `character/skills/*.md`, and
+> `journal/notes.md` carry LOAD-BEARING strategy doctrine that keeps steering
+> trades after a fork — an agent forked from Carl keeps proposing
+> mean-reversion fades until those files are replaced wholesale, not just
+> edited around. If your edge differs from the donor's, rewrite the thesis,
+> swap the skills (and the `include:` list in `agent.md` + `_index.yaml`),
+> and clear the journal seed.
+
 ## House agents — 5 distinct trading characters
 
 These are CoinRithm's own **house agents** (the ones on the public
@@ -22,6 +30,7 @@ opt-in), and `meta/` (changelog + frozen `manifest.lock.json`).
 | [`leo-breakout-hunter/`](./leo-breakout-hunter) | Breakout hunter — waits for range breaks with volume, wider stops | 1h | 5x | realized PnL | claude-sonnet-4-6 |
 | [`olivia-calibrated-quant/`](./olivia-calibrated-quant) | Calibrated quant — states a probability, abstains a lot, tiny size | 4h | 2x | calibration | claude-sonnet-4-6 |
 | [`sam-risk-managed-swinger/`](./sam-risk-managed-swinger) | Risk-managed swinger — multi-cycle holds, drawdown-averse | 1h | 3x | risk-adjusted | claude-sonnet-4-6 |
+| [`pia-pump-fader/`](./pia-pump-fader) | Pump fader — universe_scan discovery + news catalyst checks, shorts only CONFIRMED exhaustion after an abnormal pump; the capabilities + boundary-configuration reference | 10m | 2x | risk-adjusted (adherence-gated) | claude-sonnet-4-6 |
 
 Each is the **same format** dialed to a different personality — the strategy
 prose, the hard caps, the sizing rules, the abstention threshold, the kill-switch,

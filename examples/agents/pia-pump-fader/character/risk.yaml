@@ -1,0 +1,15 @@
+maxLeverage: 2
+perTradeMarginMusd: 600
+maxConcurrentPositions: 2
+requireStopLoss: true
+# BTC/ETH are REGIME ANCHORS: on the watchlist so every cycle carries their
+# price/indicator read (State 1's beta check + market barometer), and on the
+# blocklist so they can never be traded (deny wins over allow). Pia's tradable
+# candidates therefore come ONLY from universe_scan discovery — this pairing is
+# the boundary-configuration pattern this bundle exists to demonstrate.
+watchlist:
+  - BTC
+  - ETH
+blocklist:
+  - BTC
+  - ETH
