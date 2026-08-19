@@ -166,7 +166,9 @@ export class CoinRithmClient {
   ) {
     return this.request(
       "GET",
-      direction === "losers" ? "/api/coins/top-losers" : "/api/coins/top-gainers",
+      direction === "losers"
+        ? "/api/coins/top-losers"
+        : "/api/coins/top-gainers",
       { query: { limit }, trace },
     );
   }
