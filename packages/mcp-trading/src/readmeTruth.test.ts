@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "fs";
 import { join } from "path";
+import { ALLOWED_CAPABILITIES } from "./agent/types.js";
 
 // Truth tripwires (2026-07-08 cross-audit): the root README drifted to
 // "currently 0.4.0" while npm was at 0.7.1, and tool copy said "seven
@@ -183,5 +184,20 @@ describe("public docs stay truthful", () => {
         /\b(7|8|9|10|seven|eight|nine|ten)\s+venues\b/i,
       );
     });
+  });
+});
+
+describe("capability docs tripwire (audit rank 9)", () => {
+  it("docs/agent-runner.md documents every ALLOWED_CAPABILITY by name", () => {
+    // The capability system shipped fully undocumented once (universe_scan
+    // invisible in every user surface, audit 2026-08-19). This tripwire makes
+    // adding a capability without documenting it a test failure.
+    const doc = readFileSync(
+      join(repoRoot, "docs/agent-runner.md"),
+      "utf8",
+    );
+    for (const cap of ALLOWED_CAPABILITIES) {
+      expect(doc).toContain(cap);
+    }
   });
 });

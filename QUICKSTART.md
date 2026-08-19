@@ -187,6 +187,20 @@ spec as function-calling tools with `Authorization: Bearer …`. Use
 
 ---
 
+## Autonomous agents: capabilities
+
+Running a spec-driven agent (hosted via the Studio, or self-host with
+`coinrithm-agent`) instead of a chat client? Declare `capabilities:` — it
+controls what each cycle's observation carries and whether the agent wakes at
+all: `indicators` (always keep it — it powers the event-driven trigger),
+`universe_scan` (discover and trade the market's top movers beyond your
+watchlist, same risk caps), and `news` (catalyst context for your coins,
+discovered movers included). Details:
+[`docs/agent-runner.md`](./docs/agent-runner.md); a full worked example:
+[`examples/agents/pia-pump-fader/`](./examples/agents/pia-pump-fader).
+
+---
+
 ## Sanity check
 
 Once configured, ask: *"Call whoami on CoinRithm."* You should get back your
