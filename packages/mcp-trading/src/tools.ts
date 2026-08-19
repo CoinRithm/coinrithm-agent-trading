@@ -573,6 +573,12 @@ export function compactPublicCryptoMovers(data: unknown): unknown {
     const change = Number(row.change24h);
     const price = Number(row.currentPrice);
     return {
+      // coinId IS the ucid the rest of the tool surface takes (get_candles,
+      // get_market_context, the futures quote/open path). Carrying it through
+      // is not cosmetic: without it the caller has to re-derive the coin from
+      // the SYMBOL via resolve_symbol, and symbols collide across listings —
+      // the round-trip can land on a different coin than the one that moved.
+      coinId: row.ucid,
       symbol: row.symbol,
       name: row.name,
       slug: row.slug,
@@ -2433,9 +2439,11 @@ export function registerTools(
         "24h change percent. Use this to DISCOVER candidates beyond your " +
         "watchlist (abnormal rapid moves), then deep-analyze each candidate " +
         "with get_candles (OHLC + indicators) and get_market_context " +
-        "(sentiment, news) before any trade decision. Rows carry symbol, " +
-        "name, slug, change24hPct and priceUsd; data refreshes on the ~60s " +
-        "core price tick. No API key required.",
+        "(sentiment, news) before any trade decision. Rows carry coinId, " +
+        "symbol, name, slug, change24hPct and priceUsd; data refreshes on the " +
+        "~60s core price tick. Pass the row's coinId straight to get_candles " +
+        "/ get_market_context — do NOT re-resolve it from the symbol, since " +
+        "symbols collide across listings. No API key required.",
       inputSchema: {
         direction: z
           .enum(["gainers", "losers"])

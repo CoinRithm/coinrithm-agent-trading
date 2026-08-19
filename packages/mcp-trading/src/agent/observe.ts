@@ -387,15 +387,29 @@ export async function observe(
           name: asStr(r.name),
           change24hPct: asNum(r.change24h),
           priceUsd: asNum(r.currentPrice),
+          // The movers row already carries the ucid, which IS the coinId every
+          // downstream call takes. Kept so the resolve round-trip below can be
+          // skipped — see the comment there.
+          coinId: asStr(r.ucid),
         }))
         .filter((r) => r.symbol && !excluded.has(r.symbol));
 
       const resolveTop = rows.slice(0, UNIVERSE_RESOLVE_TOP);
       for (const row of resolveTop) {
-        const rs = await client.resolve(row.symbol, trace);
-        const match = asObj(asObj(rs.data).match);
-        const coinId =
-          rs.ok && match.coinId != null ? String(match.coinId) : null;
+        // Prefer the ucid the movers feed already gave us. Resolving the
+        // SYMBOL instead was both a wasted call per discovered mover and a
+        // correctness hazard: symbols collide across listings, so the resolver
+        // could hand back a different coin than the one that actually moved,
+        // and the agent would analyze (and trade) that other coin.
+        let coinId = row.coinId;
+        let resolvedName: string | undefined;
+        if (!coinId) {
+          const rs = await client.resolve(row.symbol, trace);
+          const match = asObj(asObj(rs.data).match);
+          coinId =
+            rs.ok && match.coinId != null ? String(match.coinId) : undefined;
+          resolvedName = asStr(match.name);
+        }
         if (!coinId) continue;
         const mk = await client.market(coinId, trace);
         const m = asObj(mk.data);
@@ -403,7 +417,7 @@ export async function observe(
         const entry: WatchEntry = {
           symbol: row.symbol,
           coinId,
-          name: asStr(match.name) ?? row.name,
+          name: resolvedName ?? row.name ?? undefined,
           priceUsd: asNum(price.usd) ?? row.priceUsd,
           change1h: asNum(price.change1h),
           change24h: asNum(price.change24h) ?? row.change24hPct,

@@ -311,7 +311,7 @@ describe("compact public prediction-market MCP responses", () => {
 });
 
 describe("compactPublicCryptoMovers", () => {
-  it("coerces string numerics, drops ucid, keeps identity fields", () => {
+  it("coerces string numerics and carries ucid through as coinId", () => {
     const rows = [
       {
         ucid: "1",
@@ -324,6 +324,10 @@ describe("compactPublicCryptoMovers", () => {
     ];
     expect(compactPublicCryptoMovers(rows)).toEqual([
       {
+        // coinId (= ucid) must survive compaction: it is what get_candles and
+        // get_market_context take. Dropping it forced a resolve_symbol
+        // round-trip that can land on a different coin with the same symbol.
+        coinId: "1",
         symbol: "PRCL",
         name: "Parcl",
         slug: "parcl",
