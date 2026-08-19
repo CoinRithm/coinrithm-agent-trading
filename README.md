@@ -258,8 +258,9 @@ independently — a package patch does not imply an API change and vice versa.
 
 Market Data (prices, probabilities, order books, volumes, event/market
 metadata, and settlement outcomes sourced from third-party prediction-market
-venues) is licensed to CoinRithm by those venues and provided subject to
-CoinRithm's Terms of Use. You — and any agent, model, or application you
+venues) is collected by CoinRithm from those venues' public interfaces — and,
+where a venue agreement exists, under that agreement — and is provided
+subject to both CoinRithm's Terms of Use and each source venue's own terms. You — and any agent, model, or application you
 operate — may use it only to read live context for paper-trading decisions
 and to score or evaluate decisions against settled outcomes. You may NOT:
 (a) train, fine-tune, evaluate, or benchmark any AI/ML model on it (read-only
