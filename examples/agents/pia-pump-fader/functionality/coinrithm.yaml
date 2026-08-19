@@ -4,7 +4,7 @@ api:
   mcpUrl: https://mcp.coinrithm.com/mcp
   openapiVersion: 1.7.0
   mcpPackage: "@coinrithm/mcp-trading"
-  mcpVersion: 0.7.5
+  mcpVersion: 0.7.6
 venues:
   - futures
   - pm

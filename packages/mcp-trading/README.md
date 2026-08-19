@@ -12,7 +12,7 @@ ships ten keyless `pm_data_*` tools serving CoinRithm's public cross-venue
 dataset: live odds across 12 venues (Polymarket, Kalshi, Smarkets, Limitless,
 Manifold, Metaculus, PredictIt, Rothera, Futuur, Myriad, ForecastEx, Gemini), cross-venue matches with a
 liquidity-aware reference probability, a whale-trade tape, and market-wide
-volume stats ($60B+ all-time tracked). Point any MCP client at the hosted
+volume stats ($90B+ all-time tracked). Point any MCP client at the hosted
 endpoint `https://mcp.coinrithm.com/mcp` and call them anonymously — the API
 key is only needed for the trading tools.
 

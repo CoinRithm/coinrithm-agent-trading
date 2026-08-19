@@ -12,7 +12,7 @@ minConfidence 0.52, maxDrawdownMusd 2500,
 maxConsecutiveModelFailures 15. Earlier entries are preserved
 as history, not as current claims. Also today: the persona's Hard borders
 paragraph moved to character/guards.md (first-class guards file), and the
-functionality pin was bumped to MCP 0.7.5.
+functionality pin was bumped to MCP 0.7.6.
 
 
 ## v1 — initial house agent
