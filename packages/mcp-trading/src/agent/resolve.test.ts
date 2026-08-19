@@ -8,7 +8,12 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
-import { resolveAgent, ResolveError } from "./resolve.js";
+import {
+  resolveAgent,
+  ResolveError,
+  hostedProseBudget,
+  HOSTED_PROSE_MAX_CHARS,
+} from "./resolve.js";
 
 let dir: string;
 beforeEach(() => {
@@ -305,5 +310,43 @@ NEVER open a short unless a qualifying pump preceded it.`,
     write("character/guards.md", "   \n");
     const r2 = resolveAgent(dir);
     expect(r2.mergedProse).not.toContain("HARD BEHAVIORAL GUARDS");
+  });
+});
+
+describe("hosted prose budget + frontmatter stripping (2026-08-19)", () => {
+  it("strips YAML frontmatter from prose files — it is metadata, not doctrine", () => {
+    write("agent.md", INLINE_AGENT);
+    write(
+      "character/thesis.md",
+      `---
+type: coinrithm.agent.thesis
+tags: [agent, mean-reversion, futures]
+---
+The actual doctrine sentence.`,
+    );
+    const r = resolveAgent(dir);
+    expect(r.mergedProse).toContain("The actual doctrine sentence.");
+    // The model gains nothing from tags/type, and on the hosted path they ate
+    // the 8,000-char strategy budget.
+    expect(r.mergedProse).not.toContain("coinrithm.agent.thesis");
+    expect(r.mergedProse).not.toContain("mean-reversion");
+  });
+
+  it("leaves a prose file without frontmatter untouched", () => {
+    write("agent.md", INLINE_AGENT);
+    write("character/persona.md", "Just plain prose, no frontmatter.");
+    expect(resolveAgent(dir).mergedProse).toContain(
+      "Just plain prose, no frontmatter.",
+    );
+  });
+
+  it("reports the hosted budget and flags an over-limit bundle", () => {
+    expect(hostedProseBudget("short").fits).toBe(true);
+    expect(hostedProseBudget("short").over).toBe(0);
+    const over = hostedProseBudget("x".repeat(HOSTED_PROSE_MAX_CHARS + 250));
+    expect(over.fits).toBe(false);
+    expect(over.over).toBe(250);
+    // Trims before measuring, exactly like the backend's sanitizer.
+    expect(hostedProseBudget("  hi  ").used).toBe(2);
   });
 });

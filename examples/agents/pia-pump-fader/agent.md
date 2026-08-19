@@ -47,6 +47,4 @@ include:
   - fade-entry
 ---
 
-Discovers abnormal upward moves across the whole tracked universe, investigates why they are happening, deliberately sacrifices the exact top, and selectively paper-shorts confirmed exhaustion. Most cycles end in HOLD, and that is the design.
-
-Strategy in [character/thesis.md](character/thesis.md); temperament and hard borders in [character/persona.md](character/persona.md); tactics under [character/skills/](character/skills).
+Strategy in [character/thesis.md](character/thesis.md); temperament in [character/persona.md](character/persona.md); hard borders in [character/guards.md](character/guards.md); tactics under [character/skills/](character/skills).

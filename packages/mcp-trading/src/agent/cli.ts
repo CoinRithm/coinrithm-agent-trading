@@ -22,6 +22,8 @@ import {
   ResolveError,
   mergeProseParts,
   isSkillProseSource,
+  hostedProseBudget,
+  HOSTED_PROSE_MAX_CHARS,
 } from "./resolve.js";
 import { buildSpec, loadAgent } from "./skill.js";
 import { validateSkill, SkillValidationMode } from "./skillValidator.js";
@@ -145,6 +147,29 @@ export function cmdValidate(
   const spec = buildSpec(raw);
   const lint = [...strictLint(raw), ...checkCapabilityDrift(resolved, spec)];
   const v = validateSkill({ spec, body: resolved.mergedProse, raw }, mode);
+
+  // Hosted-only: the managed deploy/edit API caps the merged strategy prose at
+  // HOSTED_PROSE_MAX_CHARS and REVERTS the save when it is exceeded, so a
+  // bundle that resolves and lints perfectly can still be undeployable through
+  // the Studio. Measured 2026-08-19 after a user hit the wall: 4 of 9 example
+  // bundles were over (contrarian-carl 8,159, mia 8,175, olivia 8,587,
+  // pia-pump-fader 11,787) while the corpus README claimed they all pass
+  // `validate --hosted`. Checking it here is what makes that claim true and
+  // stops the corpus drifting back over the wall.
+  if (mode === "hosted") {
+    const budget = hostedProseBudget(resolved.mergedProse);
+    if (!budget.fits) {
+      lint.push({
+        code: "hosted_prose_too_long",
+        path: "character/*.md",
+        message:
+          `merged strategy prose is ${budget.used} chars, ${budget.over} over the hosted ` +
+          `limit of ${HOSTED_PROSE_MAX_CHARS} — the managed deploy would reject this and ` +
+          `revert to the template. Self-host has no such cap. Note the count includes a ` +
+          `"<!-- path -->" header per prose file, not just the bodies.`,
+      });
+    }
+  }
 
   const lintFatal = mode === "hosted";
   const lines: string[] = [];

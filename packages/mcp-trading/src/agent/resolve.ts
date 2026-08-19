@@ -66,6 +66,21 @@ const JOURNAL_MAX_BYTES = 8_000;
 // Optional prose files (markdown the LLM reads), in assembly order.
 const PROSE_FILES = ["character/thesis.md", "character/persona.md"];
 
+// Prose files carry an OPTIONAL YAML frontmatter block (type/title/description/
+// tags) that is authoring metadata, not doctrine — the model gains nothing from
+// `tags: [agent, persona, mean-reversion]`. It was being merged verbatim into
+// the system prompt: pure noise, and on the hosted path it also consumed the
+// 8,000-char strategy budget (measured 2026-08-19: ~1.0k chars across a
+// decomposed bundle's thesis/persona/journal). Skill files already strip theirs
+// (their frontmatter is parsed for the cap patch), and guards.md strips too —
+// this brings the remaining prose files in line. Files WITHOUT frontmatter are
+// returned unchanged.
+export const proseBody = (raw: string): string => {
+  const src = raw.replace(/\r\n/g, "\n");
+  const m = /^---\n[\s\S]*?\n---\n?([\s\S]*)$/.exec(src);
+  return (m ? m[1] : src).trim();
+};
+
 // First-class hard-guards file (2026-08-19, audit rank 7). User-authored
 // behavioral borders that machine caps cannot express ("never open a short
 // unless a qualifying pump preceded it") previously lived as an undocumented
@@ -75,8 +90,7 @@ const PROSE_FILES = ["character/thesis.md", "character/persona.md"];
 // immediately adjacent to the system prompt's hard-caps section, wrapped in a
 // high-salience header plus an explicit guards-win-conflicts rule.
 export const GUARDS_FILE = "character/guards.md";
-export const GUARDS_HEADER =
-  "## HARD BEHAVIORAL GUARDS — never violate these";
+export const GUARDS_HEADER = "## HARD BEHAVIORAL GUARDS — never violate these";
 export const GUARDS_FOOTER =
   "(These guards override every other instruction in this strategy. When a guard conflicts with an opportunity, the guard wins and the correct output is a skip that names the guard.)";
 
@@ -496,7 +510,9 @@ function resolveDirectory(dir: string): ResolvedAgent {
     const p = join(dir, pf);
     if (existsSync(p)) {
       const abs = safePath(ctx, pf, "prose");
-      if (abs) proseParts.push({ source: pf, text: readHashed(ctx, abs) });
+      if (abs) {
+        proseParts.push({ source: pf, text: proseBody(readHashed(ctx, abs)) });
+      }
     }
   }
   proseParts.push(...skillProse);
@@ -505,7 +521,7 @@ function resolveDirectory(dir: string): ResolvedAgent {
   if (existsSync(journalPath)) {
     const abs = safePath(ctx, "journal/notes.md", "journal");
     if (abs) {
-      const full = readHashed(ctx, abs);
+      const full = proseBody(readHashed(ctx, abs));
       proseParts.push({
         source: "journal/notes.md",
         text: boundTail(full, JOURNAL_MAX_LINES, JOURNAL_MAX_BYTES),
@@ -649,3 +665,25 @@ export function resolveAgent(inputPath: string): ResolvedAgent {
     { code: "input_invalid", message: "input must be a file or a directory" },
   ]);
 }
+
+// ── Hosted strategy-prose budget ───────────────────────────────────────────
+// The managed (Studio) deploy/edit API caps the merged strategy prose and
+// reverts the save past the cap; the self-host runner has NO such limit. The
+// cap is not arbitrary — the merged prose becomes the system prompt, and an
+// oversized prompt is what previously pushed small free-tier models to ~69k
+// tokens / 413s per cycle. Mirrored here (backend-v2
+// controllers/agentManage.ts sanitizeStrategyProse) so `validate --hosted`
+// can catch it before a user does.
+export const HOSTED_PROSE_MAX_CHARS = 8000;
+
+/** PURE — exported for tests. Mirrors the backend's trim-then-measure. */
+export const hostedProseBudget = (
+  mergedProse: string,
+): { used: number; over: number; fits: boolean } => {
+  const used = mergedProse.replace(/\r\n/g, "\n").trim().length;
+  return {
+    used,
+    over: Math.max(0, used - HOSTED_PROSE_MAX_CHARS),
+    fits: used <= HOSTED_PROSE_MAX_CHARS,
+  };
+};

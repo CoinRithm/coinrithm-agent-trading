@@ -1,17 +1,18 @@
 {
   "configHash": "sha256:f1f4296586df817a262346e0dda7113d9f45d1b319715882842537182ceb439b",
   "contentHashes": {
-    "agent.md": "sha256:0cc59582ff3e77149ee3dd460eafe40cf7e24f4243b0ead2f87db8b182652e49",
+    "agent.md": "sha256:b59daff30a204e7aaf29988973fd7424cc4f0260a33f2b79766f6544e8e02bdd",
     "character/abstention.yaml": "sha256:5a3022ee3b58c763d4a3a6dcf0933b548779996f2e08ad963fb4ce0a1d696ec8",
+    "character/guards.md": "sha256:dcf298adfc6264d601f5c4d3b320f0c706e9f3f83d312fc1910e85c32b9a993c",
     "character/limits.yaml": "sha256:7313e401743737fae95b708df0cba7fe7647bda6d3b85c9a4a6a9c1b5edff914",
-    "character/persona.md": "sha256:b1860bc27eef0194ebc0973a99199290cca5ca24e7f5f4bcc9d5be602d9c93ef",
+    "character/persona.md": "sha256:906ab1f86feb1d3179ffce6235860c22ab7e3426fa847554d62089aaa976e022",
     "character/risk.yaml": "sha256:e801165e6fca61dc05a7e7978709f061e46186c57439ac6bad63eebe67ca6caa",
     "character/sizing.yaml": "sha256:35c947dba11d3d07f2cadcdba0953d41d1d9551e8c136b0a5e18a373c73f1bc1",
-    "character/skills/fade-entry.md": "sha256:592abe5bed1851396ffbe952c7405ac7a25bdc96c624958129fd82de7f3ca196",
-    "character/skills/pump-detection.md": "sha256:381a49db2d53ed95d5c1f0ab178e7210c2089ed729be68136df40a3440ba15aa",
-    "character/thesis.md": "sha256:5c6a7f8097af426f556fbc769600256ed42f6bd432728a463523c753452db978",
+    "character/skills/fade-entry.md": "sha256:2a01ab84278f68a9636a630ae5b211ef48c0f2a9dc6f4c95143ac97d915e3b3d",
+    "character/skills/pump-detection.md": "sha256:84f5efd445a9e07bdfe63d444b5fa426d5026e641fa477165ca06043e22cc66a",
+    "character/thesis.md": "sha256:45e3df98ce73fed819f0cf55d37f552e1a10337d83da899ac4d90306105c1a16",
     "functionality/coinrithm.yaml": "sha256:13223af5daab80bf3026dfb93650344ef32854b9c89467cc382041630f9df34f",
-    "journal/notes.md": "sha256:7d5b4eaafe70b270bb37d7c8bd69b426d0f3848d0119681e4268969997e9d721",
+    "journal/notes.md": "sha256:d366ac24e22061801529b947bda2245be83ecb7cf176d4921bc5f1eb3bef013e",
     "runtime.yaml": "sha256:8850d61097139e64b8c5b4b8254ac537f45d17872373f37261689edbba9462db",
     "safety/killSwitch.yaml": "sha256:688349a6ecb27203e94f56ac8473ab663f2ae1718f3127cb0d9d4df55f209ee1"
   },
@@ -34,6 +35,7 @@
       "character/thesis.md",
       "character/persona.md",
       "journal/notes.md",
+      "character/guards.md",
       "functionality/coinrithm.yaml"
     ],
     "sources": {
