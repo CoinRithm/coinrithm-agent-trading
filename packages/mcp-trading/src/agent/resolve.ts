@@ -65,6 +65,23 @@ const JOURNAL_MAX_BYTES = 8_000;
 
 // Optional prose files (markdown the LLM reads), in assembly order.
 const PROSE_FILES = ["character/thesis.md", "character/persona.md"];
+
+// First-class hard-guards file (2026-08-19, audit rank 7). User-authored
+// behavioral borders that machine caps cannot express ("never open a short
+// unless a qualifying pump preceded it") previously lived as an undocumented
+// "Hard borders" paragraph buried mid-persona — present in only 5 of 8
+// bundles and easy for a forker to miss. character/guards.md gets a dedicated
+// slot: loaded LAST so the block lands at the END of the strategy prose,
+// immediately adjacent to the system prompt's hard-caps section, wrapped in a
+// high-salience header plus an explicit guards-win-conflicts rule.
+export const GUARDS_FILE = "character/guards.md";
+export const GUARDS_HEADER =
+  "## HARD BEHAVIORAL GUARDS — never violate these";
+export const GUARDS_FOOTER =
+  "(These guards override every other instruction in this strategy. When a guard conflicts with an opportunity, the guard wins and the correct output is a skip that names the guard.)";
+
+export const wrapGuardsProse = (body: string): string =>
+  `${GUARDS_HEADER}\n\n${body.trim()}\n\n${GUARDS_FOOTER}`;
 const FUNCTIONALITY_PIN = "functionality/coinrithm.yaml";
 
 // Enforced cap field names. sizing.yaml is SOFT guidance and must NOT contain
@@ -493,6 +510,24 @@ function resolveDirectory(dir: string): ResolvedAgent {
         source: "journal/notes.md",
         text: boundTail(full, JOURNAL_MAX_LINES, JOURNAL_MAX_BYTES),
       });
+    }
+  }
+
+  // Hard behavioral guards — see GUARDS_FILE above. Pushed AFTER the journal
+  // so the wrapped block is the final prose the model reads before the caps
+  // section. Frontmatter is optional and stripped (only the body is doctrine);
+  // an empty body contributes nothing.
+  const guardsAbsPath = join(dir, GUARDS_FILE);
+  if (existsSync(guardsAbsPath)) {
+    const abs = safePath(ctx, GUARDS_FILE, "guards");
+    if (abs) {
+      const raw = readHashed(ctx, abs);
+      const body = (
+        raw.startsWith("---") ? parseFrontmatter(raw).body : raw
+      ).trim();
+      if (body) {
+        proseParts.push({ source: GUARDS_FILE, text: wrapGuardsProse(body) });
+      }
     }
   }
 

@@ -1,21 +1,22 @@
 {
-  "configHash": "sha256:3112d75adc600988f7e7593c04fde43a49e73c5148091ef72c3013a1cc6bd4ef",
+  "configHash": "sha256:b82717693f54fa65b20f6b4fffb63990d332687bb1256e9a0345a3dda0d1710a",
   "contentHashes": {
     "agent.md": "sha256:272fc9efed9eaa36eb0cafcaecff216b6cdcc705399678c721dcacfcb3d04fef",
     "character/abstention.yaml": "sha256:1cab79fa86e06acf1b5852ea18ce266fdf9feb12f65a3968b4d343549654ad97",
     "character/limits.yaml": "sha256:91229fea5fa7e423a55b5bdc016101b6c8cc36be46d425b3deaa51b8570d9ea2",
-    "character/persona.md": "sha256:702cbcb2392e67e414c3c426d292fb521e6caf81aee8418edc4f8bdc72d84456",
+    "character/persona.md": "sha256:67bfbc75da24dcc32e29d8fc85051a1086ebb50618fc79a24222de94c362a5b1",
     "character/risk.yaml": "sha256:c924962c2b004998cf080bc4ab3f3c0c7ec841ab851659b76753cf547aa96324",
     "character/sizing.yaml": "sha256:d7b78025249c1054fd64e2292a8fb9118ef432c2afdd16b90716a9a544be9c37",
     "character/skills/momentum-confirmation.md": "sha256:99c73e3d0a5b32f227e072ccd0eddbbb8967a7b29c54fe5c2afe9cef0e7b484d",
     "character/skills/pullback-entry.md": "sha256:14e834069e598e8f504520d80088eb1079b1da4b4774c57c91908df1489d80e3",
     "character/skills/trail-the-winner.md": "sha256:04c98de42a5343a7dbdf226513788c560ec0cede62a0cd2e8cbac89ee1fecc58",
     "character/thesis.md": "sha256:ef72808806202235af0e128bab7e7527ec826942a07745aac17c00c8e7b25eb0",
-    "functionality/coinrithm.yaml": "sha256:ad773a054f4c4db97cbe75a28047127d24cc6cd1fc6f3be4195254edff704c40",
+    "functionality/coinrithm.yaml": "sha256:30a129c5f38bf6dd3cd33a9d594fd4e7045e73553e8462bd55378250db160d75",
     "journal/notes.md": "sha256:5bcd60aae58dcaebe16adfb6b97b9afeeb8f203fbdb76ed0c54f37eca2a26238",
     "runtime.yaml": "sha256:bf074f710fa3edd8858ab7d682b3151b1571d725119790e5a80cef33ad3f92a2",
     "safety/killSwitch.yaml": "sha256:661f453d01600b702db055753fe0162a1560685cb750d3a8cb13c6e3cc08b022"
   },
+  "indicatorVersion": "coinrithm.indicators.v1",
   "provenance": {
     "includeOrder": [
       "momentum-confirmation",

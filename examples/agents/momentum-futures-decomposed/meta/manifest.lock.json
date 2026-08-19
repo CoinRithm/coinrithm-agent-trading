@@ -7,7 +7,7 @@
     "character/persona.md": "sha256:4677ce1c64c1b2da6314edc8bb139b7c98a09c860bde7a129850db6a215d9b8f",
     "character/risk.yaml": "sha256:e93242b35aefaa5a3b025e8b5eb4dbc2c294ec666a88bc50a3a88e4fbaf65cd3",
     "character/thesis.md": "sha256:85606dbc8e3af8e19ba55bbb1c23035b7795691ec4dcf79632aaed2f8483c560",
-    "functionality/coinrithm.yaml": "sha256:bc8daf44822547a15514c8e92cf4028fb496f1088e6a466d9e9dac9cfe28d1b0",
+    "functionality/coinrithm.yaml": "sha256:d57620a831146771fe508c50fcc915f5103c2a358ae58f966dcabafc033d7b32",
     "runtime.yaml": "sha256:a2dde8ea84ccfc8be5e4b731f3cb77b6ffa67b74fc778649a2990ea287b11013",
     "safety/killSwitch.yaml": "sha256:d7d3cf9d3920ab2083f4a0d0ccd6fc0c2c9284977d4e864b9ace437b0d4e30c9"
   },

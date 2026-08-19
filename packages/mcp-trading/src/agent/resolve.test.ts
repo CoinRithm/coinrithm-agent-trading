@@ -265,3 +265,45 @@ describe("resolveAgent — fail-closed", () => {
     expect(() => resolveAgent(dir)).toThrow(/symlink|agent resolve failed/);
   });
 });
+
+describe("resolveAgent — character/guards.md (first-class hard guards)", () => {
+  it("wraps the guards body in the high-salience header and places it LAST in the merged prose", () => {
+    write("agent.md", INLINE_AGENT);
+    write("journal/notes.md", "- journal prior line");
+    write(
+      "character/guards.md",
+      `---
+type: coinrithm.agent.guards
+title: t guards
+---
+NEVER open a short unless a qualifying pump preceded it.`,
+    );
+    const r = resolveAgent(dir);
+    expect(r.mergedProse).toContain(
+      "## HARD BEHAVIORAL GUARDS — never violate these",
+    );
+    expect(r.mergedProse).toContain(
+      "NEVER open a short unless a qualifying pump preceded it.",
+    );
+    // Guards must be the FINAL prose block — after the journal — so they sit
+    // adjacent to the system prompt's hard-caps section.
+    expect(r.mergedProse.indexOf("HARD BEHAVIORAL GUARDS")).toBeGreaterThan(
+      r.mergedProse.indexOf("journal prior line"),
+    );
+    // The guards-win-conflicts rule rides with the block.
+    expect(r.mergedProse).toContain("the guard wins");
+    // Hashed into the manifest like every other loaded file.
+    expect(Object.keys(r.contentHashes)).toContain("character/guards.md");
+  });
+
+  it("accepts a guards file without frontmatter and skips an empty one", () => {
+    write("agent.md", INLINE_AGENT);
+    write("character/guards.md", "Never average into a losing short.");
+    const r = resolveAgent(dir);
+    expect(r.mergedProse).toContain("Never average into a losing short.");
+
+    write("character/guards.md", "   \n");
+    const r2 = resolveAgent(dir);
+    expect(r2.mergedProse).not.toContain("HARD BEHAVIORAL GUARDS");
+  });
+});

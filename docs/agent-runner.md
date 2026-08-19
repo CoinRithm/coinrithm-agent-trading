@@ -146,6 +146,20 @@ promoted into tradable candidates under the same risk caps and blocklist) and
 included). `websearch` is reserved — accepted by the validator but not yet
 implemented; declaring it does nothing today.
 
+## Hard behavioral guards (`character/guards.md`)
+
+Machine caps (leverage, margin, stops, watchlist/blocklist) bound WHAT an
+agent may do; guards bound WHEN. A border like "never open a short unless a
+qualifying upward pump preceded it" cannot be expressed as a cap — it is
+strategy-conditional — so it lives as prose in `character/guards.md`. The
+resolver loads this file LAST, wraps it in a `HARD BEHAVIORAL GUARDS — never
+violate these` header plus an explicit guards-win-conflicts rule, and places
+it at the end of the strategy prose, immediately adjacent to the system
+prompt's hard-caps section. Frontmatter is optional; only the body is
+doctrine. Every character bundle ships one — fork it and REPLACE the content
+with your own borders (see `pia-pump-fader` for the guard-sentence pattern
+and an adherence scorecard that grades violations).
+
 ## Venues
 
 The runner trades CoinRithm **spot, futures, and prediction markets** — declare
