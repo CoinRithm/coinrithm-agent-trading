@@ -136,6 +136,7 @@ tool requires it. See [`DEPLOY.md`](./DEPLOY.md).
 | `set_futures_sl_tp` | trade:futures | `POST /api/agent/futures/sl-tp` ² |
 | `close_futures_position` | trade:futures | `POST /api/agent/futures/close` |
 | `open_pm_position` | trade:pm | `POST /api/agent/pm/open` ¹ |
+| `report_pm_opportunity` | read | `POST /api/agent/pm/opportunity` |
 | `pm_data_overview` | none (public) | compact `GET /api/prediction-markets/overview` |
 | `pm_data_sources` | none (public) | venue methodology, coverage, and comparable volume bases |
 | `pm_data_sources_health` | none (public) | per-venue freshness, lag, and degraded reasons |
@@ -146,6 +147,15 @@ tool requires it. See [`DEPLOY.md`](./DEPLOY.md).
 | `pm_data_calibration` | none (public) | `GET /api/prediction-markets/calibration` |
 | `pm_data_canonical` (key?, limit, cursor) | none (public) | `GET /api/prediction-markets/canonical` (+ `/:key` detail) |
 | `pm_data_volume_history` | none (public) | `GET /api/prediction-markets/volume-history` |
+| `get_crypto_movers` (direction, limit) | none (public) | `GET /api/coins/top-{gainers,losers}` |
+
+`get_crypto_movers` is the universe scan: the biggest 24h movers across every
+coin CoinRithm tracks, so an agent can find candidates it was never configured
+to watch. Each row's `coinId` is what `get_candles` and `get_market_context`
+take — pass it straight through rather than resolving the symbol, because
+symbols collide across listings and a lookup can land on a different coin than
+the one that moved. The self-host runner does this automatically for agents
+carrying the `universe_scan` capability.
 
 The ten `pm_data_*` tools wrap CoinRithm's free public cross-venue dataset
 (all 12 venues: Polymarket, Kalshi, Smarkets, Limitless, Manifold,

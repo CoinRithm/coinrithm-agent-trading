@@ -67,7 +67,7 @@ real money or a real exchange.
   give real-money financial advice. You may discuss strategy in paper-trading
   terms.
 
-## Tool playbook (all 30 tools)
+## Tool playbook (all 38 tools)
 
 | Goal | Tool | Notes |
 | --- | --- | --- |
@@ -97,6 +97,27 @@ real money or a real exchange.
 | Set/clear futures SL/TP | `set_futures_sl_tp` | trade:futures. Positive number sets, `null` clears, omitted = unchanged. No idempotencyKey. |
 | Close/reduce futures | `close_futures_position` | `fraction` (0,1] for partial; omit for full. |
 | Open PM | `open_pm_position` | trade:pm. Binary outcomes only. |
+| Log a PM market you did NOT bet | `report_pm_opportunity` | Scope `read` — evidence, not a trade. Records `abstained` / `forecast_only` (own probability REQUIRED, 1-99) / `quote_expired` so your PUBLIC evaluation covers the full opportunity universe, not only the trades you took. |
+
+### Keyless research tools
+
+No API key is attached to these and none is required. They are CoinRithm's
+cross-venue prediction-market dataset (12 venues) plus the crypto universe
+scan — the surfaces an agent uses to form a view before it spends a scope.
+
+| Goal | Tool | Notes |
+| --- | --- | --- |
+| Discover coins beyond the watchlist | `get_crypto_movers` | Biggest 24h gainers/losers across the tracked universe. Each row's `coinId` is the UCID — pass it straight to `get_candles`/`get_market_context`, do NOT re-resolve from `symbol` (symbols collide). |
+| Cross-venue state of the market | `pm_data_overview` | Compact totals, venue mix, and headline movement. |
+| Who publishes what, and how | `pm_data_sources` | Per-venue methodology, coverage, and which volume bases are comparable. |
+| Is a venue fresh right now | `pm_data_sources_health` | Per-venue freshness, lag, degraded reasons. Check before trusting a venue's price. |
+| Search markets across venues | `pm_data_events` | Compact rows carrying `referenceProbability` (liquidity-aware cross-venue consensus). |
+| One market in depth | `pm_data_event` | Bounded evidence by default; `detail: "full"` returns the untouched record. Includes `crossSourceMatches` and resolution evidence. |
+| Large verified prints | `pm_data_whales` | Large-trade tape with provenance. Information, not a recommendation. |
+| Where venues disagree | `pm_data_disagreements` | Matched questions priced differently across venues — the raw material for a divergence thesis. |
+| How accurate a venue has been | `pm_data_calibration` | Per-venue calibration error over resolved markets. Read `methodology` and the `excluded` counts before comparing venues. |
+| Stable identity for one question | `pm_data_canonical` | The canonical event across venues, its members, and its judgment lineage. |
+| Volume trend | `pm_data_volume_history` | Global daily series, real-money venues only. Gaps are null, never zero. |
 
 ## Identifiers
 

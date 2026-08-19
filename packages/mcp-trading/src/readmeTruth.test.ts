@@ -192,12 +192,52 @@ describe("capability docs tripwire (audit rank 9)", () => {
     // The capability system shipped fully undocumented once (universe_scan
     // invisible in every user surface, audit 2026-08-19). This tripwire makes
     // adding a capability without documenting it a test failure.
-    const doc = readFileSync(
-      join(repoRoot, "docs/agent-runner.md"),
-      "utf8",
-    );
+    const doc = readFileSync(join(repoRoot, "docs/agent-runner.md"), "utf8");
     for (const cap of ALLOWED_CAPABILITIES) {
       expect(doc).toContain(cap);
     }
+  });
+});
+
+describe("tool-surface docs tripwire (publish audit 2026-08-19)", () => {
+  // The published skill claimed "all 30 tools" against 38 registered and
+  // omitted the ENTIRE keyless pm_data_* family plus get_crypto_movers and
+  // report_pm_opportunity — an agent loading it would never learn CoinRithm's
+  // cross-venue dataset exists. Counting is not enough on its own: the count
+  // was wrong AND the omissions were the differentiating tools, so assert both
+  // the number and per-tool presence in every surface that enumerates tools.
+  const registeredTools = (): string[] => {
+    const src = readFileSync(join(__dirname, "tools.ts"), "utf8");
+    // \s already spans the newline prettier inserts after the open paren.
+    return [...src.matchAll(/server\.registerTool\(\s*"([a-z0-9_]+)"/g)].map(
+      (m) => m[1]!,
+    );
+  };
+
+  it("every registered tool is named in the package README", () => {
+    const readme = readFileSync(join(pkgRoot, "README.md"), "utf8");
+    for (const tool of registeredTools()) {
+      expect(readme, `README missing tool ${tool}`).toContain(`\`${tool}\``);
+    }
+  });
+
+  it("every registered tool is named in the published skill", () => {
+    const skill = readFileSync(
+      join(repoRoot, "skills", "coinrithm-trader", "SKILL.md"),
+      "utf8",
+    );
+    for (const tool of registeredTools()) {
+      expect(skill, `SKILL.md missing tool ${tool}`).toContain(`\`${tool}\``);
+    }
+  });
+
+  it("the skill's tool-count claim matches the registered surface", () => {
+    const skill = readFileSync(
+      join(repoRoot, "skills", "coinrithm-trader", "SKILL.md"),
+      "utf8",
+    );
+    const claim = skill.match(/Tool playbook \(all (\d+) tools\)/);
+    expect(claim, "SKILL.md tool-count heading missing").not.toBeNull();
+    expect(Number(claim![1])).toBe(registeredTools().length);
   });
 });
