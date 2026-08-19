@@ -455,13 +455,22 @@ export async function disableAgent(
 
 // Self-healing. The agentic Arena must NEVER look dead to a visitor, so every
 // poll (no manual re-seed) the scheduler revives:
-//   - ALL house agents (the public demo), whatever stopped them, and
+//   - house agents (the public demo), and
 //   - ANY user agent the SYSTEM stopped on a RECOVERABLE fault — a flaky-model
 //     streak, rate-limit pressure, a reject run, or an unknown disable.
-// It deliberately does NOT revive a user agent stopped by its own DRAWDOWN limit
-// (a real, intended risk stop) or a SETUP error (a broken config that would just
-// re-fail). COALESCE so a null reason still counts as recoverable. Revived
-// handles are returned. Belt-and-suspenders with the engine's failure-floor.
+// It deliberately does NOT revive:
+//   - a user agent stopped by its own DRAWDOWN limit (a real, intended risk
+//     stop) or a SETUP error (a broken config that would just re-fail), and
+//   - ANY agent (house included) disabled with a PERMANENT-failure prefix:
+//     'model_unavailable' (provider 404 / decommissioned model — fails every
+//     cycle forever; live-measured 93% dead cycles with 7 revives in 3h) or
+//     'key_invalid' (revoked CoinRithm key answering 401 forever; ~1,500
+//     wasted cycles/day across four agents before this exemption). Reviving
+//     into a deterministic failure does not make the Arena look alive — it
+//     makes the waste invisible. The reason string in the agents table is the
+//     operator's fix-it signal.
+// COALESCE so a null reason still counts as recoverable. Revived handles are
+// returned. Belt-and-suspenders with the engine's failure-floor.
 export async function reviveDisabledAgents(pool: Pool): Promise<string[]> {
   const client = await pool.connect();
   try {
@@ -470,6 +479,8 @@ export async function reviveDisabledAgents(pool: Pool): Promise<string[]> {
       `UPDATE agent_runtime.agents
           SET status = 'active', disabled_reason = NULL, next_run_at = now(), updated_at = now()
         WHERE status = 'disabled'
+          AND COALESCE(disabled_reason, '') NOT ILIKE 'model_unavailable%'
+          AND COALESCE(disabled_reason, '') NOT ILIKE 'key_invalid%'
           AND (
             is_house = true
             OR (

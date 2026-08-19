@@ -7,6 +7,8 @@ import {
   newState,
   accrueRealized,
   checkKillSwitch,
+  isPermanentModelError,
+  isAuthFailureSkip,
 } from "./state.js";
 import { parseSkill } from "./skill.js";
 import { renderFolderOfOne } from "./templates.js";
@@ -58,5 +60,32 @@ describe("state", () => {
     s.peakRealizedMusd = 500;
     s.realizedPnlMusd = 100; // drawdown 400 >= 300
     expect(checkKillSwitch(spec, s)).toMatch(/drawdown/);
+  });
+});
+
+describe("permanent-failure classification (2026-08-19)", () => {
+  it("classifies decommissioned/404 model errors as permanent, transient errors as not", () => {
+    // Exact observed Groq shape (a45-casa, 683 identical failures/24h).
+    expect(
+      isPermanentModelError(
+        "provider HTTP 404: model_not_found: the model `llama-3.1-8b-instant` does not exist or you do not have access",
+      ),
+    ).toBe(true);
+    expect(isPermanentModelError("model has been decommissioned")).toBe(true);
+    expect(isPermanentModelError("HTTP 404")).toBe(true);
+    // Transient shapes must NOT trip the permanent path.
+    expect(isPermanentModelError("HTTP 429 rate limited")).toBe(false);
+    expect(isPermanentModelError("timeout after 30000ms")).toBe(false);
+    expect(isPermanentModelError("HTTP 500 upstream error")).toBe(false);
+  });
+
+  it("classifies the observe phase's 401 skip as an auth failure", () => {
+    expect(
+      isAuthFailureSkip("required reads failed: me failed (HTTP 401)"),
+    ).toBe(true);
+    expect(
+      isAuthFailureSkip("required reads failed: me failed (HTTP 500)"),
+    ).toBe(false);
+    expect(isAuthFailureSkip("no watchlist coin resolved")).toBe(false);
   });
 });

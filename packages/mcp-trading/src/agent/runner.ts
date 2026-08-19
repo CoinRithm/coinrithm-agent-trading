@@ -34,6 +34,10 @@ import {
   checkKillSwitch,
   accrueRealized,
   saveState,
+  isPermanentModelError,
+  isAuthFailureSkip,
+  PERMANENT_MODEL_ERROR_THRESHOLD,
+  AUTH_FAILURE_THRESHOLD,
 } from "./state.js";
 import { asObj, asNum, asStr } from "./extract.js";
 import { parseCadenceMs, sleep } from "./util.js";
@@ -511,6 +515,29 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
 
   if (obs.skip) {
     state.consecutiveRejectCycles += 1;
+    // Permanent-failure classification: a revoked/invalid CoinRithm key
+    // answers 401 deterministically — after the threshold, disable with the
+    // machine-readable 'key_invalid' prefix the scheduler's self-heal exempts
+    // (the old path revived such agents into ~1,500 guaranteed-dead
+    // cycles/day). A transient rotation blip stays under the threshold.
+    if (isAuthFailureSkip(obs.skip)) {
+      state.consecutiveAuthFailures = (state.consecutiveAuthFailures ?? 0) + 1;
+      if (state.consecutiveAuthFailures >= AUTH_FAILURE_THRESHOLD) {
+        state.disabled = true;
+        state.disabledReason = `key_invalid: CoinRithm key rejected (HTTP 401) on ${state.consecutiveAuthFailures} consecutive cycles`;
+        saveState(stateFile, state);
+        log(`disabled: ${state.disabledReason}`);
+        return {
+          decision: "skip",
+          skipReason: obs.skip,
+          planned: [],
+          disabled: true,
+          disabledReason: state.disabledReason,
+          live,
+          ...observationReceipt,
+        };
+      }
+    }
     saveState(stateFile, state);
     log(`skip: ${obs.skip}`);
     return {
@@ -521,6 +548,8 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
       ...observationReceipt,
     };
   }
+  // A full observation implies /me succeeded — the auth-failure streak is over.
+  state.consecutiveAuthFailures = 0;
 
   // GATE (slice 2): only SPEND an LLM call when a deterministic trigger fires — a
   // flagged entry setup or an open position to manage. No trigger => a cheap
@@ -609,6 +638,41 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
     };
     if (!res.ok) {
       state.consecutiveModelFailures += 1;
+      // Permanent-failure classification: a 404/model_not_found is a
+      // DECOMMISSIONED or misconfigured model that will fail every cycle
+      // forever (live-measured: 93% of one agent's cycles for days, revived
+      // 7x in 3h). Three consecutive occurrences rules out a routing fluke;
+      // then disable with the 'model_unavailable' prefix the scheduler's
+      // self-heal exempts. Transient errors reset the permanent streak.
+      if (isPermanentModelError(res.error)) {
+        state.consecutivePermanentModelErrors =
+          (state.consecutivePermanentModelErrors ?? 0) + 1;
+        if (
+          state.consecutivePermanentModelErrors >=
+          PERMANENT_MODEL_ERROR_THRESHOLD
+        ) {
+          state.disabled = true;
+          state.disabledReason = `model_unavailable: ${res.error.slice(0, 160)}`;
+          saveState(stateFile, state);
+          log(`disabled: ${state.disabledReason}`);
+          return {
+            decision: "skip",
+            skipReason: `model error: ${res.error}`,
+            planned: [],
+            modelFailed: true,
+            disabled: true,
+            disabledReason: state.disabledReason,
+            live,
+            ...meter,
+            decisionType: "model_error",
+            writeAttempted: 0,
+            writeAccepted: 0,
+            ...observationReceipt,
+          };
+        }
+      } else {
+        state.consecutivePermanentModelErrors = 0;
+      }
       saveState(stateFile, state);
       log(`model error: ${res.error}`);
       return {
@@ -646,6 +710,7 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
       };
     }
     state.consecutiveModelFailures = 0;
+    state.consecutivePermanentModelErrors = 0;
     decision = parsed.decision;
   }
   // Reasoning captured for the Arena terminal (keystone transparency): the

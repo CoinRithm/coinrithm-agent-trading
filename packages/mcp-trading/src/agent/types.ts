@@ -560,6 +560,14 @@ export interface RunState {
   llmCallTimestamps?: number[];
   lastLlmCallAt?: number;
   lastTriggerFingerprint?: string;
+  // Permanent-failure classification (2026-08-19, optional — absent on older
+  // persisted state). Deterministic upstream failures (a decommissioned model
+  // returning 404 forever; a revoked CoinRithm key answering 401 forever) must
+  // disable QUICKLY with a reason the scheduler's self-heal treats as
+  // non-recoverable — the old path burned ~1,500 cycles/day reviving agents
+  // into the same guaranteed failure.
+  consecutivePermanentModelErrors?: number;
+  consecutiveAuthFailures?: number;
   // Slice-3 memory: a compact rolling journal of the agent's recent MOVES (its own
   // trades + the thesis behind them, newest last). Injected back into the prompt so
   // the agent has continuity — it manages a position remembering WHY it opened it,

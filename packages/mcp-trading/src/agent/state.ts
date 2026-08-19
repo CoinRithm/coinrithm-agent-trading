@@ -98,6 +98,32 @@ export function accrueRealized(
 // setting. The scheduler additionally auto-revives any model-failure disable.
 const MODEL_FAILURE_FLOOR = 10;
 
+// ── Permanent-failure classification (2026-08-19) ───────────────────────────
+// The generic kill-switch treats every failure as transient — correct for
+// timeouts/blips, catastrophic for DETERMINISTIC failures. Live-measured: one
+// agent spent 93% of 782 cycles/24h on a Groq 404 (model decommissioned),
+// revived 7 times in 3h by the self-heal; four others burned ~1,500 cycles/day
+// on a revoked CoinRithm key (HTTP 401). These classifiers give such failures
+// a fast, NON-revivable disable with a machine-readable reason prefix the
+// scheduler's self-heal exempts ('model_unavailable' / 'key_invalid').
+//
+// Permanent model errors are deterministic, so the threshold is small — 3
+// consecutive occurrences rules out a one-off routing fluke without burning a
+// day. Auth failures get 10: a key rotation/propagation blip should not kill
+// an agent, but nothing recovers from an actually-revoked key.
+export const PERMANENT_MODEL_ERROR_RE =
+  /model_not_found|model[_ ]decommissioned|has been decommissioned|\b404\b|does not exist or you do not have access/i;
+export const PERMANENT_MODEL_ERROR_THRESHOLD = 3;
+export const AUTH_FAILURE_THRESHOLD = 10;
+
+export const isPermanentModelError = (error: string): boolean =>
+  PERMANENT_MODEL_ERROR_RE.test(error);
+
+// The observe phase folds a rejected key into its required-reads skip reason
+// as "... (HTTP 401)".
+export const isAuthFailureSkip = (skipReason: string): boolean =>
+  /HTTP 401/.test(skipReason);
+
 // Returns a disable reason if any kill-switch condition is tripped, else null.
 export function checkKillSwitch(
   spec: AgentSpec,
