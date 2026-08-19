@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: CoinRithm Agent Trading API
-  version: "1.6.0"
+  version: "1.7.0"
   termsOfService: https://www.coinrithm.com/en/terms-of-use
   x-api-lifecycle:
     contract: v1
@@ -17,7 +17,7 @@ info:
   description: |
     Programmatic **paper-trading** surface for AI agents on CoinRithm.
 
-    **Version note:** `info.version` (1.6.0) is the API contract version and is
+    **Version note:** `info.version` (1.7.0) is the API contract version and is
     distinct from the npm package version (@coinrithm/mcp-trading 0.7.4). They
     are versioned independently; a package update does not imply an API change.
 
@@ -156,6 +156,11 @@ tags:
       Keyless cross-venue prediction-market research data across 12 venues.
       Subject to CoinRithm's Acceptable Use terms — no model training,
       redistribution, or competing use: https://www.coinrithm.com/en/terms-of-use
+  - name: public-crypto-data
+    description: >-
+      Keyless crypto universe reads used for candidate discovery. Same
+      Acceptable Use terms as the other keyless surfaces:
+      https://www.coinrithm.com/en/terms-of-use
   - name: ledger
     description: Agent action ledger and the reproducible run-evidence export.
 
@@ -1787,6 +1792,74 @@ paths:
               schema: { $ref: "#/components/schemas/PublicPmVolumeHistoryResponse" }
         "500": { $ref: "#/components/responses/ServerError" }
 
+  /api/coins/top-gainers:
+    get:
+      operationId: getPublicTopGainers
+      tags: [public-crypto-data]
+      summary: Top 24h crypto gainers (universe scan)
+      description: |
+        Keyless scan of CoinRithm's tracked coin universe for the largest 24h
+        price INCREASES, ordered by 24h change percent descending. Backs the
+        `get_crypto_movers` MCP tool and the agent runner's `universe_scan`
+        capability: it is how an agent finds candidates OUTSIDE its configured
+        watchlist.
+
+        The response is a BARE ARRAY, not an envelope. Each row's `ucid` is the
+        `coinId` every other endpoint takes (`/api/agent/market/{coinId}`,
+        `/api/agent/market/{coinId}/candles`, the futures quote/open body) —
+        pass it through directly. Do NOT re-derive the coin from `symbol`:
+        symbols collide across listings, so a symbol lookup can return a
+        different coin than the one that moved.
+
+        `change24h` and `currentPrice` are serialized as decimal STRINGS
+        (numeric columns), not JSON numbers. Values refresh on the ~60s core
+        price tick.
+      security: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: |
+            Rows to return, 1-100. Note the default is 3, not a full page. Out
+            of range or non-numeric values return 400 — this endpoint does NOT
+            clamp.
+          schema: { type: integer, minimum: 1, maximum: 100, default: 3 }
+      responses:
+        "200":
+          description: Top gainers, ordered by 24h change descending
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicCryptoMoverList" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /api/coins/top-losers:
+    get:
+      operationId: getPublicTopLosers
+      tags: [public-crypto-data]
+      summary: Top 24h crypto losers (universe scan)
+      description: |
+        Keyless scan of CoinRithm's tracked coin universe for the largest 24h
+        price DECREASES, ordered by 24h change percent ascending. Identical
+        shape and identical caveats to `/api/coins/top-gainers`: bare array,
+        `ucid` is the `coinId`, numerics are decimal strings, default limit 3,
+        out-of-range limits 400 rather than clamp.
+      security: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: Rows to return, 1-100 (default 3). Out of range returns 400.
+          schema: { type: integer, minimum: 1, maximum: 100, default: 3 }
+      responses:
+        "200":
+          description: Top losers, ordered by 24h change ascending
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicCryptoMoverList" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
   /api/prediction-markets/whales:
     get:
       operationId: getPublicPredictionMarketWhales
@@ -3169,6 +3242,41 @@ components:
             type: object
             additionalProperties: true
       required: [canonical, members, lineage]
+
+    PublicCryptoMover:
+      type: object
+      additionalProperties: false
+      description: |
+        One row of the top-gainers / top-losers universe scan. `change24h` and
+        `currentPrice` come from numeric DB columns and serialize as decimal
+        STRINGS — parse before comparing.
+      properties:
+        ucid:
+          type: string
+          description: |
+            CoinRithm coin id. This is the SAME identifier the agent endpoints
+            call `coinId`; pass it straight through rather than resolving the
+            symbol (symbols collide across listings).
+        symbol: { type: string, examples: ["PEP"] }
+        name: { type: string, examples: ["Pepecoin"] }
+        slug:
+          type: string
+          description: Public site slug (https://www.coinrithm.com/en/cryptocurrencies/{slug}).
+          examples: ["pepecoin-org"]
+        change24h:
+          type: string
+          description: 24h price change in PERCENT, as a decimal string. Negative on the losers feed.
+          examples: ["140.13"]
+        currentPrice:
+          type: string
+          description: Latest USD price as a decimal string.
+          examples: ["0.0002226"]
+      required: [ucid, symbol, name, slug, change24h, currentPrice]
+
+    PublicCryptoMoverList:
+      type: array
+      description: Bare array — this endpoint has no envelope, no pagination block.
+      items: { $ref: "#/components/schemas/PublicCryptoMover" }
 
     PublicPmVolumeHistoryResponse:
       type: object

@@ -2,7 +2,7 @@
 name = "coinrithm-sdk"
 # PyPI distribution version. The generated API contract version remains the
 # canonical openapi.yaml info.version and can advance independently.
-version = "1.6.1"
+version = "1.7.0"
 description = "Typed Python client for the CoinRithm Agent Trading API — paper trading only, generated from the OpenAPI 3.1 contract."
 authors = [{ name = "CoinRithm", email = "support@coinrithm.com" }]
 license = "MIT"

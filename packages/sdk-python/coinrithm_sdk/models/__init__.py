@@ -206,6 +206,7 @@ from .pm_quote_response_eligibility import PmQuoteResponseEligibility
 from .pm_quote_response_event import PmQuoteResponseEvent
 from .pm_quote_response_frozen_entry_snapshot import PmQuoteResponseFrozenEntrySnapshot
 from .pm_quote_response_side import PmQuoteResponseSide
+from .public_crypto_mover import PublicCryptoMover
 from .public_pm_calibration_response import PublicPmCalibrationResponse
 from .public_pm_calibration_response_pending_item import PublicPmCalibrationResponsePendingItem
 from .public_pm_calibration_response_scored_item import PublicPmCalibrationResponseScoredItem
@@ -510,6 +511,7 @@ __all__ = (
     "PmQuoteResponseEvent",
     "PmQuoteResponseFrozenEntrySnapshot",
     "PmQuoteResponseSide",
+    "PublicCryptoMover",
     "PublicPmCalibrationResponse",
     "PublicPmCalibrationResponsePendingItem",
     "PublicPmCalibrationResponseScoredItem",

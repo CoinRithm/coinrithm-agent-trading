@@ -943,6 +943,65 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/coins/top-gainers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Top 24h crypto gainers (universe scan)
+         * @description Keyless scan of CoinRithm's tracked coin universe for the largest 24h
+         *     price INCREASES, ordered by 24h change percent descending. Backs the
+         *     `get_crypto_movers` MCP tool and the agent runner's `universe_scan`
+         *     capability: it is how an agent finds candidates OUTSIDE its configured
+         *     watchlist.
+         *
+         *     The response is a BARE ARRAY, not an envelope. Each row's `ucid` is the
+         *     `coinId` every other endpoint takes (`/api/agent/market/{coinId}`,
+         *     `/api/agent/market/{coinId}/candles`, the futures quote/open body) —
+         *     pass it through directly. Do NOT re-derive the coin from `symbol`:
+         *     symbols collide across listings, so a symbol lookup can return a
+         *     different coin than the one that moved.
+         *
+         *     `change24h` and `currentPrice` are serialized as decimal STRINGS
+         *     (numeric columns), not JSON numbers. Values refresh on the ~60s core
+         *     price tick.
+         */
+        get: operations["getPublicTopGainers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/coins/top-losers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Top 24h crypto losers (universe scan)
+         * @description Keyless scan of CoinRithm's tracked coin universe for the largest 24h
+         *     price DECREASES, ordered by 24h change percent ascending. Identical
+         *     shape and identical caveats to `/api/coins/top-gainers`: bare array,
+         *     `ucid` is the `coinId`, numerics are decimal strings, default limit 3,
+         *     out-of-range limits 400 rather than clamp.
+         */
+        get: operations["getPublicTopLosers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/prediction-markets/whales": {
         parameters: {
             query?: never;
@@ -1909,6 +1968,40 @@ export interface components {
                 [key: string]: unknown;
             }[];
         };
+        /**
+         * @description One row of the top-gainers / top-losers universe scan. `change24h` and
+         *     `currentPrice` come from numeric DB columns and serialize as decimal
+         *     STRINGS — parse before comparing.
+         */
+        PublicCryptoMover: {
+            /**
+             * @description CoinRithm coin id. This is the SAME identifier the agent endpoints
+             *     call `coinId`; pass it straight through rather than resolving the
+             *     symbol (symbols collide across listings).
+             */
+            ucid: string;
+            /** @example PEP */
+            symbol: string;
+            /** @example Pepecoin */
+            name: string;
+            /**
+             * @description Public site slug (https://www.coinrithm.com/en/cryptocurrencies/{slug}).
+             * @example pepecoin-org
+             */
+            slug: string;
+            /**
+             * @description 24h price change in PERCENT, as a decimal string. Negative on the losers feed.
+             * @example 140.13
+             */
+            change24h: string;
+            /**
+             * @description Latest USD price as a decimal string.
+             * @example 0.0002226
+             */
+            currentPrice: string;
+        };
+        /** @description Bare array — this endpoint has no envelope, no pagination block. */
+        PublicCryptoMoverList: components["schemas"]["PublicCryptoMover"][];
         PublicPmVolumeHistoryResponse: {
             days: ({
                 day?: string;
@@ -5025,6 +5118,60 @@ export interface operations {
                     "application/json": components["schemas"]["PublicPmVolumeHistoryResponse"];
                 };
             };
+            500: components["responses"]["ServerError"];
+        };
+    };
+    getPublicTopGainers: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Rows to return, 1-100. Note the default is 3, not a full page. Out
+                 *     of range or non-numeric values return 400 — this endpoint does NOT
+                 *     clamp.
+                 */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Top gainers, ordered by 24h change descending */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicCryptoMoverList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    getPublicTopLosers: {
+        parameters: {
+            query?: {
+                /** @description Rows to return, 1-100 (default 3). Out of range returns 400. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Top losers, ordered by 24h change ascending */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicCryptoMoverList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
             500: components["responses"]["ServerError"];
         };
     };
