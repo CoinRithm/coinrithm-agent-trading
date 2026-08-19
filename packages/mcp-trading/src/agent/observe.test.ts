@@ -674,6 +674,35 @@ describe("observe", () => {
     });
   });
 
+  it("news coverage includes universe_scan-DISCOVERED symbols, not just the static watchlist (pump-catalyst investigation)", async () => {
+    const bothSpec = {
+      ...spec,
+      capabilities: [
+        ...spec.capabilities,
+        "news",
+        "universe_scan",
+      ] as typeof spec.capabilities,
+    };
+    let newsCoins: string | undefined;
+    const c = fakeClient({
+      cryptoMovers: async () =>
+        okData([
+          { symbol: "PUMP", name: "Pump", change24h: "45", currentPrice: "2" },
+        ]),
+      agentNews: async (q: { coins?: string }) => {
+        newsCoins = q.coins;
+        return okData({ items: [] });
+      },
+    });
+    await observe(c, bothSpec, newState("r"));
+    // The discovered mover must be in the news query — a pump the agent is
+    // told to investigate is exactly the coin whose catalyst news matters.
+    expect(newsCoins?.split(",")).toContain("PUMP");
+    for (const s of spec.risk.watchlist) {
+      expect(newsCoins?.split(",")).toContain(s);
+    }
+  });
+
   it("does not fetch news without the `news` capability", async () => {
     let called = false;
     const c = fakeClient({
@@ -760,18 +789,46 @@ describe("observe", () => {
 describe("universe_scan capability", () => {
   const scanSpec = {
     ...spec,
-    capabilities: [...spec.capabilities, "universe_scan"] as typeof spec.capabilities,
+    capabilities: [
+      ...spec.capabilities,
+      "universe_scan",
+    ] as typeof spec.capabilities,
   };
 
   it("resolves top movers into discovered watch entries and passes the rest as context", async () => {
     const c = fakeClient({
       cryptoMovers: async () =>
         okData([
-          { symbol: "AAA", name: "Aaa", change24h: "61.0", currentPrice: "1.5" },
-          { symbol: "BBB", name: "Bbb", change24h: "40.0", currentPrice: "2.5" },
-          { symbol: "CCC", name: "Ccc", change24h: "30.0", currentPrice: "3.5" },
-          { symbol: "DDD", name: "Ddd", change24h: "20.0", currentPrice: "4.5" },
-          { symbol: "EEE", name: "Eee", change24h: "10.0", currentPrice: "5.5" },
+          {
+            symbol: "AAA",
+            name: "Aaa",
+            change24h: "61.0",
+            currentPrice: "1.5",
+          },
+          {
+            symbol: "BBB",
+            name: "Bbb",
+            change24h: "40.0",
+            currentPrice: "2.5",
+          },
+          {
+            symbol: "CCC",
+            name: "Ccc",
+            change24h: "30.0",
+            currentPrice: "3.5",
+          },
+          {
+            symbol: "DDD",
+            name: "Ddd",
+            change24h: "20.0",
+            currentPrice: "4.5",
+          },
+          {
+            symbol: "EEE",
+            name: "Eee",
+            change24h: "10.0",
+            currentPrice: "5.5",
+          },
         ]),
     });
     const { observation } = await observe(c, scanSpec, newState("r"));

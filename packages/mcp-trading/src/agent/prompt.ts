@@ -80,7 +80,15 @@ export function buildSystemPrompt(
     `- venues you may act in: ${v.join(", ")}`,
     `- perTradeMarginMusd ${r.perTradeMarginMusd} is the per-trade SIZE cap (futures margin / spot buy notional / PM stake)`,
     `- futures: maxLeverage ${r.maxLeverage}, maxConcurrentPositions ${r.maxConcurrentPositions}, requireStopLoss ${r.requireStopLoss} (long stop below entry, short stop above)`,
-    `- watchlist (spot + futures use ONLY these): ${r.watchlist.join(", ")}`,
+    // With universe_scan, the validator's gate is WATCH-membership (manual
+    // watchlist ∪ this cycle's discovered entries) — saying "ONLY these" here
+    // while the universe-scan section below calls discovered movers tradable
+    // made cap-obedient models refuse every discovered candidate (the caps
+    // header says proposing outside a cap wastes the cycle). Keep the two
+    // sections telling one story.
+    spec.capabilities.includes("universe_scan")
+      ? `- tradable symbols (spot + futures): your watchlist (${r.watchlist.join(", ")}) PLUS this cycle's watch entries marked \`discovered: true\` — nothing outside those`
+      : `- watchlist (spot + futures use ONLY these): ${r.watchlist.join(", ")}`,
     ...(r.blocklist && r.blocklist.length > 0
       ? [
           `- deny-list (NEVER open these, even if on the watchlist): ${r.blocklist.join(", ")}`,

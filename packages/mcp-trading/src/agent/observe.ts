@@ -400,7 +400,8 @@ export async function observe(
           change1h: asNum(price.change1h),
           change24h: asNum(price.change24h) ?? row.change24hPct,
           change7d: asNum(price.change7d),
-          sentimentBullishPct: asNum(asObj(m.sentiment).bullishPct) ?? undefined,
+          sentimentBullishPct:
+            asNum(asObj(m.sentiment).bullishPct) ?? undefined,
           freshness: freshnessOf(asObj(m.observation)),
           discovered: true,
         };
@@ -626,13 +627,22 @@ export async function observe(
   }
 
   // News context (only with the `news` capability): recent high-importance news
-  // for the watchlist coins, fed into the decide prompt as a market-catalyst
-  // layer the price chart can't show. One cached call; degrades to no news on
-  // failure (never blocks a cycle).
+  // for the coins the agent is actually LOOKING AT this cycle — the watch array,
+  // which includes any `universe_scan`-discovered movers. Keying this to the
+  // static watchlist alone (the old behavior) starved exactly the case news
+  // exists for: a discovered pump whose catalyst the agent is supposed to
+  // investigate before acting (the pump-fade pattern, 2026-08-19). One cached
+  // call; degrades to no news on failure (never blocks a cycle).
   let news: NewsItem[] | undefined;
-  if (wantNews && spec.risk.watchlist.length > 0) {
+  const newsCoins = Array.from(
+    new Set([
+      ...spec.risk.watchlist,
+      ...watch.map((w) => w.symbol.toUpperCase()),
+    ]),
+  );
+  if (wantNews && newsCoins.length > 0) {
     const nr = await client.agentNews(
-      { coins: spec.risk.watchlist.join(","), limit: 8, hours: 48 },
+      { coins: newsCoins.join(","), limit: 8, hours: 48 },
       trace,
     );
     if (nr.ok) {

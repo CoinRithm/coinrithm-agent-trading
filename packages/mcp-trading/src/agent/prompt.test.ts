@@ -162,3 +162,30 @@ describe("buildSystemPrompt — pm_ref escape hatch (hallucination fix)", () => 
     expect(out).toMatch(/one of the refs listed THIS cycle \(pm1\.\.pmN\)/);
   });
 });
+
+describe("buildSystemPrompt — universe_scan vs watchlist caps line (contradiction fix)", () => {
+  const spec = () => parseSkill(renderFolderOfOne("a", "conservative")).spec;
+
+  it("without universe_scan the caps line says the watchlist is the whole set", () => {
+    const s = spec();
+    s.capabilities = ["indicators"];
+    const out = buildSystemPrompt(s, "strategy");
+    expect(out).toMatch(/watchlist \(spot \+ futures use ONLY these\)/);
+    expect(out).not.toMatch(/discovered: true/);
+  });
+
+  it("with universe_scan the caps line itself admits discovered entries — the hard-caps section must never contradict the universe-scan section", () => {
+    const s = spec();
+    s.capabilities = ["indicators", "universe_scan"];
+    const out = buildSystemPrompt(s, "strategy");
+    // The old unconditional "use ONLY these" line made cap-obedient models
+    // refuse every discovered candidate (caps header says proposing outside
+    // a cap wastes the cycle) — the capability was silently neutered.
+    expect(out).not.toMatch(/use ONLY these/);
+    expect(out).toMatch(
+      /tradable symbols \(spot \+ futures\): your watchlist .* PLUS this cycle's watch entries marked `discovered: true`/,
+    );
+    // The universe-scan guidance section still renders alongside.
+    expect(out).toMatch(/## Universe scan \(discovered movers\)/);
+  });
+});

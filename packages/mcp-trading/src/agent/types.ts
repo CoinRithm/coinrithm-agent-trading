@@ -96,8 +96,12 @@ export interface RiskConfig {
   perTradeMarginMusd: number;
   maxConcurrentPositions: number;
   requireStopLoss: boolean;
-  // Allow-list of tradable symbols (uppercase). An open on a symbol NOT here is
-  // rejected. PM markets come from discovery, so they are not gated by this.
+  // Allow-list of tradable symbols (uppercase). The runtime gate is
+  // WATCH-membership: the validator accepts a symbol that is in this list OR
+  // was promoted into observation.watch by the `universe_scan` capability this
+  // cycle (marked `discovered: true`) — blocklist wins over both. Without
+  // universe_scan this list IS the whole tradable set. PM markets come from
+  // discovery, so they are not gated by this.
   watchlist: string[];
   // Optional deny-list (uppercase): an open on a symbol here is rejected even if
   // it is also on the watchlist (deny wins). Empty/omitted = nothing blocked.
