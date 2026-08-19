@@ -36,5 +36,3 @@ include:
 ---
 
 Fades exhausted, overstretched moves back toward the mean — patient, low-leverage, and ruthless about cutting when the fade fails.
-
-Strategy in [character/thesis.md](character/thesis.md); temperament in [character/persona.md](character/persona.md); tactics under [character/skills/](character/skills).

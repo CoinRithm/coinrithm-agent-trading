@@ -7,6 +7,22 @@ tags: [agent, changelog, house-agent]
 
 # Changelog
 
+## 2026-08-19 - fits the hosted 8,000-char budget
+
+- Trimmed the merged strategy prose from 8,389 to **7,931** so the bundle fits the
+  8,000-char hosted budget. Forking it in the Studio previously truncated the
+  strategy mid-sentence; six production forks were losing the journal tail,
+  including "the stop goes just past the extreme, set before entry", "never
+  average down" and "skipping is winning".
+- Nothing behavioural was cut. Removed: two navigational pointers that listed
+  files the runner already inlines into the same prompt, an authoring note
+  addressed to the human forker ("Edit this prose freely - it defines your
+  borders", which reads as permission to rewrite its own constraints), and one
+  restatement of the exhaustion-sign list that the Decide step spells out in a
+  side-tagged form. guards.md, both skills and the journal are byte-identical.
+- Verified by two independent adversarial audits against a 71-rule inventory:
+  zero rules lost, zero weakened, no new contradictions.
+
 ## 2026-08-19 — corrective entry: config drift vs earlier entries
 
 The numeric claims in the entries below have drifted from the yaml files

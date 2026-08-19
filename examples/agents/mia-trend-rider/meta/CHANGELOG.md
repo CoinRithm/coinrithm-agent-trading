@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-08-19 - fits the hosted 8,000-char budget
+
+- Trimmed the merged strategy prose from 8,405 to **7,839** so the bundle fits
+  the 8,000-char hosted budget. Three production forks were running truncated.
+- Cuts were confined to duplicated journal rationale; the rules those bullets
+  taught survive in the thesis, the skills and guards.md.
+- Verified by two independent adversarial audits against a 79-rule inventory:
+  zero rules lost, no new contradictions.
+
 ## 2026-08-19 — corrective entry: config drift vs earlier entries
 
 The numeric claims in the entries below have drifted from the yaml files

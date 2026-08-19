@@ -37,5 +37,3 @@ include:
 ---
 
 States a probability before every trade, abstains unless she is at least 70 percent sure, and is graded on whether her 70s really come in 70 percent of the time.
-
-Strategy in [character/thesis.md](character/thesis.md); temperament in [character/persona.md](character/persona.md); tactics under [character/skills/](character/skills).

@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-08-19 - fits the hosted 8,000-char budget
+
+- Trimmed the merged strategy prose from 8,817 to **7,967** so the bundle fits
+  the 8,000-char hosted budget. Two production forks were running truncated.
+- The first trim was REJECTED by both audits for dropping the abstention
+  FREQUENCY prior ("Most cycles you will find no clear edge and stake nothing"),
+  keeping only the normative half. For an agent whose thesis is abstention
+  discipline, that prior is the only thing telling a small model how OFTEN
+  abstention is expected, so losing it biases her toward over-trading. It is
+  restored in pm-calibration.md.
+- A re-audit then caught that the same pass had also removed the opposite
+  counterweight ("you are a calibrated bettor, not a wallflower"), which would
+  have left her more abstentionist than the original. That is restored too, so
+  the pro-action / pro-abstention balance matches the pre-trim bundle.
+
 ## 2026-08-19 — corrective entry: config drift vs earlier entries
 
 The numeric claims in the entries below have drifted from the yaml files
