@@ -2,7 +2,7 @@ api:
   kind: coinrithm-agent-api
   baseUrl: https://api.coinrithm.com
   mcpUrl: https://mcp.coinrithm.com/mcp
-  openapiVersion: 1.6.0
+  openapiVersion: 1.7.0
   mcpPackage: "@coinrithm/mcp-trading"
   mcpVersion: 0.7.5
 venues:

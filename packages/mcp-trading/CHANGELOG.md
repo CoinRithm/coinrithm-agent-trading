@@ -3,7 +3,69 @@
 All notable changes to `@coinrithm/mcp-trading` are documented here. The package
 ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (the
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
-versioned separately (see `openapi.yaml` `info.version`, currently `1.6.0`).
+versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
+
+## 0.7.6
+
+Agent capability release: universe discovery, first-class behavioral guards,
+and the hosted prose budget made visible. Additive — no tool renamed or
+removed. Contract moves to **1.7.0** (two keyless paths declared).
+
+**New: agents can look beyond their own watchlist.**
+
+- **`get_crypto_movers` tool.** Keyless scan of the tracked coin universe for
+  the biggest 24h gainers or losers. Rows carry `coinId`, `symbol`, `name`,
+  `slug`, `change24hPct`, `priceUsd`.
+- **`universe_scan` capability** for the self-host runner. Each cycle it pulls
+  the top movers, promotes the strongest few into full watch entries marked
+  `discovered: true`, and passes the remainder as compact context. Watchlist
+  and blocklist symbols are excluded up front, so a discovered row can never
+  duplicate a configured pair or bypass the deny list.
+- **Both now carry the coinId through.** The movers row's `ucid` IS the
+  `coinId` that `get_candles` / `get_market_context` / the futures quote path
+  take. It was previously stripped from the tool response and re-derived from
+  the SYMBOL via a resolve round-trip — a wasted call per discovered mover and
+  a real correctness hazard, because symbols collide across listings and the
+  resolver could return a different coin than the one that actually moved.
+
+**New: contract declares the endpoints the tools call.**
+
+- `/api/coins/top-gainers` and `/api/coins/top-losers` are now in
+  `openapi.yaml` (tag `public-crypto-data`), so both SDKs can reach the
+  surface `get_crypto_movers` uses. Probe-verified against prod: bare array,
+  no envelope; `change24h` / `currentPrice` are decimal STRINGS; default
+  `limit` is 3 and out-of-range values return 400 rather than clamping.
+
+**New: personality and boundaries are configurable, and documented.**
+
+- **`character/guards.md`** — first-class hard behavioral guards, merged into
+  the strategy prose as a distinct section rather than buried in the thesis.
+- **`examples/agents/pia-pump-fader`** — a full bundle demonstrating
+  capabilities plus boundary configuration (watchlist/blocklist interaction,
+  the five-point risk gate, re-entry discipline).
+- **`examples/agents/FORKING.md`** — a file-by-file map of what is strategy
+  and what is plumbing, so a fork knows what it is allowed to change.
+- **QUICKSTART** documents capabilities, and a docs-drift tripwire fails the
+  suite when a capability ships undocumented (`universe_scan` shipped
+  invisible in every user surface once; that cannot recur silently).
+
+**Fixed.**
+
+- **Hosted prose budget is validated, not discovered at deploy.**
+  `coinrithm-agent validate --hosted` now checks the 8,000-character merged
+  prose budget and reports the exact overage. A bundle could previously
+  validate clean and still be undeployable. YAML frontmatter is stripped
+  before the count (and before the model sees it — it was being fed in as if
+  it were strategy). `pia-pump-fader` was rebuilt to fit at 7,932.
+- **Permanent failures stop being revived.** A disabled agent whose model is
+  gone or whose key is invalid is no longer resurrected by the scheduler's
+  revive pass; only transient failures are retried.
+- **Fresh scaffolds are no longer bricked** by the capabilities field, and
+  action-confidence tolerance was widened to match what models actually emit.
+- **False market-data licensing assertion corrected** in both READMEs.
+
+⚠ Publishing to npm remains a **manual** step — `publish-mcp.yml` pushes
+`server.json` to the MCP registry only.
 
 ## 0.7.5
 
