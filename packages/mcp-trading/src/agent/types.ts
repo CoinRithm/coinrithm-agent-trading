@@ -116,11 +116,19 @@ export interface LimitsConfig {
 }
 
 export interface AbstentionConfig {
+  // RESERVED (2026-08-19 honesty pass): the four booleans parse, validate,
+  // and default to true, but NO code path currently branches on them — the
+  // behaviors they describe are unconditionally enforced elsewhere (stale
+  // quotes are rejected at quote-gating, missing quotes block opens,
+  // insufficient balance rejects at the server). Setting any of them false
+  // changes NOTHING today. Do not wire them without an owner decision:
+  // making onStaleData:false actually trade on stale data is a risk-behavior
+  // change, not a bug fix.
   onStaleData: boolean;
   onWeakSignal: boolean;
   onMissingQuote: boolean;
   onInsufficientBalance: boolean;
-  minConfidence: number; // [0..1]; skip an action below this model confidence
+  minConfidence: number; // [0..1]; skip an action below this model confidence — ENFORCED
 }
 
 export interface SyncConfig {

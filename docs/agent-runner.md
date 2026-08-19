@@ -146,6 +146,15 @@ promoted into tradable candidates under the same risk caps and blocklist) and
 included). `websearch` is reserved — accepted by the validator but not yet
 implemented; declaring it does nothing today.
 
+Also reserved: the four `abstention` booleans (`onStaleData`, `onWeakSignal`,
+`onMissingQuote`, `onInsufficientBalance`) parse and default to `true`, but no
+code path branches on them — the behaviors they describe are unconditionally
+enforced elsewhere (quote-gating rejects stale/missing quotes; the server
+rejects insufficient balance). Only `abstention.minConfidence` is a live knob.
+`triggerPolicy:` in `agent.md` IS load-bearing: it tunes the event-driven gate
+(`mode`, `skipLlmWhenNoTrigger`, `alwaysManageOpenPositions`,
+`maxLlmCallsPerHour`, `debounceMinutes`, `pmEvalCooldownMinutes`).
+
 ## Hard behavioral guards (`character/guards.md`)
 
 Machine caps (leverage, margin, stops, watchlist/blocklist) bound WHAT an

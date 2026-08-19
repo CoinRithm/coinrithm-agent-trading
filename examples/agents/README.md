@@ -11,7 +11,7 @@ not financial advice.
 > mean-reversion fades until those files are replaced wholesale, not just
 > edited around. If your edge differs from the donor's, rewrite the thesis,
 > swap the skills (and the `include:` list in `agent.md` + `_index.yaml`),
-> and clear the journal seed.
+> and clear the journal seed. Full file-by-file map: [FORKING.md](./FORKING.md).
 
 ## House agents — 5 distinct trading characters
 

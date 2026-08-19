@@ -33,8 +33,20 @@ const ALLOWED_KEYS: Record<string, string[] | null> = {
     "capabilities",
     "include",
     "watchlist",
+    // Load-bearing since OKF v2 (skill.ts builds the full TriggerPolicy from
+    // it) but was missing here, so any bundle actually SETTING it got an
+    // unknown_key lint — the knob existed and was unreachable (audit rank 10).
+    "triggerPolicy",
   ],
   trigger: ["cadence", "timezone", "events"],
+  triggerPolicy: [
+    "mode",
+    "skipLlmWhenNoTrigger",
+    "alwaysManageOpenPositions",
+    "maxLlmCallsPerHour",
+    "debounceMinutes",
+    "pmEvalCooldownMinutes",
+  ],
   model: ["provider", "name", "baseUrl"],
   risk: [
     "maxLeverage",
@@ -129,6 +141,7 @@ export function strictLint(raw: Record<string, unknown>): ResolveIssue[] {
   lintKeys("$root", raw, issues);
   for (const block of [
     "trigger",
+    "triggerPolicy",
     "model",
     "risk",
     "limits",
