@@ -3,6 +3,7 @@
   "contentHashes": {
     "agent.md": "sha256:c992b3886181f3896431a7c96818b06b752e756895c1a2c8c87b63292eed315a",
     "character/abstention.yaml": "sha256:24df02b20cbc240248cc7888962a8194ecefa41cd52b56aa22cce2111ee939a8",
+    "character/guards.md": "sha256:317dfc5e4b43b2fb76c9e307b8008c1dd00e2d04e86a91c39be6f16f5013bb2a",
     "character/limits.yaml": "sha256:6e0a8deeb2f97e34f65d6af6a12c7c604598a482f65063ef09f08e22a13b716c",
     "character/persona.md": "sha256:c78bb4af5d33e1c64e915c28420c056c720cdca35fa95f11b7caf6154dbdcb12",
     "character/risk.yaml": "sha256:d08610a380abaed63d728664804bbed609ec41cfe7086f330ec65c2418ec4286",
@@ -34,6 +35,7 @@
       "character/thesis.md",
       "character/persona.md",
       "journal/notes.md",
+      "character/guards.md",
       "functionality/coinrithm.yaml"
     ],
     "sources": {
