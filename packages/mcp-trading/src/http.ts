@@ -98,6 +98,28 @@ async function main(): Promise<void> {
     });
   });
 
+  // robots.txt for THIS host. robots.txt is per-HOST, so www.coinrithm.com's
+  // file never governed mcp.coinrithm.com — a separate origin that had no
+  // route of its own. The origin 404'd and Cloudflare answered with its
+  // managed content-signals boilerplate: 1,248 bytes of comments carrying ZERO
+  // User-agent/Disallow/Allow lines, which a crawler reads as "crawl
+  // everything". That is the identical failure that cost api.coinrithm.com
+  // 15.4% of the site's 90-day crawl budget (4,468 of 29,100 GSC requests)
+  // before it was closed on 2026-08-20.
+  //
+  // Nothing here is indexable: GET / is a JSON service descriptor, GET /mcp is
+  // a 405, and the real surface is POST-only streamable HTTP. The human-facing
+  // documentation crawlers should index lives on www.coinrithm.com
+  // (/en/agentic-trading, /en/prediction-markets/api), which links here.
+  //
+  // SAFE FOR MCP CLIENTS AND REGISTRIES: robots.txt is advisory to CRAWLERS
+  // only. MCP clients, Smithery and the MCP registry POST /mcp or GET /healthz
+  // directly and never consult robots.txt, so this cannot gate discovery,
+  // initialization or tool listing. Do not "fix" a registry problem here.
+  app.get("/robots.txt", (_req, res) => {
+    res.type("text/plain").send("User-agent: *\nDisallow: /\n");
+  });
+
   app.get("/mcp", (_req, res) => {
     res.status(405).json({
       error: "method_not_allowed",
