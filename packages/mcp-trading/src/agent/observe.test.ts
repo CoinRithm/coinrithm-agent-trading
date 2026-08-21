@@ -836,15 +836,43 @@ describe("universe_scan capability", () => {
             change24h: "10.0",
             currentPrice: "5.5",
           },
+          {
+            symbol: "FFF",
+            name: "Fff",
+            change24h: "9.0",
+            currentPrice: "6.5",
+          },
+          {
+            symbol: "GGG",
+            name: "Ggg",
+            change24h: "8.0",
+            currentPrice: "7.5",
+          },
+          {
+            symbol: "HHH",
+            name: "Hhh",
+            change24h: "7.0",
+            currentPrice: "8.5",
+          },
         ]),
     });
     const { observation } = await observe(c, scanSpec, newState("r"));
     const discovered = observation.watch.filter((w) => w.discovered);
-    expect(discovered.map((w) => w.symbol)).toEqual(["AAA", "BBB", "CCC"]);
-    // Remaining movers ride as compact context, not tradable entries.
-    expect(observation.universeMovers?.map((m) => m.symbol)).toEqual([
+    // UNIVERSE_RESOLVE_TOP = 6: only a RESOLVED row carries indicators, and so
+    // a `setups` flag. The fixture deliberately supplies more movers than the
+    // bound so the overflow path stays covered as the bound changes.
+    expect(discovered.map((w) => w.symbol)).toEqual([
+      "AAA",
+      "BBB",
+      "CCC",
       "DDD",
       "EEE",
+      "FFF",
+    ]);
+    // Remaining movers ride as compact context, not tradable entries.
+    expect(observation.universeMovers?.map((m) => m.symbol)).toEqual([
+      "GGG",
+      "HHH",
     ]);
   });
 

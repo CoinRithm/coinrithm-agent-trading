@@ -34,8 +34,26 @@ const INDICATOR_RANGE = "1D";
 // `universe_scan` bounds: how many top movers to pull, and how many of those
 // to fully resolve into tradable watch entries (each resolved row costs a
 // resolve + market [+ candles] call).
+//
+// RESOLVE_TOP 3 -> 6 on 2026-08-21. Only a resolved row carries indicators, and
+// therefore a `setups` flag; the unresolved remainder is bare symbol + 24h
+// change + price. At 3, a discovery-driven strategy could reason properly about
+// exactly three coins per cycle out of fifteen surfaced.
+//
+// That bit a real user case. A pump-fade agent identifies a candidate from a
+// `stretched`/`fade-short` setup (RSI14 >= 68) and then waits for exhaustion,
+// which by definition means RSI is NO LONGER extreme. Nothing persists between
+// cycles, so the candidate has to still be a resolved row at the moment the
+// exhaustion evidence appears. Discovery is gainers-ranked, so a retracing coin
+// slides down the list — at 3 it fell out almost immediately and went blind
+// exactly when the strategy needed to look at it.
+//
+// 6 roughly doubles how far a coin can slide before losing its indicators. Cost
+// is 3 extra market+candles calls per cycle against CoinRithm's own API (never
+// the model quota) and ~3 more watch entries in the prompt, and only for agents
+// that declare universe_scan.
 const UNIVERSE_SCAN_LIMIT = 15;
-const UNIVERSE_RESOLVE_TOP = 3;
+const UNIVERSE_RESOLVE_TOP = 6;
 
 // Watchlist symbols -> the coin NAMES prediction-market titles use, so an agent
 // discovers PM markets about the coins it actually has a price view on.
