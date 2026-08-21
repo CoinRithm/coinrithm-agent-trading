@@ -674,7 +674,25 @@ export function resolveAgent(inputPath: string): ResolvedAgent {
 // tokens / 413s per cycle. Mirrored here (backend-v2
 // controllers/agentManage.ts sanitizeStrategyProse) so `validate --hosted`
 // can catch it before a user does.
-export const HOSTED_PROSE_MAX_CHARS = 8000;
+//
+// RAISED 8,000 -> 12,000 on 2026-08-21, from measurement rather than feel.
+// 8,000 made the product's core promise impossible: forking a house template
+// starts you at 7,967 (Olivia) / 7,931 (Carl) / 7,839 (Mia), so a user had
+// 33 to 161 characters to write their own rules in. "Fork a template and make
+// it yours" could not be done.
+//
+// The cap was justified by hosted inference cost. Measured over 8,060 LLM
+// cycles in 24h on prod: average input is 9,038 tokens, of which the prose is
+// only 12.6-40.2% (median ~25%) — the OBSERVATION is the other ~75%. Inputs
+// already reach 17,065 tokens on Llama 3.1 8B and 16,437 on Nemotron 49B, with
+// ZERO rate-limit errors and estimated_cost_usd of 0.0000 (free NIM tier).
+// +4,000 characters is ~+1,000 tokens/cycle (+11%), landing average input near
+// 10,038 — still below what the fleet already handles at peak today.
+//
+// Self-host is deliberately NOT capped (runner.ts/prompt.ts enforce nothing):
+// those agents run on the user's own model key, so their prompt size costs us
+// nothing. This limit exists only where WE pay for the inference.
+export const HOSTED_PROSE_MAX_CHARS = 12000;
 
 /** PURE — exported for tests. Mirrors the backend's trim-then-measure. */
 export const hostedProseBudget = (
