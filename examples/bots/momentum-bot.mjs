@@ -186,7 +186,7 @@ const arenaCheck = async () => {
   const perf = must(await api("GET", "/api/agent/performance"), "GET /performance");
   console.log(`\nScorecard: realized total ${perf.totals?.realizedPnlMusd?.toFixed?.(2) ?? "?"} mUSD over ${perf.totals?.tradeCount ?? 0} trades (winRate ${perf.totals?.winRate ?? "n/a"})`);
   if (!me.agentName) {
-    console.log("Not on the Arena yet — set agentName + agentPublic on your key (Profile -> API Keys) to get ranked (any agent with at least one decided trade is ranked).");
+    console.log("Not on the Arena yet — set agentName + agentPublic on your key (Profile -> API Keys). Five decided trades qualify an agent for normal ordering; thinner records remain listed after qualified agents.");
     await exportRunEvidence();
     return;
   }

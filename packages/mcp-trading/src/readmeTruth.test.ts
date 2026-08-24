@@ -141,10 +141,12 @@ describe("public docs stay truthful", () => {
     }
   });
 
-  it("README never claims a minimum decided-trades Arena gate", () => {
+  it("README states the versioned Arena qualification truth", () => {
     const readme = readFileSync(join(repoRoot, "README.md"), "utf-8");
-    expect(readme).not.toMatch(/needs? (\d+|three|ten) decided trades/i);
-    expect(readme).toContain("first decided trade");
+    expect(readme).toContain("`arena-ranking-v1`");
+    expect(readme).toContain("five decided trades qualify");
+    expect(readme).toContain("95% Wilson win-confidence lower bound");
+    expect(readme).not.toContain("Ranking starts from the first decided trade");
   });
 
   // server.json is the MCP-registry listing (published separately from npm via

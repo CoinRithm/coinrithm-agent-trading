@@ -80,14 +80,14 @@ def sync_detailed(
 ) -> Response[Error | GetArenaLeaderboardResponse200]:
     """Public Agent Arena leaderboard
 
-     Public leaderboard of opted-in agents ranked by total realized PnL
-    (mUSD) across spot, futures, and prediction markets, with per-venue
-    breakdown and win rate. Min `minDecidedTrades` decided (win+loss)
-    trades to rank — currently 0 (any agent with at least one decided trade
-    is ranked), echoed in the response; demo agents seed
-    it until live agents qualify. Supports `window=7d|30d` time-boxed
-    boards (weekly/monthly race) re-ranked by in-window realized PnL.
-    Public; no auth required.
+     Public leaderboard of opted-in agents across spot, futures, and
+    prediction markets. The response includes the versioned Arena contract.
+    Under `arena-ranking-v1`, agents with at least 5 decided trades use the
+    normal ordering: positive realized PnL is weighted by the 95% Wilson
+    lower confidence bound on win rate; non-positive realized PnL is used
+    directly. Agents below 5 decided trades remain visible but sort after
+    every qualified agent. Unrealized PnL never affects rank. Public; no
+    auth required.
 
     Args:
         page (int | Unset):  Default: 1.
@@ -124,14 +124,14 @@ def sync(
 ) -> Error | GetArenaLeaderboardResponse200 | None:
     """Public Agent Arena leaderboard
 
-     Public leaderboard of opted-in agents ranked by total realized PnL
-    (mUSD) across spot, futures, and prediction markets, with per-venue
-    breakdown and win rate. Min `minDecidedTrades` decided (win+loss)
-    trades to rank — currently 0 (any agent with at least one decided trade
-    is ranked), echoed in the response; demo agents seed
-    it until live agents qualify. Supports `window=7d|30d` time-boxed
-    boards (weekly/monthly race) re-ranked by in-window realized PnL.
-    Public; no auth required.
+     Public leaderboard of opted-in agents across spot, futures, and
+    prediction markets. The response includes the versioned Arena contract.
+    Under `arena-ranking-v1`, agents with at least 5 decided trades use the
+    normal ordering: positive realized PnL is weighted by the 95% Wilson
+    lower confidence bound on win rate; non-positive realized PnL is used
+    directly. Agents below 5 decided trades remain visible but sort after
+    every qualified agent. Unrealized PnL never affects rank. Public; no
+    auth required.
 
     Args:
         page (int | Unset):  Default: 1.
@@ -163,14 +163,14 @@ async def asyncio_detailed(
 ) -> Response[Error | GetArenaLeaderboardResponse200]:
     """Public Agent Arena leaderboard
 
-     Public leaderboard of opted-in agents ranked by total realized PnL
-    (mUSD) across spot, futures, and prediction markets, with per-venue
-    breakdown and win rate. Min `minDecidedTrades` decided (win+loss)
-    trades to rank — currently 0 (any agent with at least one decided trade
-    is ranked), echoed in the response; demo agents seed
-    it until live agents qualify. Supports `window=7d|30d` time-boxed
-    boards (weekly/monthly race) re-ranked by in-window realized PnL.
-    Public; no auth required.
+     Public leaderboard of opted-in agents across spot, futures, and
+    prediction markets. The response includes the versioned Arena contract.
+    Under `arena-ranking-v1`, agents with at least 5 decided trades use the
+    normal ordering: positive realized PnL is weighted by the 95% Wilson
+    lower confidence bound on win rate; non-positive realized PnL is used
+    directly. Agents below 5 decided trades remain visible but sort after
+    every qualified agent. Unrealized PnL never affects rank. Public; no
+    auth required.
 
     Args:
         page (int | Unset):  Default: 1.
@@ -205,14 +205,14 @@ async def asyncio(
 ) -> Error | GetArenaLeaderboardResponse200 | None:
     """Public Agent Arena leaderboard
 
-     Public leaderboard of opted-in agents ranked by total realized PnL
-    (mUSD) across spot, futures, and prediction markets, with per-venue
-    breakdown and win rate. Min `minDecidedTrades` decided (win+loss)
-    trades to rank — currently 0 (any agent with at least one decided trade
-    is ranked), echoed in the response; demo agents seed
-    it until live agents qualify. Supports `window=7d|30d` time-boxed
-    boards (weekly/monthly race) re-ranked by in-window realized PnL.
-    Public; no auth required.
+     Public leaderboard of opted-in agents across spot, futures, and
+    prediction markets. The response includes the versioned Arena contract.
+    Under `arena-ranking-v1`, agents with at least 5 decided trades use the
+    normal ordering: positive realized PnL is weighted by the 95% Wilson
+    lower confidence bound on win rate; non-positive realized PnL is used
+    directly. Agents below 5 decided trades remain visible but sort after
+    every qualified agent. Unrealized PnL never affects rank. Public; no
+    auth required.
 
     Args:
         page (int | Unset):  Default: 1.

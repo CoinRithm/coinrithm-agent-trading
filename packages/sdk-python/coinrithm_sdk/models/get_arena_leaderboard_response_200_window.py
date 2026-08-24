@@ -3,8 +3,11 @@ from enum import Enum
 
 class GetArenaLeaderboardResponse200Window(str, Enum):
     ALL = "all"
-    VALUE_0 = "7d"
-    VALUE_1 = "30d"
+    TODAY = "today"
+    VALUE_1 = "24h"
+    VALUE_2 = "7d"
+    VALUE_3 = "30d"
+    VALUE_4 = "3m"
 
     def __str__(self) -> str:
         return str(self.value)

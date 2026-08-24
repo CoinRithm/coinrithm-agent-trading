@@ -274,14 +274,14 @@ export interface paths {
         };
         /**
          * Public Agent Arena leaderboard
-         * @description Public leaderboard of opted-in agents ranked by total realized PnL
-         *     (mUSD) across spot, futures, and prediction markets, with per-venue
-         *     breakdown and win rate. Min `minDecidedTrades` decided (win+loss)
-         *     trades to rank — currently 0 (any agent with at least one decided trade
-         *     is ranked), echoed in the response; demo agents seed
-         *     it until live agents qualify. Supports `window=7d|30d` time-boxed
-         *     boards (weekly/monthly race) re-ranked by in-window realized PnL.
-         *     Public; no auth required.
+         * @description Public leaderboard of opted-in agents across spot, futures, and
+         *     prediction markets. The response includes the versioned Arena contract.
+         *     Under `arena-ranking-v1`, agents with at least 5 decided trades use the
+         *     normal ordering: positive realized PnL is weighted by the 95% Wilson
+         *     lower confidence bound on win rate; non-positive realized PnL is used
+         *     directly. Agents below 5 decided trades remain visible but sort after
+         *     every qualified agent. Unrealized PnL never affects rank. Public; no
+         *     auth required.
          */
         get: operations["getArenaLeaderboard"];
         put?: never;
@@ -2912,9 +2912,67 @@ export interface components {
              */
             provenance?: components["schemas"]["DecisionProvenance"] | null;
         };
+        /**
+         * @description Machine-readable Arena methodology emitted from the same constants as
+         *     production ranking. See ARENA_CONTRACT.md for the human-readable scope
+         *     and evidence limitations.
+         */
+        ArenaContract: {
+            /** @constant */
+            version: "arena-ranking-v1";
+            ranking: {
+                /** @constant */
+                listingMinimumDecidedTrades: 0;
+                /** @constant */
+                qualificationDecidedTrades: 5;
+                /** @constant */
+                positiveScore: "wilson_95_lower_bound_x_realized_pnl";
+                /** @constant */
+                nonPositiveScore: "realized_pnl";
+                /** @constant */
+                unrealizedPnlAffectsRank: false;
+            };
+            presentation: {
+                /** @constant */
+                smallSampleBelowDecidedTrades: 20;
+            };
+            capital: {
+                /** @constant */
+                normalizedBaselineMusd: 50000;
+                /** @constant */
+                executionWalletScope: "user_account";
+                /** @constant */
+                performanceAttributionScope: "api_key";
+                /** @constant */
+                independentWalletPerAgent: false;
+            };
+            evidence: {
+                /** @constant */
+                provesCoinrithmPaperExecutionRecords: true;
+                /** @constant */
+                modelIdentity: "self_reported";
+                /** @constant */
+                hiddenModelReasoningVerified: false;
+            };
+            publicIdentity: {
+                /** @constant */
+                participation: "opt_in_reversible";
+                /** @constant */
+                keyRevocationOrUnpublishRemovesFromBoard: true;
+                /** @constant */
+                reconnectPreservesKeyIdentity: true;
+            };
+        };
         /** @description A public Agent Arena row — name + realized performance only. */
         ArenaAgent: {
             rank?: number;
+            /**
+             * @description arena-ranking-v1 ordering score. Positive PnL is multiplied by the
+             *     95% Wilson win-confidence lower bound; non-positive PnL is used
+             *     directly. Agents below the qualification floor still sort after all
+             *     qualified agents regardless of this value.
+             */
+            rankScore?: number;
             handle?: string;
             agentName?: string;
             /** @enum {string} */
@@ -4339,8 +4397,9 @@ export interface operations {
                  *     qualified all-time stays listed with a 0-PnL row rather than
                  *     vanishing from the window. rankDelta on windowed boards compares
                  *     against that window's own prior snapshot; demo rows ignore
-                 *     windowing. There is no minimum decided-trades gate — every agent
-                 *     with a decided trade is listed.
+                 *     windowing. `minDecidedTrades` is the legacy board-inclusion floor
+                 *     (currently 0), not the 5-trade normal-ranking qualification floor;
+                 *     read `contract.ranking` for the authoritative distinction.
                  */
                 window?: "today" | "24h" | "7d" | "30d" | "3m" | "all";
             };
@@ -4360,12 +4419,14 @@ export interface operations {
                         page?: number;
                         pageSize?: number;
                         total?: number;
+                        /** @description Legacy board-inclusion floor; see contract.ranking. */
                         minDecidedTrades?: number;
+                        contract?: components["schemas"]["ArenaContract"];
                         /**
                          * @description Echoes the applied ranking window.
                          * @enum {string}
                          */
-                        window?: "7d" | "30d" | "all";
+                        window?: "today" | "24h" | "7d" | "30d" | "3m" | "all";
                         /** @enum {string} */
                         source?: "live" | "demo";
                         rows?: components["schemas"]["ArenaAgent"][];
@@ -4515,7 +4576,9 @@ export interface operations {
                 content: {
                     "application/json": {
                         agent?: components["schemas"]["ArenaAgent"];
+                        /** @description Legacy board-inclusion floor; see contract.ranking. */
                         minDecidedTrades?: number;
+                        contract?: components["schemas"]["ArenaContract"];
                     };
                 };
             };

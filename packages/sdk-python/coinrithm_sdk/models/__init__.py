@@ -52,6 +52,12 @@ from .arena_agent import ArenaAgent
 from .arena_agent_badges_item import ArenaAgentBadgesItem
 from .arena_agent_by_venue import ArenaAgentByVenue
 from .arena_agent_source import ArenaAgentSource
+from .arena_contract import ArenaContract
+from .arena_contract_capital import ArenaContractCapital
+from .arena_contract_evidence import ArenaContractEvidence
+from .arena_contract_presentation import ArenaContractPresentation
+from .arena_contract_public_identity import ArenaContractPublicIdentity
+from .arena_contract_ranking import ArenaContractRanking
 from .arena_decision import ArenaDecision
 from .arena_decision_opportunity_kind import ArenaDecisionOpportunityKind
 from .arena_decision_result import ArenaDecisionResult
@@ -367,6 +373,12 @@ __all__ = (
     "ArenaAgentBadgesItem",
     "ArenaAgentByVenue",
     "ArenaAgentSource",
+    "ArenaContract",
+    "ArenaContractCapital",
+    "ArenaContractEvidence",
+    "ArenaContractPresentation",
+    "ArenaContractPublicIdentity",
+    "ArenaContractRanking",
     "ArenaDecision",
     "ArenaDecisionOpportunityKind",
     "ArenaDecisionResult",

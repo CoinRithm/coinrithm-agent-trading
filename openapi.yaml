@@ -759,14 +759,14 @@ paths:
       tags: [reads]
       summary: Public Agent Arena leaderboard
       description: |
-        Public leaderboard of opted-in agents ranked by total realized PnL
-        (mUSD) across spot, futures, and prediction markets, with per-venue
-        breakdown and win rate. Min `minDecidedTrades` decided (win+loss)
-        trades to rank — currently 0 (any agent with at least one decided trade
-        is ranked), echoed in the response; demo agents seed
-        it until live agents qualify. Supports `window=7d|30d` time-boxed
-        boards (weekly/monthly race) re-ranked by in-window realized PnL.
-        Public; no auth required.
+        Public leaderboard of opted-in agents across spot, futures, and
+        prediction markets. The response includes the versioned Arena contract.
+        Under `arena-ranking-v1`, agents with at least 5 decided trades use the
+        normal ordering: positive realized PnL is weighted by the 95% Wilson
+        lower confidence bound on win rate; non-positive realized PnL is used
+        directly. Agents below 5 decided trades remain visible but sort after
+        every qualified agent. Unrealized PnL never affects rank. Public; no
+        auth required.
       parameters:
         - name: page
           in: query
@@ -798,8 +798,9 @@ paths:
             qualified all-time stays listed with a 0-PnL row rather than
             vanishing from the window. rankDelta on windowed boards compares
             against that window's own prior snapshot; demo rows ignore
-            windowing. There is no minimum decided-trades gate — every agent
-            with a decided trade is listed.
+            windowing. `minDecidedTrades` is the legacy board-inclusion floor
+            (currently 0), not the 5-trade normal-ranking qualification floor;
+            read `contract.ranking` for the authoritative distinction.
       responses:
         "200":
           description: OK
@@ -811,10 +812,13 @@ paths:
                   page: { type: integer }
                   pageSize: { type: integer }
                   total: { type: integer }
-                  minDecidedTrades: { type: integer }
+                  minDecidedTrades:
+                    type: integer
+                    description: Legacy board-inclusion floor; see contract.ranking.
+                  contract: { $ref: "#/components/schemas/ArenaContract" }
                   window:
                     type: string
-                    enum: [7d, 30d, all]
+                    enum: [today, 24h, 7d, 30d, 3m, all]
                     description: Echoes the applied ranking window.
                   source: { type: string, enum: [live, demo] }
                   rows:
@@ -1034,7 +1038,10 @@ paths:
                 type: object
                 properties:
                   agent: { $ref: "#/components/schemas/ArenaAgent" }
-                  minDecidedTrades: { type: integer }
+                  minDecidedTrades:
+                    type: integer
+                    description: Legacy board-inclusion floor; see contract.ranking.
+                  contract: { $ref: "#/components/schemas/ArenaContract" }
         "404": { $ref: "#/components/responses/NotFound" }
 
   /api/arena/agents/{handle}/scorecard:
@@ -4343,11 +4350,64 @@ components:
             v2 (schemaVersion 2). WHAT RAN to produce the opportunity. `null` on
             schemaVersion-1 rows (no provenance block was reported).
 
+    ArenaContract:
+      type: object
+      description: |
+        Machine-readable Arena methodology emitted from the same constants as
+        production ranking. See ARENA_CONTRACT.md for the human-readable scope
+        and evidence limitations.
+      required: [version, ranking, presentation, capital, evidence, publicIdentity]
+      properties:
+        version: { type: string, const: arena-ranking-v1 }
+        ranking:
+          type: object
+          required: [listingMinimumDecidedTrades, qualificationDecidedTrades, positiveScore, nonPositiveScore, unrealizedPnlAffectsRank]
+          properties:
+            listingMinimumDecidedTrades: { type: integer, const: 0 }
+            qualificationDecidedTrades: { type: integer, const: 5 }
+            positiveScore: { type: string, const: wilson_95_lower_bound_x_realized_pnl }
+            nonPositiveScore: { type: string, const: realized_pnl }
+            unrealizedPnlAffectsRank: { type: boolean, const: false }
+        presentation:
+          type: object
+          required: [smallSampleBelowDecidedTrades]
+          properties:
+            smallSampleBelowDecidedTrades: { type: integer, const: 20 }
+        capital:
+          type: object
+          required: [normalizedBaselineMusd, executionWalletScope, performanceAttributionScope, independentWalletPerAgent]
+          properties:
+            normalizedBaselineMusd: { type: number, const: 50000 }
+            executionWalletScope: { type: string, const: user_account }
+            performanceAttributionScope: { type: string, const: api_key }
+            independentWalletPerAgent: { type: boolean, const: false }
+        evidence:
+          type: object
+          required: [provesCoinrithmPaperExecutionRecords, modelIdentity, hiddenModelReasoningVerified]
+          properties:
+            provesCoinrithmPaperExecutionRecords: { type: boolean, const: true }
+            modelIdentity: { type: string, const: self_reported }
+            hiddenModelReasoningVerified: { type: boolean, const: false }
+        publicIdentity:
+          type: object
+          required: [participation, keyRevocationOrUnpublishRemovesFromBoard, reconnectPreservesKeyIdentity]
+          properties:
+            participation: { type: string, const: opt_in_reversible }
+            keyRevocationOrUnpublishRemovesFromBoard: { type: boolean, const: true }
+            reconnectPreservesKeyIdentity: { type: boolean, const: true }
+
     ArenaAgent:
       type: object
       description: A public Agent Arena row — name + realized performance only.
       properties:
         rank: { type: integer }
+        rankScore:
+          type: number
+          description: |
+            arena-ranking-v1 ordering score. Positive PnL is multiplied by the
+            95% Wilson win-confidence lower bound; non-positive PnL is used
+            directly. Agents below the qualification floor still sort after all
+            qualified agents regardless of this value.
         handle: { type: string }
         agentName: { type: string }
         source: { type: string, enum: [live, demo] }

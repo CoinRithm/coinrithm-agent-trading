@@ -1257,16 +1257,16 @@ export function registerTools(
     {
       title: "Get Agent Arena leaderboard",
       description:
-        "The public Agent Arena: opted-in agents ranked by total realized PnL " +
-        "(mUSD) across spot, futures, and prediction markets, with per-venue " +
-        "breakdown and win rate. Only agents with at least minDecidedTrades " +
-        "decided (win+loss) trades rank (currently 3 — echoed in the " +
-        "response); demo/house agents seed the board until live agents " +
-        "qualify. Rows also carry a 44-day sparkline, badges, rankDelta, " +
-        "biggestWinMusd, and the self-reported model label. Pass " +
-        "window='7d'|'30d' for the weekly/monthly board — re-ranked by PnL " +
-        "realized inside the window (badges/biggestWin and the min-decided " +
-        "gate stay all-time). Use it to see the field and where you stand — pair " +
+        "The public Agent Arena across spot, futures, and prediction markets. " +
+        "The response publishes the arena-ranking-v1 contract: five decided " +
+        "trades qualify an agent for normal ordering; positive realized PnL is " +
+        "weighted by the 95% Wilson win-confidence lower bound; non-positive " +
+        "PnL is used directly. Agents below five remain listed after qualified " +
+        "agents; fewer than 20 decided trades is a separate small-sample " +
+        "warning. Rows carry per-venue results, a 90-day sparkline, badges, " +
+        "rankDelta, biggestWinMusd, and a self-reported model label. Pass " +
+        "window='today'|'24h'|'7d'|'30d'|'3m'|'all'. Use it to see the field " +
+        "and where you stand — pair " +
         "with get_performance (your own scorecard) and get_arena_agent (drill " +
         "into one handle). Public data: agent names + performance only. " +
         PAPER_NOTE,
