@@ -53,6 +53,37 @@ describe("buildSpec — defaults and new blocks", () => {
     expect(spec.capabilities).toEqual(["indicators"]);
   });
 
+  // Direction constraint (2026-08-24) — the side restriction that failed as
+  // prose must round-trip as config, and a typo must FAIL, never silently
+  // mean "unrestricted".
+  it("parses risk.direction and leaves it undefined when omitted", async () => {
+    const { validateSkill } = await import("./skillValidator.js");
+    const parsed = parseSkill(
+      `---\n${FRONT}\n  direction: short_only\n---\nbody`,
+    );
+    expect(parsed.spec.risk.direction).toBe("short_only");
+    expect(validateSkill(parsed, "self-host").valid).toBe(true);
+
+    expect(parseSkill(`---\n${FRONT}\n---\nbody`).spec.risk.direction).toBe(
+      undefined,
+    );
+  });
+
+  it("rejects an invalid risk.direction value (fail-closed)", async () => {
+    const { validateSkill } = await import("./skillValidator.js");
+    const parsed = parseSkill(
+      `---\n${FRONT}\n  direction: shorts_only\n---\nbody`,
+    );
+    // The coercer refuses to guess…
+    expect(parsed.spec.risk.direction).toBe(undefined);
+    // …and validation makes the refusal LOUD instead of silently unrestricted.
+    const result = validateSkill(parsed, "self-host");
+    expect(result.valid).toBe(false);
+    expect(result.issues.some((i) => i.code === "skill_risk_direction")).toBe(
+      true,
+    );
+  });
+
   it("parses a triggerPolicy block (OKF v2) and defaults it when omitted", () => {
     const dflt = parseSkill(`---\n${FRONT}\n---\nbody`).spec;
     expect(dflt.triggerPolicy?.mode).toBe("event_driven");
@@ -109,5 +140,14 @@ describe("strictLint — no silent coercion", () => {
     expect(() => loadAgent(dir, "hosted")).toThrow(ResolveError);
     const selfHost = loadAgent(dir, "self-host");
     expect(selfHost.lint.length).toBeGreaterThan(0); // surfaced as advisory
+  });
+
+  it("hosted mode ACCEPTS risk.direction (known key, not a typo)", () => {
+    // Guards the strictLint known-keys list: without "direction" there, a
+    // hosted bundle carrying the constraint would be rejected at load — the
+    // exact bundle shape the 2026-08-24 incident needs to upload.
+    write("agent.md", `---\n${FRONT}\n  direction: short_only\n---\nbody`);
+    const hosted = loadAgent(dir, "hosted");
+    expect(hosted.spec.risk.direction).toBe("short_only");
   });
 });

@@ -124,6 +124,13 @@ export function buildSpec(raw: Record<string, unknown>): AgentSpec {
       requireStopLoss: bool(risk.requireStopLoss, true),
       watchlist: strArr(risk.watchlist),
       blocklist: strArr(risk.blocklist),
+      // Only the two exact values pass; anything else stays undefined here and
+      // FAILS validation (skillValidator) — a typo like "shorts_only" must
+      // never silently mean "unrestricted".
+      direction:
+        risk.direction === "long_only" || risk.direction === "short_only"
+          ? risk.direction
+          : undefined,
     },
     limits: {
       maxTradesPerDay: normalizeTradeCap(

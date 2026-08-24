@@ -55,6 +55,7 @@ const ALLOWED_KEYS: Record<string, string[] | null> = {
     "requireStopLoss",
     "watchlist",
     "blocklist",
+    "direction",
   ],
   sizing: null,
   limits: [

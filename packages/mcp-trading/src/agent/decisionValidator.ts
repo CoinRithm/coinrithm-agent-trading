@@ -88,6 +88,41 @@ export function validateAction(
     }
   }
 
+  // Direction constraint (2026-08-24): a strategy's side restriction is a HARD
+  // cap, not prose-obedience. Live incident: a short-only fade agent opened
+  // two momentum LONGS when the flagged-setups act-pressure outweighed its
+  // prose. Closes/SL-TP/cancels are never direction-gated — reducing or
+  // protecting an existing position is not a directional bet.
+  const direction = spec.risk.direction;
+  if (direction) {
+    if (action.type === "futures_open") {
+      if (direction === "short_only" && action.side !== "short") {
+        return fail(
+          "direction_constraint",
+          `direction ${direction}: futures_open side must be "short", got "${action.side}"`,
+        );
+      }
+      if (direction === "long_only" && action.side !== "long") {
+        return fail(
+          "direction_constraint",
+          `direction ${direction}: futures_open side must be "long", got "${action.side}"`,
+        );
+      }
+    }
+    // Spot buys are long exposure; a short_only agent must not accumulate
+    // them. Spot sells reduce a holding and stay allowed.
+    if (
+      action.type === "spot_order" &&
+      direction === "short_only" &&
+      action.side === "buy"
+    ) {
+      return fail(
+        "direction_constraint",
+        `direction ${direction}: spot buys are long exposure`,
+      );
+    }
+  }
+
   if (action.type === "futures_open") {
     // Daily realized-loss stop: once today's loss hits the cap, open no new risk.
     if (

@@ -97,6 +97,13 @@ export function buildSystemPrompt(
           `- futures: maxLeverage ${r.maxLeverage}, maxConcurrentPositions ${r.maxConcurrentPositions}, requireStopLoss ${r.requireStopLoss} (long stop below entry, short stop above)`,
         ]
       : []),
+    ...(r.direction
+      ? [
+          r.direction === "short_only"
+            ? '- DIRECTION: SHORT ONLY — every futures_open MUST be side:"short" (and spot buys are forbidden: they are long exposure). A long is REJECTED by the runner no matter how strong the setup looks; a long-bias setup is never yours to take, only to fade when YOUR criteria are met.'
+            : '- DIRECTION: LONG ONLY — every futures_open MUST be side:"long". A short is REJECTED by the runner no matter how strong the setup looks.',
+        ]
+      : []),
     // With universe_scan, the validator's gate is WATCH-membership (manual
     // watchlist ∪ this cycle's discovered entries) — saying "ONLY these" here
     // while the universe-scan section below calls discovered movers tradable
@@ -175,6 +182,16 @@ export function buildSystemPrompt(
     "## Flagged setups this cycle — your wake-up list (observation.setups)",
     "A deterministic scan already checked every watchlist coin and put the ones with real, tradeable structure RIGHT NOW into observation.setups — each has symbol, kind, bias, strength, and a factual note (trend / RSI / breakout / ATR reads). This is your shortlist; you do NOT need to re-derive whether a setup exists.",
     '- If observation.setups is NON-EMPTY: act on the strongest one that fits YOUR strategy. The `bias` is the trend-following read; if you are a contrarian / mean-reversion trader, FADE it with the same facts (e.g. a downtrend that is also "RSI oversold" is YOUR long). Skipping a flagged setup needs a SPECIFIC reason tied to your thesis — "no clear setup" is NOT a valid skip when setups are listed.',
+    // The act-pressure above must never outrank a hard cap: without this
+    // release valve a direction-constrained agent, staring at only wrong-way
+    // setups, is squeezed between "skipping needs a specific reason" and a
+    // constraint the runner enforces — that squeeze is how a short-only agent
+    // opened momentum longs on 2026-08-24.
+    ...(r.direction
+      ? [
+          `- Your DIRECTION cap outranks this list: a setup whose only actionable read violates it (${r.direction === "short_only" ? "long" : "short"}-side) is a LEGITIMATE skip — name the constraint in one clause and move on. Never take the wrong side to avoid skipping.`,
+        ]
+      : []),
     hasPm
       ? "- If observation.setups is EMPTY: no coin has a flagged structure right now — but BEFORE you skip, check observation.pmMarkets for a crypto market your current read prices wrong (a PM mispricing is a valid ACT even with zero coin setups). Only then, if nothing is mispriced, skip new entries and just manage any open positions."
       : "- If observation.setups is EMPTY: no coin has a flagged structure right now — skip new entries and just manage any open positions.",

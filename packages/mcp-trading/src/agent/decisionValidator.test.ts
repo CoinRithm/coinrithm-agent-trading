@@ -127,6 +127,91 @@ describe("validateAction", () => {
     );
   });
 
+  // Direction constraint (2026-08-24): a short-only fade agent opened two
+  // momentum LONGS when its restriction lived only in prose — the flagged-
+  // setups act-pressure outweighed it. The restriction is now a hard cap.
+  describe("direction constraint", () => {
+    const shortOnly = {
+      ...spec,
+      risk: { ...spec.risk, direction: "short_only" as const },
+    };
+    const longOnly = {
+      ...spec,
+      risk: { ...spec.risk, direction: "long_only" as const },
+    };
+    // A compliant SHORT: stop ABOVE entry (67000), TP below.
+    const goodShort: ProposedAction = {
+      ...goodOpen,
+      side: "short",
+      stopLossPrice: 70000,
+    };
+
+    it("short_only rejects a futures long before any API write", () => {
+      expect(validateAction(goodOpen, ctx({ spec: shortOnly })).code).toBe(
+        "direction_constraint",
+      );
+    });
+
+    it("short_only accepts a compliant short", () => {
+      expect(validateAction(goodShort, ctx({ spec: shortOnly })).valid).toBe(
+        true,
+      );
+    });
+
+    it("long_only rejects a futures short", () => {
+      expect(validateAction(goodShort, ctx({ spec: longOnly })).code).toBe(
+        "direction_constraint",
+      );
+    });
+
+    it("short_only rejects a spot BUY (long exposure) but allows a sell", () => {
+      const spotShortOnly = {
+        ...allSpec,
+        risk: { ...allSpec.risk, direction: "short_only" as const },
+      };
+      const buy: ProposedAction = {
+        type: "spot_order",
+        symbol: "BTC",
+        side: "buy",
+        orderType: "market",
+        quantity: 0.0001,
+        confidence: 0.7,
+      };
+      expect(
+        validateAction(buy, ctx({ spec: spotShortOnly, quote: freshSpotQuote }))
+          .code,
+      ).toBe("direction_constraint");
+      const sell: ProposedAction = { ...buy, side: "sell" };
+      const sellResult = validateAction(
+        sell,
+        ctx({ spec: spotShortOnly, quote: freshSpotQuote }),
+      );
+      // A sell must never fail on the DIRECTION gate (reducing a holding is
+      // not a directional bet) — later gates (holdings, quote) may still
+      // apply, so assert only that this code is not the failure.
+      expect(sellResult.code).not.toBe("direction_constraint");
+    });
+
+    it("closes and SL/TP adjustments are never direction-gated", () => {
+      const close: ProposedAction = {
+        type: "futures_close",
+        positionId: 7,
+        fraction: 1,
+        confidence: 0.7,
+      };
+      const result = validateAction(
+        close,
+        ctx({ spec: shortOnly, observation: obsWithPos }),
+      );
+      expect(result.code).not.toBe("direction_constraint");
+    });
+
+    it("no direction set = both sides allowed (every pre-existing agent)", () => {
+      expect(validateAction(goodOpen, ctx()).valid).toBe(true);
+      expect(validateAction(goodShort, ctx()).valid).toBe(true);
+    });
+  });
+
   it("rejects over-margin", () => {
     expect(validateAction({ ...goodOpen, marginMusd: 9999 }, ctx()).code).toBe(
       "margin_exceeds_cap",

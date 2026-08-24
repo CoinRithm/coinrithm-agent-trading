@@ -106,6 +106,17 @@ export interface RiskConfig {
   // Optional deny-list (uppercase): an open on a symbol here is rejected even if
   // it is also on the watchlist (deny wins). Empty/omitted = nothing blocked.
   blocklist?: string[];
+  // Optional HARD side restriction (2026-08-24). Born from a live incident: a
+  // short-only fade strategy expressed ONLY in prose opened two momentum LONGS
+  // when the decide prompt's flagged-setups pressure ("act on the strongest
+  // one") outweighed the prose. A strategy's direction is a cap, not a
+  // suggestion — the validator rejects a violating open before any API write:
+  //   short_only  -> futures_open must be side "short"; spot buys are long
+  //                  exposure and are rejected too (spot sells still allowed —
+  //                  reducing a holding is not a directional bet)
+  //   long_only   -> futures_open must be side "long"
+  // Omitted = both directions allowed (every agent before this field existed).
+  direction?: "long_only" | "short_only";
 }
 
 export interface LimitsConfig {

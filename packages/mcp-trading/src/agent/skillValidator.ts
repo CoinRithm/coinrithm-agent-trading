@@ -107,6 +107,18 @@ export function validateSkill(
         "skill_risk_watchlist",
         "risk.watchlist must be a non-empty list of symbols",
       );
+    // Fail-closed on the side restriction: a typo ("shorts_only") must never
+    // silently mean "unrestricted" — that is exactly how a prose-only
+    // constraint failed live on 2026-08-24.
+    if (
+      r.direction !== undefined &&
+      r.direction !== "long_only" &&
+      r.direction !== "short_only"
+    )
+      add(
+        "skill_risk_direction",
+        'risk.direction must be "long_only" or "short_only" (omit for both)',
+      );
   }
 
   // Model
