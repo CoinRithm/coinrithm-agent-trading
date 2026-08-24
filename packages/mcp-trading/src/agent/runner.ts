@@ -613,7 +613,9 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
     const system = buildSystemPrompt(spec, mergedProse, {
       includeForecast: forecastEnabled,
     });
-    const user = buildUserPrompt(observation, state.journal);
+    const user = buildUserPrompt(observation, state.journal, {
+      venues: spec.venues,
+    });
     const tokensInEst = Math.round((system.length + user.length) / 4);
     // Prompt-size + trigger visibility in the live terminal.
     log(

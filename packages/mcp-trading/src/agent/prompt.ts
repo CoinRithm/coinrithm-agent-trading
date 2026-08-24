@@ -48,9 +48,22 @@ export function buildSystemPrompt(
 ): string {
   const r = spec.risk;
   const v = spec.venues;
-  const includeForecast = opts.includeForecast === true;
+  const hasFutures = v.includes("futures");
+  const hasSpot = v.includes("spot");
+  const hasPm = v.includes("pm");
+  const hasCoinVenue = hasFutures || hasSpot;
+  const coinVenueLabel = [
+    ...(hasSpot ? ["spot"] : []),
+    ...(hasFutures ? ["futures"] : []),
+  ].join(" + ");
+  const includeForecast = hasPm && opts.includeForecast === true;
+  const sizeKinds = [
+    ...(hasFutures ? ["futures margin"] : []),
+    ...(hasSpot ? ["spot buy notional"] : []),
+    ...(hasPm ? ["PM stake"] : []),
+  ];
   const actions: string[] = [];
-  if (v.includes("futures")) {
+  if (hasFutures) {
     actions.push(
       '{"type":"futures_open","symbol","side":"long"|"short","leverage","marginMusd","stopLossPrice","takeProfitPrice","confidence":0..1}',
       '{"type":"futures_close","positionId","fraction"}',
@@ -58,13 +71,13 @@ export function buildSystemPrompt(
       "FUTURES TRIGGER RULES (the server rejects the WHOLE open otherwise): a LONG's takeProfitPrice must be ABOVE the current mark and stopLossPrice BELOW it (and above liquidationPrice); a SHORT is inverted (TP below mark, SL above). Every open position in observation.openPositions shows entryPrice, markPrice, liquidationPrice, stopLossPrice, takeProfitPrice — read them and place triggers on the correct side. NEVER attach stopLossPrice/takeProfitPrice to a futures_open for a symbol you ALREADY hold (the server treats it as an add and rejects it) — adjust that position with futures_set_sltp on its positionId instead.",
     );
   }
-  if (v.includes("spot")) {
+  if (hasSpot) {
     actions.push(
       '{"type":"spot_order","symbol","side":"buy"|"sell","orderType":"market"|"limit"|"stop","quantity","limitPrice","stopPrice","confidence":0..1}',
       '{"type":"spot_cancel","orderId"}',
     );
   }
-  if (v.includes("pm")) {
+  if (hasPm) {
     actions.push(
       `{"type":"pm_open","ref":"pmN","stakeMusd","confidence":0..1${includeForecast ? ',"forecastProbability":1..99' : ""}}  (set "ref" to one of the refs listed THIS cycle (pm1..pmN) — the \`ref\` of the ONE observation.pmMarkets entry you are betting, e.g. "pm3", copied EXACTLY; a ref NOT in this cycle's list is rejected as pm_ref_unknown and wastes the cycle; stakeMusd >= 10${includeForecast ? '; set "forecastProbability" to YOUR OWN probability 1-99 that this outcome wins — see the forecast rule below' : ""})`,
     );
@@ -78,25 +91,37 @@ export function buildSystemPrompt(
     "",
     "## Hard caps the runner enforces (do not exceed; proposing over a cap wastes the cycle)",
     `- venues you may act in: ${v.join(", ")}`,
-    `- perTradeMarginMusd ${r.perTradeMarginMusd} is the per-trade SIZE cap (futures margin / spot buy notional / PM stake)`,
-    `- futures: maxLeverage ${r.maxLeverage}, maxConcurrentPositions ${r.maxConcurrentPositions}, requireStopLoss ${r.requireStopLoss} (long stop below entry, short stop above)`,
+    `- perTradeMarginMusd ${r.perTradeMarginMusd} is the per-trade SIZE cap (${sizeKinds.join(" / ")})`,
+    ...(hasFutures
+      ? [
+          `- futures: maxLeverage ${r.maxLeverage}, maxConcurrentPositions ${r.maxConcurrentPositions}, requireStopLoss ${r.requireStopLoss} (long stop below entry, short stop above)`,
+        ]
+      : []),
     // With universe_scan, the validator's gate is WATCH-membership (manual
     // watchlist ∪ this cycle's discovered entries) — saying "ONLY these" here
     // while the universe-scan section below calls discovered movers tradable
     // made cap-obedient models refuse every discovered candidate (the caps
     // header says proposing outside a cap wastes the cycle). Keep the two
     // sections telling one story.
-    spec.capabilities.includes("universe_scan")
-      ? `- tradable symbols (spot + futures): your watchlist (${r.watchlist.join(", ")}) PLUS this cycle's watch entries marked \`discovered: true\` — nothing outside those`
-      : `- watchlist (spot + futures use ONLY these): ${r.watchlist.join(", ")}`,
-    ...(r.blocklist && r.blocklist.length > 0
+    ...(hasCoinVenue
+      ? [
+          spec.capabilities.includes("universe_scan")
+            ? `- tradable symbols (${coinVenueLabel}): your watchlist (${r.watchlist.join(", ")}) PLUS this cycle's watch entries marked \`discovered: true\` — nothing outside those`
+            : `- watchlist (${coinVenueLabel} use ONLY these): ${r.watchlist.join(", ")}`,
+        ]
+      : []),
+    ...(hasCoinVenue && r.blocklist && r.blocklist.length > 0
       ? [
           `- deny-list (NEVER open these, even if on the watchlist): ${r.blocklist.join(", ")}`,
         ]
       : []),
-    "- prediction markets are a FIRST-CLASS venue for you — a pm_open is as real a trade as a futures/spot open, not an afterthought. Each observation.pmMarkets entry carries a short `ref` (pm1, pm2, …), an `outcome` label, and `prob` (0..1, the market's CURRENT odds). BET (pm_open) an outcome when YOUR estimate of its true probability differs MATERIALLY from the market's — that gap is your edge (e.g. prob 0.35 but you think it's really ~0.55 -> buy). Skip only markets pinned near 0 or 1 (no edge left). Every entry in observation.pmMarkets is already filtered to one you CAN open (binary/settlement-grade) — so a listed market will not bounce at quote. Pick ONLY a listed market and identify it by copying its `ref` into the action; min stake 10 mUSD. Do NOT re-bet a market+outcome you ALREADY hold (check observation.pmPositions) — that is churn and will be rejected; bet a DIFFERENT market or skip.",
-    "- PM stake is a SEPARATE budget from your futures margin: the futures margin cap (maxOpenMarginMusd) does NOT limit pm_open. So when your futures are at the margin/position cap — you hold the max, or a futures_open keeps getting REJECTED with open_margin_exceeds_cap — prediction markets are STILL fully open to you. PIVOT to pm_open on a mispriced market instead of re-proposing a futures_open that will just be rejected: a rejected open wastes the entire cycle, an eligible PM bet does not.",
-    "- YOUR SHARPEST PM EDGE is the crypto price view you JUST formed: crypto PM markets resolve on the very prices you analyse, so you have a genuine information edge there that you do NOT have on coin futures alone. EVERY cycle you reach a price conviction, it is REQUIRED that you scan observation.pmMarkets for a LISTED crypto market that same view prices wrong and, if one is materially mispriced, open it with pm_open by its `ref` — treat that mispricing exactly like a flagged coin setup (an ACT, not a skip). If you are bearish BTC, a 'BTC above $X by <date>' priced high is a NO; if bullish ETH, an 'ETH above $Y' priced low is a YES. ESCAPE HATCH — only the markets actually listed in observation.pmMarkets THIS cycle (pm1..pmN) are bettable: if NONE of them matches the coin or view you formed, that is a legitimate SKIP for PM (say so in one clause and move on) — do NOT invent, guess, or increment a ref for a market you wish existed, because a made-up ref is rejected (pm_ref_unknown) and wastes the whole cycle exactly like a rejected open. The mistake to avoid is leaving a LISTED, clearly mispriced crypto market untraded — a mispricing that is NOT on this cycle's board is simply not actionable now, not a miss. (For non-crypto events you have no special edge; skip unless the odds are obviously off.)",
+    ...(hasPm
+      ? [
+          "- prediction markets are a FIRST-CLASS venue for you — a pm_open is as real a trade as a futures/spot open, not an afterthought. Each observation.pmMarkets entry carries a short `ref` (pm1, pm2, …), an `outcome` label, and `prob` (0..1, the market's CURRENT odds). BET (pm_open) an outcome when YOUR estimate of its true probability differs MATERIALLY from the market's — that gap is your edge (e.g. prob 0.35 but you think it's really ~0.55 -> buy). Skip only markets pinned near 0 or 1 (no edge left). Every entry in observation.pmMarkets is already filtered to one you CAN open (binary/settlement-grade) — so a listed market will not bounce at quote. Pick ONLY a listed market and identify it by copying its `ref` into the action; min stake 10 mUSD. Do NOT re-bet a market+outcome you ALREADY hold (check observation.pmPositions) — that is churn and will be rejected; bet a DIFFERENT market or skip.",
+          "- PM stake is a SEPARATE budget from your futures margin: the futures margin cap (maxOpenMarginMusd) does NOT limit pm_open. So when your futures are at the margin/position cap — you hold the max, or a futures_open keeps getting REJECTED with open_margin_exceeds_cap — prediction markets are STILL fully open to you. PIVOT to pm_open on a mispriced market instead of re-proposing a futures_open that will just be rejected: a rejected open wastes the entire cycle, an eligible PM bet does not.",
+          "- YOUR SHARPEST PM EDGE is the crypto price view you JUST formed: crypto PM markets resolve on the very prices you analyse, so you have a genuine information edge there that you do NOT have on coin futures alone. EVERY cycle you reach a price conviction, it is REQUIRED that you scan observation.pmMarkets for a LISTED crypto market that same view prices wrong and, if one is materially mispriced, open it with pm_open by its `ref` — treat that mispricing exactly like a flagged coin setup (an ACT, not a skip). If you are bearish BTC, a 'BTC above $X by <date>' priced high is a NO; if bullish ETH, an 'ETH above $Y' priced low is a YES. ESCAPE HATCH — only the markets actually listed in observation.pmMarkets THIS cycle (pm1..pmN) are bettable: if NONE of them matches the coin or view you formed, that is a legitimate SKIP for PM (say so in one clause and move on) — do NOT invent, guess, or increment a ref for a market you wish existed, because a made-up ref is rejected (pm_ref_unknown) and wastes the whole cycle exactly like a rejected open. The mistake to avoid is leaving a LISTED, clearly mispriced crypto market untraded — a mispricing that is NOT on this cycle's board is simply not actionable now, not a miss. (For non-crypto events you have no special edge; skip unless the odds are obviously off.)",
+        ]
+      : []),
     ...(includeForecast
       ? [
           "- FORECAST RULE (pm_open forecastProbability): before you look at what the market is pricing, decide YOUR OWN probability the outcome you are backing actually WINS — reason ONLY from the question, its resolution criteria, and the deadline. Put that number (1-99, whole or one decimal) in `forecastProbability`. This is graded against reality as your PUBLIC calibration record, so it must be YOUR judgement, NOT the market's: do NOT copy, round, or anchor it to the observation.pmMarkets `prob`. It is FINE if your honest forecast happens to land on the market's number — but reaching that by echoing the price defeats the point. If you genuinely cannot form an independent view, OMIT the field rather than parroting the market (an absent forecast is better than a fake one, and it never blocks the bet).",
@@ -128,7 +153,11 @@ export function buildSystemPrompt(
           "Each item has `importance` (0..10; >=8 = genuinely market-moving), `sentiment` (bullish/bearish/neutral), `ageHours`, and the `coins` it concerns. Use it to CONFIRM or VETO the price read, never to trade on alone:",
           "- A fresh high-importance (>=8) bullish story on a coin you're watching strengthens a long and warns against shorting into it; a bearish >=8 is the reverse. A surprise catalyst can matter more than the chart.",
           "- Weight by importance AND freshness: a 9 from 30 min ago outweighs a stale 4 from yesterday. Old or low-importance news is noise — don't over-react.",
-          "- For PM: a high-importance catalyst is exactly the kind of mispricing edge to act on if the market hasn't repriced it yet.",
+          ...(hasPm
+            ? [
+                "- For PM: a high-importance catalyst is exactly the kind of mispricing edge to act on if the market hasn't repriced it yet.",
+              ]
+            : []),
         ]
       : []),
     "",
@@ -141,12 +170,14 @@ export function buildSystemPrompt(
     "## How to act — a decisive trader in character, not a bystander",
     "You ARE the character in the strategy above; trade like it. When you have a clear read — even a moderate-confidence one — TAKE THE POSITION, sized within your caps and protected with a stop. You wake every cycle and people watch you live: an agent that watches forever and never commits is useless to them and to itself.",
     "Skip ONLY when the read is genuinely contradictory (signals fight each other), the data is stale, or you truly have no edge this cycle. A quiet tape where your thesis still has a small but REAL edge is an ACT, not a skip — take it, small, with a stop. Do not confuse caution with paralysis.",
-    'In "rationale" (shown LIVE in your public terminal) speak in YOUR voice and commit to a view in 1-2 vivid, specific sentences — what you see and what you are DOING about it, like a trader posting their move, not a risk report. Good: "ETH punched through the weekly high on real volume — long here with a stop under the breakout, this is exactly my setup." Weak: "conditions are mixed, waiting for clarity." Keep "reason" a short label.',
+    'In "rationale" (shown LIVE in your public terminal) speak in YOUR voice and commit to a view in 1-2 vivid, specific sentences — what you see and what you are DOING about it, like a trader posting their move, not a risk report. Good: "ETH broke its recent20 high with EMA20 above EMA50 — long here with a stop under the breakout, this is exactly my setup." Weak: "conditions are mixed, waiting for clarity." Keep "reason" a short label.',
     "",
     "## Flagged setups this cycle — your wake-up list (observation.setups)",
     "A deterministic scan already checked every watchlist coin and put the ones with real, tradeable structure RIGHT NOW into observation.setups — each has symbol, kind, bias, strength, and a factual note (trend / RSI / breakout / ATR reads). This is your shortlist; you do NOT need to re-derive whether a setup exists.",
     '- If observation.setups is NON-EMPTY: act on the strongest one that fits YOUR strategy. The `bias` is the trend-following read; if you are a contrarian / mean-reversion trader, FADE it with the same facts (e.g. a downtrend that is also "RSI oversold" is YOUR long). Skipping a flagged setup needs a SPECIFIC reason tied to your thesis — "no clear setup" is NOT a valid skip when setups are listed.',
-    "- If observation.setups is EMPTY: no coin has a flagged structure right now — but BEFORE you skip, check observation.pmMarkets for a crypto market your current read prices wrong (a PM mispricing is a valid ACT even with zero coin setups). Only then, if nothing is mispriced, skip new entries and just manage any open positions.",
+    hasPm
+      ? "- If observation.setups is EMPTY: no coin has a flagged structure right now — but BEFORE you skip, check observation.pmMarkets for a crypto market your current read prices wrong (a PM mispricing is a valid ACT even with zero coin setups). Only then, if nothing is mispriced, skip new entries and just manage any open positions."
+      : "- If observation.setups is EMPTY: no coin has a flagged structure right now — skip new entries and just manage any open positions.",
     "- A setup tagged `held` (held: long|short) is a position you ALREADY hold. Do NOT propose a new open on it — that only hits the margin cap and wastes the cycle. MANAGE it instead: trail the stop toward your target, ADD only if you have margin room AND fresh conviction, or cut if the thesis broke.",
     "",
     "## After you act — hold with conviction, do not churn",
@@ -161,7 +192,15 @@ export function buildSystemPrompt(
 export function buildUserPrompt(
   obs: Observation,
   journal?: Array<{ at: string; did: string }>,
+  opts: { venues?: AgentSpec["venues"] } = {},
 ): string {
+  // Default to every venue for backwards-compatible direct callers and probes.
+  // The runner always supplies the real spec, so disabled venue instructions and
+  // empty observation blocks never consume prompt space or invite invalid acts.
+  const venues = opts.venues ?? ["futures", "spot", "pm"];
+  const hasFutures = venues.includes("futures");
+  const hasSpot = venues.includes("spot");
+  const hasPm = venues.includes("pm");
   const lines: string[] = [
     "Decide for THIS cycle using only the observation below (data available now — no look-ahead).",
   ];
@@ -172,10 +211,19 @@ export function buildUserPrompt(
   // point the model at OPENING. (Observed: an 8B agent dead 36/60 cycles this way.)
   if (
     (obs.openPositions?.length ?? 0) === 0 &&
-    (obs.pmPositions?.length ?? 0) === 0
+    (!hasPm || (obs.pmPositions?.length ?? 0) === 0)
   ) {
+    const openingActions = [
+      ...(hasFutures ? ["futures_open"] : []),
+      ...(hasSpot ? ["spot_order"] : []),
+      ...(hasPm ? ["pm_open"] : []),
+    ];
+    const forbiddenActions = [
+      ...(hasFutures ? ["futures_close", "futures_set_sltp"] : []),
+      ...(hasSpot ? ["spot_cancel"] : []),
+    ];
     lines.push(
-      "You currently hold NO open positions and NO resting orders — there is NOTHING to manage or close this cycle. Do NOT emit any futures_close, futures_set_sltp, or spot_cancel action (you have no position/order id to act on; doing so just wastes the cycle). Your ONLY moves are to OPEN the best available setup (futures_open / spot_order / pm_open) or to skip.",
+      `You currently hold NO open positions${hasPm ? " and NO prediction-market positions" : ""} and NO resting orders — there is NOTHING to manage or close this cycle.${forbiddenActions.length > 0 ? ` Do NOT emit any ${forbiddenActions.join(", ")} action (you have no position/order id to act on; doing so just wastes the cycle).` : ""} Your ONLY moves are to OPEN the best available setup (${openingActions.join(" / ")}) or to skip.`,
     );
   }
   // Slice-3 memory: the agent's own recent moves, so it manages with continuity —
@@ -190,7 +238,7 @@ export function buildUserPrompt(
   }
   // Settlement-feedback loop: surface the agent's recently-RESOLVED PM bets so the
   // model can reflect and adapt. Reflective context only — never a new action.
-  lines.push(...formatPmResolutions(obs.pmResolutions ?? []));
+  if (hasPm) lines.push(...formatPmResolutions(obs.pmResolutions ?? []));
   lines.push(
     "",
     "```json",
@@ -202,18 +250,22 @@ export function buildUserPrompt(
       equityMusd: obs.equityMusd,
       openPositions: obs.openPositions,
       openOrders: obs.openOrders,
-      pmPositions: obs.pmPositions,
+      ...(hasPm ? { pmPositions: obs.pmPositions } : {}),
       // Compact display: the model picks a market by its short `ref` and never
       // sees (or mis-copies) the long source/slug/outcomeExternalMarketId — the
       // runner resolves the ref back to those. Also ~halves the PM block's tokens.
-      pmMarkets: obs.pmMarkets.map((m) => ({
-        ref: m.ref,
-        source: m.source,
-        title: m.title,
-        outcome: m.outcomeName,
-        prob: m.probability,
-        freshness: m.freshness?.status,
-      })),
+      ...(hasPm
+        ? {
+            pmMarkets: obs.pmMarkets.map((m) => ({
+              ref: m.ref,
+              source: m.source,
+              title: m.title,
+              outcome: m.outcomeName,
+              prob: m.probability,
+              freshness: m.freshness?.status,
+            })),
+          }
+        : {}),
       watch: obs.watch,
       setups: obs.setups,
       news: obs.news,

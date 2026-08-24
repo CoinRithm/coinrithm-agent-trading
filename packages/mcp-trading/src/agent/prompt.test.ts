@@ -163,6 +163,62 @@ describe("buildSystemPrompt — pm_ref escape hatch (hallucination fix)", () => 
   });
 });
 
+describe("prompt venue scoping", () => {
+  const futuresOnlySpec = () => {
+    const spec = parseSkill(renderFolderOfOne("a", "conservative")).spec;
+    spec.venues = ["futures"];
+    spec.capabilities = ["indicators", "news", "universe_scan"];
+    return spec;
+  };
+
+  it("removes every prediction-market instruction from a futures-only system prompt", () => {
+    const out = buildSystemPrompt(futuresOnlySpec(), "strategy", {
+      includeForecast: true,
+    });
+
+    expect(out).toContain('"type":"futures_open"');
+    expect(out).toContain("tradable symbols (futures)");
+    expect(out).not.toContain("spot_order");
+    expect(out).not.toContain("spot + futures");
+    expect(out).not.toMatch(/prediction markets/i);
+    expect(out).not.toContain("pm_open");
+    expect(out).not.toContain("observation.pmMarkets");
+    expect(out).not.toContain("PM stake");
+    expect(out).not.toContain("FORECAST RULE");
+    expect(out).not.toContain("real volume");
+    expect(out).toContain("recent20 high with EMA20 above EMA50");
+  });
+
+  it("removes disabled PM positions, markets and actions from the cycle prompt", () => {
+    const out = buildUserPrompt(baseObs(), undefined, {
+      venues: ["futures"],
+    });
+
+    expect(out).toContain("futures_open");
+    expect(out).not.toContain("pm_open");
+    expect(out).not.toContain("pmPositions");
+    expect(out).not.toContain("pmMarkets");
+    expect(out).not.toMatch(/prediction-market/i);
+  });
+
+  it("preserves PM guidance and observation blocks when PM is enabled", () => {
+    const spec = futuresOnlySpec();
+    spec.venues = ["futures", "pm"];
+    const system = buildSystemPrompt(spec, "strategy", {
+      includeForecast: true,
+    });
+    const user = buildUserPrompt(baseObs(), undefined, {
+      venues: spec.venues,
+    });
+
+    expect(system).toMatch(/prediction markets are a FIRST-CLASS venue/i);
+    expect(system).toContain("pm_open");
+    expect(system).toContain("FORECAST RULE");
+    expect(user).toContain("pm_open");
+    expect(user).toContain('"pmMarkets"');
+  });
+});
+
 describe("buildSystemPrompt — universe_scan vs watchlist caps line (contradiction fix)", () => {
   const spec = () => parseSkill(renderFolderOfOne("a", "conservative")).spec;
 
@@ -170,7 +226,7 @@ describe("buildSystemPrompt — universe_scan vs watchlist caps line (contradict
     const s = spec();
     s.capabilities = ["indicators"];
     const out = buildSystemPrompt(s, "strategy");
-    expect(out).toMatch(/watchlist \(spot \+ futures use ONLY these\)/);
+    expect(out).toMatch(/watchlist \(futures use ONLY these\)/);
     expect(out).not.toMatch(/discovered: true/);
   });
 
@@ -183,7 +239,7 @@ describe("buildSystemPrompt — universe_scan vs watchlist caps line (contradict
     // a cap wastes the cycle) — the capability was silently neutered.
     expect(out).not.toMatch(/use ONLY these/);
     expect(out).toMatch(
-      /tradable symbols \(spot \+ futures\): your watchlist .* PLUS this cycle's watch entries marked `discovered: true`/,
+      /tradable symbols \(futures\): your watchlist .* PLUS this cycle's watch entries marked `discovered: true`/,
     );
     // The universe-scan guidance section still renders alongside.
     expect(out).toMatch(/## Universe scan \(discovered movers\)/);
