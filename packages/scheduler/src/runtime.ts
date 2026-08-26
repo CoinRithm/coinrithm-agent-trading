@@ -124,6 +124,12 @@ export async function runAgentOnce(
     const client = new CoinRithmClient({
       apiKey,
       baseUrl: config.coinrithmApiUrl,
+      // Attestation channel (G5c): with the token set, the backend
+      // server-signs every decision this hosted pipeline writes. The token
+      // never reaches self-host bundles — it exists only in scheduler env.
+      extraHeaders: config.internalWriteToken
+        ? { "x-internal-write-token": config.internalWriteToken }
+        : undefined,
     });
     const state = hydrateState(stateRaw, makeRunId(spec));
     deps = {

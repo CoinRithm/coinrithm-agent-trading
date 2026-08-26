@@ -26,6 +26,12 @@ export interface Config {
   // (Hitting the cap is non-fatal: agents 429 -> skip -> retry next cadence.)
   groqRpm: number;
   healthPort?: number;
+  // Backend's internal attestation channel (same value as backend
+  // INTERNAL_WRITE_TOKEN). When set, every scheduler-run request carries
+  // x-internal-write-token, so the backend server-signs the decisions this
+  // pipeline produces (G5c: hosted-external agents were landing unsigned).
+  // Optional: unset => hosted decisions simply stay unsigned, as before.
+  internalWriteToken?: string;
 }
 
 function req(env: NodeJS.ProcessEnv, k: string): string {
@@ -100,5 +106,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     nvidiaRpm: intEnv(env, "SCHEDULER_NVIDIA_RPM", 15, 1),
     groqRpm: intEnv(env, "SCHEDULER_GROQ_RPM", 30, 1),
     healthPort: healthPortRaw ? intEnv(env, "HEALTH_PORT", 8080, 1) : undefined,
+    internalWriteToken: env.COINRITHM_INTERNAL_WRITE_TOKEN?.trim() || undefined,
   };
 }

@@ -35,6 +35,11 @@ export interface ClientConfig {
   fetchFn?: typeof fetch;
   sleepFn?: (ms: number) => Promise<void>;
   maxRetries?: number;
+  // Extra headers attached to EVERY request. CoinRithm's hosted scheduler uses
+  // this to present its internal attestation channel so the backend
+  // server-signs scheduler-run decisions (G5c). Self-host runs leave it unset —
+  // the token never ships in a bundle or env template.
+  extraHeaders?: Record<string, string>;
 }
 
 type Query = Record<string, string | number | undefined>;
@@ -61,6 +66,7 @@ export class CoinRithmClient {
   private readonly fetchFn: typeof fetch;
   private readonly sleepFn: (ms: number) => Promise<void>;
   private readonly maxRetries: number;
+  private readonly extraHeaders?: Record<string, string>;
   // Every 429 seen this session (read or write, retried or not) — feeds the
   // rate-limit-pressure kill-switch, which a write-only counter would miss.
   rateLimitHits = 0;
@@ -71,6 +77,7 @@ export class CoinRithmClient {
     this.fetchFn = cfg.fetchFn ?? fetch;
     this.sleepFn = cfg.sleepFn ?? realSleep;
     this.maxRetries = cfg.maxRetries ?? 3;
+    this.extraHeaders = cfg.extraHeaders;
   }
 
   private async request(
@@ -85,7 +92,9 @@ export class CoinRithmClient {
           url.searchParams.set(k, String(v));
       }
     }
+    // extraHeaders first: auth, accept and trace can never be clobbered by it.
     const headers: Record<string, string> = {
+      ...this.extraHeaders,
       Authorization: `Bearer ${this.apiKey}`,
       Accept: "application/json",
       ...traceHeaders(opts.trace),

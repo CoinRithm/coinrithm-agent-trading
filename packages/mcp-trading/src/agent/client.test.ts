@@ -27,6 +27,26 @@ describe("CoinRithmClient", () => {
     expect(fetchFn).toHaveBeenCalledTimes(2);
   });
 
+  it("attaches extraHeaders on every request and never lets them clobber auth", async () => {
+    let seen: Record<string, string> | undefined;
+    const fetchFn = vi.fn(async (_url: string, init?: RequestInit) => {
+      seen = init?.headers as Record<string, string>;
+      return new Response(JSON.stringify({ userId: 1 }), { status: 200 });
+    });
+    const c = new CoinRithmClient({
+      apiKey: "crk_live_x",
+      fetchFn: fetchFn as unknown as typeof fetch,
+      extraHeaders: {
+        "x-internal-write-token": "tok",
+        Authorization: "Bearer evil",
+      },
+    });
+    const r = await c.me();
+    expect(r.ok).toBe(true);
+    expect(seen?.["x-internal-write-token"]).toBe("tok");
+    expect(seen?.Authorization).toBe("Bearer crk_live_x");
+  });
+
   it("treats 401/403/409/422 as fail-closed (not retried)", async () => {
     for (const status of [401, 403, 409, 422]) {
       const fetchFn = responder([new Response("no", { status })]);
