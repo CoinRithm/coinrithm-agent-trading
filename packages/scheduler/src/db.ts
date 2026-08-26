@@ -223,6 +223,53 @@ export async function migrateAgentsOffEolModels(
   return [remapped ?? 0, revived ?? 0];
 }
 
+// --- Provider circuits (reliability slice 1, 2026-08-26) --------------------
+// One row per (provider, model). Strikes accumulate FLEET-WIDE from
+// providerHold cycle results; at CIRCUIT_TRIP_STRIKES the circuit opens and
+// probe_after gates claiming with exponential backoff (60s doubling, capped
+// 1h). A successful model call deletes the row. Provider failures therefore
+// hold agents without EVER disabling them — disables stay reserved for
+// credentials, drawdown, kill-switch and user action.
+
+export const CIRCUIT_TRIP_STRIKES = 3;
+
+export async function recordProviderStrike(
+  pool: Pool,
+  provider: string,
+  model: string,
+  error: string,
+): Promise<void> {
+  await pool.query(
+    `INSERT INTO agent_runtime.provider_circuits
+       (provider, model, strikes, last_error, probe_after, opened_at, updated_at)
+     VALUES ($1, $2, 1, $3, NULL, now(), now())
+     ON CONFLICT (provider, model) DO UPDATE SET
+       strikes = agent_runtime.provider_circuits.strikes + 1,
+       last_error = EXCLUDED.last_error,
+       probe_after = CASE
+         WHEN agent_runtime.provider_circuits.strikes + 1 >= ${CIRCUIT_TRIP_STRIKES}
+         THEN now() + make_interval(secs => LEAST(
+                60 * power(2, agent_runtime.provider_circuits.strikes + 1 - ${CIRCUIT_TRIP_STRIKES}),
+                3600))
+         ELSE NULL
+       END,
+       updated_at = now()`,
+    [provider, model, error.slice(0, 500)],
+  );
+}
+
+export async function clearProviderCircuit(
+  pool: Pool,
+  provider: string,
+  model: string,
+): Promise<number> {
+  const { rowCount } = await pool.query(
+    `DELETE FROM agent_runtime.provider_circuits WHERE provider = $1 AND model = $2`,
+    [provider, model],
+  );
+  return rowCount ?? 0;
+}
+
 // --- Tier usage (the metering the tier gate reads; see tiers.ts) ---
 
 // Non-disabled agents an owner currently runs — the deploy gate's agent-cap input.
@@ -311,13 +358,23 @@ export async function claimDueAgents(
   try {
     await client.query("BEGIN");
     const { rows } = await client.query<RawAgent>(
-      `SELECT id, handle, display_name, live, cadence_seconds, model_provider,
-              model_name, model_base_url, spec, prose, coinrithm_key_enc, brain_key_enc
-         FROM agent_runtime.agents
-        WHERE status = 'active' AND next_run_at <= now()
-        ORDER BY next_run_at
+      // Reliability slice 1: agents whose (provider, model) circuit is OPEN
+      // (tripped and inside its backoff window) are excluded from claiming —
+      // a fleet-wide provider outage becomes a cheap skip at the claim query
+      // instead of N agents burning cycles into failures. When probe_after
+      // passes, matching agents claim again; the next cycle either closes
+      // the circuit (success) or re-arms it with a longer backoff.
+      `SELECT a.id, a.handle, a.display_name, a.live, a.cadence_seconds, a.model_provider,
+              a.model_name, a.model_base_url, a.spec, a.prose, a.coinrithm_key_enc, a.brain_key_enc
+         FROM agent_runtime.agents a
+         LEFT JOIN agent_runtime.provider_circuits pc
+           ON pc.provider = a.model_provider AND pc.model = a.model_name
+        WHERE a.status = 'active' AND a.next_run_at <= now()
+          AND (a.brain_key_enc IS NOT NULL
+               OR pc.probe_after IS NULL OR pc.strikes < 3 OR pc.probe_after <= now())
+        ORDER BY a.next_run_at
         LIMIT $1
-        FOR UPDATE SKIP LOCKED`,
+        FOR UPDATE OF a SKIP LOCKED`,
       [limit],
     );
     if (rows.length > 0) {
@@ -409,10 +466,22 @@ export async function recordCycle(
 // Persist a completed cycle ATOMICALLY: state + the cycle row (+ optional
 // disable) in ONE transaction, so a mid-write crash never leaves them diverged
 // (e.g. a kill-switch state saved but status still 'active').
+//
+// Reliability slice 1: `providerHold` (a permanent provider/model failure the
+// runner classified) records a FLEET circuit strike instead of any disable;
+// `model` identifies the route so a SUCCESSFUL model call closes its circuit.
 export async function persistCycleResult(
   pool: Pool,
   agentId: number,
-  args: { state: unknown; cycle: CycleRecord; disableReason?: string },
+  args: {
+    state: unknown;
+    cycle: CycleRecord;
+    disableReason?: string;
+    providerHold?: { provider: string; model: string; error: string };
+    /** The route that served (or failed) this cycle — configured model until
+     * failover routing exists. Recorded as agent_cycles.effective_model. */
+    model?: { provider: string; name: string };
+  },
 ): Promise<void> {
   const client = await pool.connect();
   try {
@@ -428,8 +497,8 @@ export async function persistCycleResult(
       `INSERT INTO agent_runtime.agent_cycles
          (agent_id, decision, skip_reason, rationale, confidence, raw_model_output, model_failed, disabled, actions, log, error,
           trigger_codes, llm_call_made, tokens_in, tokens_out, estimated_cost_usd, decision_type, write_attempted, write_accepted,
-          observation_hash, indicator_version)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)`,
+          observation_hash, indicator_version, effective_model)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)`,
       [
         agentId,
         c.decision,
@@ -454,8 +523,36 @@ export async function persistCycleResult(
         c.writeAccepted ?? null,
         c.observationHash ?? null,
         c.indicatorVersion ?? null,
+        args.model?.name ?? null,
       ],
     );
+    if (args.providerHold) {
+      // Fleet circuit strike INSIDE the same transaction — never a disable.
+      const h = args.providerHold;
+      await client.query(
+        `INSERT INTO agent_runtime.provider_circuits
+           (provider, model, strikes, last_error, probe_after, opened_at, updated_at)
+         VALUES ($1, $2, 1, $3, NULL, now(), now())
+         ON CONFLICT (provider, model) DO UPDATE SET
+           strikes = agent_runtime.provider_circuits.strikes + 1,
+           last_error = EXCLUDED.last_error,
+           probe_after = CASE
+             WHEN agent_runtime.provider_circuits.strikes + 1 >= ${CIRCUIT_TRIP_STRIKES}
+             THEN now() + make_interval(secs => LEAST(
+                    60 * power(2, agent_runtime.provider_circuits.strikes + 1 - ${CIRCUIT_TRIP_STRIKES}),
+                    3600))
+             ELSE NULL
+           END,
+           updated_at = now()`,
+        [h.provider, h.model, h.error.slice(0, 500)],
+      );
+    } else if (args.model && c.llmCallMade && !c.modelFailed) {
+      // A real, successful model call on this route closes its circuit.
+      await client.query(
+        `DELETE FROM agent_runtime.provider_circuits WHERE provider = $1 AND model = $2`,
+        [args.model.provider, args.model.name],
+      );
+    }
     if (args.disableReason) {
       await client.query(
         "UPDATE agent_runtime.agents SET status = 'disabled', disabled_reason = $2, updated_at = now() WHERE id = $1",

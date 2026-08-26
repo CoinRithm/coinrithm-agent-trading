@@ -641,6 +641,12 @@ export interface CycleResult {
   modelFailed?: boolean;
   disabled?: boolean;
   disabledReason?: string;
+  /** Reliability slice 1 (2026-08-26): a PERMANENT provider/model failure
+   * (404/410/decommission class) no longer disables the agent. The runner
+   * reports the hold; the scheduler aggregates holds into a fleet-wide
+   * provider circuit (skip-claiming + backoff probes). User pauses, revoked
+   * credentials, drawdown and safety stops keep using `disabled`. */
+  providerHold?: { provider: string; model: string; error: string };
   live: boolean;
   // Privacy-safe decision-input receipt. The digest binds the exact structured
   // Observation; the version identifies the deterministic indicator algorithm.

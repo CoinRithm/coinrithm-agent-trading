@@ -640,12 +640,19 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
     };
     if (!res.ok) {
       state.consecutiveModelFailures += 1;
-      // Permanent-failure classification: a 404/model_not_found is a
+      // Permanent-failure classification: a 404/410/model_not_found is a
       // DECOMMISSIONED or misconfigured model that will fail every cycle
-      // forever (live-measured: 93% of one agent's cycles for days, revived
-      // 7x in 3h). Three consecutive occurrences rules out a routing fluke;
-      // then disable with the 'model_unavailable' prefix the scheduler's
-      // self-heal exempts. Transient errors reset the permanent streak.
+      // until something changes (live-measured 2026-08-26: NVIDIA EOL'd the
+      // whole Llama 3.x line and 35 agents died on the old disable path).
+      // Reliability slice 1: this class must NEVER disable the agent —
+      // provider failures are the PLATFORM's problem, not the user's. Three
+      // consecutive occurrences (rules out a routing fluke) now emit a
+      // providerHold: hosted, the scheduler folds holds into a fleet-wide
+      // (provider, model) circuit that skip-claims matching agents with
+      // backoff probes; self-host, the runner simply keeps retrying each
+      // cadence and recovers the moment the provider does. Disables remain
+      // for what deserves them: revoked credentials, drawdown, kill-switch,
+      // user action. Transient errors reset the permanent streak.
       if (isPermanentModelError(res.error)) {
         state.consecutivePermanentModelErrors =
           (state.consecutivePermanentModelErrors ?? 0) + 1;
@@ -653,17 +660,21 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
           state.consecutivePermanentModelErrors >=
           PERMANENT_MODEL_ERROR_THRESHOLD
         ) {
-          state.disabled = true;
-          state.disabledReason = `model_unavailable: ${res.error.slice(0, 160)}`;
+          const hold = {
+            provider: spec.model?.provider ?? "unknown",
+            model: spec.model?.name ?? "unknown",
+            error: res.error.slice(0, 200),
+          };
           saveState(stateFile, state);
-          log(`disabled: ${state.disabledReason}`);
+          log(
+            `provider hold: ${hold.provider}/${hold.model} — ${res.error.slice(0, 120)}`,
+          );
           return {
             decision: "skip",
-            skipReason: `model error: ${res.error}`,
+            skipReason: `provider hold: ${res.error}`,
             planned: [],
             modelFailed: true,
-            disabled: true,
-            disabledReason: state.disabledReason,
+            providerHold: hold,
             live,
             ...meter,
             decisionType: "model_error",

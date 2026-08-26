@@ -185,6 +185,18 @@ export async function runAgentOnce(
       disableReason: result.disabled
         ? (result.disabledReason ?? "kill-switch")
         : undefined,
+      // Reliability slice 1: permanent provider failures strike the fleet
+      // circuit (never a disable); a successful call closes the route's
+      // circuit. effective_model = configured model until routing exists.
+      // SHARED-key routes only: a BYO-key 404 can be ACCOUNT-scoped (NIM
+      // returns "Function not found for account" when an account lacks a
+      // model entitlement — observed 2026-08-26), so one user's key must
+      // never open a circuit that holds the shared fleet. BYO agents keep
+      // per-agent retry semantics (the runner's hold skip each cadence).
+      providerHold: agent.brainKeyEnc ? undefined : result.providerHold,
+      model: agent.brainKeyEnc
+        ? undefined
+        : { provider: agent.modelProvider, name: agent.modelName },
     });
   } catch (e) {
     await recordCycle(pool, agent.id, {

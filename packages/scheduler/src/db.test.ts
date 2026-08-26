@@ -3,6 +3,10 @@ import type { Pool, PoolClient } from "pg";
 import {
   recordCycle,
   persistCycleResult,
+  claimDueAgents,
+  recordProviderStrike,
+  clearProviderCircuit,
+  CIRCUIT_TRIP_STRIKES,
   migrateAgentsOffEolModels,
   migrateHouseAgentsOffGroq,
   EOL_MODEL_SUCCESSORS,
@@ -137,5 +141,90 @@ describe("migrateAgentsOffEolModels — NVIDIA 2026-08-26 EOL event", () => {
     expect(sql).toContain("nvidia/nemotron-3-nano-30b-a3b");
     expect(sql).not.toContain("meta/llama-3.1-70b-instruct");
     expect(sql).not.toContain("llama-3.3-nemotron-super-49b-v1");
+  });
+});
+
+describe("provider circuits — reliability slice 1 (never disable on provider failure)", () => {
+  it("persistCycleResult with providerHold strikes the FLEET circuit and never disables", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [], rowCount: 1 });
+    const client = { query, release: vi.fn() };
+    const pool = {
+      connect: vi.fn().mockResolvedValue(client),
+      query,
+    } as unknown as Pool;
+
+    await persistCycleResult(pool, 7, {
+      state: {},
+      cycle: {
+        decision: "skip",
+        skipReason: "provider hold: 410 gone",
+        modelFailed: true,
+        llmCallMade: true,
+      } as CycleRecord,
+      providerHold: {
+        provider: "nvidia",
+        model: "nvidia/nemotron-3-nano-30b-a3b",
+        error: "410 end of life",
+      },
+      model: { provider: "nvidia", name: "nvidia/nemotron-3-nano-30b-a3b" },
+    });
+
+    const sqls = query.mock.calls.map((c) => String(c[0]));
+    const strike = sqls.find((s) => s.includes("provider_circuits") && s.includes("ON CONFLICT"));
+    expect(strike, "circuit strike upsert must run").toBeTruthy();
+    expect(strike).toContain("strikes + 1");
+    expect(strike).toContain("3600"); // backoff cap
+    expect(sqls.some((s) => s.includes("status = 'disabled'"))).toBe(
+      false,
+      // A provider failure must NEVER write a disable.
+    );
+    // The reschedule branch still runs so the agent stays on cadence.
+    expect(sqls.some((s) => s.includes("next_run_at = now() + make_interval"))).toBe(true);
+  });
+
+  it("a successful model call closes the route's circuit; disables still work for real reasons", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [], rowCount: 1 });
+    const client = { query, release: vi.fn() };
+    const pool = { connect: vi.fn().mockResolvedValue(client), query } as unknown as Pool;
+
+    await persistCycleResult(pool, 8, {
+      state: {},
+      cycle: { decision: "act", llmCallMade: true, modelFailed: false } as CycleRecord,
+      model: { provider: "nvidia", name: "nvidia/nemotron-3-super-120b-a12b" },
+    });
+    let sqls = query.mock.calls.map((c) => String(c[0]));
+    expect(sqls.some((s) => s.includes("DELETE FROM agent_runtime.provider_circuits"))).toBe(true);
+
+    query.mockClear();
+    await persistCycleResult(pool, 9, {
+      state: {},
+      cycle: { decision: "skip", disabled: true } as CycleRecord,
+      disableReason: "equity drawdown >= 2500",
+    });
+    sqls = query.mock.calls.map((c) => String(c[0]));
+    expect(sqls.some((s) => s.includes("status = 'disabled'"))).toBe(true);
+  });
+
+  it("claimDueAgents excludes shared-key agents on OPEN circuits but never BYO-key agents", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [], rowCount: 0 });
+    const client = { query, release: vi.fn() };
+    const pool = { connect: vi.fn().mockResolvedValue(client), query } as unknown as Pool;
+    await claimDueAgents(pool, 10);
+    const claim = query.mock.calls.map((c) => String(c[0])).find((s) => s.includes("FOR UPDATE OF a SKIP LOCKED"));
+    expect(claim).toBeTruthy();
+    expect(claim).toContain("LEFT JOIN agent_runtime.provider_circuits");
+    expect(claim).toContain("a.brain_key_enc IS NOT NULL"); // BYO agents exempt from fleet holds
+    expect(claim).toContain("pc.probe_after <= now()"); // probes flow when backoff passes
+  });
+
+  it("recordProviderStrike arms probe_after only at the trip threshold; clear deletes", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [], rowCount: 1 });
+    const pool = { query } as unknown as Pool;
+    await recordProviderStrike(pool, "nvidia", "m", "boom");
+    const [sql, params] = query.mock.calls[0] as [string, unknown[]];
+    expect(sql).toContain(`>= ${CIRCUIT_TRIP_STRIKES}`);
+    expect(params).toEqual(["nvidia", "m", "boom"]);
+    await clearProviderCircuit(pool, "nvidia", "m");
+    expect(String(query.mock.calls[1][0])).toContain("DELETE FROM agent_runtime.provider_circuits");
   });
 });
