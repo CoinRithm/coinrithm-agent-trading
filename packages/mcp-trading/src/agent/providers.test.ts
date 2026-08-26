@@ -119,6 +119,38 @@ describe("selectProvider", () => {
     expect(systemSent).toContain("STRATEGY");
   });
 
+  it.each([
+    "nvidia/nemotron-3-nano-30b-a3b",
+    "nvidia/nemotron-3-super-120b-a12b",
+  ])(
+    "disables thinking through NVIDIA chat_template_kwargs for %s",
+    async (model) => {
+      const nemoSpec = {
+        ...spec,
+        model: { provider: "nvidia" as const, name: model },
+      };
+      let sentBody: Record<string, unknown> = {};
+      const fetchFn = vi.fn(async (_u: string, init: RequestInit) => {
+        sentBody = JSON.parse(init.body as string) as Record<string, unknown>;
+        return new Response(
+          JSON.stringify({
+            choices: [{ message: { content: '{"decision":"skip"}' } }],
+          }),
+          { status: 200 },
+        );
+      });
+      const p = selectProvider(
+        nemoSpec,
+        { NVIDIA_API_KEY: "nvapi-test" },
+        fetchFn as unknown as typeof fetch,
+      );
+      await p.decide({ system: "STRATEGY", user: "u" });
+      expect(sentBody.chat_template_kwargs).toEqual({
+        enable_thinking: false,
+      });
+    },
+  );
+
   it("does NOT add the reasoning toggle for non-nemotron models", async () => {
     const nvSpec = {
       ...spec,

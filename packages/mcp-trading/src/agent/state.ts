@@ -112,7 +112,7 @@ const MODEL_FAILURE_FLOOR = 10;
 // day. Auth failures get 10: a key rotation/propagation blip should not kill
 // an agent, but nothing recovers from an actually-revoked key.
 export const PERMANENT_MODEL_ERROR_RE =
-  /model_not_found|model[_ ]decommissioned|has been decommissioned|\b404\b|does not exist or you do not have access/i;
+  /model_not_found|model[_ ]decommissioned|has been decommissioned|\b404\b|\b410\b|reached (?:its )?end of life|no longer available|does not exist or you do not have access/i;
 export const PERMANENT_MODEL_ERROR_THRESHOLD = 3;
 export const AUTH_FAILURE_THRESHOLD = 10;
 

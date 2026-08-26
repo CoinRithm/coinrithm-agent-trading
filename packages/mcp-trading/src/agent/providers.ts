@@ -65,15 +65,22 @@ const GEMINI_BASE_URL =
 // MUST stay below the scheduler's RUN_LOCK_SECONDS and HEARTBEAT_STALE_MS.
 const DEFAULT_TIMEOUT_MS = 300_000;
 
-// Reasoning models (NVIDIA Nemotron) DEFAULT to emitting a long <think> chain:
-// measured ~30-60s/call and a JSON-leak risk. The documented toggle is a
-// "detailed thinking off" line in the system prompt, which drops them to
-// instruct mode (measured ~3-4s, clean JSON). Apply it automatically for any
-// nemotron model so a per-cadence decision never blows the cadence.
+// Reasoning models (NVIDIA Nemotron) default to emitting a long think chain.
+// Keep the prompt hint for older compatible models; current NVIDIA models also
+// require the documented top-level chat_template_kwargs switch below.
 function applyReasoningToggle(model: string, system: string): string {
   return /nemotron/i.test(model)
     ? `detailed thinking off\n\n${system}`
     : system;
+}
+
+function nvidiaChatTemplateKwargs(
+  model: string,
+  baseUrl: string,
+): { enable_thinking: false } | undefined {
+  return baseUrl === NVIDIA_BASE_URL && /nemotron/i.test(model)
+    ? { enable_thinking: false }
+    : undefined;
 }
 
 // fetch with a hard timeout via AbortController. A custom fetchFn (tests) that
@@ -242,6 +249,14 @@ class OpenAiCompatProvider implements Provider {
             temperature: 0.2,
             max_tokens: input.maxTokens ?? 1024,
             response_format: { type: "json_object" },
+            ...(nvidiaChatTemplateKwargs(this.model, this.baseUrl)
+              ? {
+                  chat_template_kwargs: nvidiaChatTemplateKwargs(
+                    this.model,
+                    this.baseUrl,
+                  ),
+                }
+              : {}),
             messages: [
               {
                 role: "system",

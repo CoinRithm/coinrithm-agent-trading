@@ -73,6 +73,11 @@ describe("permanent-failure classification (2026-08-19)", () => {
     ).toBe(true);
     expect(isPermanentModelError("model has been decommissioned")).toBe(true);
     expect(isPermanentModelError("HTTP 404")).toBe(true);
+    expect(
+      isPermanentModelError(
+        "provider HTTP 410: this model reached its end of life and is no longer available",
+      ),
+    ).toBe(true);
     // Transient shapes must NOT trip the permanent path.
     expect(isPermanentModelError("HTTP 429 rate limited")).toBe(false);
     expect(isPermanentModelError("timeout after 30000ms")).toBe(false);
