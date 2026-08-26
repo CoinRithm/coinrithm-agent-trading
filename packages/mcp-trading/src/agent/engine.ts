@@ -9,9 +9,23 @@
 export { runCycle, type RunnerDeps } from "./runner.js";
 export {
   selectProvider,
+  providerForRoute,
   type ProviderEnv,
   type Provider,
 } from "./providers.js";
+// Reliability slice A: the declarative request-capability table and the
+// representative decision probe (route eligibility = a REAL parsed decision,
+// never a bare HTTP 200 — the 62f3a12 lesson).
+export {
+  chatShapeFor,
+  buildChatBody,
+  type ChatShape,
+} from "./providerCapabilities.js";
+export {
+  probeDecisionContract,
+  type ProbeRoute,
+  type ProbeDecisionResult,
+} from "./decisionProbe.js";
 export { CoinRithmClient } from "./client.js";
 export { loadAgent, buildSpec, type LoadedAgent } from "./skill.js";
 export { resolveAgent } from "./resolve.js";

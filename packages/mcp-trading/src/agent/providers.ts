@@ -4,6 +4,11 @@
 // execution — the model only proposes; the runner disposes.
 
 import { AgentSpec, ProviderName } from "./types.js";
+import {
+  chatShapeFor,
+  buildChatBody,
+  NVIDIA_BASE_URL as CAP_NVIDIA_BASE_URL,
+} from "./providerCapabilities.js";
 
 export interface DecideInput {
   system: string;
@@ -39,7 +44,7 @@ export interface ProviderEnv {
 
 // NVIDIA NIM is OpenAI-compatible; the `nvidia` preset hard-wires the hosted
 // endpoint so an agent only needs `{ provider: nvidia, name: "<model id>" }`.
-const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
+const NVIDIA_BASE_URL = CAP_NVIDIA_BASE_URL;
 
 // Gemini exposes an OpenAI-compatible surface, so the `gemini` preset hard-wires
 // its hosted endpoint — an agent only needs `{ provider: gemini, name: "gemini-2.0-flash" }`
@@ -65,23 +70,9 @@ const GEMINI_BASE_URL =
 // MUST stay below the scheduler's RUN_LOCK_SECONDS and HEARTBEAT_STALE_MS.
 const DEFAULT_TIMEOUT_MS = 300_000;
 
-// Reasoning models (NVIDIA Nemotron) default to emitting a long think chain.
-// Keep the prompt hint for older compatible models; current NVIDIA models also
-// require the documented top-level chat_template_kwargs switch below.
-function applyReasoningToggle(model: string, system: string): string {
-  return /nemotron/i.test(model)
-    ? `detailed thinking off\n\n${system}`
-    : system;
-}
-
-function nvidiaChatTemplateKwargs(
-  model: string,
-  baseUrl: string,
-): { enable_thinking: false } | undefined {
-  return baseUrl === NVIDIA_BASE_URL && /nemotron/i.test(model)
-    ? { enable_thinking: false }
-    : undefined;
-}
+// Per-route request quirks (reasoning toggles, token param, temperature) live
+// in the capability table — providerCapabilities.ts is the single source; this
+// module only assembles and sends.
 
 // fetch with a hard timeout via AbortController. A custom fetchFn (tests) that
 // ignores `signal` still works — the timer just never fires for it.
@@ -225,6 +216,7 @@ class AnthropicProvider implements Provider {
 class OpenAiCompatProvider implements Provider {
   label: string;
   constructor(
+    private provider: ProviderName,
     private model: string,
     private apiKey: string,
     private baseUrl: string,
@@ -234,6 +226,7 @@ class OpenAiCompatProvider implements Provider {
   }
   async decide(input: DecideInput): Promise<DecideResult> {
     const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    const shape = chatShapeFor(this.provider, this.model, this.baseUrl);
     try {
       const res = await fetchWithTimeout(
         this.fetchFn,
@@ -244,27 +237,14 @@ class OpenAiCompatProvider implements Provider {
             Authorization: `Bearer ${this.apiKey}`,
             "content-type": "application/json",
           },
-          body: JSON.stringify({
-            model: this.model,
-            temperature: 0.2,
-            max_tokens: input.maxTokens ?? 1024,
-            response_format: { type: "json_object" },
-            ...(nvidiaChatTemplateKwargs(this.model, this.baseUrl)
-              ? {
-                  chat_template_kwargs: nvidiaChatTemplateKwargs(
-                    this.model,
-                    this.baseUrl,
-                  ),
-                }
-              : {}),
-            messages: [
-              {
-                role: "system",
-                content: applyReasoningToggle(this.model, input.system),
-              },
-              { role: "user", content: input.user },
-            ],
-          }),
+          body: JSON.stringify(
+            buildChatBody(shape, {
+              model: this.model,
+              system: input.system,
+              user: input.user,
+              maxTokens: input.maxTokens ?? 1024,
+            }),
+          ),
         },
         timeoutMs,
       );
@@ -335,5 +315,34 @@ export function selectProvider(
   if (!resolvedBase) {
     throw new Error("openai-compatible provider needs model.baseUrl");
   }
-  return new OpenAiCompatProvider(name, key, resolvedBase, fetchFn);
+  return new OpenAiCompatProvider(provider, name, key, resolvedBase, fetchFn);
+}
+
+// Build a provider for an EXPLICIT route + raw key (no spec, no env) — the
+// decision probe's entry point. Same classes as selectProvider, so a probe
+// exercises byte-identical request shapes to a real cycle.
+export function providerForRoute(
+  route: {
+    provider: ProviderName;
+    model: string;
+    baseUrl?: string | null;
+  },
+  apiKey: string,
+  fetchFn: typeof fetch = fetch,
+): Provider {
+  if (route.provider === "mechanical")
+    return new MechanicalProvider(route.model);
+  if (route.provider === "anthropic")
+    return new AnthropicProvider(route.model, apiKey, fetchFn);
+  const resolvedBase = baseUrlFor(route.provider, route.baseUrl ?? undefined);
+  if (!resolvedBase) {
+    throw new Error("openai-compatible route needs a baseUrl");
+  }
+  return new OpenAiCompatProvider(
+    route.provider,
+    route.model,
+    apiKey,
+    resolvedBase,
+    fetchFn,
+  );
 }
