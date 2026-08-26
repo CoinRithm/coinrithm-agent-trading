@@ -149,20 +149,78 @@ export async function migrate(pool: Pool): Promise<void> {
 // agent 413s every cycle (Olivia). Groq stays a BYO option — a user's own key has
 // its own quota — this only de-Groqs the HOUSE fleet, automatically on boot, so the
 // fix never waits on a manual re-seed. No-op once no house agent is on Groq.
+// (Targets updated 2026-08-26: the previous targets were themselves EOL'd by
+// NVIDIA — see EOL_MODEL_SUCCESSORS.)
 export async function migrateHouseAgentsOffGroq(pool: Pool): Promise<number> {
   const { rowCount } = await pool.query(
     `UPDATE agent_runtime.agents
         SET model_provider = 'nvidia',
             model_name = CASE
               WHEN model_name ILIKE '%70b%' OR model_name ILIKE '%versatile%'
-                THEN 'meta/llama-3.1-70b-instruct'
-              ELSE 'nvidia/llama-3.3-nemotron-super-49b-v1'
+                THEN 'nvidia/nemotron-3-super-120b-a12b'
+              ELSE 'nvidia/nemotron-3-nano-30b-a3b'
             END,
             model_base_url = NULL,
             updated_at = now()
       WHERE is_house = true AND model_provider = 'groq'`,
   );
   return rowCount ?? 0;
+}
+
+// NVIDIA end-of-life event, 2026-08-26T09:00:00Z: the ENTIRE hosted Llama 3.x
+// line (8B, 70B, 3.3-70B, 3.2-3B) plus the llama-nemotron variants
+// (super-49b v1 AND v1.5, nano-8b) started returning
+//   410 Gone — "has reached its end of life ... no longer available"
+// on ALL accounts. 35 agents (house + user, incl. the first external user's
+// fleet) were correctly perma-disabled by the model_unavailable classifier
+// within hours. Successors below are LIVE-PROBE-VERIFIED (HTTP 200 on
+// chat/completions, 2026-08-26 ~14:00Z) — the /v1/models catalog LIES (it
+// lists ids that 404 on invoke), so never add a successor without a probe.
+export const EOL_MODEL_SUCCESSORS: Record<string, string> = {
+  "meta/llama-3.1-8b-instruct": "nvidia/nemotron-3-nano-30b-a3b",
+  "meta/llama-3.2-3b-instruct": "nvidia/nemotron-3-nano-30b-a3b",
+  "nvidia/llama-3.1-nemotron-nano-8b-v1": "nvidia/nemotron-3-nano-30b-a3b",
+  "meta/llama-3.1-70b-instruct": "nvidia/nemotron-3-super-120b-a12b",
+  "meta/llama-3.3-70b-instruct": "nvidia/nemotron-3-super-120b-a12b",
+  "nvidia/llama-3.3-nemotron-super-49b-v1": "nvidia/nemotron-3-super-120b-a12b",
+  "nvidia/llama-3.3-nemotron-super-49b-v1.5": "nvidia/nemotron-3-super-120b-a12b",
+};
+
+/** Boot-run, idempotent (same pattern as the de-Groq migration): remap every
+ * NVIDIA-provider agent still pointing at an EOL'd model to its verified
+ * successor, then REVIVE agents the model_unavailable classifier disabled —
+ * the disable was correct (the model was gone); with a living model mapped,
+ * the permanent-failure cause no longer exists. Drawdown/key_invalid
+ * disables are untouched. Returns [remapped, revived]. */
+export async function migrateAgentsOffEolModels(
+  pool: Pool,
+): Promise<[number, number]> {
+  const entries = Object.entries(EOL_MODEL_SUCCESSORS);
+  const cases = entries
+    .map((_, i) => `WHEN model_name = $${i * 2 + 1} THEN $${i * 2 + 2}`)
+    .join(" ");
+  const params = entries.flat();
+  const deadList = entries.map((_, i) => `$${i * 2 + 1}`).join(", ");
+  const { rowCount: remapped } = await pool.query(
+    `UPDATE agent_runtime.agents
+        SET model_name = CASE ${cases} ELSE model_name END,
+            updated_at = now()
+      WHERE model_provider = 'nvidia' AND model_name IN (${deadList})`,
+    params,
+  );
+  const { rowCount: revived } = await pool.query(
+    `UPDATE agent_runtime.agents
+        SET status = 'active',
+            disabled_reason = NULL,
+            next_run_at = now(),
+            updated_at = now()
+      WHERE status = 'disabled'
+        AND disabled_reason ILIKE 'model_unavailable%'
+        AND model_provider = 'nvidia'
+        AND model_name = ANY($1::text[])`,
+    [Object.values(EOL_MODEL_SUCCESSORS)],
+  );
+  return [remapped ?? 0, revived ?? 0];
 }
 
 // --- Tier usage (the metering the tier gate reads; see tiers.ts) ---

@@ -1,6 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
 import type { Pool, PoolClient } from "pg";
-import { recordCycle, persistCycleResult, type CycleRecord } from "./db.js";
+import {
+  recordCycle,
+  persistCycleResult,
+  migrateAgentsOffEolModels,
+  migrateHouseAgentsOffGroq,
+  EOL_MODEL_SUCCESSORS,
+  type CycleRecord,
+} from "./db.js";
 
 // No-CoT privacy policy (see f778338 + the DB write boundary hardening in
 // db.ts): agent_runtime.agent_cycles.raw_model_output must NEVER receive raw
@@ -80,5 +87,55 @@ describe("persistCycleResult — no-CoT DB write boundary", () => {
     const params = cycleInsertCall![1] as unknown[];
     expect(params[RAW_MODEL_OUTPUT_PARAM_INDEX]).toBeNull();
     expect(release).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("migrateAgentsOffEolModels — NVIDIA 2026-08-26 EOL event", () => {
+  it("remaps every EOL'd model to a live-probe-verified successor, then revives only model_unavailable disables", async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rowCount: 35, rows: [] })
+      .mockResolvedValueOnce({ rowCount: 23, rows: [] });
+    const pool = { query } as unknown as Pool;
+
+    const [remapped, revived] = await migrateAgentsOffEolModels(pool);
+    expect(remapped).toBe(35);
+    expect(revived).toBe(23);
+    expect(query).toHaveBeenCalledTimes(2);
+
+    const [remapSql, remapParams] = query.mock.calls[0] as [string, string[]];
+    // Every dead id and every successor rides as a bind param — and the
+    // successors are only the two probe-verified models.
+    for (const [dead, next] of Object.entries(EOL_MODEL_SUCCESSORS)) {
+      expect(remapParams).toContain(dead);
+      expect(remapParams).toContain(next);
+    }
+    expect(
+      new Set(Object.values(EOL_MODEL_SUCCESSORS)),
+    ).toEqual(
+      new Set([
+        "nvidia/nemotron-3-nano-30b-a3b",
+        "nvidia/nemotron-3-super-120b-a12b",
+      ]),
+    );
+    expect(remapSql).toContain("model_provider = 'nvidia'");
+
+    const [reviveSql] = query.mock.calls[1] as [string, unknown[]];
+    // Revival is scoped to the model_unavailable class ONLY — drawdown and
+    // key_invalid disables must never be resurrected by a model remap.
+    expect(reviveSql).toContain("model_unavailable%");
+    expect(reviveSql).toContain("status = 'disabled'");
+    expect(reviveSql).toContain("next_run_at = now()");
+  });
+
+  it("de-Groq targets are living models (the old targets were EOL'd)", async () => {
+    const query = vi.fn().mockResolvedValue({ rowCount: 0, rows: [] });
+    const pool = { query } as unknown as Pool;
+    await migrateHouseAgentsOffGroq(pool);
+    const [sql] = query.mock.calls[0] as [string, unknown[]];
+    expect(sql).toContain("nvidia/nemotron-3-super-120b-a12b");
+    expect(sql).toContain("nvidia/nemotron-3-nano-30b-a3b");
+    expect(sql).not.toContain("meta/llama-3.1-70b-instruct");
+    expect(sql).not.toContain("llama-3.3-nemotron-super-49b-v1");
   });
 });

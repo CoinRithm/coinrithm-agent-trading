@@ -7,6 +7,7 @@ import { loadConfig } from "./config.js";
 import {
   createPool,
   migrate,
+  migrateAgentsOffEolModels,
   migrateHouseAgentsOffGroq,
   retryDatabaseStartup,
 } from "./db.js";
@@ -29,6 +30,11 @@ async function main(): Promise<void> {
   if (deGroqed > 0)
     console.log(
       `[scheduler] de-Groq: moved ${deGroqed} house agent(s) off Groq -> NVIDIA (free 6k TPM can't fit our prompt)`,
+    );
+  const [remapped, revived] = await migrateAgentsOffEolModels(pool);
+  if (remapped > 0 || revived > 0)
+    console.log(
+      `[scheduler] NVIDIA EOL migration: remapped ${remapped} agent(s) to living successor models, revived ${revived} model_unavailable-disabled agent(s)`,
     );
 
   const control: Control = { stopped: false };
