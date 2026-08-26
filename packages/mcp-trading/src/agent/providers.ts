@@ -26,7 +26,18 @@ export type DecideResult =
       // Provider-reported token usage when available (for slice-2 metering).
       usage?: { promptTokens: number; completionTokens: number };
     }
-  | { ok: false; error: string };
+  | {
+      ok: false;
+      error: string;
+      // Structured failure metadata (slice A2, Codex amendment 2026-08-26):
+      // the router must classify 429 (capacity: fall back / cool down NOW)
+      // separately from 5xx/timeout (transient thresholds) without string
+      // sniffing. Absent on network/timeout errors that carry no response.
+      status?: number;
+      // Parsed Retry-After (seconds or HTTP-date form), capped; the capacity
+      // layer treats it as the provider's own cooldown request.
+      retryAfterMs?: number;
+    };
 
 export interface Provider {
   label: string;
@@ -96,6 +107,22 @@ function callError(err: unknown, timeoutMs: number): string {
     return `model call timed out after ${timeoutMs}ms`;
   }
   return err instanceof Error ? err.message : String(err);
+}
+
+// Parse a Retry-After header (delta-seconds or HTTP-date) into ms, capped at
+// one hour — a provider asking for more is treated as "an hour, then re-probe".
+const RETRY_AFTER_CAP_MS = 3_600_000;
+function retryAfterMs(res: Response): number | undefined {
+  const raw = res.headers.get("retry-after");
+  if (!raw) return undefined;
+  const secs = Number(raw);
+  if (Number.isFinite(secs) && secs >= 0) {
+    return Math.min(Math.round(secs * 1000), RETRY_AFTER_CAP_MS);
+  }
+  const at = Date.parse(raw);
+  if (!Number.isFinite(at)) return undefined;
+  const ms = at - Date.now();
+  return ms > 0 ? Math.min(ms, RETRY_AFTER_CAP_MS) : 0;
 }
 
 function envKey(provider: ProviderName, env: ProviderEnv): string | undefined {
@@ -192,6 +219,8 @@ class AnthropicProvider implements Provider {
           // Cap the upstream body: it lands in agent_cycles.skip_reason, so an
           // unbounded provider error page must not bloat the ledger row.
           error: `anthropic HTTP ${res.status}: ${(await res.text()).slice(0, 2000)}`,
+          status: res.status,
+          retryAfterMs: retryAfterMs(res),
         };
       const json = (await res.json()) as {
         content?: Array<{ text?: string }>;
@@ -254,6 +283,8 @@ class OpenAiCompatProvider implements Provider {
           // Cap the upstream body: it lands in agent_cycles.skip_reason, so an
           // unbounded provider error page must not bloat the ledger row.
           error: `provider HTTP ${res.status}: ${(await res.text()).slice(0, 2000)}`,
+          status: res.status,
+          retryAfterMs: retryAfterMs(res),
         };
       const json = (await res.json()) as {
         choices?: Array<{ message?: { content?: string } }>;

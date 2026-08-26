@@ -68,7 +68,7 @@ describe("probeDecisionContract", () => {
     expect(res).toMatchObject({ ok: false, stage: "parse" });
   });
 
-  it("classifies provider refusals as 'http' with the key sanitized out", async () => {
+  it("classifies provider refusals as 'http' with the key sanitized out and structured status", async () => {
     const fetchFn = vi.fn(
       async () =>
         new Response("gone; auth was Bearer sk-secret-410-echo for key sk-secret-410-echo", {
@@ -79,10 +79,30 @@ describe("probeDecisionContract", () => {
       { provider: "nvidia", model: "meta/llama-3.1-8b-instruct", key: "sk-secret-410-echo" },
       fetchFn as unknown as typeof fetch,
     );
-    expect(res).toMatchObject({ ok: false, stage: "http" });
+    expect(res).toMatchObject({ ok: false, stage: "http", status: 410 });
     if (!res.ok) {
       expect(res.error).toContain("410");
       expect(res.error).not.toContain("sk-secret-410-echo");
     }
+  });
+
+  it("carries Retry-After through as structured cooldown metadata (429)", async () => {
+    const fetchFn = vi.fn(
+      async () =>
+        new Response("rate limited", {
+          status: 429,
+          headers: { "retry-after": "7" },
+        }),
+    );
+    const res = await probeDecisionContract(
+      { provider: "nvidia", model: "nvidia/nemotron-3-nano-30b-a3b", key: "nvapi-x" },
+      fetchFn as unknown as typeof fetch,
+    );
+    expect(res).toMatchObject({
+      ok: false,
+      stage: "http",
+      status: 429,
+      retryAfterMs: 7000,
+    });
   });
 });

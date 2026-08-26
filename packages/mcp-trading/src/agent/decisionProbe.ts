@@ -33,6 +33,10 @@ export type ProbeDecisionResult =
       ok: false;
       stage: "http" | "empty" | "parse";
       error: string;
+      // Structured metadata from the provider response (A2): lets the caller
+      // classify 429/5xx and honor Retry-After without string sniffing.
+      status?: number;
+      retryAfterMs?: number;
     };
 
 // A canned mini-observation whose ONLY correct answer is a tiny skip decision.
@@ -77,7 +81,13 @@ export async function probeDecisionContract(
     const error = sanitize(res.error, route.key);
     // Provider classes report empty 2xx content as "... returned empty content".
     const stage = /returned empty content/i.test(res.error) ? "empty" : "http";
-    return { ok: false, stage, error };
+    return {
+      ok: false,
+      stage,
+      error,
+      status: res.status,
+      retryAfterMs: res.retryAfterMs,
+    };
   }
   if (!res.text.trim()) {
     return { ok: false, stage: "empty", error: "empty completion" };

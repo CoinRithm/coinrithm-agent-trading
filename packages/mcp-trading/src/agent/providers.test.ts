@@ -182,6 +182,51 @@ describe("selectProvider", () => {
     expect(systemSent).toBe("STRATEGY");
   });
 
+  it("surfaces structured status + Retry-After on provider refusals (A2)", async () => {
+    const fetchFn = vi.fn(
+      async () =>
+        new Response("busy", { status: 429, headers: { "retry-after": "12" } }),
+    );
+    const p = selectProvider(
+      {
+        ...spec,
+        model: {
+          provider: "nvidia" as const,
+          name: "nvidia/nemotron-3-nano-30b-a3b",
+        },
+      },
+      { NVIDIA_API_KEY: "nvapi-x" },
+      fetchFn as unknown as typeof fetch,
+    );
+    const res = await p.decide({ system: "s", user: "u" });
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.status).toBe(429);
+      expect(res.retryAfterMs).toBe(12000);
+    }
+  });
+
+  it("leaves status/retryAfterMs unset on 5xx without a Retry-After header", async () => {
+    const fetchFn = vi.fn(async () => new Response("boom", { status: 503 }));
+    const p = selectProvider(
+      {
+        ...spec,
+        model: {
+          provider: "nvidia" as const,
+          name: "nvidia/nemotron-3-nano-30b-a3b",
+        },
+      },
+      { NVIDIA_API_KEY: "nvapi-x" },
+      fetchFn as unknown as typeof fetch,
+    );
+    const res = await p.decide({ system: "s", user: "u" });
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.status).toBe(503);
+      expect(res.retryAfterMs).toBeUndefined();
+    }
+  });
+
   it("aborts a hung model call and reports a timeout (never bleeds past the cadence)", async () => {
     const nvSpec = {
       ...spec,
