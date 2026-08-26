@@ -364,17 +364,44 @@ export async function claimDueAgents(
       // instead of N agents burning cycles into failures. When probe_after
       // passes, matching agents claim again; the next cycle either closes
       // the circuit (success) or re-arms it with a longer backoff.
-      `SELECT a.id, a.handle, a.display_name, a.live, a.cadence_seconds, a.model_provider,
-              a.model_name, a.model_base_url, a.spec, a.prose, a.coinrithm_key_enc, a.brain_key_enc
-         FROM agent_runtime.agents a
-         LEFT JOIN agent_runtime.provider_circuits pc
-           ON pc.provider = a.model_provider AND pc.model = a.model_name
-        WHERE a.status = 'active' AND a.next_run_at <= now()
-          AND (a.brain_key_enc IS NOT NULL
-               OR pc.probe_after IS NULL OR pc.strikes < 3 OR pc.probe_after <= now())
-        ORDER BY a.next_run_at
-        LIMIT $1
-        FOR UPDATE OF a SKIP LOCKED`,
+      // Fairness is applied before LIMIT: take every tenant's oldest due agent
+      // before taking any tenant's second, then third, and so on. All house
+      // agents intentionally form one tenant; each external owner forms another.
+      // Without this, a large house/user fleet that became due first could fill
+      // every batch indefinitely while a one-agent owner waited behind it.
+      // The outer query locks ONLY agent rows; provider-circuit reads stay cheap.
+      `WITH due AS MATERIALIZED (
+         SELECT a.id,
+                row_number() OVER (
+                  PARTITION BY CASE
+                    WHEN a.is_house THEN 'house'
+                    WHEN a.owner_user_id IS NOT NULL THEN 'user:' || a.owner_user_id::text
+                    ELSE 'agent:' || a.id::text
+                  END
+                  ORDER BY a.next_run_at, a.id
+                ) AS tenant_position
+           FROM agent_runtime.agents a
+           LEFT JOIN agent_runtime.provider_circuits pc
+             ON pc.provider = a.model_provider AND pc.model = a.model_name
+          WHERE a.status = 'active' AND a.next_run_at <= now()
+            AND (a.brain_key_enc IS NOT NULL
+                 OR pc.probe_after IS NULL OR pc.strikes < 3 OR pc.probe_after <= now())
+       ), picked AS MATERIALIZED (
+         SELECT a.id, a.handle, a.display_name, a.live, a.cadence_seconds,
+                a.model_provider, a.model_name, a.model_base_url, a.spec,
+                a.prose, a.coinrithm_key_enc, a.brain_key_enc,
+                due.tenant_position, a.next_run_at
+           FROM due
+           JOIN agent_runtime.agents a ON a.id = due.id
+          ORDER BY due.tenant_position, a.next_run_at, a.id
+          LIMIT $1
+          FOR UPDATE OF a SKIP LOCKED
+       )
+       SELECT id, handle, display_name, live, cadence_seconds, model_provider,
+              model_name, model_base_url, spec, prose, coinrithm_key_enc,
+              brain_key_enc
+         FROM picked
+        ORDER BY tenant_position, next_run_at, id`,
       [limit],
     );
     if (rows.length > 0) {

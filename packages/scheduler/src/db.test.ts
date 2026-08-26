@@ -217,6 +217,29 @@ describe("provider circuits — reliability slice 1 (never disable on provider f
     expect(claim).toContain("pc.probe_after <= now()"); // probes flow when backoff passes
   });
 
+  it("claimDueAgents interleaves tenants before LIMIT so a large fleet cannot starve a one-agent owner", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [], rowCount: 0 });
+    const client = { query, release: vi.fn() };
+    const pool = {
+      connect: vi.fn().mockResolvedValue(client),
+      query,
+    } as unknown as Pool;
+    await claimDueAgents(pool, 20);
+    const claim = query.mock.calls
+      .map((c) => String(c[0]))
+      .find((s) => s.includes("FOR UPDATE OF a SKIP LOCKED"));
+    expect(claim).toContain("row_number() OVER");
+    expect(claim).toContain("WHEN a.is_house THEN 'house'");
+    expect(claim).toContain("'user:' || a.owner_user_id::text");
+    expect(claim).toMatch(
+      /ORDER BY due\.tenant_position, a\.next_run_at, a\.id\s+LIMIT \$1/,
+    );
+    // LIMIT must be in the fair, locking selection — never in the raw due set.
+    expect(claim?.indexOf("row_number() OVER")).toBeLessThan(
+      claim?.indexOf("LIMIT $1") ?? -1,
+    );
+  });
+
   it("recordProviderStrike arms probe_after only at the trip threshold; clear deletes", async () => {
     const query = vi.fn().mockResolvedValue({ rows: [], rowCount: 1 });
     const pool = { query } as unknown as Pool;
