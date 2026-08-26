@@ -684,7 +684,8 @@ export function resolveAgent(inputPath: string): ResolvedAgent {
 // The cap was justified by hosted inference cost. Measured over 8,060 LLM
 // cycles in 24h on prod: average input is 9,038 tokens, of which the prose is
 // only 12.6-40.2% (median ~25%) — the OBSERVATION is the other ~75%. Inputs
-// already reach 17,065 tokens on Llama 3.1 8B and 16,437 on Nemotron 49B, with
+// already reached 17,065 tokens on Llama 3.1 8B and 16,437 on Nemotron 49B
+// (measured on the since-retired NIM line; Nemotron 3 successors match), with
 // ZERO rate-limit errors and estimated_cost_usd of 0.0000 (free NIM tier).
 // +4,000 characters is ~+1,000 tokens/cycle (+11%), landing average input near
 // 10,038 — still below what the fleet already handles at peak today.

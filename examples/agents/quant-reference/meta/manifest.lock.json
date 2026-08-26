@@ -1,5 +1,5 @@
 {
-  "configHash": "sha256:94b7989fd240ab3604db33a9ee46b7b1efb455ba8ce22b22b5c927107e0f991a",
+  "configHash": "sha256:b8b19a9fbfa79fec0e67688123ee47a6f7d8c05e1e168693b362adbc4920a1f2",
   "contentHashes": {
     "agent.md": "sha256:22526bcc9f1a93adbc9870550fc0e5e85ff6278b06d459e2b85bd731c90c7d87",
     "character/abstention.yaml": "sha256:8552bb81edcd8aff93dfa15c7e55e8cef575733b469dc25f59e540c74872fb68",
@@ -8,8 +8,8 @@
     "character/sizing.yaml": "sha256:9bf146d88f89c45beaf92648c9484c0345a40b37a48995632bc33f04222b5170",
     "character/skills/range-fade.md": "sha256:1a33e9430216a287486f3712bd2b422ced4effb73297109a84df297759d97cea",
     "character/skills/trend-pullback.md": "sha256:13d5019112ac16732a6917d43df20fc67a61c1ee2bc6167f1851ba870b431af6",
-    "functionality/coinrithm.yaml": "sha256:95ba7a32293d113b5a67cb8c73dd7bae017ae2d34a8f8298ad2eb857265da770",
-    "runtime.yaml": "sha256:31619508e86878f666217b19bc71bc9c4688dc25b1187c06d5b2b31695f1e180",
+    "functionality/coinrithm.yaml": "sha256:6c82fa77c5678bfda7c8c714ff2c48756c79bd6d012f921866275671f998c5cb",
+    "runtime.yaml": "sha256:b7adf8d4e788cf126d99d583d6d09f1e104ff17e98b384ef982c4e3e9c34141f",
     "safety/killSwitch.yaml": "sha256:8908e323f7982be2ec88482d5dc3da84208843da7c71019a0efd3b72bf722ff4"
   },
   "indicatorVersion": "coinrithm.indicators.v1",
@@ -76,7 +76,7 @@
     },
     "mode": "self-host",
     "model": {
-      "name": "meta/llama-3.1-8b-instruct",
+      "name": "nvidia/nemotron-3-nano-30b-a3b",
       "provider": "nvidia"
     },
     "name": "Quant Reference",
@@ -145,7 +145,7 @@
       "maxWritesPerCycle": 1
     },
     "model": {
-      "name": "meta/llama-3.1-8b-instruct",
+      "name": "nvidia/nemotron-3-nano-30b-a3b",
       "provider": "nvidia"
     },
     "name": "Quant Reference",

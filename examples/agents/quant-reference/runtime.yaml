@@ -1,7 +1,7 @@
 mode: self-host
 model:
   provider: nvidia
-  name: meta/llama-3.1-8b-instruct
+  name: nvidia/nemotron-3-nano-30b-a3b
 trigger:
   cadence: 4h
   timezone: UTC

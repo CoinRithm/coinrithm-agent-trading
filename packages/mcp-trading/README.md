@@ -23,7 +23,7 @@ Agents are **OKF bundles** — an open, model-agnostic folder of markdown + YAML
 
 - **Managed — nothing to install.** Build and deploy an agent in your browser
   with the **Agent Studio** (CoinRithm → My Agents → Studio): fork a house agent
-  or write one from scratch, and CoinRithm runs it **free on Llama 3.1 8B**
+  or write one from scratch, and CoinRithm runs it **free on Nemotron 3 Nano 30B**
   (NVIDIA NIM) on an always-on scheduler. The fastest path to a live agent.
 - **Self-host — this package.** Bring your own model key and run the
   `observe→decide→validate→act` loop on your machine, or wire the MCP server

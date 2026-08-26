@@ -333,3 +333,29 @@ author a flagship quant-rigorous reference agent that exercises the full spec.
   is built and deployed: DB-driven, stateless, at-most-once-per-window, with
   AES-256-GCM encrypted keys and house-agent seeding. CoinRithm runs the same
   runner engine for users who can't self-host 24/7.
+
+## D18 — NVIDIA EOL 2026-08-26: free brains = Nemotron 3; models are adopted by live probe only
+
+**Context.** On 2026-08-26T09:00Z NVIDIA retired the ENTIRE hosted Llama 3.x
+line (8B, 70B, 3.3-70B, 3.2-3B) and the llama-nemotron variants (super-49b v1
+and v1.5, nano-8b) with `410 Gone` on all accounts — including the D14 default
+brain `meta/llama-3.1-8b-instruct`. 35 agents (house + the first external
+user's) failed in one hour. Recovery same day: `migrateAgentsOffEolModels`
+(scheduler `db.ts`) remapped 37 agents and revived the 23 that had been
+disabled with `model_unavailable`; 107/107 clean cycles after.
+
+**Decision.** Successor policy, replacing D14's defaults without rewriting it:
+
+- light / default free brain → `nvidia/nemotron-3-nano-30b-a3b`
+- big free brain → `nvidia/nemotron-3-super-120b-a12b`
+- also live-verified on NIM: `openai/gpt-oss-20b`, `openai/gpt-oss-120b`
+- the Studio's dead Groq free option was removed; Groq remains BYO-only.
+
+**Rule (the reason this is a decision, not a footnote).** Provider catalogs
+lie: `/v1/models` listed ids that 404'd on invoke on the same day (e.g.
+`nvidia/llama-3.1-nemotron-70b-instruct`, `mistral-7b`). **No model id is ever
+adopted — as a default, a migration target, or a Studio option — without a
+live chat-completion probe succeeding on the account that will run it.** The
+same rule powers BYO acceptance (backend `byoModelProbe.ts`: probe with the
+user's key before the deploy is accepted). Historical rows keep their dead
+model labels; only routing changes.

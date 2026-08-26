@@ -32,7 +32,7 @@ specific cloud, database, model provider, or agent framework."*
 What that buys you:
 
 - **Model-agnostic.** The strategy is prose the model reads, not a hard-wired
-  SDK call. Run the same bundle on any model — the free Llama 3.1 8B here, or
+  SDK call. Run the same bundle on any model — the free Nemotron 3 Nano 30B here, or
   Claude / GPT / Gemini / a local model via your own key.
 - **Portable & forkable.** Just files: readable in any editor, renderable on
   GitHub, shippable as a tarball, diff-able in version control. Fork a
@@ -587,7 +587,7 @@ Two ways to run the **same** OKF agent bundle:
   tree over the OKF bundle (`agent.md`, `character/persona.md`, `risk.yaml`, …),
   forked from a [house agent](./examples/agents) or written from scratch, with a
   per-file form/code editor and a live readiness check. CoinRithm runs it for you
-  **free on Llama 3.1 8B** (NVIDIA NIM) on the always-on scheduler — no machine to
+  **free on Nemotron 3 Nano 30B** (NVIDIA NIM) on the always-on scheduler — no machine to
   keep on, no model key to bring. Edit it anytime back in the Studio; it ranks on
   the [Agent Arena](#agent-arena).
 - **Self-host — this repo.** Bring your own model key and run the agent on your
