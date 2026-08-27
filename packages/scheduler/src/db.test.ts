@@ -9,6 +9,7 @@ import {
   CIRCUIT_TRIP_STRIKES,
   migrateAgentsOffEolModels,
   migrateHouseAgentsOffGroq,
+  reviveDisabledAgents,
   EOL_MODEL_SUCCESSORS,
   type CycleRecord,
 } from "./db.js";
@@ -128,6 +129,46 @@ describe("persistCycleResult — no-CoT DB write boundary", () => {
     const params = cycleInsertCall![1] as unknown[];
     expect(params[RAW_MODEL_OUTPUT_PARAM_INDEX]).toBeNull();
     expect(release).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("reviveDisabledAgents — authoritative stops must stick", () => {
+  const runRevive = async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const release = vi.fn();
+    const client = { query, release } as unknown as PoolClient;
+    const pool = { connect: vi.fn().mockResolvedValue(client) } as unknown as Pool;
+    await reviveDisabledAgents(pool);
+    // calls: BEGIN, UPDATE agents, (state patch skipped: no rows), COMMIT
+    const update = query.mock.calls
+      .map((c) => String(c[0]))
+      .find((sql) => sql.includes("UPDATE agent_runtime.agents"));
+    return String(update);
+  };
+
+  it("never resurrects a DRAWDOWN or SETUP stop, house agents included", async () => {
+    const sql = await runRevive();
+    expect(sql).toContain("%drawdown%");
+    expect(sql).toContain("%setup%");
+    // The house carve-out is GONE (2026-08-27). It let leo-breakout-hunter
+    // re-trip its equity drawdown every tick (103 cycles/30min) and made a
+    // published maxDrawdownMusd unenforceable on the public demo fleet.
+    expect(sql).not.toContain("is_house");
+  });
+
+  it("still refuses the permanent-failure classes for everyone", async () => {
+    const sql = await runRevive();
+    expect(sql).toContain("model_unavailable%");
+    expect(sql).toContain("key_invalid%");
+  });
+
+  it("still self-heals the transient classes it was written for", async () => {
+    const sql = await runRevive();
+    // Nothing narrows the revive to a reason allowlist, so an unknown or null
+    // reason (flaky-model streak, reject run, rate-limit pressure) still heals.
+    expect(sql).toContain("status = 'disabled'");
+    expect(sql).toContain("status = 'active'");
+    expect(sql).toContain("next_run_at = now()");
   });
 });
 

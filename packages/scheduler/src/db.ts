@@ -736,8 +736,21 @@ export async function disableAgent(
 //   - ANY user agent the SYSTEM stopped on a RECOVERABLE fault — a flaky-model
 //     streak, rate-limit pressure, a reject run, or an unknown disable.
 // It deliberately does NOT revive:
-//   - a user agent stopped by its own DRAWDOWN limit (a real, intended risk
-//     stop) or a SETUP error (a broken config that would just re-fail), and
+//   - ANY agent (house included, since 2026-08-27) stopped by its own DRAWDOWN
+//     limit (a real, intended risk stop) or a SETUP error (a broken config that
+//     would just re-fail). House agents were exempt from this until live
+//     evidence killed the exemption: leo-breakout-hunter tripped 'equity
+//     drawdown >= 2500', was revived within 5 minutes, and re-tripped on the
+//     next tick because reviving clears the reason and the counters but not the
+//     EQUITY that tripped it — 103 cycles in 30 minutes against ~10 for a
+//     normal agent. Beyond the thrash, an exempt house agent publishes a
+//     maxDrawdownMusd it does not actually obey, on the exact fleet shown to
+//     the public as exemplars, on a platform whose pitch is verified receipts.
+//     A house agent that trips its risk stop now STAYS stopped until an
+//     operator resolves its book, which is a visible, recorded action instead
+//     of a silent 30-second revive. Transient classes below still self-heal for
+//     everyone, which is what the exemption was actually written for.
+//   - and
 //   - ANY agent (house included) disabled with a PERMANENT-failure prefix:
 //     'model_unavailable' (provider 404 / decommissioned model — fails every
 //     cycle forever; live-measured 93% dead cycles with 7 revives in 3h) or
@@ -758,13 +771,8 @@ export async function reviveDisabledAgents(pool: Pool): Promise<string[]> {
         WHERE status = 'disabled'
           AND COALESCE(disabled_reason, '') NOT ILIKE 'model_unavailable%'
           AND COALESCE(disabled_reason, '') NOT ILIKE 'key_invalid%'
-          AND (
-            is_house = true
-            OR (
-              COALESCE(disabled_reason, '') NOT ILIKE '%drawdown%'
-              AND COALESCE(disabled_reason, '') NOT ILIKE '%setup%'
-            )
-          )
+          AND COALESCE(disabled_reason, '') NOT ILIKE '%drawdown%'
+          AND COALESCE(disabled_reason, '') NOT ILIKE '%setup%'
         RETURNING id, handle`,
     );
     if (rows.length > 0) {
