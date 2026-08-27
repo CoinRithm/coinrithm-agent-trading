@@ -179,7 +179,9 @@ describe("reviveDisabledAgents — authoritative stops must stick", () => {
     const query = vi.fn().mockResolvedValue({ rows: [] });
     const release = vi.fn();
     const client = { query, release } as unknown as PoolClient;
-    const pool = { connect: vi.fn().mockResolvedValue(client) } as unknown as Pool;
+    const pool = {
+      connect: vi.fn().mockResolvedValue(client),
+    } as unknown as Pool;
     await reviveDisabledAgents(pool);
     // calls: BEGIN, UPDATE agents, (state patch skipped: no rows), COMMIT
     const update = query.mock.calls

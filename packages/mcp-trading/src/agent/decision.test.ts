@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseDecision } from "./decision.js";
+import { DECISION_JSON_SCHEMA, parseDecision } from "./decision.js";
 
 const open = {
   type: "futures_open",
@@ -11,6 +11,13 @@ const open = {
 };
 
 describe("parseDecision", () => {
+  it("publishes a provider contract that makes act-without-actions impossible", () => {
+    const conditions = DECISION_JSON_SCHEMA.allOf;
+    expect(conditions[0].then.properties.actions.minItems).toBe(1);
+    expect(conditions[1].then.properties.actions.maxItems).toBe(0);
+    expect(DECISION_JSON_SCHEMA.properties.actions.items.oneOf).toHaveLength(6);
+  });
+
   it("parses a valid futures_open decision", () => {
     const r = parseDecision(
       JSON.stringify({
