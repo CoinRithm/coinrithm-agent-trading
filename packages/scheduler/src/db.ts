@@ -686,7 +686,8 @@ export async function persistCycleResult(
       // overlapping it (claimDueAgents set a RUN_LOCK_SECONDS lock; reset it here).
       await client.query(
         `UPDATE agent_runtime.agents
-            SET next_run_at = now() + make_interval(secs => cadence_seconds), updated_at = now()
+            SET next_run_at = now() + make_interval(secs => ${NEXT_CADENCE_SECS}),
+                updated_at = now()
           WHERE id = $1 AND status = 'active'`,
         [agentId],
       );
@@ -699,6 +700,39 @@ export async function persistCycleResult(
     client.release();
   }
 }
+
+// Shared-pool cadence floor (owner directive 2026-08-27). The free NVIDIA pool
+// is a FIXED budget, so the more agents share it the slower each one may run:
+// measured 2026-08-27, a cycle costs ~8.4k input tokens, and at 100k TPM the
+// lane tops out near 11.7 calls/min no matter how many agents want one. Left
+// unbounded, agent 60 simply starves agents 1-59 (and the fleet 429s, which is
+// exactly what a 25 percent failure rate on super-120b looked like).
+//
+// floor_seconds = ceil(active_shared_agents * 60 / TARGET_RPM), so the interval
+// stretches automatically as the user base grows. BYO agents bring their OWN
+// quota and are never floored — that is the honest upgrade path, and the whole
+// reason the free tier can stay free.
+export const SHARED_CADENCE_TARGET_RPM = (() => {
+  const raw = Number(process.env.SCHEDULER_SHARED_TARGET_RPM);
+  return Number.isFinite(raw) && raw > 0 ? raw : 8;
+})();
+
+/** Pure: the floor a shared-pool agent may not run faster than. */
+export function sharedCadenceFloorSeconds(activeSharedAgents: number): number {
+  if (!(activeSharedAgents > 0)) return 0;
+  return Math.ceil((activeSharedAgents * 60) / SHARED_CADENCE_TARGET_RPM);
+}
+
+// SQL: seconds until this agent's next cycle. GREATEST(configured, floor) for
+// shared agents; the configured cadence verbatim for BYO.
+const NEXT_CADENCE_SECS = `GREATEST(
+       cadence_seconds,
+       CASE WHEN brain_key_enc IS NULL THEN (
+         SELECT ceil(count(*) * 60.0 / ${SHARED_CADENCE_TARGET_RPM})
+           FROM agent_runtime.agents s
+          WHERE s.status = 'active' AND s.brain_key_enc IS NULL
+       ) ELSE 0 END
+     )`;
 
 // Reschedule an agent's NEXT cycle to now()+cadence WITHOUT recording a cycle.
 // claimDueAgents advances next_run_at by GREATEST(cadence, RUN_LOCK_SECONDS) at
@@ -713,7 +747,8 @@ export async function rescheduleToCadence(
 ): Promise<void> {
   await pool.query(
     `UPDATE agent_runtime.agents
-        SET next_run_at = now() + make_interval(secs => cadence_seconds), updated_at = now()
+        SET next_run_at = now() + make_interval(secs => ${NEXT_CADENCE_SECS}),
+            updated_at = now()
       WHERE id = $1 AND status = 'active'`,
     [agentId],
   );

@@ -9,7 +9,10 @@ import {
   CIRCUIT_TRIP_STRIKES,
   migrateAgentsOffEolModels,
   migrateHouseAgentsOffGroq,
+  rescheduleToCadence,
   reviveDisabledAgents,
+  sharedCadenceFloorSeconds,
+  SHARED_CADENCE_TARGET_RPM,
   EOL_MODEL_SUCCESSORS,
   type CycleRecord,
 } from "./db.js";
@@ -129,6 +132,45 @@ describe("persistCycleResult — no-CoT DB write boundary", () => {
     const params = cycleInsertCall![1] as unknown[];
     expect(params[RAW_MODEL_OUTPUT_PARAM_INDEX]).toBeNull();
     expect(release).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("sharedCadenceFloorSeconds — free pool stretches with the fleet", () => {
+  it("scales the interval with the number of shared agents", () => {
+    // The free NVIDIA lane is a FIXED budget (~11.7 calls/min at 8.4k tokens a
+    // cycle), so each new shared agent must slow everyone slightly rather than
+    // starve the pool. ceil(N * 60 / TARGET_RPM).
+    expect(sharedCadenceFloorSeconds(25)).toBe(
+      Math.ceil((25 * 60) / SHARED_CADENCE_TARGET_RPM),
+    );
+    const small = sharedCadenceFloorSeconds(25);
+    const big = sharedCadenceFloorSeconds(200);
+    expect(big).toBeGreaterThan(small);
+    // Fleet demand stays at/below the target no matter the size.
+    for (const n of [1, 25, 100, 200, 1000]) {
+      const rpm = (n * 60) / sharedCadenceFloorSeconds(n);
+      expect(rpm).toBeLessThanOrEqual(SHARED_CADENCE_TARGET_RPM + 0.001);
+    }
+  });
+
+  it("is a no-op for an empty pool", () => {
+    expect(sharedCadenceFloorSeconds(0)).toBe(0);
+    expect(sharedCadenceFloorSeconds(-3)).toBe(0);
+  });
+});
+
+describe("cadence floor SQL — BYO is never throttled", () => {
+  it("applies the floor only when brain_key_enc IS NULL", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const pool = { query } as unknown as Pool;
+    await rescheduleToCadence(pool, 42);
+    const [sql] = query.mock.calls[0] as [string];
+    expect(sql).toContain("GREATEST");
+    // The floor subquery is gated on the shared-pool predicate, and BYO takes
+    // the ELSE 0 branch, i.e. its configured cadence verbatim.
+    expect(sql).toContain("CASE WHEN brain_key_enc IS NULL");
+    expect(sql).toContain("ELSE 0 END");
+    expect(sql).toContain("s.brain_key_enc IS NULL");
   });
 });
 
