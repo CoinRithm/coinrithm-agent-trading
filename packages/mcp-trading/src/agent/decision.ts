@@ -136,6 +136,140 @@ export const actionSchema = z.discriminatedUnion("type", [
   pmOpen,
 ]);
 
+// Request-side structured-output contract for providers that support JSON
+// Schema. Keep this beside the Zod parser: the provider must not be allowed to
+// emit an `act` with no actions (the Nano incident on 2026-08-27), while a real
+// skip must carry an empty action list. The runner still parses with Zod and
+// re-validates every action against live quotes/caps before any write.
+//
+// `pm_open` deliberately requires the short per-cycle `ref` here. The parser
+// remains backwards-compatible with the full source/slug/id triple, but the
+// hosted prompt asks models for refs and that is the only reliable generated
+// shape.
+const nullableNumber = { anyOf: [{ type: "number" }, { type: "null" }] };
+const optionalConfidence = { type: "number", minimum: 0, maximum: 1 };
+const optionalRationaleSummary = { type: "string" };
+
+const generatedActionSchemas = [
+  {
+    type: "object",
+    properties: {
+      type: { const: "futures_open" },
+      symbol: { type: "string", minLength: 1 },
+      side: { enum: ["long", "short"] },
+      leverage: { type: "number", exclusiveMinimum: 0 },
+      marginMusd: { type: "number", exclusiveMinimum: 0 },
+      stopLossPrice: nullableNumber,
+      takeProfitPrice: nullableNumber,
+      confidence: optionalConfidence,
+      rationaleSummary: optionalRationaleSummary,
+    },
+    required: ["type", "symbol", "side", "leverage", "marginMusd"],
+    additionalProperties: false,
+  },
+  {
+    type: "object",
+    properties: {
+      type: { const: "futures_close" },
+      positionId: { type: "number" },
+      fraction: { type: "number", exclusiveMinimum: 0, maximum: 1 },
+      confidence: optionalConfidence,
+      rationaleSummary: optionalRationaleSummary,
+    },
+    required: ["type", "positionId"],
+    additionalProperties: false,
+  },
+  {
+    type: "object",
+    properties: {
+      type: { const: "futures_set_sltp" },
+      positionId: { type: "number" },
+      stopLossPrice: nullableNumber,
+      takeProfitPrice: nullableNumber,
+      confidence: optionalConfidence,
+      rationaleSummary: optionalRationaleSummary,
+    },
+    required: ["type", "positionId"],
+    additionalProperties: false,
+  },
+  {
+    type: "object",
+    properties: {
+      type: { const: "spot_order" },
+      symbol: { type: "string", minLength: 1 },
+      side: { enum: ["buy", "sell"] },
+      orderType: { enum: ["market", "limit", "stop"] },
+      quantity: { type: "number", exclusiveMinimum: 0 },
+      limitPrice: { type: "number", exclusiveMinimum: 0 },
+      stopPrice: { type: "number", exclusiveMinimum: 0 },
+      confidence: optionalConfidence,
+      rationaleSummary: optionalRationaleSummary,
+    },
+    required: ["type", "symbol", "side", "orderType", "quantity"],
+    additionalProperties: false,
+  },
+  {
+    type: "object",
+    properties: {
+      type: { const: "spot_cancel" },
+      orderId: { type: "number" },
+      confidence: optionalConfidence,
+      rationaleSummary: optionalRationaleSummary,
+    },
+    required: ["type", "orderId"],
+    additionalProperties: false,
+  },
+  {
+    type: "object",
+    properties: {
+      type: { const: "pm_open" },
+      ref: { type: "string", minLength: 1 },
+      stakeMusd: { type: "number", exclusiveMinimum: 0 },
+      confidence: optionalConfidence,
+      rationaleSummary: optionalRationaleSummary,
+      forecastProbability: { type: "number" },
+    },
+    required: ["type", "ref", "stakeMusd"],
+    additionalProperties: false,
+  },
+] as const;
+
+const generatedDecisionProperties = {
+  confidence: optionalConfidence,
+  reason: { type: "string" },
+  rationale: { type: "string", maxLength: 1200 },
+} as const;
+
+export const DECISION_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    decision: { enum: ["skip", "act"] },
+    ...generatedDecisionProperties,
+    actions: {
+      type: "array",
+      items: { oneOf: generatedActionSchemas },
+    },
+  },
+  required: ["decision", "actions"],
+  additionalProperties: false,
+  allOf: [
+    {
+      if: {
+        properties: { decision: { const: "act" } },
+        required: ["decision"],
+      },
+      then: { properties: { actions: { minItems: 1 } } },
+    },
+    {
+      if: {
+        properties: { decision: { const: "skip" } },
+        required: ["decision"],
+      },
+      then: { properties: { actions: { maxItems: 0 } } },
+    },
+  ],
+} as const;
+
 const decisionSchema = z
   .object({
     decision: z.enum(["skip", "act"]),

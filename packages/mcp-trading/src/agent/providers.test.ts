@@ -151,6 +151,58 @@ describe("selectProvider", () => {
     },
   );
 
+  it("returns NVIDIA's forced decision-tool arguments as the decision text", async () => {
+    const nemoSpec = {
+      ...spec,
+      model: {
+        provider: "nvidia" as const,
+        name: "nvidia/nemotron-3-nano-30b-a3b",
+      },
+    };
+    const decision = JSON.stringify({
+      decision: "act",
+      actions: [
+        {
+          type: "futures_open",
+          symbol: "MOVR",
+          side: "short",
+          leverage: 3,
+          marginMusd: 750,
+        },
+      ],
+    });
+    const fetchFn = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: null,
+                  tool_calls: [
+                    {
+                      function: {
+                        name: "submit_trading_decision",
+                        arguments: decision,
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+    );
+    const p = selectProvider(
+      nemoSpec,
+      { NVIDIA_API_KEY: "nvapi-test" },
+      fetchFn as unknown as typeof fetch,
+    );
+    const result = await p.decide({ system: "STRATEGY", user: "u" });
+    expect(result).toMatchObject({ ok: true, text: decision });
+  });
+
   it("does NOT add the reasoning toggle for non-nemotron models", async () => {
     const nvSpec = {
       ...spec,

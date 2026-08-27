@@ -37,6 +37,8 @@ describe("chatShapeFor", () => {
       chat_template_kwargs: { enable_thinking: false },
     });
     expect(s.systemHint).toBe("detailed thinking off");
+    expect(s.jsonSchema).toBeDefined();
+    expect(s.jsonSchemaTransport).toBe("tool_call");
   });
 
   it("nemotron served elsewhere keeps the hint but never the NVIDIA-only kwargs", () => {
@@ -47,6 +49,7 @@ describe("chatShapeFor", () => {
     );
     expect(s.extraBody).toBeUndefined();
     expect(s.systemHint).toBe("detailed thinking off");
+    expect(s.jsonSchema).toBeUndefined();
   });
 
   it("groq/gemini/compatible default to the classic OpenAI-compat shape", () => {
@@ -96,6 +99,20 @@ describe("buildChatBody", () => {
     expect((nemotron.messages as Array<{ content: string }>)[0].content).toBe(
       "detailed thinking off\n\nS",
     );
+    expect(nemotron.tools).toEqual([
+      expect.objectContaining({
+        type: "function",
+        function: expect.objectContaining({
+          name: "submit_trading_decision",
+          parameters: expect.objectContaining({ allOf: expect.any(Array) }),
+        }),
+      }),
+    ]);
+    expect(nemotron.tool_choice).toEqual({
+      type: "function",
+      function: { name: "submit_trading_decision" },
+    });
+    expect(nemotron).not.toHaveProperty("response_format");
 
     const openai = buildChatBody(chatShapeFor("openai", "gpt-5-nano"), {
       model: "gpt-5-nano",

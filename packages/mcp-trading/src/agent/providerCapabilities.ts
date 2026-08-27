@@ -19,8 +19,10 @@
 //     when the route is fine. `minProbeCompletionTokens` is the floor a
 //     REPRESENTATIVE probe must grant (1024 parsed where 256 came back empty).
 import { ProviderName } from "./types.js";
+import { DECISION_JSON_SCHEMA } from "./decision.js";
 
 export const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
+export const DECISION_TOOL_NAME = "submit_trading_decision";
 
 export interface ChatShape {
   family:
@@ -31,6 +33,11 @@ export interface ChatShape {
   allowsTemperature: boolean;
   // Whether `response_format: {type:"json_object"}` may be sent.
   jsonResponseFormat: boolean;
+  // Providers that support schema-guided decoding get the actual decision
+  // contract, not merely "some JSON". Plain json_object allowed Nano to return
+  // decision=act with actions=[] for hundreds of cycles.
+  jsonSchema?: Record<string, unknown>;
+  jsonSchemaTransport?: "tool_call" | "response_format";
   // Extra top-level body fields (e.g. NVIDIA's chat_template_kwargs).
   extraBody?: Record<string, unknown>;
   // Prefix line for the system prompt (e.g. "detailed thinking off").
@@ -67,17 +74,24 @@ export function chatShapeFor(
     };
   }
   if (NEMOTRON_MODEL.test(model)) {
+    const isNvidiaEndpoint = baseUrl === NVIDIA_BASE_URL;
     return {
       family: "nvidia-nemotron",
       tokenParam: "max_tokens",
       allowsTemperature: true,
       jsonResponseFormat: true,
+      jsonSchema: isNvidiaEndpoint
+        ? (DECISION_JSON_SCHEMA as unknown as Record<string, unknown>)
+        : undefined,
+      // integrate.api.nvidia.com currently ignores both response_format
+      // json_schema and guided_json for these hosted models. Its forced tool
+      // call path is the live-probed contract-enforcing transport.
+      jsonSchemaTransport: isNvidiaEndpoint ? "tool_call" : undefined,
       // The kwargs switch is only honored (and only safe to send) on the NVIDIA
       // endpoint; the system hint helps on any endpoint serving a Nemotron.
-      extraBody:
-        baseUrl === NVIDIA_BASE_URL
-          ? { chat_template_kwargs: { enable_thinking: false } }
-          : undefined,
+      extraBody: isNvidiaEndpoint
+        ? { chat_template_kwargs: { enable_thinking: false } }
+        : undefined,
       systemHint: "detailed thinking off",
       minProbeCompletionTokens: 1024,
     };
@@ -111,8 +125,37 @@ export function buildChatBody(
       ? { temperature: args.temperature ?? 0.2 }
       : {}),
     [shape.tokenParam]: args.maxTokens,
-    ...(shape.jsonResponseFormat
-      ? { response_format: { type: "json_object" } }
+    ...(shape.jsonSchema && shape.jsonSchemaTransport === "tool_call"
+      ? {
+          tools: [
+            {
+              type: "function",
+              function: {
+                name: DECISION_TOOL_NAME,
+                description:
+                  "Submit the complete CoinRithm paper-trading decision for this cycle.",
+                parameters: shape.jsonSchema,
+              },
+            },
+          ],
+          tool_choice: {
+            type: "function",
+            function: { name: DECISION_TOOL_NAME },
+          },
+        }
+      : {}),
+    ...(shape.jsonResponseFormat && shape.jsonSchemaTransport !== "tool_call"
+      ? {
+          response_format: shape.jsonSchema
+            ? {
+                type: "json_schema",
+                json_schema: {
+                  name: "coinrithm_trading_decision",
+                  schema: shape.jsonSchema,
+                },
+              }
+            : { type: "json_object" },
+        }
       : {}),
     ...(shape.extraBody ?? {}),
     messages: [

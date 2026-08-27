@@ -7,6 +7,7 @@ import { AgentSpec, ProviderName } from "./types.js";
 import {
   chatShapeFor,
   buildChatBody,
+  DECISION_TOOL_NAME,
   NVIDIA_BASE_URL as CAP_NVIDIA_BASE_URL,
 } from "./providerCapabilities.js";
 
@@ -318,10 +319,21 @@ class OpenAiCompatProvider implements Provider {
           retryAfterMs: retryAfterMs(res),
         };
       const json = (await res.json()) as {
-        choices?: Array<{ message?: { content?: string } }>;
+        choices?: Array<{
+          message?: {
+            content?: string | null;
+            tool_calls?: Array<{
+              function?: { name?: string; arguments?: string };
+            }>;
+          };
+        }>;
         usage?: { prompt_tokens?: number; completion_tokens?: number };
       };
-      const text = json.choices?.[0]?.message?.content ?? "";
+      const message = json.choices?.[0]?.message;
+      const decisionArguments = message?.tool_calls?.find(
+        (call) => call.function?.name === DECISION_TOOL_NAME,
+      )?.function?.arguments;
+      const text = decisionArguments ?? message?.content ?? "";
       const usage = json.usage
         ? {
             promptTokens: json.usage.prompt_tokens ?? 0,

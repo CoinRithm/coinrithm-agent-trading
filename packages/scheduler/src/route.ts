@@ -6,7 +6,7 @@ import {
   type ProviderName,
 } from "@coinrithm/mcp-trading/dist/agent/engine.js";
 
-export const ROUTE_POLICY_VERSION = "2026-08-27.1";
+export const ROUTE_POLICY_VERSION = "2026-08-27.2";
 export const NEMOTRON_NANO = "nvidia/nemotron-3-nano-30b-a3b";
 export const NEMOTRON_SUPER = "nvidia/nemotron-3-super-120b-a12b";
 export const OPENAI_BACKUP_MODEL = "gpt-5-nano";
