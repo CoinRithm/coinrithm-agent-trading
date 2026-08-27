@@ -84,6 +84,33 @@ key upstream. The Authorization header is **optional** on the hosted endpoint â€
 the ten keyless `pm_data_*` market-data tools work anonymously; every other
 tool requires it. See [`DEPLOY.md`](./DEPLOY.md).
 
+## Bring your own model key
+
+The hosted Agent Studio runs your agent free on a shared pool of NVIDIA-hosted
+models. That pool is a **fixed budget shared by every hosted agent**, so the
+scheduler floors how often a shared agent may run, and the floor stretches as
+more agents join. Bringing your own model key removes that floor entirely:
+your quota is yours, so there is nothing for us to ration.
+
+| | Shared free pool | Your own key |
+| --- | --- | --- |
+| Models | the free hosted picks | any model your provider serves |
+| Interval | floored by fleet size | exactly what you configure |
+| Rerouting | we may serve a live alternate when a model is rate-limited | never rerouted, your route is pinned |
+| Cost | free | you pay your provider, not CoinRithm |
+
+Providers accepted: `nvidia`, `openai`, `groq`, `anthropic`, and any
+`openai-compatible` endpoint (https base URL required). The key is validated by
+a **live decision probe before the agent is accepted** â€” a model that cannot
+return a parseable decision is rejected at deploy time rather than failing
+every scheduled cycle. Keys are encrypted at rest and never logged or echoed.
+
+Self-hosting through this package works the same way: set the provider's env
+var (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `NVIDIA_API_KEY`, `GROQ_API_KEY`
+or `MODEL_API_KEY`) and the runner builds the request in the shape that
+provider's model family actually accepts. A model key is **never** read from an
+agent file.
+
 ## Configure (stdio)
 
 | Env var | Required | Default | Notes |

@@ -5,6 +5,57 @@ ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (t
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
 versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
+## 0.7.7
+
+Reliability release. Every change here came from a live production failure, not
+from a roadmap. Additive: no tool renamed or removed, and the API **contract
+stays 1.7.0** because nothing on the documented surface changed.
+
+**Model requests are now built from a declared capability table, not
+assumptions.** `providerCapabilities.ts` states, per model family, which
+parameter carries the completion budget, whether a non-default temperature is
+allowed, and what extra body fields the family needs. Two failures this fixes:
+
+- **OpenAI's current models rejected our requests outright.** `gpt-5*` and
+  `o*` refuse `max_tokens` and any non-default `temperature`; they take
+  `max_completion_tokens`. The family is detected by MODEL id, not just the
+  provider name, so an OpenAI-compatible gateway serving `gpt-5` gets the same
+  shape. If you brought your own OpenAI key, this is why it now works.
+- **NVIDIA Nemotron models emitted a think-chain where the JSON decision
+  belonged**, which failed every cycle. The `chat_template_kwargs.enable_thinking=false`
+  switch and the "detailed thinking off" system hint are now encoded as data
+  rather than re-learned by failing.
+
+**New: `probeDecisionContract()`.** An HTTP 200 is not proof a route can run an
+agent. Both production failure modes returned 200s: a think-chain in the JSON
+slot, and an empty completion because a reasoning model spent its whole budget
+before answering. The probe sends a canned mini-observation through the REAL
+decision parser at a >=1024 completion allowance and classifies the result as
+`http`, `empty` or `parse`. Use it before adopting any model id; provider
+catalogs list ids that 404 on invoke.
+
+**Provider trouble no longer disables an agent.** A permanent-looking model
+error (404/410/decommissioned) used to disable the agent after a threshold. On
+2026-08-26 NVIDIA end-of-lifed an entire model line and 35 agents died on that
+path. The runner now reports a hold and keeps retrying each cadence, recovering
+by itself when the provider does. Disables remain for what deserves them:
+revoked credentials, drawdown, kill-switch, user action.
+
+**Failures carry structured metadata.** A failed `decide()` now returns
+`status` and, when the provider sends one, `retryAfterMs` (parsed from
+`Retry-After` in both delta-seconds and HTTP-date form, capped at an hour), so
+a caller can tell a 429 from a 5xx without parsing strings. Error text is
+unchanged.
+
+**`ClientConfig.extraHeaders`.** Headers attached to every request, spread
+before auth so they can never clobber it. Self-host has nothing to put here;
+it exists so CoinRithm's own hosted scheduler can present its attestation
+channel.
+
+**Model names corrected throughout.** The retired Llama 3.x line is gone from
+the README, the runtime defaults and the `quant-reference` example, which is
+relocked onto `nvidia/nemotron-3-nano-30b-a3b`.
+
 ## 0.7.6
 
 Agent capability release: universe discovery, first-class behavioral guards,
