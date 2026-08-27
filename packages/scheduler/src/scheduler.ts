@@ -5,7 +5,7 @@ import {
   rescheduleToCadence,
   reviveDisabledAgents,
 } from "./db.js";
-import { runAgentOnce } from "./runtime.js";
+import { runAgentOnce, shouldUseHostedRouter } from "./runtime.js";
 import { withConcurrency } from "./concurrency.js";
 import { RateBudget, sharedKeyFor, type SharedKey } from "./rateBudget.js";
 import type { Config } from "./config.js";
@@ -56,7 +56,11 @@ export async function runScheduler(
         logFn(
           `[scheduler] self-heal: revived ${revived.length} disabled agent(s): ${revived.join(", ")}`,
         );
-      const due = await claimDueAgents(pool, config.claimBatch);
+      const due = await claimDueAgents(
+        pool,
+        config.claimBatch,
+        config.routerEnabled,
+      );
       if (due.length > 0) {
         logFn(
           `[scheduler] running ${due.length}: ${due.map((a) => a.handle).join(", ")}`,
@@ -67,7 +71,14 @@ export async function runScheduler(
           // the feed) and run next cadence rather than 429-storm the key. BYO-key
           // agents (sharedKeyFor => null) are exempt.
           try {
-            const sk = sharedKeyFor(a.modelProvider, !!a.brainKeyEnc);
+            // The routed hosted-NVIDIA path reserves durable cross-replica
+            // RPM+TPM+concurrency inside runAgentOnce. Keep the legacy bucket
+            // for BYO/other shared routes and as the one-flag rollback path.
+            const routedCapacity =
+              config.capacityEnabled && shouldUseHostedRouter(a, config);
+            const sk = routedCapacity
+              ? null
+              : sharedKeyFor(a.modelProvider, !!a.brainKeyEnc);
             if (sk && !budgets[sk].tryAcquire(now())) {
               await recordCycle(pool, a.id, {
                 decision: "skip",

@@ -15,7 +15,11 @@ describe("chatShapeFor", () => {
 
   it("a gpt-5/o* model gets the openai shape even on an openai-compatible gateway", () => {
     for (const model of ["gpt-5-nano", "o3-mini", "o1"]) {
-      const s = chatShapeFor("openai-compatible", model, "https://gw.example/v1");
+      const s = chatShapeFor(
+        "openai-compatible",
+        model,
+        "https://gw.example/v1",
+      );
       expect(s.family).toBe("openai-reasoning");
       expect(s.tokenParam).toBe("max_completion_tokens");
       expect(s.allowsTemperature).toBe(false);
@@ -79,14 +83,19 @@ describe("buildChatBody", () => {
   it("places the budget under the family's token param and prefixes the hint", () => {
     const nemotron = buildChatBody(
       chatShapeFor("nvidia", "nvidia/nemotron-3-nano-30b-a3b", NVIDIA_BASE_URL),
-      { model: "nvidia/nemotron-3-nano-30b-a3b", system: "S", user: "U", maxTokens: 512 },
+      {
+        model: "nvidia/nemotron-3-nano-30b-a3b",
+        system: "S",
+        user: "U",
+        maxTokens: 512,
+      },
     );
     expect(nemotron.max_tokens).toBe(512);
     expect(nemotron.temperature).toBe(0.2);
     expect(nemotron.chat_template_kwargs).toEqual({ enable_thinking: false });
-    expect(
-      (nemotron.messages as Array<{ content: string }>)[0].content,
-    ).toBe("detailed thinking off\n\nS");
+    expect((nemotron.messages as Array<{ content: string }>)[0].content).toBe(
+      "detailed thinking off\n\nS",
+    );
 
     const openai = buildChatBody(chatShapeFor("openai", "gpt-5-nano"), {
       model: "gpt-5-nano",

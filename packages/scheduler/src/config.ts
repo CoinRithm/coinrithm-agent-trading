@@ -25,6 +25,24 @@ export interface Config {
   // continuous fleet would otherwise burn the daily cap before the day is out.
   // (Hitting the cap is non-fatal: agents 429 -> skip -> retry next cadence.)
   groqRpm: number;
+  // Cross-replica provider lease (RPM + TPM + concurrency). Enabled by default;
+  // one env flag rolls back to the legacy in-memory guard.
+  capacityEnabled: boolean;
+  nvidiaTpm: number;
+  nvidiaMaxConcurrent: number;
+  groqTpm: number;
+  groqMaxConcurrent: number;
+  capacityLeaseTtlSeconds: number;
+  // Hosted shared-key routing. Enabled by default with an env rollback switch:
+  // capacity pressure/provider faults defer or fall through, never disable.
+  routerEnabled: boolean;
+  // Independent backup is eligible only after the boot contract probe passes.
+  // The credential remains scheduler-only and is never persisted or logged.
+  openAiBackupKey?: string;
+  openAiBackupEligible: boolean;
+  openAiRpm: number;
+  openAiTpm: number;
+  openAiMaxConcurrent: number;
   healthPort?: number;
   // Backend's internal attestation channel (same value as backend
   // INTERNAL_WRITE_TOKEN). When set, every scheduler-run request carries
@@ -50,6 +68,18 @@ function intEnv(
   if (!raw) return def;
   const n = Number(raw);
   return Number.isFinite(n) && n >= min ? Math.floor(n) : def;
+}
+
+function boolEnv(
+  env: NodeJS.ProcessEnv,
+  key: string,
+  fallback: boolean,
+): boolean {
+  const raw = env[key]?.trim().toLowerCase();
+  if (!raw) return fallback;
+  if (["1", "true", "yes", "on"].includes(raw)) return true;
+  if (["0", "false", "no", "off"].includes(raw)) return false;
+  throw new Error(`${key} must be true or false`);
 }
 
 // A set-but-invalid URL is a deploy mistake we want to fail loud on, not paper
@@ -94,17 +124,37 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     pollIntervalMs: intEnv(env, "SCHEDULER_POLL_MS", 5000, 250),
     maxConcurrent: intEnv(env, "SCHEDULER_MAX_CONCURRENT", 6, 1),
     claimBatch: intEnv(env, "SCHEDULER_CLAIM_BATCH", 20, 1),
-    // 40 -> 15 (owner, 2026-08-05): the NVIDIA free-tier ~40 RPM/key is
-    // SHARED with the aggregator's enrichment judges (news/topics/match —
-    // the critical lane) and the social desk's news judge. At 40 the agent
-    // fleet alone could eat the whole quota and starve every judge lane to
-    // ~20% cadence (observed 08-03..05: growing unjudged-news backlog).
-    // 15 is BOTH the cap (judges always keep ≥~25 RPM headroom) and the
-    // agents' guaranteed floor (they can always spend up to 15 RPM, so the
-    // fleet never goes stale for the day). Fleet demand at the 180s cadence
-    // is ~9 RPM for 26 shared-key agents, comfortably inside the floor.
+    // The scheduler has its own NVIDIA key. Live 2026-08-27 evidence showed the
+    // 429 is model-specific (Super 25.5%, Nano 0.0%), not a global 15-RPM cap;
+    // model cooldown/fallback handles that without throttling the healthy lane.
     nvidiaRpm: intEnv(env, "SCHEDULER_NVIDIA_RPM", 15, 1),
     groqRpm: intEnv(env, "SCHEDULER_GROQ_RPM", 30, 1),
+    capacityEnabled: boolEnv(env, "SCHEDULER_CAPACITY_ENABLED", true),
+    // Configurable because provider/account tiers vary. The default covers the
+    // measured ~68k sustained fleet demand with bounded headroom.
+    nvidiaTpm: intEnv(env, "SCHEDULER_NVIDIA_TPM", 100_000, 1),
+    nvidiaMaxConcurrent: intEnv(env, "SCHEDULER_NVIDIA_MAX_CONCURRENT", 4, 1),
+    // Groq remains BYO-only for current hosted prompts (> observed shared TPM),
+    // but an explicit contract prevents unsafe future reuse.
+    groqTpm: intEnv(env, "SCHEDULER_GROQ_TPM", 8_000, 1),
+    groqMaxConcurrent: intEnv(env, "SCHEDULER_GROQ_MAX_CONCURRENT", 2, 1),
+    // Model calls can run for 300s; this matches the 360s scheduler run lock.
+    capacityLeaseTtlSeconds: intEnv(
+      env,
+      "SCHEDULER_CAPACITY_LEASE_TTL_SECONDS",
+      360,
+      301,
+    ),
+    routerEnabled: boolEnv(env, "SCHEDULER_ROUTER_ENABLED", true),
+    openAiBackupKey: env.COINRITHM_OPENAI_BACKUP_KEY?.trim() || undefined,
+    // Set true only by the startup probe; loading a key is not proof that its
+    // model/request contract works.
+    openAiBackupEligible: false,
+    // Deliberately below the live 500 RPM / 200k TPM headers: the credential
+    // may be shared with other CoinRithm workloads until it is isolated.
+    openAiRpm: intEnv(env, "SCHEDULER_OPENAI_RPM", 30, 1),
+    openAiTpm: intEnv(env, "SCHEDULER_OPENAI_TPM", 100_000, 1),
+    openAiMaxConcurrent: intEnv(env, "SCHEDULER_OPENAI_MAX_CONCURRENT", 2, 1),
     healthPort: healthPortRaw ? intEnv(env, "HEALTH_PORT", 8080, 1) : undefined,
     internalWriteToken: env.COINRITHM_INTERNAL_WRITE_TOKEN?.trim() || undefined,
   };

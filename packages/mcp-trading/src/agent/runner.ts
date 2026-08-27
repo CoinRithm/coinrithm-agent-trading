@@ -590,6 +590,10 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
     tokensIn: number;
     tokensOut: number;
     estimatedCostUsd: number;
+    effectiveProvider?: string;
+    effectiveModel?: string;
+    routeReason?: string;
+    routeAttempts?: NonNullable<CycleResult["routeAttempts"]>;
   };
   if (providerName === "mechanical") {
     const mech = decideMechanical({
@@ -609,7 +613,6 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
       estimatedCostUsd: 0,
     };
   } else {
-    noteLlmCall(state, gate.codes, nowMs);
     const system = buildSystemPrompt(spec, mergedProse, {
       includeForecast: forecastEnabled,
     });
@@ -623,22 +626,60 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
         `(pm ${observation.pmMarkets.length}, trades ${observation.newClosedTrades.length}, watch ${observation.watch.length}, setups ${observation.setups.length}, triggers ${gate.codes.join("|") || "none"})`,
     );
     const res = await provider.decide({ system, user });
+    const route = res.route;
+    const actualCallMade = route
+      ? route.attempts.some((attempt) => attempt.outcome !== "deferred")
+      : true;
+    // Capacity deferral made no provider call, so it must not consume the
+    // runner's debounce/LLM budget or delay recovery after capacity returns.
+    if (actualCallMade) noteLlmCall(state, gate.codes, nowMs);
+    const effectiveProvider = actualCallMade
+      ? (route?.effectiveProvider ?? providerName)
+      : undefined;
     // Metering: prefer provider-reported usage; fall back to a chars/4 estimate.
-    const tokensIn = res.ok
-      ? (res.usage?.promptTokens ?? tokensInEst)
-      : tokensInEst;
+    const tokensIn = !actualCallMade
+      ? 0
+      : res.ok
+        ? (res.usage?.promptTokens ?? tokensInEst)
+        : tokensInEst;
     const tokensOut = res.ok
       ? (res.usage?.completionTokens ?? Math.round(res.text.length / 4))
       : 0;
-    const estimatedCostUsd = estimateCostUsd(providerName, tokensIn, tokensOut);
+    const estimatedCostUsd = estimateCostUsd(
+      effectiveProvider ?? providerName,
+      tokensIn,
+      tokensOut,
+    );
     meter = {
       triggerCodes: gate.codes,
-      llmCallMade: true,
+      llmCallMade: actualCallMade,
       tokensIn,
       tokensOut,
       estimatedCostUsd,
+      effectiveProvider,
+      effectiveModel: actualCallMade
+        ? (route?.effectiveModel ?? spec.model?.name)
+        : undefined,
+      routeReason: route?.reason,
+      routeAttempts: route?.attempts,
     };
     if (!res.ok) {
+      if (res.deferred || !actualCallMade) {
+        saveState(stateFile, state);
+        log(`capacity deferred: ${res.error}`);
+        return {
+          decision: "skip",
+          skipReason: "provider capacity deferred",
+          planned: [],
+          modelFailed: false,
+          live,
+          ...meter,
+          decisionType: "gate_skip",
+          writeAttempted: 0,
+          writeAccepted: 0,
+          ...observationReceipt,
+        };
+      }
       state.consecutiveModelFailures += 1;
       // Permanent-failure classification: a 404/410/model_not_found is a
       // DECOMMISSIONED or misconfigured model that will fail every cycle
@@ -661,8 +702,9 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
           PERMANENT_MODEL_ERROR_THRESHOLD
         ) {
           const hold = {
-            provider: spec.model?.provider ?? "unknown",
-            model: spec.model?.name ?? "unknown",
+            provider:
+              route?.effectiveProvider ?? spec.model?.provider ?? "unknown",
+            model: route?.effectiveModel ?? spec.model?.name ?? "unknown",
             error: res.error.slice(0, 200),
           };
           saveState(stateFile, state);

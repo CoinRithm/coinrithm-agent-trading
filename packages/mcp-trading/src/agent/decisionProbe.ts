@@ -94,7 +94,11 @@ export async function probeDecisionContract(
   }
   const parsed = parseDecision(res.text);
   if (!parsed.ok) {
-    return { ok: false, stage: "parse", error: sanitize(parsed.error, route.key) };
+    return {
+      ok: false,
+      stage: "parse",
+      error: sanitize(parsed.error, route.key),
+    };
   }
   return { ok: true };
 }

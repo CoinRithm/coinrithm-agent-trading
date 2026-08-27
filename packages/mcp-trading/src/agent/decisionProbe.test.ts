@@ -2,10 +2,9 @@ import { describe, it, expect, vi } from "vitest";
 import { probeDecisionContract } from "./decisionProbe.js";
 
 const okChat = (content: string) =>
-  new Response(
-    JSON.stringify({ choices: [{ message: { content } }] }),
-    { status: 200 },
-  );
+  new Response(JSON.stringify({ choices: [{ message: { content } }] }), {
+    status: 200,
+  });
 
 describe("probeDecisionContract", () => {
   it("passes only when a REAL parsed decision comes back, using the family's request shape", async () => {
@@ -71,12 +70,19 @@ describe("probeDecisionContract", () => {
   it("classifies provider refusals as 'http' with the key sanitized out and structured status", async () => {
     const fetchFn = vi.fn(
       async () =>
-        new Response("gone; auth was Bearer sk-secret-410-echo for key sk-secret-410-echo", {
-          status: 410,
-        }),
+        new Response(
+          "gone; auth was Bearer sk-secret-410-echo for key sk-secret-410-echo",
+          {
+            status: 410,
+          },
+        ),
     );
     const res = await probeDecisionContract(
-      { provider: "nvidia", model: "meta/llama-3.1-8b-instruct", key: "sk-secret-410-echo" },
+      {
+        provider: "nvidia",
+        model: "meta/llama-3.1-8b-instruct",
+        key: "sk-secret-410-echo",
+      },
       fetchFn as unknown as typeof fetch,
     );
     expect(res).toMatchObject({ ok: false, stage: "http", status: 410 });
@@ -95,7 +101,11 @@ describe("probeDecisionContract", () => {
         }),
     );
     const res = await probeDecisionContract(
-      { provider: "nvidia", model: "nvidia/nemotron-3-nano-30b-a3b", key: "nvapi-x" },
+      {
+        provider: "nvidia",
+        model: "nvidia/nemotron-3-nano-30b-a3b",
+        key: "nvapi-x",
+      },
       fetchFn as unknown as typeof fetch,
     );
     expect(res).toMatchObject({

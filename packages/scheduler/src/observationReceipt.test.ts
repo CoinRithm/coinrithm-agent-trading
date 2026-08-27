@@ -17,7 +17,7 @@ describe("hosted observation receipt", () => {
     const [sql, params] = query.mock.calls[0] as [string, unknown[]];
     expect(sql).toContain("observation_hash");
     expect(sql).toContain("indicator_version");
-    expect(params.at(-2)).toBe(observationHash);
-    expect(params.at(-1)).toBe("coinrithm.indicators.v1");
+    expect(params[19]).toBe(observationHash);
+    expect(params[20]).toBe("coinrithm.indicators.v1");
   });
 });

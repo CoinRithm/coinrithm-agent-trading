@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Pool } from "pg";
 import {
+  coolDownProviderCapacity,
+  isProviderRouteCoolingDown,
   releaseProviderCapacity,
   reserveProviderCapacity,
 } from "./capacity.js";
@@ -24,6 +26,7 @@ function mockPool(updateRows: unknown[] = [{ route_key: "nvidia:shared:0" }]) {
 const limit = {
   routeKey: "nvidia:shared:0",
   provider: "nvidia",
+  model: "nvidia/nemotron-3-super-120b-a12b",
   requestsPerMinute: 15,
   tokensPerMinute: 100_000,
   maxConcurrent: 4,
@@ -43,10 +46,54 @@ describe("shared provider capacity", () => {
     expect(sql).toContain("request_tokens");
     expect(sql).toContain("model_tokens");
     expect(sql).toContain("max_concurrent");
+    expect(sql).toContain("blocked_until");
     expect(sql).toContain("clock_timestamp()");
     expect(sql).toContain("provider_capacity_leases");
+    expect(sql).toContain("VALUES ($1, $2, 0, 0, $3, $4, $5)");
     expect(db.query.mock.calls.at(-1)?.[0]).toBe("COMMIT");
     expect(db.release).toHaveBeenCalledOnce();
+  });
+
+  it("shares a bounded Retry-After cooldown across scheduler replicas", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [], rowCount: 1 });
+    const pool = { query } as unknown as Pool;
+    await coolDownProviderCapacity(
+      pool,
+      limit.routeKey,
+      limit.provider,
+      limit.model,
+      90_000,
+    );
+    const [sql, params] = query.mock.calls[0] as [string, unknown[]];
+    expect(sql).toContain("provider_route_cooldowns");
+    expect(sql).toContain("last_failure_class");
+    expect(params).toEqual([
+      limit.routeKey,
+      limit.provider,
+      limit.model,
+      90_000,
+      "rate_limit",
+    ]);
+
+    query.mockClear();
+    await coolDownProviderCapacity(
+      pool,
+      limit.routeKey,
+      limit.provider,
+      limit.model,
+      99_000_000,
+      "429",
+    );
+    expect(query.mock.calls[0]?.[1]?.[3]).toBe(3_600_000);
+  });
+
+  it("reads cooldown by credential route and model", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [{ cooling: true }] });
+    const pool = { query } as unknown as Pool;
+    await expect(
+      isProviderRouteCoolingDown(pool, limit.routeKey, limit.model),
+    ).resolves.toBe(true);
+    expect(query.mock.calls[0]?.[1]).toEqual([limit.routeKey, limit.model]);
   });
 
   it("returns null when any shared budget is exhausted", async () => {
@@ -82,5 +129,17 @@ describe("shared provider capacity", () => {
     ).rejects.toThrow("tokensPerMinute");
     expect(db.query).not.toHaveBeenCalled();
   });
-});
 
+  it("clamps an impossible TPM contract to one request instead of deadlocking", async () => {
+    const db = mockPool();
+    await reserveProviderCapacity(db.pool, {
+      ...limit,
+      tokensPerMinute: 1_000,
+      reserveTokens: 12_000,
+    });
+    const insert = db.query.mock.calls.find((c) =>
+      String(c[0]).includes("provider_capacity_buckets"),
+    );
+    expect(insert?.[1]?.[3]).toBe(12_000);
+  });
+});

@@ -5,6 +5,7 @@ export interface ProviderCapacityLimit {
   /** Opaque stable id such as `nvidia:shared:0`; never a credential. */
   routeKey: string;
   provider: string;
+  model: string;
   requestsPerMinute: number;
   tokensPerMinute: number;
   maxConcurrent: number;
@@ -39,30 +40,34 @@ export async function reserveProviderCapacity(
 ): Promise<ProviderCapacityLease | null> {
   const limit = {
     ...raw,
-    requestsPerMinute: positiveInt(
-      raw.requestsPerMinute,
-      "requestsPerMinute",
+    requestsPerMinute: positiveInt(raw.requestsPerMinute, "requestsPerMinute"),
+    // A configured TPM below one real request can never admit anything. Clamp
+    // to one request rather than create a permanent silent-defer deadlock.
+    tokensPerMinute: Math.max(
+      positiveInt(raw.tokensPerMinute, "tokensPerMinute"),
+      positiveInt(raw.reserveTokens, "reserveTokens"),
     ),
-    tokensPerMinute: positiveInt(raw.tokensPerMinute, "tokensPerMinute"),
     maxConcurrent: positiveInt(raw.maxConcurrent, "maxConcurrent"),
     reserveTokens: positiveInt(raw.reserveTokens, "reserveTokens"),
     leaseTtlSeconds: positiveInt(raw.leaseTtlSeconds, "leaseTtlSeconds"),
   };
-  if (!limit.routeKey.trim() || !limit.provider.trim()) {
-    throw new Error("routeKey and provider are required");
+  if (!limit.routeKey.trim() || !limit.provider.trim() || !limit.model.trim()) {
+    throw new Error("routeKey, provider and model are required");
   }
 
   const client = await pool.connect();
   const leaseId = randomUUID();
   try {
     await client.query("BEGIN");
-    // First writer starts full. Later writers update the declared contract;
-    // the locked refill below clamps any old surplus to the new limits.
+    // First writer starts EMPTY and refills continuously. A scheduler restart
+    // must not receive a fresh burst allowance (the exact production 429 mode
+    // this table replaces). Later writers update the declared contract; the
+    // locked refill below clamps any old surplus to the new limits.
     await client.query(
       `INSERT INTO agent_runtime.provider_capacity_buckets
          (route_key, provider, request_tokens, model_tokens,
           request_rate_per_min, model_rate_per_min, max_concurrent)
-       VALUES ($1, $2, $3, $4, $3, $4, $5)
+       VALUES ($1, $2, 0, 0, $3, $4, $5)
        ON CONFLICT (route_key) DO UPDATE SET
          provider = EXCLUDED.provider,
          request_rate_per_min = EXCLUDED.request_rate_per_min,
@@ -112,6 +117,7 @@ export async function reserveProviderCapacity(
                 b.model_tokens + b.model_rate_per_min *
                   GREATEST(0, EXTRACT(EPOCH FROM (clock_timestamp() - b.last_refill_at))) / 60.0
               ) >= $2
+          AND (b.blocked_until IS NULL OR b.blocked_until <= clock_timestamp())
           AND (SELECT count(*)
                  FROM agent_runtime.provider_capacity_leases l
                 WHERE l.route_key = b.route_key
@@ -130,12 +136,7 @@ export async function reserveProviderCapacity(
          (lease_id, route_key, reserved_tokens, expires_at)
        VALUES ($1::uuid, $2, $3,
                clock_timestamp() + make_interval(secs => $4))`,
-      [
-        leaseId,
-        limit.routeKey,
-        limit.reserveTokens,
-        limit.leaseTtlSeconds,
-      ],
+      [leaseId, limit.routeKey, limit.reserveTokens, limit.leaseTtlSeconds],
     );
     await client.query("COMMIT");
     return {
@@ -149,6 +150,57 @@ export async function reserveProviderCapacity(
   } finally {
     client.release();
   }
+}
+
+/**
+ * Share a provider-requested cooldown (normally HTTP 429 Retry-After) across
+ * every scheduler replica using this quota key. The caller supplies a bounded
+ * duration; repeated failures only extend, never shorten, an existing hold.
+ */
+export async function coolDownProviderCapacity(
+  pool: Pool,
+  routeKey: string,
+  provider: string,
+  model: string,
+  durationMs: number,
+  failureClass = "rate_limit",
+): Promise<void> {
+  const boundedMs = Math.min(
+    3_600_000,
+    Math.max(1_000, positiveInt(durationMs, "durationMs")),
+  );
+  await pool.query(
+    `INSERT INTO agent_runtime.provider_route_cooldowns
+       (route_key, provider, model, blocked_until, last_failure_class,
+        last_failure_at, updated_at)
+     VALUES ($1, $2, $3,
+             clock_timestamp() + ($4::double precision * interval '1 millisecond'),
+             $5, clock_timestamp(), clock_timestamp())
+     ON CONFLICT (route_key, model) DO UPDATE SET
+       blocked_until = GREATEST(
+         agent_runtime.provider_route_cooldowns.blocked_until,
+         EXCLUDED.blocked_until
+       ),
+       last_failure_class = EXCLUDED.last_failure_class,
+       last_failure_at = clock_timestamp(),
+       updated_at = clock_timestamp()`,
+    [routeKey, provider, model, boundedMs, failureClass.slice(0, 80)],
+  );
+}
+
+export async function isProviderRouteCoolingDown(
+  pool: Pool,
+  routeKey: string,
+  model: string,
+): Promise<boolean> {
+  const { rows } = await pool.query<{ cooling: boolean }>(
+    `SELECT EXISTS (
+       SELECT 1 FROM agent_runtime.provider_route_cooldowns
+        WHERE route_key = $1 AND model = $2 AND blocked_until > clock_timestamp()
+     ) AS cooling`,
+    [routeKey, model],
+  );
+  return rows[0]?.cooling === true;
 }
 
 /**
@@ -196,4 +248,3 @@ export async function releaseProviderCapacity(
     client.release();
   }
 }
-

@@ -19,12 +19,39 @@ export interface DecideInput {
   timeoutMs?: number;
 }
 
+export interface DecideRouteAttempt {
+  provider: string;
+  model: string;
+  outcome: "success" | "failed" | "deferred";
+  failureClass?: "capacity" | "permanent" | "transient" | "malformed";
+  status?: number;
+  retryAfterMs?: number;
+  latencyMs: number;
+  error?: string;
+}
+
+export interface DecideRouteMeta {
+  policyVersion: string;
+  profile: "fast" | "strong" | "configured";
+  effectiveProvider?: string;
+  effectiveModel?: string;
+  reason:
+    | "configured"
+    | "circuit_fallback"
+    | "capacity_fallback"
+    | "provider_fallback"
+    | "malformed_fallback"
+    | "byo";
+  attempts: DecideRouteAttempt[];
+}
+
 export type DecideResult =
   | {
       ok: true;
       text: string;
       // Provider-reported token usage when available (for slice-2 metering).
       usage?: { promptTokens: number; completionTokens: number };
+      route?: DecideRouteMeta;
     }
   | {
       ok: false;
@@ -37,6 +64,10 @@ export type DecideResult =
       // Parsed Retry-After (seconds or HTTP-date form), capped; the capacity
       // layer treats it as the provider's own cooldown request.
       retryAfterMs?: number;
+      // True when no provider call happened (all eligible routes were held or
+      // over shared capacity). This is backpressure, not a model failure.
+      deferred?: boolean;
+      route?: DecideRouteMeta;
     };
 
 export interface Provider {

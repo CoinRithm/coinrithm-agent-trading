@@ -23,7 +23,8 @@ import { ProviderName } from "./types.js";
 export const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
 
 export interface ChatShape {
-  family: "openai-reasoning" | "nvidia-nemotron" | "anthropic" | "openai-compat";
+  family:
+    "openai-reasoning" | "nvidia-nemotron" | "anthropic" | "openai-compat";
   // Which body parameter carries the completion budget.
   tokenParam: "max_tokens" | "max_completion_tokens";
   // Whether a non-default temperature may be sent.

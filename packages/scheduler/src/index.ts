@@ -12,6 +12,8 @@ import {
   retryDatabaseStartup,
 } from "./db.js";
 import { runScheduler, type Control } from "./scheduler.js";
+import { probeDecisionContract } from "@coinrithm/mcp-trading/dist/agent/engine.js";
+import { OPENAI_BACKUP_MODEL } from "./route.js";
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -36,6 +38,23 @@ async function main(): Promise<void> {
     console.log(
       `[scheduler] NVIDIA EOL migration: remapped ${remapped} agent(s) to living successor models, revived ${revived} model_unavailable-disabled agent(s)`,
     );
+
+  // A configured credential is not route eligibility. Probe the exact request
+  // shape through the real parser once at boot; failure degrades to the proven
+  // NVIDIA routes and never stops startup or any agent.
+  if (config.routerEnabled && config.openAiBackupKey) {
+    const probe = await probeDecisionContract({
+      provider: "openai",
+      model: OPENAI_BACKUP_MODEL,
+      key: config.openAiBackupKey,
+    });
+    config.openAiBackupEligible = probe.ok;
+    console.log(
+      probe.ok
+        ? `[scheduler] independent backup eligible: openai/${OPENAI_BACKUP_MODEL}`
+        : `[scheduler] independent backup held: ${probe.stage} ${probe.error}`,
+    );
+  }
 
   const control: Control = { stopped: false };
 

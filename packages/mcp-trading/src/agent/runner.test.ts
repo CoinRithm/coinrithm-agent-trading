@@ -152,6 +152,42 @@ function deps(
 }
 
 describe("runCycle", () => {
+  it("does not consume debounce or model-failure state when every route is capacity-deferred", async () => {
+    const deferred: Provider = {
+      label: "router/test",
+      decide: async () => ({
+        ok: false,
+        error: "shared provider capacity unavailable",
+        deferred: true,
+        route: {
+          policyVersion: "test",
+          profile: "fast",
+          reason: "capacity_fallback",
+          attempts: [
+            {
+              provider: "nvidia",
+              model: "test-model",
+              outcome: "deferred",
+              failureClass: "capacity",
+              latencyMs: 0,
+            },
+          ],
+        },
+      }),
+    };
+    const d = deps({ live: false }, baseClient(), deferred);
+    const beforeFailures = d.state.consecutiveModelFailures;
+    const result = await runCycle(d);
+    expect(result.modelFailed).toBe(false);
+    expect(result.llmCallMade).toBe(false);
+    expect(result.decisionType).toBe("gate_skip");
+    expect(result.effectiveProvider).toBeUndefined();
+    expect(result.effectiveModel).toBeUndefined();
+    expect(d.state.lastLlmCallAt).toBeUndefined();
+    expect(d.state.llmCallTimestamps).toBeUndefined();
+    expect(d.state.consecutiveModelFailures).toBe(beforeFailures);
+  });
+
   it("--dry-run never writes (but plans the accepted action)", async () => {
     const client = baseClient();
     const r = await runCycle(deps({ live: false }, client));

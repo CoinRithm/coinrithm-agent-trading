@@ -47,6 +47,10 @@ export interface CycleRecord {
   writeAccepted?: number;
   observationHash?: string;
   indicatorVersion?: string;
+  effectiveProvider?: string;
+  effectiveModel?: string;
+  routeReason?: string;
+  routeAttempts?: unknown[];
 }
 
 export function createPool(databaseUrl: string): Pool {
@@ -183,7 +187,8 @@ export const EOL_MODEL_SUCCESSORS: Record<string, string> = {
   "meta/llama-3.1-70b-instruct": "nvidia/nemotron-3-super-120b-a12b",
   "meta/llama-3.3-70b-instruct": "nvidia/nemotron-3-super-120b-a12b",
   "nvidia/llama-3.3-nemotron-super-49b-v1": "nvidia/nemotron-3-super-120b-a12b",
-  "nvidia/llama-3.3-nemotron-super-49b-v1.5": "nvidia/nemotron-3-super-120b-a12b",
+  "nvidia/llama-3.3-nemotron-super-49b-v1.5":
+    "nvidia/nemotron-3-super-120b-a12b",
 };
 
 /** Boot-run, idempotent (same pattern as the de-Groq migration): remap every
@@ -238,24 +243,46 @@ export async function recordProviderStrike(
   provider: string,
   model: string,
   error: string,
+  increment = 1,
 ): Promise<void> {
+  const boundedIncrement = Math.max(1, Math.min(3, Math.floor(increment)));
   await pool.query(
     `INSERT INTO agent_runtime.provider_circuits
        (provider, model, strikes, last_error, probe_after, opened_at, updated_at)
-     VALUES ($1, $2, 1, $3, NULL, now(), now())
+     VALUES ($1, $2, $4, $3,
+       CASE WHEN $4 >= ${CIRCUIT_TRIP_STRIKES} THEN now() + interval '60 seconds' ELSE NULL END,
+       now(), now())
      ON CONFLICT (provider, model) DO UPDATE SET
-       strikes = agent_runtime.provider_circuits.strikes + 1,
+       strikes = agent_runtime.provider_circuits.strikes + $4,
        last_error = EXCLUDED.last_error,
        probe_after = CASE
-         WHEN agent_runtime.provider_circuits.strikes + 1 >= ${CIRCUIT_TRIP_STRIKES}
+         WHEN agent_runtime.provider_circuits.strikes + $4 >= ${CIRCUIT_TRIP_STRIKES}
          THEN now() + make_interval(secs => LEAST(
-                60 * power(2, agent_runtime.provider_circuits.strikes + 1 - ${CIRCUIT_TRIP_STRIKES}),
+                60 * power(2, agent_runtime.provider_circuits.strikes + $4 - ${CIRCUIT_TRIP_STRIKES}),
                 3600))
          ELSE NULL
        END,
        updated_at = now()`,
-    [provider, model, error.slice(0, 500)],
+    [provider, model, error.slice(0, 500), boundedIncrement],
   );
+}
+
+export async function isProviderRouteAvailable(
+  pool: Pool,
+  provider: string,
+  model: string,
+): Promise<boolean> {
+  const { rows } = await pool.query<{ eligible: boolean }>(
+    `SELECT NOT EXISTS (
+       SELECT 1
+         FROM agent_runtime.provider_circuits
+        WHERE provider = $1 AND model = $2
+          AND strikes >= ${CIRCUIT_TRIP_STRIKES}
+          AND probe_after > now()
+     ) AS eligible`,
+    [provider, model],
+  );
+  return rows[0]?.eligible !== false;
 }
 
 export async function clearProviderCircuit(
@@ -353,6 +380,7 @@ const RUN_LOCK_SECONDS = 360;
 export async function claimDueAgents(
   pool: Pool,
   limit: number,
+  routerEnabled = false,
 ): Promise<AgentRow[]> {
   const client = await pool.connect();
   try {
@@ -384,7 +412,8 @@ export async function claimDueAgents(
            LEFT JOIN agent_runtime.provider_circuits pc
              ON pc.provider = a.model_provider AND pc.model = a.model_name
           WHERE a.status = 'active' AND a.next_run_at <= now()
-            AND (a.brain_key_enc IS NOT NULL
+            AND (($2::boolean AND a.brain_key_enc IS NULL AND a.model_provider = 'nvidia')
+                 OR a.brain_key_enc IS NOT NULL
                  OR pc.probe_after IS NULL OR pc.strikes < 3 OR pc.probe_after <= now())
        ), picked AS MATERIALIZED (
          SELECT a.id, a.handle, a.display_name, a.live, a.cadence_seconds,
@@ -402,7 +431,7 @@ export async function claimDueAgents(
               brain_key_enc
          FROM picked
         ORDER BY tenant_position, next_run_at, id`,
-      [limit],
+      [limit, routerEnabled],
     );
     if (rows.length > 0) {
       const ids = rows.map((r) => r.id);
@@ -449,6 +478,57 @@ export async function saveStateJson(
   );
 }
 
+function sanitizeRouteAttempts(value: unknown): unknown[] {
+  if (!Array.isArray(value)) return [];
+  const outcomes = new Set(["success", "failed", "deferred"]);
+  const classes = new Set(["capacity", "permanent", "transient", "malformed"]);
+  return value.slice(0, 2).flatMap((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+    const raw = item as Record<string, unknown>;
+    const provider =
+      typeof raw.provider === "string" ? raw.provider.slice(0, 80) : "unknown";
+    const model =
+      typeof raw.model === "string" ? raw.model.slice(0, 160) : "unknown";
+    const outcome =
+      typeof raw.outcome === "string" && outcomes.has(raw.outcome)
+        ? raw.outcome
+        : "failed";
+    const failureClass =
+      typeof raw.failureClass === "string" && classes.has(raw.failureClass)
+        ? raw.failureClass
+        : undefined;
+    const boundedNumber = (
+      candidate: unknown,
+      max: number,
+    ): number | undefined =>
+      typeof candidate === "number" && Number.isFinite(candidate)
+        ? Math.max(0, Math.min(max, Math.floor(candidate)))
+        : undefined;
+    const error =
+      typeof raw.error === "string"
+        ? raw.error
+            .replace(/Bearer\s+[A-Za-z0-9._-]{8,}/gi, "Bearer ***")
+            .slice(0, 200)
+        : undefined;
+    return [
+      {
+        provider,
+        model,
+        outcome,
+        ...(failureClass ? { failureClass } : {}),
+        ...(boundedNumber(raw.status, 599) !== undefined
+          ? { status: boundedNumber(raw.status, 599) }
+          : {}),
+        ...(boundedNumber(raw.retryAfterMs, 3_600_000) !== undefined
+          ? { retryAfterMs: boundedNumber(raw.retryAfterMs, 3_600_000) }
+          : {}),
+        latencyMs: boundedNumber(raw.latencyMs, 3_600_000) ?? 0,
+        ...(error ? { error } : {}),
+      },
+    ];
+  });
+}
+
 export async function recordCycle(
   pool: Pool,
   agentId: number,
@@ -458,8 +538,10 @@ export async function recordCycle(
     `INSERT INTO agent_runtime.agent_cycles
        (agent_id, decision, skip_reason, rationale, confidence, raw_model_output, model_failed, disabled, actions, log, error,
         trigger_codes, llm_call_made, tokens_in, tokens_out, estimated_cost_usd, decision_type, write_attempted, write_accepted,
-        observation_hash, indicator_version)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)`,
+        observation_hash, indicator_version, effective_provider, effective_model,
+        route_reason, route_attempts)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21,
+             $22, $23, $24, $25::jsonb)`,
     [
       agentId,
       rec.decision,
@@ -486,6 +568,12 @@ export async function recordCycle(
       rec.writeAccepted ?? null,
       rec.observationHash ?? null,
       rec.indicatorVersion ?? null,
+      rec.effectiveProvider ?? null,
+      rec.effectiveModel ?? null,
+      rec.routeReason ?? null,
+      rec.routeAttempts === undefined
+        ? null
+        : JSON.stringify(sanitizeRouteAttempts(rec.routeAttempts)),
     ],
   );
 }
@@ -524,8 +612,10 @@ export async function persistCycleResult(
       `INSERT INTO agent_runtime.agent_cycles
          (agent_id, decision, skip_reason, rationale, confidence, raw_model_output, model_failed, disabled, actions, log, error,
           trigger_codes, llm_call_made, tokens_in, tokens_out, estimated_cost_usd, decision_type, write_attempted, write_accepted,
-          observation_hash, indicator_version, effective_model)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)`,
+          observation_hash, indicator_version, effective_provider, effective_model,
+          route_reason, route_attempts)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21,
+               $22, $23, $24, $25::jsonb)`,
       [
         agentId,
         c.decision,
@@ -550,7 +640,12 @@ export async function persistCycleResult(
         c.writeAccepted ?? null,
         c.observationHash ?? null,
         c.indicatorVersion ?? null,
-        args.model?.name ?? null,
+        c.effectiveProvider ?? args.model?.provider ?? null,
+        c.effectiveModel ?? args.model?.name ?? null,
+        c.routeReason ?? null,
+        c.routeAttempts === undefined
+          ? null
+          : JSON.stringify(sanitizeRouteAttempts(c.routeAttempts)),
       ],
     );
     if (args.providerHold) {

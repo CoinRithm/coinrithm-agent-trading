@@ -26,6 +26,43 @@ import {
 const RAW_MODEL_OUTPUT_PARAM_INDEX = 5;
 
 describe("recordCycle — no-CoT DB write boundary", () => {
+  it("persists at most two allowlisted route attempts with secrets removed", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const pool = { query } as unknown as Pool;
+    await recordCycle(pool, 42, {
+      decision: "skip",
+      routeAttempts: [
+        {
+          provider: "nvidia",
+          model: "nano",
+          outcome: "failed",
+          failureClass: "transient",
+          status: 503,
+          latencyMs: 50,
+          error: `Bearer secret-token-123 ${"x".repeat(500)}`,
+          keyRef: "must-not-persist",
+          prompt: "must-not-persist",
+        },
+        { provider: "openai", model: "gpt", outcome: "success", latencyMs: 30 },
+        {
+          provider: "third",
+          model: "ignored",
+          outcome: "success",
+          latencyMs: 1,
+        },
+      ],
+    });
+    const [, params] = query.mock.calls[0] as [string, unknown[]];
+    const audit = JSON.parse(String(params[24])) as Array<
+      Record<string, unknown>
+    >;
+    expect(audit).toHaveLength(2);
+    expect(JSON.stringify(audit)).not.toContain("secret-token-123");
+    expect(JSON.stringify(audit)).not.toContain("keyRef");
+    expect(JSON.stringify(audit)).not.toContain("prompt");
+    expect(String(audit[0]?.error).length).toBeLessThanOrEqual(200);
+  });
+
   it("persists NULL for raw_model_output even when a caller smuggles a value in", async () => {
     const query = vi.fn().mockResolvedValue({ rows: [] });
     const pool = { query } as unknown as Pool;
@@ -114,9 +151,7 @@ describe("migrateAgentsOffEolModels — NVIDIA 2026-08-26 EOL event", () => {
       expect(remapParams).toContain(dead);
       expect(remapParams).toContain(next);
     }
-    expect(
-      new Set(Object.values(EOL_MODEL_SUCCESSORS)),
-    ).toEqual(
+    expect(new Set(Object.values(EOL_MODEL_SUCCESSORS))).toEqual(
       new Set([
         "nvidia/nemotron-3-nano-30b-a3b",
         "nvidia/nemotron-3-super-120b-a12b",
@@ -170,7 +205,9 @@ describe("provider circuits — reliability slice 1 (never disable on provider f
     });
 
     const sqls = query.mock.calls.map((c) => String(c[0]));
-    const strike = sqls.find((s) => s.includes("provider_circuits") && s.includes("ON CONFLICT"));
+    const strike = sqls.find(
+      (s) => s.includes("provider_circuits") && s.includes("ON CONFLICT"),
+    );
     expect(strike, "circuit strike upsert must run").toBeTruthy();
     expect(strike).toContain("strikes + 1");
     expect(strike).toContain("3600"); // backoff cap
@@ -179,21 +216,34 @@ describe("provider circuits — reliability slice 1 (never disable on provider f
       // A provider failure must NEVER write a disable.
     );
     // The reschedule branch still runs so the agent stays on cadence.
-    expect(sqls.some((s) => s.includes("next_run_at = now() + make_interval"))).toBe(true);
+    expect(
+      sqls.some((s) => s.includes("next_run_at = now() + make_interval")),
+    ).toBe(true);
   });
 
   it("a successful model call closes the route's circuit; disables still work for real reasons", async () => {
     const query = vi.fn().mockResolvedValue({ rows: [], rowCount: 1 });
     const client = { query, release: vi.fn() };
-    const pool = { connect: vi.fn().mockResolvedValue(client), query } as unknown as Pool;
+    const pool = {
+      connect: vi.fn().mockResolvedValue(client),
+      query,
+    } as unknown as Pool;
 
     await persistCycleResult(pool, 8, {
       state: {},
-      cycle: { decision: "act", llmCallMade: true, modelFailed: false } as CycleRecord,
+      cycle: {
+        decision: "act",
+        llmCallMade: true,
+        modelFailed: false,
+      } as CycleRecord,
       model: { provider: "nvidia", name: "nvidia/nemotron-3-super-120b-a12b" },
     });
     let sqls = query.mock.calls.map((c) => String(c[0]));
-    expect(sqls.some((s) => s.includes("DELETE FROM agent_runtime.provider_circuits"))).toBe(true);
+    expect(
+      sqls.some((s) =>
+        s.includes("DELETE FROM agent_runtime.provider_circuits"),
+      ),
+    ).toBe(true);
 
     query.mockClear();
     await persistCycleResult(pool, 9, {
@@ -208,13 +258,39 @@ describe("provider circuits — reliability slice 1 (never disable on provider f
   it("claimDueAgents excludes shared-key agents on OPEN circuits but never BYO-key agents", async () => {
     const query = vi.fn().mockResolvedValue({ rows: [], rowCount: 0 });
     const client = { query, release: vi.fn() };
-    const pool = { connect: vi.fn().mockResolvedValue(client), query } as unknown as Pool;
+    const pool = {
+      connect: vi.fn().mockResolvedValue(client),
+      query,
+    } as unknown as Pool;
     await claimDueAgents(pool, 10);
-    const claim = query.mock.calls.map((c) => String(c[0])).find((s) => s.includes("FOR UPDATE OF a SKIP LOCKED"));
+    const claim = query.mock.calls
+      .map((c) => String(c[0]))
+      .find((s) => s.includes("FOR UPDATE OF a SKIP LOCKED"));
     expect(claim).toBeTruthy();
     expect(claim).toContain("LEFT JOIN agent_runtime.provider_circuits");
     expect(claim).toContain("a.brain_key_enc IS NOT NULL"); // BYO agents exempt from fleet holds
     expect(claim).toContain("pc.probe_after <= now()"); // probes flow when backoff passes
+    const claimCall = query.mock.calls.find((c) =>
+      String(c[0]).includes("FOR UPDATE OF a SKIP LOCKED"),
+    );
+    expect(claimCall?.[1]).toEqual([10, false]);
+  });
+
+  it("claimDueAgents lets only router-supported hosted NVIDIA routes bypass their configured circuit", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [], rowCount: 0 });
+    const client = { query, release: vi.fn() };
+    const pool = {
+      connect: vi.fn().mockResolvedValue(client),
+      query,
+    } as unknown as Pool;
+    await claimDueAgents(pool, 10, true);
+    const claimCall = query.mock.calls.find((c) =>
+      String(c[0]).includes("FOR UPDATE OF a SKIP LOCKED"),
+    );
+    expect(String(claimCall?.[0])).toContain(
+      "$2::boolean AND a.brain_key_enc IS NULL AND a.model_provider = 'nvidia'",
+    );
+    expect(claimCall?.[1]).toEqual([10, true]);
   });
 
   it("claimDueAgents interleaves tenants before LIMIT so a large fleet cannot starve a one-agent owner", async () => {
@@ -246,8 +322,10 @@ describe("provider circuits — reliability slice 1 (never disable on provider f
     await recordProviderStrike(pool, "nvidia", "m", "boom");
     const [sql, params] = query.mock.calls[0] as [string, unknown[]];
     expect(sql).toContain(`>= ${CIRCUIT_TRIP_STRIKES}`);
-    expect(params).toEqual(["nvidia", "m", "boom"]);
+    expect(params).toEqual(["nvidia", "m", "boom", 1]);
     await clearProviderCircuit(pool, "nvidia", "m");
-    expect(String(query.mock.calls[1][0])).toContain("DELETE FROM agent_runtime.provider_circuits");
+    expect(String(query.mock.calls[1][0])).toContain(
+      "DELETE FROM agent_runtime.provider_circuits",
+    );
   });
 });

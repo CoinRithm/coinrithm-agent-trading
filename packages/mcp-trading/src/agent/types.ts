@@ -659,6 +659,22 @@ export interface CycleResult {
   tokensIn?: number; // prompt tokens (provider-reported)
   tokensOut?: number; // completion tokens
   estimatedCostUsd?: number; // notional cost from a per-provider rate (0 for free tiers)
+  // Hosted router truth. Configured model remains immutable on the agent; these
+  // fields say what actually served this cycle and why. Attempts are bounded to
+  // two and sanitized before persistence (no prompt/output/key material).
+  effectiveProvider?: string;
+  effectiveModel?: string;
+  routeReason?: string;
+  routeAttempts?: Array<{
+    provider: string;
+    model: string;
+    outcome: "success" | "failed" | "deferred";
+    failureClass?: "capacity" | "permanent" | "transient" | "malformed";
+    status?: number;
+    retryAfterMs?: number;
+    latencyMs: number;
+    error?: string;
+  }>;
   decisionType?: "act" | "skip" | "gate_skip" | "model_error";
   writeAttempted?: number; // actions the model proposed
   writeAccepted?: number; // actions that passed validation (+ executed when live)
