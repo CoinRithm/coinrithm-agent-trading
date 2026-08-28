@@ -668,12 +668,23 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
       routeAttempts: route?.attempts,
     };
     if (!res.ok) {
-      if (res.deferred || !actualCallMade) {
+      // Upstream 429s are expected provider backpressure, not evidence that the
+      // model is broken. A routed/BYO call may have reached the provider (so we
+      // retain the exact attempted model + usage receipt) and still finish with
+      // only capacity failures. Treat that exactly like a local capacity defer:
+      // no action, no fallback invented here, and no model-failure streak that
+      // could stop an otherwise healthy agent after repeated quota pressure.
+      const capacityOnlyFailure =
+        !!route?.attempts?.length &&
+        route.attempts.every((attempt) => attempt.failureClass === "capacity");
+      if (res.deferred || !actualCallMade || capacityOnlyFailure) {
         saveState(stateFile, state);
         log(`capacity deferred: ${res.error}`);
         return {
           decision: "skip",
-          skipReason: "provider capacity deferred",
+          skipReason: actualCallMade
+            ? "provider rate-limited; retry next cycle"
+            : "provider capacity deferred",
           planned: [],
           modelFailed: false,
           live,

@@ -188,6 +188,54 @@ describe("runCycle", () => {
     expect(d.state.consecutiveModelFailures).toBe(beforeFailures);
   });
 
+  it("keeps a BYO agent active when its exact model returns 429", async () => {
+    const rateLimited: Provider = {
+      label: "router/byo",
+      decide: async () => ({
+        ok: false,
+        error: "provider HTTP 429: quota exceeded",
+        status: 429,
+        retryAfterMs: 60_000,
+        route: {
+          policyVersion: "test",
+          profile: "strong",
+          reason: "capacity_fallback",
+          effectiveProvider: "nvidia",
+          effectiveModel: "nvidia/nemotron-3-super-120b-a12b",
+          attempts: [
+            {
+              provider: "nvidia",
+              model: "nvidia/nemotron-3-super-120b-a12b",
+              outcome: "failed",
+              failureClass: "capacity",
+              status: 429,
+              retryAfterMs: 60_000,
+              latencyMs: 25,
+            },
+          ],
+        },
+      }),
+    };
+    const d = deps({ live: true }, baseClient(), rateLimited);
+    d.spec.killSwitch.maxConsecutiveModelFailures = 15;
+    d.state.consecutiveModelFailures = 14;
+
+    const result = await runCycle(d);
+
+    expect(result).toMatchObject({
+      decision: "skip",
+      skipReason: "provider rate-limited; retry next cycle",
+      modelFailed: false,
+      llmCallMade: true,
+      effectiveProvider: "nvidia",
+      effectiveModel: "nvidia/nemotron-3-super-120b-a12b",
+      routeReason: "capacity_fallback",
+      planned: [],
+    });
+    expect(d.state.consecutiveModelFailures).toBe(14);
+    expect(d.state.disabled).toBe(false);
+  });
+
   it("--dry-run never writes (but plans the accepted action)", async () => {
     const client = baseClient();
     const r = await runCycle(deps({ live: false }, client));
