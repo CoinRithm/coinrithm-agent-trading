@@ -23,8 +23,8 @@ export interface DecisionContext {
   decisionConfidence?: number;
   observation: Observation;
   quote?: QuoteEvidence; // for futures_open — fetched by the runner, not the model
-  writesThisCycle: number;
-  writesToday: number;
+  riskIncreasesThisCycle: number;
+  riskIncreasesToday: number;
   openCount: number;
   cashAvailableMusd: number | null; // RUNNING: decremented after each open this cycle
   openMarginMusd: number; // RUNNING: total open margin (existing + this cycle)
@@ -35,6 +35,17 @@ export interface DecisionContext {
 
 const SERVER_MAX_LEVERAGE = 20;
 const PM_MIN_STAKE_MUSD = 10; // server minimum prediction-market stake
+
+// Entry budgets are exposure budgets, not emergency-action budgets. Closing a
+// futures position, updating its protection, cancelling an order, or selling
+// spot reduces/contains risk and must remain available after an entry cap.
+export function isRiskIncreasingAction(action: ProposedAction): boolean {
+  return (
+    action.type === "futures_open" ||
+    action.type === "pm_open" ||
+    (action.type === "spot_order" && action.side === "buy")
+  );
+}
 
 export function validateAction(
   action: ProposedAction,
@@ -56,7 +67,11 @@ export function validateAction(
       "must successfully poll /trades before writing",
     );
   }
-  if (ctx.writesThisCycle >= spec.limits.maxWritesPerCycle) {
+  const increasesRisk = isRiskIncreasingAction(action);
+  if (
+    increasesRisk &&
+    ctx.riskIncreasesThisCycle >= spec.limits.maxWritesPerCycle
+  ) {
     return fail(
       "write_budget_exceeded",
       `maxWritesPerCycle ${spec.limits.maxWritesPerCycle} reached`,
@@ -67,8 +82,9 @@ export function validateAction(
   // positive cap. The risk caps below (daily loss, open margin, leverage, stops) are the
   // real guardrails and always apply regardless of the trade-count cap.
   if (
+    increasesRisk &&
     spec.limits.maxTradesPerDay > 0 &&
-    ctx.writesToday >= spec.limits.maxTradesPerDay
+    ctx.riskIncreasesToday >= spec.limits.maxTradesPerDay
   ) {
     return fail(
       "daily_trade_cap",

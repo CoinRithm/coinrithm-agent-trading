@@ -25,7 +25,11 @@ import { baseSymbol } from "./setups.js";
 import { observe } from "./observe.js";
 import { buildSystemPrompt, buildUserPrompt } from "./prompt.js";
 import { parseDecision } from "./decision.js";
-import { validateAction, DecisionContext } from "./decisionValidator.js";
+import {
+  validateAction,
+  isRiskIncreasingAction,
+  DecisionContext,
+} from "./decisionValidator.js";
 import { resolvePmRef } from "./resolvePm.js";
 import { fetchQuote, executeAction } from "./act.js";
 import { makeDecisionId, makeTrace, exportRunEvidence } from "./runEvidence.js";
@@ -812,7 +816,7 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
 
   // VALIDATE (+ ACT when live). Quote evidence is fetched by the runner.
   const planned: PlannedAction[] = [];
-  let writesThisCycle = 0;
+  let riskIncreasesThisCycle = 0;
   let openCount = observation.openPositions.length;
   // RUNNING totals so multiple opens in one cycle accumulate correctly.
   let openMarginMusd = observation.openPositions
@@ -987,8 +991,8 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
       decisionConfidence: decision.confidence,
       observation,
       quote,
-      writesThisCycle,
-      writesToday: state.writesToday,
+      riskIncreasesThisCycle,
+      riskIncreasesToday: state.riskIncreasesToday,
       openCount,
       cashAvailableMusd,
       openMarginMusd,
@@ -1064,8 +1068,11 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
     if (r.ok) {
       anyExecuted = true;
       state.intentSeq[intentKey] = seq + 1;
-      writesThisCycle += 1;
       state.writesToday += 1;
+      if (isRiskIncreasingAction(action)) {
+        riskIncreasesThisCycle += 1;
+        state.riskIncreasesToday += 1;
+      }
       if (action.type === "futures_open") {
         openCount += 1;
         openMarginMusd += action.marginMusd;

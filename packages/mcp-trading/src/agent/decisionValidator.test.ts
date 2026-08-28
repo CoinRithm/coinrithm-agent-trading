@@ -61,8 +61,8 @@ function ctx(over: Partial<DecisionContext> = {}): DecisionContext {
     spec,
     observation,
     quote: freshQuote,
-    writesThisCycle: 0,
-    writesToday: 0,
+    riskIncreasesThisCycle: 0,
+    riskIncreasesToday: 0,
     openCount: 0,
     cashAvailableMusd: 1000,
     openMarginMusd: 0,
@@ -92,7 +92,8 @@ describe("validateAction", () => {
   it("blocks at a positive daily trade cap", () => {
     const capped = { ...spec, limits: { ...spec.limits, maxTradesPerDay: 3 } };
     expect(
-      validateAction(goodOpen, ctx({ spec: capped, writesToday: 3 })).code,
+      validateAction(goodOpen, ctx({ spec: capped, riskIncreasesToday: 3 }))
+        .code,
     ).toBe("daily_trade_cap");
   });
 
@@ -103,7 +104,34 @@ describe("validateAction", () => {
     };
     // far over any normal cap, but 0 means unlimited so the open still validates
     expect(
-      validateAction(goodOpen, ctx({ spec: uncapped, writesToday: 999 })).valid,
+      validateAction(goodOpen, ctx({ spec: uncapped, riskIncreasesToday: 999 }))
+        .valid,
+    ).toBe(true);
+  });
+
+  it("keeps close and protection actions available after entry caps", () => {
+    const capped = {
+      ...spec,
+      limits: { ...spec.limits, maxTradesPerDay: 1, maxWritesPerCycle: 1 },
+    };
+    const atCap = ctx({
+      spec: capped,
+      observation: obsWithPos,
+      riskIncreasesThisCycle: 1,
+      riskIncreasesToday: 1,
+    });
+
+    expect(
+      validateAction(
+        { type: "futures_close", positionId: 7, fraction: 1 },
+        atCap,
+      ).valid,
+    ).toBe(true);
+    expect(
+      validateAction(
+        { type: "futures_set_sltp", positionId: 7, stopLossPrice: 60000 },
+        atCap,
+      ).valid,
     ).toBe(true);
   });
 
@@ -288,9 +316,9 @@ describe("validateAction", () => {
   });
 
   it("rejects too many writes this cycle", () => {
-    expect(validateAction(goodOpen, ctx({ writesThisCycle: 1 })).code).toBe(
-      "write_budget_exceeded",
-    );
+    expect(
+      validateAction(goodOpen, ctx({ riskIncreasesThisCycle: 1 })).code,
+    ).toBe("write_budget_exceeded");
   });
 
   it("rejects low confidence", () => {
@@ -490,7 +518,30 @@ describe("validateAction", () => {
     expect(
       validateAction(
         { type: "spot_cancel", orderId: 42 },
-        ctx({ spec: allSpec, observation: obs }),
+        ctx({
+          spec: allSpec,
+          observation: obs,
+          riskIncreasesThisCycle: 99,
+          riskIncreasesToday: 99,
+        }),
+      ).valid,
+    ).toBe(true);
+  });
+
+  it("does not apply entry caps to a risk-reducing spot sell", () => {
+    const capped = {
+      ...allSpec,
+      limits: { ...allSpec.limits, maxTradesPerDay: 1, maxWritesPerCycle: 1 },
+    };
+    expect(
+      validateAction(
+        { ...spotBuy, side: "sell" },
+        ctx({
+          spec: capped,
+          quote: freshSpotQuote,
+          riskIncreasesThisCycle: 1,
+          riskIncreasesToday: 1,
+        }),
       ).valid,
     ).toBe(true);
   });

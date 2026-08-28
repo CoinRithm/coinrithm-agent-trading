@@ -559,7 +559,11 @@ export interface QuoteEvidence {
 export interface RunState {
   runId: string;
   cyclesRun: number;
+  // Legacy total of every successful write. Kept for durable run telemetry;
+  // entry limits use riskIncreasesToday so closes/protection never consume or
+  // get blocked by the daily entry budget.
   writesToday: number;
+  riskIncreasesToday: number;
   realizedPnlMusd: number; // session realized (for drawdown)
   peakRealizedMusd: number;
   consecutiveRejectCycles: number;

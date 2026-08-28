@@ -37,6 +37,7 @@ function state(partial: Partial<RunState> = {}): RunState {
     runId: "r",
     cyclesRun: 1,
     writesToday: 0,
+    riskIncreasesToday: 0,
     realizedPnlMusd: 0,
     peakRealizedMusd: 0,
     consecutiveRejectCycles: 0,

@@ -15,6 +15,7 @@ export function newState(runId: string): RunState {
     runId,
     cyclesRun: 0,
     writesToday: 0,
+    riskIncreasesToday: 0,
     realizedPnlMusd: 0,
     peakRealizedMusd: 0,
     consecutiveRejectCycles: 0,
@@ -47,6 +48,10 @@ export function loadState(file: string | undefined, runId: string): RunState {
     return rollDay({
       ...base,
       ...parsed,
+      // Pre-field state counted every write. Conservatively carry that count
+      // into the entry budget until the next UTC rollover rather than silently
+      // granting additional entries on deployment.
+      riskIncreasesToday: parsed.riskIncreasesToday ?? parsed.writesToday ?? 0,
       seen: Array.isArray(parsed.seen) ? parsed.seen : [],
       intentSeq:
         parsed.intentSeq &&
@@ -70,6 +75,7 @@ export function rollDay(state: RunState): RunState {
   if (state.dayKey !== today) {
     state.dayKey = today;
     state.writesToday = 0;
+    state.riskIncreasesToday = 0;
     state.realizedPnlTodayMusd = 0;
   }
   return state;

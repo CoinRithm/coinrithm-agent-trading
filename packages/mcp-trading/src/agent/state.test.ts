@@ -46,6 +46,15 @@ describe("state", () => {
     expect(reloaded.disabledReason).toBe("kill");
   });
 
+  it("migrates legacy write totals conservatively into the entry budget", () => {
+    const f = join(tmp, "legacy.json");
+    const legacy = newState("run-1") as Partial<ReturnType<typeof newState>>;
+    legacy.writesToday = 4;
+    delete legacy.riskIncreasesToday;
+    writeFileSync(f, JSON.stringify(legacy), "utf8");
+    expect(loadState(f, "run-1").riskIncreasesToday).toBe(4);
+  });
+
   it("accrues today + session realized and tracks the peak", () => {
     const s = newState("r");
     accrueRealized(s, [{ realizedPnlMusd: 10 }, { realizedPnlMusd: -4 }]);
