@@ -96,8 +96,14 @@ function normalCdf(z: number): number {
 }
 
 // Max peak-to-trough drawdown (mUSD, >= 0) on a cumulative series.
+//
+// The peak seeds at 0, the curve's implicit origin (cumulative realized PnL
+// starts at zero before the first trade). Seeding at -Infinity made the first
+// point its own peak, so a record opening with losses under-reported: [-500,
+// +500, -300] gave 300 instead of 500 and a monotone-losing record gave 0
+// (2026-09-01 rigor review).
 function maxDrawdown(cumulative: number[]): number {
-  let peak = -Infinity;
+  let peak = 0;
   let maxDd = 0;
   for (const c of cumulative) {
     if (!Number.isFinite(c)) continue;

@@ -84,7 +84,8 @@ const run = async () => {
   const profitFactor = grossLoss > 0 ? grossWin / grossLoss : pnls.some((x) => x > 0) ? Infinity : null;
 
   // Max drawdown: peak-to-trough on the cumulative realized-PnL series.
-  let peak = -Infinity, maxDd = 0;
+  // Peak seeds at 0 (the curve's origin) - see scorecard.ts maxDrawdown.
+  let peak = 0, maxDd = 0;
   for (const p of points) {
     const c = Number(p.cumulativeRealizedPnlMusd);
     if (!Number.isFinite(c)) continue;

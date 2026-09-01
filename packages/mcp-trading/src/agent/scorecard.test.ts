@@ -103,3 +103,22 @@ describe("computeScorecard — edges", () => {
     expect(sc.metrics.sharpe).not.toBeNull();
   });
 });
+
+describe("computeScorecard - max drawdown seeds at the curve's origin", () => {
+  it("counts a loss-first record from zero, not from its own first point", () => {
+    // Old seed (peak = -Infinity) reported 300 here: the -500 opener became
+    // its own peak. From the 0 origin the true peak-to-trough is 500.
+    const sc = computeScorecard({ realizedPnls: [-500, 500, -300] });
+    expect(sc.metrics.max_drawdown_musd).toBe(500);
+  });
+
+  it("reports the full loss for a monotone-losing record", () => {
+    const sc = computeScorecard({ realizedPnls: [-100, -100, -50] });
+    expect(sc.metrics.max_drawdown_musd).toBe(250);
+  });
+
+  it("is unchanged for the win-first golden record", () => {
+    const sc = computeScorecard({ realizedPnls: [100, -50, 100, 150] });
+    expect(sc.metrics.max_drawdown_musd).toBe(50);
+  });
+});
