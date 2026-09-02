@@ -785,20 +785,25 @@ describe("runCycle — PM independent forecast submission", () => {
     expect(body).not.toHaveProperty("forecastProbability");
   });
 
-  it("anti-echo: an exact-match forecast is still submitted, with an observable log line", async () => {
+  it("anti-echo: an exact-match forecast is logged and no longer bought", async () => {
     delete process.env.HOUSE_AGENT_FORECAST_ENABLED;
     const client = baseClient();
     const logs: string[] = [];
-    // forecast 50 == market prob 50% (echo) -> submitted as-is + logged.
+    // forecast 50 == market prob 50%: the echo stays observable, but buying
+    // an outcome at exactly the price you give it is a zero-edge trade, so
+    // the forecast-edge gate rejects the open (live 2026-09-02 P0).
     const d = deps(
       { live: true, log: (l: string) => logs.push(l) },
       client,
       provider(pmDecision(50)),
     );
     d.spec.venues = ["spot", "futures", "pm"];
-    await runCycle(d);
-    expect(client.openPmPosition.mock.calls[0][0].forecastProbability).toBe(50);
+    const r = await runCycle(d);
     expect(logs.some((l) => /echo/i.test(l))).toBe(true);
+    expect(client.openPmPosition).not.toHaveBeenCalled();
+    expect(r.planned.some((p) => p.code === "forecast_no_positive_edge")).toBe(
+      true,
+    );
   });
 
   it("kill-switch OFF: request is byte-identical (no forecastProbability) even when the model forecasts", async () => {

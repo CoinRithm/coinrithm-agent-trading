@@ -574,6 +574,121 @@ describe("validateAction", () => {
     ).toBe(true);
   });
 
+  // Forecast consistency: live 2026-09-02, 3 of the first 7 executed pm_opens
+  // backed an outcome their own forecast priced at or below the market.
+  const pricedPm = (probability: number, outcomeName = "Up"): Observation => ({
+    ...observation,
+    pmMarkets: [
+      {
+        source: "kalshi",
+        slug: "btc-up",
+        outcomeExternalMarketId: "yes-1",
+        freshness: { status: "fresh" },
+        outcomeName,
+        probability,
+      },
+    ],
+  });
+
+  it("rejects buying an outcome the model prices below the market", () => {
+    // cycle 863728: bought Polymarket Up at 65 while forecasting 45.
+    const leo = { ...goodPm, forecastProbability: 45 };
+    const r = validateAction(
+      leo,
+      ctx({ spec: allSpec, observation: pricedPm(0.65) }),
+    );
+    expect(r.code).toBe("forecast_no_positive_edge");
+    expect(r.reason).toContain("45");
+
+    // cycle 863746: bought Kalshi Yes at 82 while forecasting 55.
+    const sam = { ...goodPm, forecastProbability: 55 };
+    expect(
+      validateAction(
+        sam,
+        ctx({ spec: allSpec, observation: pricedPm(0.82, "Yes") }),
+      ).code,
+    ).toBe("forecast_no_positive_edge");
+  });
+
+  it("accepts a genuine edge and enforces the minimum at the boundary", () => {
+    expect(
+      validateAction(
+        { ...goodPm, forecastProbability: 70 },
+        ctx({ spec: allSpec, observation: pricedPm(0.6) }),
+      ).valid,
+    ).toBe(true);
+    // 2 points is the floor: 62 vs 60 passes, 61.9 vs 60 does not.
+    expect(
+      validateAction(
+        { ...goodPm, forecastProbability: 62 },
+        ctx({ spec: allSpec, observation: pricedPm(0.6) }),
+      ).valid,
+    ).toBe(true);
+    expect(
+      validateAction(
+        { ...goodPm, forecastProbability: 61.9 },
+        ctx({ spec: allSpec, observation: pricedPm(0.6) }),
+      ).code,
+    ).toBe("forecast_no_positive_edge");
+  });
+
+  it("exempts the mechanical benchmarks, whose forecast is a baseline", () => {
+    // market-implied submits exactly the market probability, base-rate a flat
+    // 50: both are calibration baselines, not edge claims.
+    expect(
+      validateAction(
+        { ...goodPm, forecastProbability: 65 },
+        ctx({ spec: allSpec, observation: pricedPm(0.65), mechanical: true }),
+      ).valid,
+    ).toBe(true);
+    expect(
+      validateAction(
+        { ...goodPm, forecastProbability: 50 },
+        ctx({ spec: allSpec, observation: pricedPm(0.82), mechanical: true }),
+      ).valid,
+    ).toBe(true);
+  });
+
+  it("never blocks a bet that states no forecast, as the prompt promises", () => {
+    expect(
+      validateAction(
+        goodPm,
+        ctx({ spec: allSpec, observation: pricedPm(0.65) }),
+      ).valid,
+    ).toBe(true);
+  });
+
+  it("rejects a thesis that bets against the outcome being bought", () => {
+    const conflicted = {
+      ...goodPm,
+      forecastProbability: 70,
+      thesis: {
+        summary: "Momentum has stalled, so I am betting against the Up outcome",
+        invalidation: {},
+      },
+    };
+    expect(
+      validateAction(
+        conflicted,
+        ctx({ spec: allSpec, observation: pricedPm(0.6) }),
+      ).code,
+    ).toBe("thesis_action_conflict");
+    // A thesis that backs the same outcome is untouched.
+    const aligned = {
+      ...conflicted,
+      thesis: {
+        summary: "Flows favour the Up outcome into the close",
+        invalidation: {},
+      },
+    };
+    expect(
+      validateAction(
+        aligned,
+        ctx({ spec: allSpec, observation: pricedPm(0.6) }),
+      ).valid,
+    ).toBe(true);
+  });
+
   it("rejects a pm_open on a market discovery did not surface", () => {
     expect(
       validateAction(

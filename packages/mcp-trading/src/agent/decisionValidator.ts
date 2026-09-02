@@ -16,6 +16,14 @@ import {
 } from "./types.js";
 
 export interface DecisionContext {
+  /**
+   * True for the mechanical BENCHMARK agents (provider "mechanical"), whose
+   * forecast is a deliberate calibration baseline rather than an edge claim:
+   * market-implied submits exactly the market probability and base-rate
+   * submits a flat 50. Their whole purpose is to bet the same markets at a
+   * known forecast, so the forecast-edge gate below does not apply to them.
+   */
+  mechanical?: boolean;
   spec: AgentSpec;
   // The model reports `confidence` at the DECISION level (per the output
   // contract); the per-action abstention gate inherits it when an action omits
@@ -34,11 +42,45 @@ export interface DecisionContext {
 }
 
 const SERVER_MAX_LEVERAGE = 20;
+// Minimum edge, in probability POINTS, between the model's own forecast for
+// the outcome it is backing and what that outcome currently costs. Live
+// 2026-09-02: of 7 executed pm_opens in the first release window, 3 backed an
+// outcome their own forecast priced at or BELOW the market (worst -53 points,
+// mean -0.7), i.e. an agent paid 65 for something it thought was worth 45. A
+// few points of cushion also covers spread and fees rather than trading a
+// rounding difference. Env-tunable for a fleet retune without a redeploy.
+const PM_MIN_FORECAST_EDGE_POINTS = (() => {
+  const raw = Number(process.env.AGENT_PM_MIN_FORECAST_EDGE_POINTS);
+  return Number.isFinite(raw) && raw >= 0 ? raw : 2;
+})();
+
 const PM_MIN_STAKE_MUSD = 10; // server minimum prediction-market stake
 
 // Entry budgets are exposure budgets, not emergency-action budgets. Closing a
 // futures position, updating its protection, cancelling an order, or selling
 // spot reduces/contains risk and must remain available after an entry cap.
+/**
+ * True when a thesis says, in so many words, that it is betting AGAINST the
+ * outcome the action is buying. Deliberately narrow: it fires only when the
+ * negation names the backed outcome directly ("betting against the Up
+ * outcome" while buying Up), because a false positive here silences a
+ * legitimate trade. Live shape 2026-09-02, cycle 863728.
+ */
+export function thesisContradictsOutcome(
+  summary: string | undefined,
+  outcomeName: string | undefined,
+): boolean {
+  if (!summary || !outcomeName) return false;
+  const outcome = outcomeName.trim().toLowerCase();
+  if (!outcome) return false;
+  const escaped = outcome.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const negation = new RegExp(
+    "\\b(?:against|fade|fading)\\s+(?:the\\s+)?[\"']?" + escaped + "\\b",
+    "i",
+  );
+  return negation.test(summary);
+}
+
 export function isRiskIncreasingAction(action: ProposedAction): boolean {
   return (
     action.type === "futures_open" ||
@@ -522,6 +564,35 @@ export function validateAction(
       return fail(
         "stale_quote",
         `quote freshness ${ctx.quote.freshness?.status ?? "missing"} (need fresh)`,
+      );
+    }
+    // Forecast consistency. By prompt contract forecastProbability is the
+    // model's own probability (1-99) that the outcome IT IS BACKING wins, so
+    // buying that outcome only makes sense when the forecast clears what the
+    // market charges for it. An ABSENT forecast still never blocks a bet (the
+    // prompt promises that); a PRESENT one that contradicts the trade does.
+    if (
+      !ctx.mechanical &&
+      action.forecastProbability != null &&
+      mkt.probability != null
+    ) {
+      const marketProbability = mkt.probability;
+      if (Number.isFinite(marketProbability)) {
+        const entryPct =
+          marketProbability <= 1 ? marketProbability * 100 : marketProbability;
+        const edge = action.forecastProbability - entryPct;
+        if (edge < PM_MIN_FORECAST_EDGE_POINTS) {
+          return fail(
+            "forecast_no_positive_edge",
+            `forecast ${action.forecastProbability} vs entry ${entryPct.toFixed(1)} = ${edge.toFixed(1)}pt edge, under the ${PM_MIN_FORECAST_EDGE_POINTS}pt minimum`,
+          );
+        }
+      }
+    }
+    if (thesisContradictsOutcome(action.thesis?.summary, mkt.outcomeName)) {
+      return fail(
+        "thesis_action_conflict",
+        `thesis bets against ${mkt.outcomeName}, which this action buys`,
       );
     }
     return ok();

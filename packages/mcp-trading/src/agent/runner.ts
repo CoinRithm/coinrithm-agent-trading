@@ -1054,9 +1054,12 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
             Number.isFinite(mkt.probability)
               ? Math.round(mkt.probability * 100)
               : undefined;
-          // Anti-echo: an EXACT match on the market's integer probability is still
-          // submitted (a forecast can legitimately agree) — but we LOG it so echo
-          // rates stay observable; we never silently mutate the value. NOTE: the
+          // Anti-echo: an exact match on the market's integer probability is
+          // LOGGED here so echo rates stay observable, and the value is never
+          // silently mutated. The open itself no longer proceeds on it: an
+          // echo is a zero-edge trade by the model's own numbers, so the
+          // forecast-edge gate in decisionValidator rejects it downstream
+          // (forecast_no_positive_edge). NOTE: the
           // market-implied BENCHMARK agent (provider "mechanical", model.name
           // "market-implied") echoes the market probability BY DESIGN — it IS the
           // baseline definition — so a 100% echo rate there is expected, not a
@@ -1064,7 +1067,7 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
           // never mistaken for a mispriced skill agent.
           if (marketPct != null && Math.round(fc) === marketPct) {
             log(
-              `pm_open forecast ${fc} == market prob ${marketPct}% (echo) — submitting as-is`,
+              `pm_open forecast ${fc} == market prob ${marketPct}% (echo) — zero claimed edge`,
             );
           }
           action = { ...pm, forecastProbability: fc };
@@ -1149,6 +1152,8 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
     }
     const ctx: DecisionContext = {
       spec,
+      // Benchmarks submit a known forecast on purpose (see DecisionContext).
+      mechanical: providerName === "mechanical",
       // Inherit the decision-level confidence so the per-action abstention gate
       // doesn't reject a model that reports conviction on the decision (the
       // output contract) rather than on each action.
