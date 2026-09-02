@@ -40,18 +40,18 @@ import { encrypt, loadMasterKey } from "../dist/crypto.js";
 const HOUSE = [
   {
     handle: "mia-trend-rider", display: "Mia", owner: 57,
-    model: { provider: "nvidia", name: "meta/llama-3.1-8b-instruct", baseUrl: null },
-    cadence: 60,
+    model: { provider: "nvidia", name: "nvidia/nemotron-3-nano-30b-a3b", baseUrl: null },
+    cadence: 180,
   },
   {
     handle: "contrarian-carl", display: "Carl", owner: 58,
-    model: { provider: "nvidia", name: "nvidia/llama-3.3-nemotron-super-49b-v1", baseUrl: null },
-    cadence: 60,
+    model: { provider: "nvidia", name: "nvidia/nemotron-3-super-120b-a12b", baseUrl: null },
+    cadence: 180,
   },
   {
     handle: "leo-breakout-hunter", display: "Leo", owner: 59,
-    model: { provider: "nvidia", name: "meta/llama-3.1-70b-instruct", baseUrl: null },
-    cadence: 60,
+    model: { provider: "nvidia", name: "nvidia/nemotron-3-super-120b-a12b", baseUrl: null },
+    cadence: 180,
   },
   {
     // Moved OFF Groq: Groq's tokenizer counted our ~5.1k-est prompt at 6,459 tokens
@@ -60,16 +60,16 @@ const HOUSE = [
     // reasoning brain that suits a calibrated-quant + PM specialist) she runs
     // reliably. Groq is BYO-only now (a user's own key has its own quota).
     handle: "olivia-calibrated-quant", display: "Olivia", owner: 60,
-    model: { provider: "nvidia", name: "nvidia/llama-3.3-nemotron-super-49b-v1", baseUrl: null },
-    cadence: 60,
+    model: { provider: "nvidia", name: "nvidia/nemotron-3-super-120b-a12b", baseUrl: null },
+    cadence: 180,
   },
   {
     // Moved OFF Groq to NVIDIA: two Groq agents sharing one 6k-TPM free key both
     // 413/429'd (~10k tok/min > 6k). Sam on NVIDIA 70B trades reliably (like Leo)
     // and leaves Olivia ALONE on Groq, where one ~5k-token call/min fits 6k TPM.
     handle: "sam-risk-managed-swinger", display: "Sam", owner: 61,
-    model: { provider: "nvidia", name: "meta/llama-3.1-70b-instruct", baseUrl: null },
-    cadence: 60,
+    model: { provider: "nvidia", name: "nvidia/nemotron-3-super-120b-a12b", baseUrl: null },
+    cadence: 180,
   },
 ];
 
