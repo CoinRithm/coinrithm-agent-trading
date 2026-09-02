@@ -188,6 +188,135 @@ describe("RoutedProvider", () => {
     expect(h.buildProvider).toHaveBeenCalledTimes(2);
   });
 
+  // Aggregate result contract (Codex 50894): a later local capacity defer must
+  // not relabel an earlier attempted upstream failure as "rate-limited".
+  const deferSecondRoute = (h: ReturnType<typeof harness>) => {
+    let calls = 0;
+    h.hooks.acquire = vi.fn(async (route) => {
+      calls += 1;
+      if (calls === 1) return { ok: true, lease: route.model };
+      return {
+        ok: false,
+        scope: "key" as const,
+        retryAfterMs: 4_000,
+        error: "local budget exhausted",
+      };
+    });
+  };
+
+  it("keeps a real 503 as a provider failure when the alternate is deferred locally", async () => {
+    const h = harness([
+      {
+        ok: false,
+        error: "provider HTTP 503 ResourceExhausted",
+        status: 503,
+      },
+    ]);
+    deferSecondRoute(h);
+    const provider = new RoutedProvider(
+      routes.profile,
+      routes.routes,
+      false,
+      h.buildProvider,
+      h.hooks,
+    );
+    const result = await provider.decide(input);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.deferred).toBe(false);
+    expect(result.error).toContain("503");
+    expect(result.route.attempts.map((a) => a.outcome)).toEqual([
+      "failed",
+      "deferred",
+    ]);
+    expect(result.route.attempts[0]?.failureClass).toBe("transient");
+  });
+
+  it("keeps a real 500 as a provider failure when the alternate is deferred locally", async () => {
+    const h = harness([{ ok: false, error: "provider HTTP 500", status: 500 }]);
+    deferSecondRoute(h);
+    const provider = new RoutedProvider(
+      routes.profile,
+      routes.routes,
+      false,
+      h.buildProvider,
+      h.hooks,
+    );
+    const result = await provider.decide(input);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.deferred).toBe(false);
+    expect(result.error).toContain("500");
+  });
+
+  it("stays a harmless defer when every attempt was capacity (429 then local defer)", async () => {
+    const h = harness([
+      {
+        ok: false,
+        error: "provider HTTP 429",
+        status: 429,
+        retryAfterMs: 8_000,
+      },
+    ]);
+    deferSecondRoute(h);
+    const provider = new RoutedProvider(
+      routes.profile,
+      routes.routes,
+      false,
+      h.buildProvider,
+      h.hooks,
+    );
+    const result = await provider.decide(input);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.deferred).toBe(true);
+    expect(
+      result.route.attempts.every((a) => a.failureClass === "capacity"),
+    ).toBe(true);
+  });
+
+  it("stays a harmless defer when no route could be acquired at all", async () => {
+    const h = harness([]);
+    h.hooks.acquire = vi.fn(async () => ({
+      ok: false,
+      scope: "key" as const,
+      retryAfterMs: 4_000,
+      error: "local budget exhausted",
+    }));
+    const provider = new RoutedProvider(
+      routes.profile,
+      routes.routes,
+      false,
+      h.buildProvider,
+      h.hooks,
+    );
+    const result = await provider.decide(input);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.deferred).toBe(true);
+    expect(h.buildProvider).not.toHaveBeenCalled();
+  });
+
+  it("a failure followed by a successful alternate is a success", async () => {
+    const h = harness([
+      { ok: false, error: "provider HTTP 503", status: 503 },
+      ok("alternate"),
+    ]);
+    const provider = new RoutedProvider(
+      routes.profile,
+      routes.routes,
+      false,
+      h.buildProvider,
+      h.hooks,
+    );
+    const result = await provider.decide(input);
+    expect(result.ok).toBe(true);
+    expect(result.route.attempts.map((a) => a.outcome)).toEqual([
+      "failed",
+      "success",
+    ]);
+  });
+
   it("classifies permanent model retirement separately", () => {
     expect(classifyFailure({ ok: false, error: "gone", status: 410 })).toBe(
       "permanent",

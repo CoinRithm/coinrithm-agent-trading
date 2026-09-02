@@ -207,6 +207,15 @@ export class RoutedProvider<Lease = unknown> implements Provider {
       error: "no healthy model route available",
       deferred: true,
     };
+    // Aggregate result contract (Codex 50894, live 2026-09-02): a later LOCAL
+    // capacity defer must not erase an earlier ATTEMPTED upstream failure.
+    // Four prod rows carried skip_reason "provider rate-limited" and
+    // model_failed=false after a real HTTP 503/500 because the alternate's
+    // bucket happened to be empty. The last non-capacity provider failure is
+    // kept here and wins over any subsequent defer; only an attempt set made
+    // entirely of capacity outcomes (local defers and upstream 429s) is a
+    // harmless deferred result.
+    let attemptedFailure: Extract<DecideResult, { ok: false }> | null = null;
 
     for (const route of this.routes) {
       if (attempts.length >= MAX_ROUTE_ATTEMPTS) break;
@@ -302,6 +311,7 @@ export class RoutedProvider<Lease = unknown> implements Provider {
           ok: false,
           error: attempt.error ?? "malformed decision",
         };
+        attemptedFailure = lastFailure;
         reason = fallbackReason(attempt);
         continue;
       }
@@ -336,11 +346,15 @@ export class RoutedProvider<Lease = unknown> implements Provider {
       }
       await this.hooks.observe(route, attempt);
       lastFailure = { ...result, error: attempt.error ?? result.error };
+      if (attempt.failureClass !== "capacity") attemptedFailure = lastFailure;
       reason = fallbackReason(attempt);
     }
 
+    const finalFailure: Extract<DecideResult, { ok: false }> = attemptedFailure
+      ? { ...attemptedFailure, deferred: false }
+      : lastFailure;
     return {
-      ...lastFailure,
+      ...finalFailure,
       route: {
         policyVersion: ROUTE_POLICY_VERSION,
         profile: this.profile,
