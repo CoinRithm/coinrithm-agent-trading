@@ -32,7 +32,7 @@ free tier uses the shared `NVIDIA_API_KEY` (scheduler env), not a per-row key.
 | --- | --- | --- |
 | `DATABASE_URL` | yes | the shared coinrithm-postgres |
 | `ENCRYPTION_KEY` | yes | 32 bytes — 64 hex chars or base64 of 32 bytes |
-| `NVIDIA_API_KEY` | for free-tier agents | shared brain key (nemotron-3-nano-30b) |
+| `NVIDIA_API_KEY` | for free-tier agents | shared brain key (nemotron-3-super-120b, nemotron-3-nano-omni-30b) |
 | `COINRITHM_API_URL` | no | default `https://api.coinrithm.com` |
 | `SCHEDULER_POLL_MS` / `SCHEDULER_MAX_CONCURRENT` / `SCHEDULER_CLAIM_BATCH` | no | defaults 5000 / 6 / 20 |
 | `HEALTH_PORT` | no | enables a `/healthz` liveness port |
