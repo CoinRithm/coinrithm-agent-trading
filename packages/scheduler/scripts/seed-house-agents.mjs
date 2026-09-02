@@ -40,7 +40,7 @@ import { encrypt, loadMasterKey } from "../dist/crypto.js";
 const HOUSE = [
   {
     handle: "mia-trend-rider", display: "Mia", owner: 57,
-    model: { provider: "nvidia", name: "nvidia/nemotron-3-nano-30b-a3b", baseUrl: null },
+    model: { provider: "nvidia", name: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning", baseUrl: null },
     cadence: 180,
   },
   {

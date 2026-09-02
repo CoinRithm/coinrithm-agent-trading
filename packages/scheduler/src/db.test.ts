@@ -238,7 +238,7 @@ describe("migrateAgentsOffEolModels — NVIDIA 2026-08-26 EOL event", () => {
     }
     expect(new Set(Object.values(EOL_MODEL_SUCCESSORS))).toEqual(
       new Set([
-        "nvidia/nemotron-3-nano-30b-a3b",
+        "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
         "nvidia/nemotron-3-super-120b-a12b",
       ]),
     );
@@ -258,7 +258,7 @@ describe("migrateAgentsOffEolModels — NVIDIA 2026-08-26 EOL event", () => {
     await migrateHouseAgentsOffGroq(pool);
     const [sql] = query.mock.calls[0] as [string, unknown[]];
     expect(sql).toContain("nvidia/nemotron-3-super-120b-a12b");
-    expect(sql).toContain("nvidia/nemotron-3-nano-30b-a3b");
+    expect(sql).toContain("nvidia/nemotron-3-nano-omni-30b-a3b-reasoning");
     expect(sql).not.toContain("meta/llama-3.1-70b-instruct");
     expect(sql).not.toContain("llama-3.3-nemotron-super-49b-v1");
   });
@@ -283,10 +283,10 @@ describe("provider circuits — reliability slice 1 (never disable on provider f
       } as CycleRecord,
       providerHold: {
         provider: "nvidia",
-        model: "nvidia/nemotron-3-nano-30b-a3b",
+        model: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
         error: "410 end of life",
       },
-      model: { provider: "nvidia", name: "nvidia/nemotron-3-nano-30b-a3b" },
+      model: { provider: "nvidia", name: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning" },
     });
 
     const sqls = query.mock.calls.map((c) => String(c[0]));

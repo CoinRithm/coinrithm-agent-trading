@@ -162,7 +162,7 @@ export async function migrateHouseAgentsOffGroq(pool: Pool): Promise<number> {
             model_name = CASE
               WHEN model_name ILIKE '%70b%' OR model_name ILIKE '%versatile%'
                 THEN 'nvidia/nemotron-3-super-120b-a12b'
-              ELSE 'nvidia/nemotron-3-nano-30b-a3b'
+              ELSE 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning'
             END,
             model_base_url = NULL,
             updated_at = now()
@@ -181,9 +181,14 @@ export async function migrateHouseAgentsOffGroq(pool: Pool): Promise<number> {
 // chat/completions, 2026-08-26 ~14:00Z) — the /v1/models catalog LIES (it
 // lists ids that 404 on invoke), so never add a successor without a probe.
 export const EOL_MODEL_SUCCESSORS: Record<string, string> = {
-  "meta/llama-3.1-8b-instruct": "nvidia/nemotron-3-nano-30b-a3b",
-  "meta/llama-3.2-3b-instruct": "nvidia/nemotron-3-nano-30b-a3b",
-  "nvidia/llama-3.1-nemotron-nano-8b-v1": "nvidia/nemotron-3-nano-30b-a3b",
+  "meta/llama-3.1-8b-instruct": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+  "meta/llama-3.2-3b-instruct": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+  "nvidia/llama-3.1-nemotron-nano-8b-v1": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+  // 2026-09-01: the nano-30b successor itself went 410. 23 agents (17
+  // active, Mia among them) were surviving on the router circuit fallback
+  // onto super-120b, all sharing one per-model quota. Probe-verified
+  // 2026-09-02: the omni-reasoning variant answers 200 with strict JSON.
+  "nvidia/nemotron-3-nano-30b-a3b": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
   "meta/llama-3.1-70b-instruct": "nvidia/nemotron-3-super-120b-a12b",
   "meta/llama-3.3-70b-instruct": "nvidia/nemotron-3-super-120b-a12b",
   "nvidia/llama-3.3-nemotron-super-49b-v1": "nvidia/nemotron-3-super-120b-a12b",

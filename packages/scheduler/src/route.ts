@@ -7,7 +7,10 @@ import {
 } from "@coinrithm/mcp-trading/dist/agent/engine.js";
 
 export const ROUTE_POLICY_VERSION = "2026-08-27.2";
-export const NEMOTRON_NANO = "nvidia/nemotron-3-nano-30b-a3b";
+// nemotron-3-nano-30b-a3b went 410 (end of life) on 2026-09-01; the omni
+// variant is the live-probe-verified fast tier (200 + strict JSON, ~2.6s,
+// probe 2026-09-02 06:5xZ from the scheduler key).
+export const NEMOTRON_NANO = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning";
 export const NEMOTRON_SUPER = "nvidia/nemotron-3-super-120b-a12b";
 export const OPENAI_BACKUP_MODEL = "gpt-5-nano";
 
