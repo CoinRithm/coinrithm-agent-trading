@@ -5,6 +5,47 @@ ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (t
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
 versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
+## Unreleased
+
+**Thesis exits.** Every opening action (`futures_open`, `spot_order`,
+`pm_open`) now carries a `thesis`: a one-sentence summary plus an
+`invalidation` with at least one machine-checkable condition (`priceBelow` /
+`priceAbove` for coins, `probabilityBelow` / `probabilityAbove` for prediction
+markets, a `maxHoldMinutes` time stop, and a free-text `catalyst` the model
+re-judges itself). The runner binds the thesis to the position the server
+returns, sanitized side-aware (a rising price never invalidates a long; a
+wrong-side level is dropped rather than re-signed; the time stop is clamped to
+60 minutes .. 30 days), persists it in the run state (`RunState.theses`, the
+same state file / `agent_state` JSON as before, no schema change) and
+re-evaluates it every cycle. A futures position whose price level or time stop
+is breached is closed by the runner before the model is asked anything, logged
+as a `thesis_invalidated` exit with its own idempotency key, after the
+kill-switch and drawdown checks and never instead of them. Prediction-market
+positions have no close endpoint, so a broken PM thesis is surfaced to the
+model instead (do not add, let it settle). The parser is tolerant (a malformed
+thesis never fails the open; a thesis copied onto a close is ignored) and the
+structured-output schema requires it, so schema-enforced hosted models always
+emit one.
+
+**Fundamentals in the observation.** Each watch entry now carries
+`fundamentals` sourced only from calls the runner already makes: `categories`,
+`marketCapRank` and `marketCapUsd` from the market context; `volume24hUsd` from
+the candles the `indicators` capability already fetches (live-probed
+2026-09-02: each bar's `v` is a rolling 24h volume, so the latest bar is the
+24h figure, never the sum); and up to three `headlines` with `publishedAt`
+timestamps from the one `news` call, attributed through the curated coin-news
+graph. Discovered PM markets carry `endDate` and `liquidityUsd`; open PM
+positions carry their title, side, entry and current probability and
+`openedAt`; open futures positions carry `openedAt`. The system prompt states
+the thesis contract, the runner-enforced exit and how to grade a trade on the
+fundamentals. Not carried, because no agent endpoint serves them: an "about"
+text per coin, a 24h probability change and a cross-venue divergence per PM
+market.
+
+**Fix:** the public movers feed serializes `change24h` / `currentPrice` as
+decimal strings; the universe-scan context rows read them strictly as numbers
+and shipped `undefined` for every mover.
+
 ## 0.7.7
 
 Reliability release. Every change here came from a live production failure, not

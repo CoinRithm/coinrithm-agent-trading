@@ -5,6 +5,7 @@
 
 import { z } from "zod";
 import { Decision, ProposedAction } from "./types.js";
+import { coerceThesis } from "./thesis.js";
 
 // Small models (especially Llama 3.1 8B) frequently emit numbers as JSON strings
 // ("12345", "0.8", "62000"). Coerce a *clean* numeric string to a number before
@@ -43,6 +44,16 @@ const forecastProbability = z
   })
   .optional();
 
+// The thesis an OPEN is made on (slice 2, 2026-09-02): {summary, invalidation}.
+// TOLERANT like forecastProbability: a missing / malformed thesis becomes
+// undefined and never fails an otherwise-valid open. The prompt requires it and
+// the structured-output schema below lists it as required; the runner binds it
+// to the position the server returns and evaluates it every cycle.
+const thesis = z
+  .any()
+  .transform((v) => coerceThesis(v))
+  .optional();
+
 const futuresOpen = z
   .object({
     type: z.literal("futures_open"),
@@ -54,6 +65,7 @@ const futuresOpen = z
     takeProfitPrice: num(z.number()).nullable().optional(),
     confidence,
     rationaleSummary: z.string().optional(),
+    thesis,
   })
   .strict();
 
@@ -64,6 +76,11 @@ const futuresClose = z
     fraction: num(z.number().positive().max(1)).optional(),
     confidence,
     rationaleSummary: z.string().optional(),
+    // Accepted-and-unused: models copy the open-side `thesis` onto every
+    // action exactly as they copied `confidence` (the .strict() fail-closed
+    // lesson of 2026-08-19). The structured-output schema never asks for it
+    // here; a BYO model that echoes it must not zero the whole cycle.
+    thesis,
   })
   .strict();
 
@@ -80,6 +97,7 @@ const futuresSetSltp = z
     // trade actions already have.
     confidence,
     rationaleSummary: z.string().optional(),
+    thesis, // accepted-and-unused, see futures_close
   })
   .strict();
 
@@ -94,6 +112,7 @@ const spotOrder = z
     stopPrice: num(z.number().positive()).optional(),
     confidence,
     rationaleSummary: z.string().optional(),
+    thesis,
   })
   .strict();
 
@@ -104,6 +123,7 @@ const spotCancel = z
     // Same accepted-and-unused tolerance as futures_set_sltp above.
     confidence,
     rationaleSummary: z.string().optional(),
+    thesis,
   })
   .strict();
 
@@ -124,6 +144,7 @@ const pmOpen = z
     confidence,
     rationaleSummary: z.string().optional(),
     forecastProbability,
+    thesis,
   })
   .strict();
 
@@ -149,6 +170,30 @@ export const actionSchema = z.discriminatedUnion("type", [
 const nullableNumber = { anyOf: [{ type: "number" }, { type: "null" }] };
 const optionalConfidence = { type: "number", minimum: 0, maximum: 1 };
 const optionalRationaleSummary = { type: "string" };
+// Thesis contract for the structured-output transports (the NVIDIA endpoint
+// forces the tool call from this schema, so a field absent here can never be
+// emitted). One shared shape; the runner drops the fields that do not apply to
+// the venue and re-signs nothing.
+const thesisSchema = {
+  type: "object",
+  properties: {
+    summary: { type: "string", maxLength: 200 },
+    invalidation: {
+      type: "object",
+      properties: {
+        priceBelow: { type: "number", exclusiveMinimum: 0 },
+        priceAbove: { type: "number", exclusiveMinimum: 0 },
+        probabilityBelow: { type: "number", exclusiveMinimum: 0, maximum: 100 },
+        probabilityAbove: { type: "number", exclusiveMinimum: 0, maximum: 100 },
+        maxHoldMinutes: { type: "number", exclusiveMinimum: 0 },
+        catalyst: { type: "string", maxLength: 160 },
+      },
+      additionalProperties: false,
+    },
+  },
+  required: ["summary", "invalidation"],
+  additionalProperties: false,
+} as const;
 
 const generatedActionSchemas = [
   {
@@ -163,8 +208,9 @@ const generatedActionSchemas = [
       takeProfitPrice: nullableNumber,
       confidence: optionalConfidence,
       rationaleSummary: optionalRationaleSummary,
+      thesis: thesisSchema,
     },
-    required: ["type", "symbol", "side", "leverage", "marginMusd"],
+    required: ["type", "symbol", "side", "leverage", "marginMusd", "thesis"],
     additionalProperties: false,
   },
   {
@@ -204,8 +250,9 @@ const generatedActionSchemas = [
       stopPrice: { type: "number", exclusiveMinimum: 0 },
       confidence: optionalConfidence,
       rationaleSummary: optionalRationaleSummary,
+      thesis: thesisSchema,
     },
-    required: ["type", "symbol", "side", "orderType", "quantity"],
+    required: ["type", "symbol", "side", "orderType", "quantity", "thesis"],
     additionalProperties: false,
   },
   {
@@ -228,8 +275,9 @@ const generatedActionSchemas = [
       confidence: optionalConfidence,
       rationaleSummary: optionalRationaleSummary,
       forecastProbability: { type: "number" },
+      thesis: thesisSchema,
     },
-    required: ["type", "ref", "stakeMusd"],
+    required: ["type", "ref", "stakeMusd", "thesis"],
     additionalProperties: false,
   },
 ] as const;

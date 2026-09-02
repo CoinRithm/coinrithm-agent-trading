@@ -13,6 +13,7 @@ import {
   PmResolution,
   PmMarket,
   NewsItem,
+  CoinFundamentals,
   WatchEntry,
   AgentTrace,
   Freshness,
@@ -55,6 +56,16 @@ const INDICATOR_RANGE = "1D";
 const UNIVERSE_SCAN_LIMIT = 15;
 const UNIVERSE_RESOLVE_TOP = 6;
 
+// A number that may arrive as a decimal string (the public movers feed).
+const asNumLoose = (v: unknown): number | undefined => {
+  if (typeof v === "number") return Number.isFinite(v) ? v : undefined;
+  if (typeof v === "string" && v.trim() !== "") {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : undefined;
+  }
+  return undefined;
+};
+
 // Watchlist symbols -> the coin NAMES prediction-market titles use, so an agent
 // discovers PM markets about the coins it actually has a price view on.
 const PM_COIN_NAMES: Record<string, string> = {
@@ -94,14 +105,26 @@ export function isCalibrationChurnMarket(market: {
   );
 }
 
-// Fetch candles for one coin and reduce them to a compact indicator bundle.
-// Tolerant by design: any failure (HTTP error, malformed/sparse candles) returns
-// null so the cycle proceeds with price-only context rather than skipping.
-async function fetchIndicators(
+// What one candles fetch yields beyond the bars: the indicator bundle and the
+// coin's 24h volume. Live probe 2026-09-02 (GET /api/coins/bitcoin/candles?
+// range=1D, the same loader as the agent endpoint): each bar's `v` is the
+// tracked-exchange ROLLING 24h quote volume at that tick (288 five-minute bars
+// of 2.2B-5.1B each; their sum was ~1T), so the LATEST bar's `v` IS the 24h
+// volume and summing the bars would be wrong by ~288x.
+interface CandleContext {
+  indicators: IndicatorSet | null;
+  volume24hUsd?: number;
+}
+
+// Fetch candles for one coin and reduce them to a compact indicator bundle plus
+// the 24h volume. Tolerant by design: any failure (HTTP error, malformed/sparse
+// candles) yields null indicators so the cycle proceeds with price-only context
+// rather than skipping.
+async function fetchCandleContext(
   client: CoinRithmClient,
   coinId: string,
   trace?: AgentTrace,
-): Promise<IndicatorSet | null> {
+): Promise<CandleContext> {
   // The try honors the documented tolerance for SYNCHRONOUS throws too (an
   // unexpected client error must degrade to price-only context, never kill
   // the cycle).
@@ -109,9 +132,9 @@ async function fetchIndicators(
   try {
     cr = await client.candles(coinId, INDICATOR_RANGE, trace);
   } catch {
-    return null;
+    return { indicators: null };
   }
-  if (!cr.ok) return null;
+  if (!cr.ok) return { indicators: null };
   // Endpoint shape: { candles: [{ t, o, h, l, c, v }] } ascending (oldest first).
   const candles: Candle[] = [];
   for (const raw of asArr(asObj(cr.data).candles)) {
@@ -123,7 +146,88 @@ async function fetchIndicators(
     if (open == null || high == null || low == null || close == null) continue;
     candles.push({ open, high, low, close, volume: asNum(c.v) ?? undefined });
   }
-  return computeIndicators(candles);
+  const lastVolume =
+    candles.length > 0 ? candles[candles.length - 1]!.volume : undefined;
+  return {
+    indicators: computeIndicators(candles),
+    volume24hUsd:
+      typeof lastVolume === "number" && lastVolume > 0 ? lastVolume : undefined,
+  };
+}
+
+// The fundamentals leg of a watch entry, read from the /market context the
+// entry is already built from (coin.categories, coin.marketCapRank,
+// price.marketCapUsd). Absent fields stay absent.
+function coinFundamentalsOf(
+  m: Record<string, unknown>,
+): CoinFundamentals | undefined {
+  const coin = asObj(m.coin);
+  const price = asObj(m.price);
+  const out: CoinFundamentals = {};
+  const categories = asArr(coin.categories)
+    .map((c) => asStr(c))
+    .filter((c): c is string => !!c)
+    .slice(0, 3);
+  if (categories.length > 0) out.categories = categories;
+  const rank = asNum(coin.marketCapRank);
+  if (rank != null) out.marketCapRank = rank;
+  const marketCapUsd = asNum(price.marketCapUsd);
+  if (marketCapUsd != null) out.marketCapUsd = marketCapUsd;
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+// Enrich a watch entry with what the candles fetch yields (indicators + 24h
+// volume) when the `indicators` capability is on. One call, both fields.
+async function enrichFromCandles(
+  client: CoinRithmClient,
+  entry: WatchEntry,
+  coinId: string,
+  trace?: AgentTrace,
+): Promise<void> {
+  const cc = await fetchCandleContext(client, coinId, trace);
+  if (cc.indicators) entry.indicators = cc.indicators;
+  if (cc.volume24hUsd != null) {
+    entry.fundamentals = {
+      ...(entry.fundamentals ?? {}),
+      volume24hUsd: cc.volume24hUsd,
+    };
+  }
+}
+
+const HEADLINES_PER_COIN = 3;
+const HEADLINE_TITLE_CHARS = 110;
+const escapeRegExp = (s: string): string =>
+  s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// Attribute the fetched news to the coins on watch: by the curated slug link
+// when the entry's slug is known (the graph, never a fuzzy match), else by a
+// case-insensitive coin-name or exact-case ticker mention in the title. At most
+// HEADLINES_PER_COIN per coin, in the API's importance-then-recency order.
+function attachHeadlines(watch: WatchEntry[], items: NewsItem[]): void {
+  for (const w of watch) {
+    const slug = (w.slug ?? "").toLowerCase();
+    const name = (w.name ?? "").toLowerCase();
+    const tickerRe = new RegExp(`\\b${escapeRegExp(w.symbol)}\\b`);
+    const mine = items
+      .filter((it) => {
+        if (slug) return (it.coins ?? []).some((c) => c.toLowerCase() === slug);
+        const title = it.title.toLowerCase();
+        return (
+          (name.length >= 3 && title.includes(name)) || tickerRe.test(it.title)
+        );
+      })
+      .slice(0, HEADLINES_PER_COIN);
+    if (mine.length === 0) continue;
+    w.fundamentals = {
+      ...(w.fundamentals ?? {}),
+      headlines: mine.map((it) => ({
+        title: it.title.slice(0, HEADLINE_TITLE_CHARS),
+        ...(it.publishedAt ? { at: it.publishedAt } : {}),
+        ...(it.importance != null ? { importance: it.importance } : {}),
+        ...(it.sentiment ? { sentiment: it.sentiment } : {}),
+      })),
+    };
+  }
 }
 
 function freshnessOf(block: Record<string, unknown>): Freshness | undefined {
@@ -202,6 +306,10 @@ function expandPmMarkets(
           title,
           freshness,
           volumeUsd,
+          // Event-level fundamentals from the same payload (slice 2): the
+          // resolution date and the venue-reported liquidity (USD).
+          endDate: asStr(ev.endDate) ?? undefined,
+          liquidityUsd: asNum(ev.liquidity) ?? undefined,
         }));
       })
       .filter((m) => m.source && m.slug && m.outcomeExternalMarketId)
@@ -298,6 +406,7 @@ export async function observe(
         liquidationPrice: asNum(p.liquidationPrice),
         stopLossPrice: asNum(p.stopLossPrice),
         takeProfitPrice: asNum(p.takeProfitPrice),
+        openedAt: asStr(p.openedAt),
       };
     });
 
@@ -362,7 +471,14 @@ export async function observe(
       sentimentBullishPct: asNum(asObj(m.sentiment).bullishPct) ?? undefined,
       // Freshness lives under the response's `observation` block.
       freshness: freshnessOf(asObj(m.observation)),
+      // Canonical slug (the news graph's key): from the resolve match, else
+      // the market context's observation.dataset.coinSlug.
+      slug:
+        asStr(match.slug) ??
+        asStr(asObj(asObj(m.observation).dataset).coinSlug),
     };
+    const fundamentals = coinFundamentalsOf(m);
+    if (fundamentals) entry.fundamentals = fundamentals;
     // Capture the market-wide Fear & Greed regime once (same across coins).
     if (!marketMood) {
       const fg = asObj(m.fearGreed);
@@ -373,10 +489,7 @@ export async function observe(
     // `indicators` capability: enrich the observation with computed TA so the
     // model reasons over structure (trend/momentum/volatility/breakout) instead
     // of price + %change alone. Backed by the candles endpoint's shared cache.
-    if (wantIndicators) {
-      const ind = await fetchIndicators(client, coinId, trace);
-      if (ind) entry.indicators = ind;
-    }
+    if (wantIndicators) await enrichFromCandles(client, entry, coinId, trace);
     watch.push(entry);
   }
 
@@ -403,8 +516,12 @@ export async function observe(
         .map((r) => ({
           symbol: (asStr(r.symbol) ?? "").toUpperCase(),
           name: asStr(r.name),
-          change24hPct: asNum(r.change24h),
-          priceUsd: asNum(r.currentPrice),
+          // Both serialize as decimal STRINGS on the live feed (openapi
+          // PublicCryptoMover; probed 2026-09-02: "72.34"), so the strict
+          // asNum read left them undefined. Parse the numeric string.
+          change24hPct: asNumLoose(r.change24h),
+          priceUsd: asNumLoose(r.currentPrice),
+          slug: asStr(r.slug),
           // The movers row already carries the ucid, which IS the coinId every
           // downstream call takes. Kept so the resolve round-trip below can be
           // skipped — see the comment there.
@@ -444,14 +561,22 @@ export async function observe(
             asNum(asObj(m.sentiment).bullishPct) ?? undefined,
           freshness: freshnessOf(asObj(m.observation)),
           discovered: true,
+          slug: row.slug ?? asStr(asObj(asObj(m.observation).dataset).coinSlug),
         };
-        if (wantIndicators) {
-          const ind = await fetchIndicators(client, coinId, trace);
-          if (ind) entry.indicators = ind;
-        }
+        const fundamentals = coinFundamentalsOf(m);
+        if (fundamentals) entry.fundamentals = fundamentals;
+        if (wantIndicators)
+          await enrichFromCandles(client, entry, coinId, trace);
         watch.push(entry);
       }
-      const context = rows.slice(UNIVERSE_RESOLVE_TOP);
+      const context = rows
+        .slice(UNIVERSE_RESOLVE_TOP)
+        .map(({ symbol, name, change24hPct, priceUsd }) => ({
+          symbol,
+          name,
+          change24hPct,
+          priceUsd,
+        }));
       if (context.length > 0) universeMovers = context;
     }
   }
@@ -544,6 +669,14 @@ export async function observe(
           unrealizedPnlMusd:
             asNum(p.unrealizedPnl) ?? asNum(p.unrealizedPnlMusd),
           status: asStr(p.status) ?? "open",
+          // Slice 2: what the bet IS (title, side) and its entry vs CURRENT
+          // outcome probability (0..100 points; current only while open), so
+          // the model and the thesis evaluator can re-judge a held bet.
+          title: (asStr(p.eventTitle) ?? asStr(p.title))?.slice(0, 80),
+          side: asStr(p.side),
+          entryProbability: asNum(p.entryProbability),
+          currentProbability: asNum(p.currentProbability),
+          openedAt: asStr(p.openedAt),
         }));
       // Settlement-feedback loop: the SAME /positions/pm response carries an
       // additive `recentlyResolved` array — the agent's OWN bets that settled
@@ -681,12 +814,15 @@ export async function observe(
     ]),
   );
   if (wantNews && newsCoins.length > 0) {
+    // limit 12 (was 8): the same single cached call now also feeds up to 3
+    // headlines per coin (slice 2 fundamentals); the prompt's news block is
+    // still capped at 6 below.
     const nr = await client.agentNews(
-      { coins: newsCoins.join(","), limit: 8, hours: 48 },
+      { coins: newsCoins.join(","), limit: 12, hours: 48 },
       trace,
     );
     if (nr.ok) {
-      news = asArr(asObj(nr.data).items)
+      const fetched: NewsItem[] = asArr(asObj(nr.data).items)
         .map(asObj)
         .map((it) => ({
           title: (asStr(it.title) ?? "").slice(0, 160),
@@ -697,12 +833,17 @@ export async function observe(
             a == null ? undefined : Math.round((a / 60) * 10) / 10)(
             asNum(it.ageMinutes),
           ),
+          publishedAt: asStr(it.publishedAt) ?? undefined,
           coins: asArr(it.coins)
             .map((c) => asStr(c))
             .filter((c): c is string => !!c),
         }))
-        .filter((n) => n.title.length > 0)
-        .slice(0, 6);
+        .filter((n) => n.title.length > 0);
+      news = fetched.slice(0, 6);
+      // Per-coin headlines (with timestamps) on the watch entries themselves,
+      // drawn from the full fetched list so a busy BTC tape cannot crowd a
+      // second coin's story out of the fundamentals.
+      attachHeadlines(watch, fetched);
     }
   }
 

@@ -16,12 +16,13 @@ import {
   PmMarket,
   PostedOpportunity,
   QuoteEvidence,
+  Thesis,
   spotBuyCost,
   DEFAULT_TRIGGER_POLICY,
 } from "./types.js";
 import { decideMechanical } from "./mechanical.js";
 import { evaluateGate, noteLlmCall, estimateCostUsd } from "./gate.js";
-import { baseSymbol } from "./setups.js";
+import { baseSymbol, scanSetups } from "./setups.js";
 import { observe } from "./observe.js";
 import { buildSystemPrompt, buildUserPrompt } from "./prompt.js";
 import { parseDecision } from "./decision.js";
@@ -46,6 +47,14 @@ import {
 import { asObj, asNum, asStr } from "./extract.js";
 import { parseCadenceMs, sleep } from "./util.js";
 import { buildObservationReceipt } from "./observationReceipt.js";
+import {
+  attachTheses,
+  bindThesis,
+  forgetThesis,
+  rememberThesis,
+  thesisExits,
+  thesisKey,
+} from "./thesis.js";
 
 export interface RunnerDeps {
   client: CoinRithmClient;
@@ -206,21 +215,74 @@ export function repairFuturesTakeProfit(
 
 // One-line, human-readable summary of an executed action for the agent's journal
 // (slice-3 memory). Compact so a few entries cost almost nothing in the prompt.
+// The thesis an open was made on, kept in the journal so next cycle's manage
+// step remembers WHY the position exists (slice 2).
+function thesisTail(t?: Thesis): string {
+  return t ? ` on thesis: ${t.summary.slice(0, 70)}` : "";
+}
+
 function summarizeAction(a: ProposedAction): string {
   switch (a.type) {
     case "futures_open":
-      return `opened ${a.side} ${a.symbol} (x${a.leverage}, ${a.marginMusd}mUSD)`;
+      return `opened ${a.side} ${a.symbol} (x${a.leverage}, ${a.marginMusd}mUSD)${thesisTail(a.thesis)}`;
     case "futures_close":
       return `closed pos#${a.positionId}`;
     case "futures_set_sltp":
       return `trailed stop on pos#${a.positionId}`;
     case "spot_order":
-      return `${a.side} ${a.symbol} (${a.orderType})`;
+      return `${a.side} ${a.symbol} (${a.orderType})${thesisTail(a.thesis)}`;
     case "spot_cancel":
       return `cancelled order#${a.orderId}`;
     case "pm_open":
-      return `bet PM ${a.slug} ${a.stakeMusd}mUSD`;
+      return `bet PM ${a.slug} ${a.stakeMusd}mUSD${thesisTail(a.thesis)}`;
   }
+}
+
+// Bind the thesis a successful open was made on to the position the server
+// returned ({ position: { id, entryPrice | entryProbability, side, openedAt } }
+// on both /futures/open and /pm/open, probed 2026-09-02). Returns the key even
+// when the model stated no thesis so the caller can log the gap. Spot orders
+// carry no position id, so a spot thesis is parsed but never bound.
+function bindOpenedThesis(
+  action: Extract<ProposedAction, { type: "futures_open" | "pm_open" }>,
+  responseData: unknown,
+  asOf: string,
+  quote?: QuoteEvidence,
+): { key?: string; bound?: ReturnType<typeof bindThesis> } {
+  const pos = asObj(asObj(responseData).position);
+  const id = asNum(pos.id);
+  if (id == null) return {};
+  const key = thesisKey(action.type === "futures_open" ? "futures" : "pm", id);
+  if (!action.thesis) return { key };
+  const openedAt = asStr(pos.openedAt) ?? asOf;
+  if (action.type === "futures_open") {
+    return {
+      key,
+      bound: bindThesis({
+        thesis: action.thesis,
+        venue: "futures",
+        positionId: id,
+        openedAt,
+        side: action.side,
+        symbol: action.symbol.toUpperCase(),
+        entryPrice: asNum(pos.entryPrice) ?? quote?.entryPrice,
+      }),
+    };
+  }
+  return {
+    key,
+    bound: bindThesis({
+      thesis: action.thesis,
+      venue: "pm",
+      positionId: id,
+      openedAt,
+      side: asStr(pos.side) ?? "yes",
+      source: action.source,
+      slug: action.slug,
+      outcomeExternalMarketId: action.outcomeExternalMarketId,
+      entryProbability: asNum(pos.entryProbability),
+    }),
+  };
 }
 
 // Tokens that identify the MARKET an action is on, for checking a rationale is
@@ -446,7 +508,17 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
   // OBSERVE
   const obs = await observe(client, spec, state, baseTrace);
   const observation = obs.observation;
-  const observationReceipt = buildObservationReceipt(observation);
+  const nowMs = Date.now();
+  // Slice 2: attach to each open position the thesis it was opened on (from
+  // state.theses), evaluated for THIS cycle, and drop theses whose position is
+  // gone. Before the receipt, so the hash covers exactly what the model sees.
+  // PM theses are pruned only when the pm venue was actually read.
+  const thesisMaint = attachTheses(observation, state, nowMs, {
+    prunePm: spec.venues.includes("pm"),
+  });
+  for (const key of thesisMaint.pruned)
+    log(`thesis dropped: ${key} (position no longer open)`);
+  let observationReceipt = buildObservationReceipt(observation);
   // Reads build the observation, so its hash cannot exist before they finish.
   // From this point every durable write carries the exact decision-input receipt.
   Object.assign(baseTrace, observationReceipt);
@@ -555,12 +627,93 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
   // A full observation implies /me succeeded — the auth-failure streak is over.
   state.consecutiveAuthFailures = 0;
 
+  // THESIS EXITS (slice 2, 2026-09-02): a futures position whose STATED
+  // invalidation is breached (price level / time stop) is closed by the runner
+  // now, before the model is asked anything: the exit the trade was designed
+  // with, on top of the server-side stop-loss / take-profit. Runs only after
+  // the kill-switch + drawdown checks above (a disabled agent never gets here)
+  // and never widens a cap: a close is risk-reducing. Dry-run plans the exit
+  // without writing. PM has no close endpoint, so an invalidated PM thesis is
+  // surfaced to the model instead (do not add; let it settle).
+  const exitPlanned: PlannedAction[] = [];
+  const closedByThesis: number[] = [];
+  for (const pos of thesisExits(observation)) {
+    const why = pos.thesis?.invalidatedBy ?? "thesis invalidated";
+    const label = `${pos.side ?? ""} ${pos.symbol ?? ""} pos#${pos.id}`.trim();
+    const action: ProposedAction = {
+      type: "futures_close",
+      positionId: pos.id,
+      rationaleSummary: `Thesis exit: ${why}`,
+    };
+    if (!live) {
+      exitPlanned.push({
+        action,
+        accepted: true,
+        code: "thesis_invalidated",
+        reason: why,
+        executed: false,
+      });
+      log(`DRY-RUN: would close ${label} (thesis exit: ${why})`);
+      continue;
+    }
+    const intentKey = intentKeyOf(action);
+    const seq = state.intentSeq[intentKey] ?? 0;
+    const idem = `${runId}:${intentKey}:${seq}`;
+    const trace = {
+      ...makeTrace(runId, decisionId, spec, undefined, `Thesis exit: ${why}`),
+      ...observationReceipt,
+    };
+    const r = await executeAction(
+      client,
+      action,
+      observation,
+      trace,
+      idem,
+      provenance,
+    );
+    exitPlanned.push({
+      action,
+      accepted: true,
+      code: "thesis_invalidated",
+      reason: why,
+      executed: r.ok,
+      result: r.data,
+    });
+    if (r.ok) {
+      state.intentSeq[intentKey] = seq + 1;
+      state.writesToday += 1;
+      forgetThesis(state, thesisKey("futures", pos.id));
+      closedByThesis.push(pos.id);
+      state.journal = [
+        ...(state.journal ?? []),
+        { at: observation.asOf, did: `thesis exit: closed ${label} (${why})` },
+      ].slice(-12);
+    }
+    log(
+      `${r.ok ? "executed" : "FAILED"} thesis exit on ${label} (HTTP ${r.status}): ${why}`,
+    );
+  }
+  if (closedByThesis.length > 0) {
+    // The model must see the book as it IS now: drop the closed positions,
+    // re-scan setups (an exited symbol is no longer "held") and re-issue the
+    // receipt over the observation the model actually decides on. The exit
+    // traces above keep the pre-exit receipt they were decided on.
+    observation.openPositions = observation.openPositions.filter(
+      (p) => !closedByThesis.includes(p.id),
+    );
+    observation.setups = scanSetups(
+      observation.watch,
+      observation.openPositions,
+    );
+    observationReceipt = buildObservationReceipt(observation);
+    Object.assign(baseTrace, observationReceipt);
+  }
+
   // GATE (slice 2): only SPEND an LLM call when a deterministic trigger fires — a
   // flagged entry setup or an open position to manage. No trigger => a cheap
   // heartbeat (zero tokens). A heartbeat is neither a model reject nor a failure,
   // so it touches NO kill-switch counter; it just records the cheap cycle.
   const policy = spec.triggerPolicy ?? DEFAULT_TRIGGER_POLICY;
-  const nowMs = Date.now();
   const gate = evaluateGate(observation, state, policy, nowMs);
   const providerName = spec.model?.provider ?? "nvidia";
   if (!gate.fire) {
@@ -569,7 +722,7 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
     return {
       decision: "skip",
       skipReason: gate.reason,
-      planned: [],
+      planned: exitPlanned,
       live,
       triggerCodes: gate.codes,
       llmCallMade: false,
@@ -685,7 +838,7 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
           skipReason: actualCallMade
             ? "provider rate-limited; retry next cycle"
             : "provider capacity deferred",
-          planned: [],
+          planned: exitPlanned,
           modelFailed: false,
           live,
           ...meter,
@@ -729,7 +882,7 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
           return {
             decision: "skip",
             skipReason: `provider hold: ${res.error}`,
-            planned: [],
+            planned: exitPlanned,
             modelFailed: true,
             providerHold: hold,
             live,
@@ -748,7 +901,7 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
       return {
         decision: "skip",
         skipReason: `model error: ${res.error}`,
-        planned: [],
+        planned: exitPlanned,
         modelFailed: true,
         live,
         ...meter,
@@ -769,7 +922,7 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
         // Never persist raw model text (no-CoT privacy policy) — the parse error
         // in skipReason is the diagnostic; the malformed output is not stored.
         rawModelOutput: undefined,
-        planned: [],
+        planned: exitPlanned,
         modelFailed: true,
         live,
         ...meter,
@@ -814,7 +967,7 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
       rationale,
       confidence,
       rawModelOutput,
-      planned: [],
+      planned: exitPlanned,
       live,
       ...meter,
       decisionType: "skip",
@@ -1088,6 +1241,31 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
         openCount += 1;
         openMarginMusd += action.marginMusd;
       }
+      // Slice 2: persist the thesis this open was made on, keyed to the position
+      // the server returned and sanitized side-aware (a wrong-side level would
+      // fire on the next tick). An add to a held position keeps the ORIGINAL
+      // thesis: restating a looser one on a loser is the churn this ends.
+      if (action.type === "futures_open" || action.type === "pm_open") {
+        const { key, bound } = bindOpenedThesis(
+          action,
+          r.data,
+          observation.asOf,
+          quote,
+        );
+        if (key && state.theses?.[key]) {
+          log(`thesis: ${key} keeps its original thesis (add)`);
+        } else if (key && bound) {
+          rememberThesis(state, bound.thesis);
+          log(
+            `thesis bound to ${key}: "${bound.thesis.summary}"` +
+              (bound.notes.length > 0 ? ` (${bound.notes.join("; ")})` : ""),
+          );
+        } else if (key) {
+          log(
+            `thesis: none stated for ${key}; only its stop/target will exit it`,
+          );
+        }
+      }
       // Decrement running cash by what this action consumed (futures margin /
       // spot buy notional / PM stake) so a later action this cycle sees it spent.
       if (cashAvailableMusd != null)
@@ -1148,7 +1326,7 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
     rationale,
     confidence,
     rawModelOutput,
-    planned,
+    planned: [...exitPlanned, ...planned],
     live,
     ...meter,
     decisionType: "act",

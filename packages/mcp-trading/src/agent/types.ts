@@ -258,6 +258,36 @@ export interface WatchEntry {
   // sweep, not the spec watchlist. Valid for THIS cycle only; the prompt labels
   // it so the model knows it is a discovered candidate, not a standing holding.
   discovered?: boolean;
+  // Canonical coin slug (the key the news graph uses). Carried so headlines can
+  // be attributed to the coin without a second lookup.
+  slug?: string;
+  // Fundamentals (slice 2, 2026-09-02): the "fundamental analysis" leg the owner
+  // asked for, sourced ONLY from calls the runner already makes (the /market
+  // context this entry was built from, plus the one /news call the `news`
+  // capability already pays for). Omitted when nothing is known.
+  fundamentals?: CoinFundamentals;
+}
+
+// Compact per-coin fundamentals. Sources are ONLY calls the runner already
+// makes (probed 2026-09-02): categories / marketCapRank / marketCapUsd from
+// GET /api/agent/market/{coinId}; volume24hUsd from the SAME candles the
+// `indicators` capability fetches (each bar's `v` is the tracked-exchange
+// rolling 24h quote volume at that tick, so the LATEST bar is the 24h volume,
+// never the sum); `headlines` from the one GET /api/agent/news call the `news`
+// capability already pays for (curated coin<->news graph, importance-ranked,
+// capped at 3, each with its publishedAt). No agent endpoint carries an
+// "about" text, so none is here: absent > fabricated.
+export interface CoinFundamentals {
+  categories?: string[]; // CoinGecko sector tags, at most 3
+  marketCapRank?: number;
+  marketCapUsd?: number;
+  volume24hUsd?: number; // rolling 24h quote volume on the tracked exchanges
+  headlines?: Array<{
+    title: string;
+    at?: string; // publishedAt (ISO)
+    importance?: number; // 0..10
+    sentiment?: string; // bullish | bearish | neutral
+  }>;
 }
 
 export interface OpenPosition {
@@ -279,6 +309,11 @@ export interface OpenPosition {
   liquidationPrice?: number;
   stopLossPrice?: number;
   takeProfitPrice?: number;
+  openedAt?: string; // ISO, from /positions/futures
+  // The thesis this position was opened on, evaluated for THIS cycle (attached
+  // by the runner from its persisted state; absent when the position predates
+  // the thesis contract or was opened outside this runner).
+  thesis?: ThesisView;
 }
 
 export interface SpotOrder {
@@ -299,6 +334,18 @@ export interface PmPosition {
   stakeMusd?: number;
   unrealizedPnlMusd?: number;
   status?: string;
+  // Additive reads from /positions/pm so the model can re-judge a held bet:
+  // the event title, which side it backs, the entry vs CURRENT probability
+  // (0..100 points, current only on open positions and possibly null).
+  title?: string;
+  side?: string; // yes | no
+  entryProbability?: number;
+  currentProbability?: number;
+  openedAt?: string;
+  // The thesis this bet was opened on, evaluated for THIS cycle. PM has no close
+  // endpoint, so an invalidated PM thesis is surfaced to the model (do not add,
+  // let it settle), never auto-closed.
+  thesis?: ThesisView;
 }
 
 // A recently-RESOLVED prediction-market position (the settlement-feedback loop):
@@ -344,6 +391,12 @@ export interface PmMarket {
   // "highest-volume eligible not-already-held" pick rule; LLM agents ignore it.
   // Optional so an older backend that omits it degrades to discovery order.
   volumeUsd?: number;
+  // Event-level fundamentals from the SAME discover payload (slice 2): the
+  // resolution date and the venue-reported liquidity (USD). The discover row
+  // carries no 24h probability change and no cross-venue divergence, so those
+  // are deliberately NOT here (absent > fabricated).
+  endDate?: string;
+  liquidityUsd?: number;
 }
 
 // A deterministic "this cycle has tradeable structure" flag, computed from the
@@ -374,6 +427,7 @@ export interface NewsItem {
   sentiment?: string; // bullish | bearish | neutral
   importance?: number; // 0..10
   ageHours?: number;
+  publishedAt?: string; // ISO
   coins?: string[]; // related coin slugs
 }
 
@@ -407,6 +461,58 @@ export interface Observation {
   }>;
 }
 
+// ───────────────────────── Thesis (why a position exists, what kills it) ────
+// Slice 2 of "house agents are not fun" (2026-09-02). A position is opened ON a
+// thesis and closed when that thesis is INVALIDATED, not only when a stop-loss /
+// take-profit fires or a small adverse tick spooks the model. The model states
+// the thesis inside the open action; the runner persists it with the position
+// (RunState.theses, keyed "<venue>:<positionId>") and, every cycle, evaluates the
+// machine-readable parts itself (price / probability levels, time in trade),
+// closing a futures position whose thesis broke. The free-text `catalyst` is the
+// model's to re-judge each cycle. The stop-loss stays the hard backstop; the
+// thesis is the exit the trade was DESIGNED with.
+export interface ThesisInvalidation {
+  // futures / spot: the idea is dead when the mark trades at or below /
+  // at or above this level (an EXIT level, not a target).
+  priceBelow?: number;
+  priceAbove?: number;
+  // prediction markets, 0..100 points of the backed outcome's CURRENT market
+  // probability. Surfaced to the model only: there is no PM close endpoint.
+  probabilityBelow?: number;
+  probabilityAbove?: number;
+  // time stop: the thesis has not played out after this long in the trade.
+  maxHoldMinutes?: number;
+  // free text: the event/outcome whose occurrence proves the thesis wrong.
+  // Never machine-evaluated; the model re-judges it while it manages the position.
+  catalyst?: string;
+}
+
+export interface Thesis {
+  summary: string;
+  invalidation: ThesisInvalidation;
+}
+
+// A thesis bound to a live position, persisted with the run state.
+export interface PositionThesis extends Thesis {
+  venue: Venue;
+  positionId: number;
+  symbol?: string; // futures
+  side?: string; // long | short | yes | no
+  source?: string; // pm
+  slug?: string; // pm
+  outcomeExternalMarketId?: string; // pm
+  openedAt: string; // ISO
+  entryPrice?: number; // futures fill
+  entryProbability?: number; // pm, 0..100 points
+}
+
+// The thesis as the model sees it on an open position THIS cycle.
+export interface ThesisView extends Thesis {
+  holdMinutes: number;
+  status: "intact" | "invalidated";
+  invalidatedBy?: string; // the breached condition, human-readable
+}
+
 // ───────────────────────── Model decision + actions ─────────────────────────
 
 export type ProposedAction =
@@ -420,6 +526,9 @@ export type ProposedAction =
       takeProfitPrice?: number | null;
       confidence?: number;
       rationaleSummary?: string;
+      // The thesis this open is made on (see Thesis). Optional at the parser so
+      // a weak model's omission never zeroes a valid trade; the prompt requires it.
+      thesis?: Thesis;
     }
   | {
       type: "futures_close";
@@ -444,6 +553,7 @@ export type ProposedAction =
       stopPrice?: number;
       confidence?: number;
       rationaleSummary?: string;
+      thesis?: Thesis;
     }
   | { type: "spot_cancel"; orderId: number }
   | {
@@ -465,6 +575,7 @@ export type ProposedAction =
       // The runner clamps it to [1,99] and OMITS it when absent/unparseable (a bad
       // forecast never blocks the trade); it is NEVER defaulted to the market price.
       forecastProbability?: number;
+      thesis?: Thesis;
     };
 
 export type ActionVenue = Venue;
@@ -597,6 +708,11 @@ export interface RunState {
   // and doesn't re-open an idea it just acted on. Rides in the persisted state JSON
   // (no DB change). Capped so it can't grow the prompt.
   journal?: Array<{ at: string; did: string }>;
+  // Slice 2 (2026-09-02): the thesis each open position was opened on, keyed
+  // "<venue>:<positionId>" (futures / pm). Rides in the same persisted state JSON
+  // (file for self-host, agent_runtime.agent_state for hosted) - no DB change.
+  // Pruned when the position is gone; evaluated every cycle by the runner.
+  theses?: Record<string, PositionThesis>;
 }
 
 export interface AgentTrace {

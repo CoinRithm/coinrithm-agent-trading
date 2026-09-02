@@ -5,6 +5,10 @@
 
 import { AgentSpec, Observation, PmResolution } from "./types.js";
 
+// Whole-dollar rendering for the compact PM rows (tokens, not precision).
+const roundUsd = (v?: number): number | undefined =>
+  typeof v === "number" && Number.isFinite(v) ? Math.round(v) : undefined;
+
 // Format the settlement-feedback block: a concise, natural-language recap of the
 // agent's OWN PM bets that resolved since the last cycle, so the model can REFLECT
 // (reinforce what worked, avoid what didn't). Capped + compact — this is context,
@@ -62,10 +66,17 @@ export function buildSystemPrompt(
     ...(hasSpot ? ["spot buy notional"] : []),
     ...(hasPm ? ["PM stake"] : []),
   ];
+  const openKinds = [
+    ...(hasFutures ? ["futures_open"] : []),
+    ...(hasSpot ? ["spot_order"] : []),
+    ...(hasPm ? ["pm_open"] : []),
+  ];
+  const hasIndicators = spec.capabilities.includes("indicators");
+  const hasNews = spec.capabilities.includes("news");
   const actions: string[] = [];
   if (hasFutures) {
     actions.push(
-      '{"type":"futures_open","symbol","side":"long"|"short","leverage","marginMusd","stopLossPrice","takeProfitPrice","confidence":0..1}',
+      '{"type":"futures_open","symbol","side":"long"|"short","leverage","marginMusd","stopLossPrice","takeProfitPrice","confidence":0..1,"thesis":{"summary","invalidation":{"priceBelow"|"priceAbove","maxHoldMinutes","catalyst"}}}',
       '{"type":"futures_close","positionId","fraction"}',
       '{"type":"futures_set_sltp","positionId","stopLossPrice","takeProfitPrice"}',
       "FUTURES TRIGGER RULES (the server rejects the WHOLE open otherwise): a LONG's takeProfitPrice must be ABOVE the current mark and stopLossPrice BELOW it (and above liquidationPrice); a SHORT is inverted (TP below mark, SL above). Every open position in observation.openPositions shows entryPrice, markPrice, liquidationPrice, stopLossPrice, takeProfitPrice — read them and place triggers on the correct side. NEVER attach stopLossPrice/takeProfitPrice to a futures_open for a symbol you ALREADY hold (the server treats it as an add and rejects it) — adjust that position with futures_set_sltp on its positionId instead.",
@@ -73,13 +84,13 @@ export function buildSystemPrompt(
   }
   if (hasSpot) {
     actions.push(
-      '{"type":"spot_order","symbol","side":"buy"|"sell","orderType":"market"|"limit"|"stop","quantity","limitPrice","stopPrice","confidence":0..1}',
+      '{"type":"spot_order","symbol","side":"buy"|"sell","orderType":"market"|"limit"|"stop","quantity","limitPrice","stopPrice","confidence":0..1,"thesis":{"summary","invalidation":{"priceBelow"|"priceAbove","maxHoldMinutes","catalyst"}}}',
       '{"type":"spot_cancel","orderId"}',
     );
   }
   if (hasPm) {
     actions.push(
-      `{"type":"pm_open","ref":"pmN","stakeMusd","confidence":0..1${includeForecast ? ',"forecastProbability":1..99' : ""}}  (set "ref" to one of the refs listed THIS cycle (pm1..pmN) — the \`ref\` of the ONE observation.pmMarkets entry you are betting, e.g. "pm3", copied EXACTLY; a ref NOT in this cycle's list is rejected as pm_ref_unknown and wastes the cycle; stakeMusd >= 10${includeForecast ? '; set "forecastProbability" to YOUR OWN probability 1-99 that this outcome wins — see the forecast rule below' : ""})`,
+      `{"type":"pm_open","ref":"pmN","stakeMusd","confidence":0..1${includeForecast ? ',"forecastProbability":1..99' : ""},"thesis":{"summary","invalidation":{"probabilityBelow"|"probabilityAbove","maxHoldMinutes","catalyst"}}}  (set "ref" to one of the refs listed THIS cycle (pm1..pmN) — the \`ref\` of the ONE observation.pmMarkets entry you are betting, e.g. "pm3", copied EXACTLY; a ref NOT in this cycle's list is rejected as pm_ref_unknown and wastes the cycle; stakeMusd >= 10${includeForecast ? '; set "forecastProbability" to YOUR OWN probability 1-99 that this outcome wins — see the forecast rule below' : ""})`,
     );
   }
   return [
@@ -168,12 +179,52 @@ export function buildSystemPrompt(
         ]
       : []),
     "",
+    `## Fundamentals (observation.watch[].fundamentals${hasPm ? ", observation.pmMarkets" : ""}): the fundamental leg of every decision`,
+    ...(hasCoinVenue
+      ? [
+          `Each watch entry carries \`fundamentals\`: \`categories\` (sector tags), \`marketCapRank\`, \`marketCapUsd\`${hasIndicators ? ", `volume24hUsd` (24h volume on the tracked exchanges)" : ""}${hasNews ? ", and `headlines` (up to 3 recent stories about that coin, each with an `at` timestamp, `importance` 0..10 and `sentiment`)" : ""}. Next to \`change24h\` / \`change7d\` this is your fundamental read; it GRADES the trade, it never replaces your technical rules:`,
+          "- A fresh, high-importance headline that explains the move is what turns a B-grade setup into A-grade size; a big move with no headline and thin volume is more often exhaustion than a beginning.",
+          "- Rank and volume set the size ceiling: a top-20 coin with deep volume can take your full per-trade margin; a rank-300 name on thin volume gets half at most, a wider stop and a shorter time stop.",
+          "- Categories tell you what else moves with it: a sector-wide story (an L2 narrative, an exchange listing wave, a regulatory hit) applies to peers on your watchlist too; a coin whose only story is its own pump has no fundamental leg.",
+        ]
+      : []),
+    ...(hasPm
+      ? [
+          "- Each pmMarkets row carries `end` (resolution date), `vol24h` and `liq` (USD): thin liquidity means a smaller stake and a wider required edge; your time stop must sit before `end`; a probability that moved on heavy volume is information, one that moved on none is noise.",
+        ]
+      : []),
+    "",
     "## Output contract — return ONLY this JSON object, nothing else:",
     '{"decision":"skip"|"act","confidence":0..1,"reason":"brief label","rationale":"1-2 sentences","actions":[]}',
     'Decision/action consistency is mandatory: decision="act" requires at least one complete action object; decision="skip" requires actions=[]. Never describe entering or managing a trade while returning an empty actions array.',
     "Each action is one of:",
     ...actions.map((a) => `- ${a}`),
     `Set each opening action's "confidence" (0..1) to your honest conviction — the runner REJECTS any open below abstention.minConfidence (${spec.abstention.minConfidence}). The decision-level "confidence" is the fallback when an action omits its own.`,
+    "",
+    "## Thesis on every open, and thesis exits (the runner enforces the exit)",
+    `Every opening action (${openKinds.join(" / ")}) MUST carry a \`thesis\`: \`summary\` = one sentence with the edge and why NOW; \`invalidation\` = what proves it wrong, with at least ONE machine-checkable condition:`,
+    ...(hasCoinVenue
+      ? [
+          "- coins: `priceBelow` for a long or `priceAbove` for a short = the level at which the idea is dead (a real structure level inside your stop-loss); and/or `maxHoldMinutes` = a time stop (minimum 60, at most 43200) after which an idea that has not worked is closed.",
+        ]
+      : []),
+    ...(hasPm
+      ? [
+          "- prediction markets: `probabilityBelow` for a YES or `probabilityAbove` for a NO, in 0..100 points of the outcome's market probability (the `currentProbability` shown on the position) = the odds at which your read is wrong; and/or `maxHoldMinutes`. Never set a time stop past the market's `end` date.",
+        ]
+      : []),
+    '- `catalyst`: free text naming the event whose outcome kills the idea (e.g. "CPI prints hot", "the ETF decision slips"). The runner never evaluates it; YOU re-judge it every cycle you manage the position.',
+    ...(hasFutures
+      ? [
+          "The runner re-checks every open futures position each cycle: when its price level or time stop is breached, the position is CLOSED automatically (logged as a thesis exit) on top of your stop-loss / take-profit. A wrong-side level (a long's priceBelow above entry) is dropped at open, so place it properly.",
+        ]
+      : []),
+    ...(hasPm
+      ? [
+          "Prediction-market positions cannot be closed before settlement: an invalidated PM thesis is shown to you so you do not add to it.",
+        ]
+      : []),
+    "Each open position shows its `thesis` with `status` (intact | invalidated), `holdMinutes` and, when broken, `invalidatedBy`. While the status is intact, HOLD: a discretionary close must name the broken condition or the resolved catalyst in its `rationaleSummary`. A small loss, an early profit below your target or a wiggle against you is not an exit. A position with no thesis (opened before this rule) is managed by its stop and target only.",
     "",
     "## How to act — a decisive trader in character, not a bystander",
     "You ARE the character in the strategy above; trade like it. When you have a clear read — even a moderate-confidence one — TAKE THE POSITION, sized within your caps and protected with a stop. You wake every cycle and people watch you live: an agent that watches forever and never commits is useless to them and to itself.",
@@ -203,7 +254,7 @@ export function buildSystemPrompt(
     "Place each stop at a real structural level with ROOM to breathe — past the swing or extreme by a sensible margin — and size the position DOWN to keep the risk small. A stop hugging your entry gets clipped by normal volatility and bleeds you a cut at a time. After a stop-out, do not immediately re-enter the same name and direction (that level is hot — wait for a genuinely fresh setup). Decisive entries, patient holds.",
     "",
     "## Manage your open positions — ride winners, cut losers",
-    "Each cycle, look at your OPEN positions FIRST, not just new entries. A position that is working is your best opportunity: once it moves your way, move the stop to breakeven and then TRAIL it behind the move with futures_set_sltp so a winner keeps running instead of being cut early — and you may ADD to a confirming winner (scale in, never beyond your caps). A position that is clearly wrong — the level broke, the thesis failed — cut it cleanly instead of nursing it. Riding one good trade beats opening ten fresh ones.",
+    "Each cycle, look at your OPEN positions FIRST, not just new entries. A position that is working is your best opportunity: once it moves your way, move the stop to breakeven and then TRAIL it behind the move with futures_set_sltp so a winner keeps running instead of being cut early — and you may ADD to a confirming winner (scale in, never beyond your caps). A position that is clearly wrong (its `thesis.status` reads invalidated, the level broke, the catalyst resolved against you) is cut cleanly instead of nursed; a position whose thesis is intact is held. Riding one good trade beats opening ten fresh ones.",
   ].join("\n");
 }
 
@@ -254,6 +305,32 @@ export function buildUserPrompt(
       ...journal.slice(-6).map((j) => `- ${j.did}`),
     );
   }
+  // Slice 2: name the positions whose stated thesis broke this cycle. On a live
+  // run the runner has already closed the futures ones (they are no longer in
+  // openPositions); whatever is listed here is for the MODEL to act on.
+  const brokenTheses = [
+    ...obs.openPositions
+      .filter((p) => p.thesis?.status === "invalidated")
+      .map(
+        (p) =>
+          `futures pos#${p.id} ${p.side ?? ""} ${p.symbol ?? ""}: ${p.thesis?.invalidatedBy ?? "invalidated"} (close it with futures_close)`,
+      ),
+    ...(hasPm
+      ? (obs.pmPositions ?? [])
+          .filter((p) => p.thesis?.status === "invalidated")
+          .map(
+            (p) =>
+              `PM pos#${p.id} "${(p.title ?? p.slug ?? "").slice(0, 50)}": ${p.thesis?.invalidatedBy ?? "invalidated"} (no close endpoint: do NOT add, let it settle)`,
+          )
+      : []),
+  ];
+  if (brokenTheses.length > 0) {
+    lines.push(
+      "",
+      "## Positions whose thesis is INVALIDATED this cycle",
+      ...brokenTheses.map((b) => `- ${b}`),
+    );
+  }
   // Settlement-feedback loop: surface the agent's recently-RESOLVED PM bets so the
   // model can reflect and adapt. Reflective context only — never a new action.
   if (hasPm) lines.push(...formatPmResolutions(obs.pmResolutions ?? []));
@@ -281,6 +358,10 @@ export function buildUserPrompt(
               outcome: m.outcomeName,
               prob: m.probability,
               freshness: m.freshness?.status,
+              // Slice 2 fundamentals: resolution date, 24h volume, liquidity.
+              end: m.endDate,
+              vol24h: roundUsd(m.volumeUsd),
+              liq: roundUsd(m.liquidityUsd),
             })),
           }
         : {}),
