@@ -654,6 +654,11 @@ export interface QuoteEvidence {
   entryPrice?: number; // futures fill price
   liquidationPrice?: number; // futures
   executionPrice?: number; // spot fill price
+  // PM: the probability this stake would actually enter at, from the server's
+  // assessEntry (bid/ask, size slippage and fee included). This is what the
+  // position is bought at, so it, not the discovery mid, is what a forecast
+  // has to beat.
+  entryProbability?: number;
   estimatedCostMusd?: number; // spot gross notional (server-computed)
   freshness?: Freshness;
   // PM open-time quality-gate PREVIEW (distinct from eligible/blockReasons, which

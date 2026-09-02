@@ -632,6 +632,29 @@ describe("validateAction", () => {
     ).toBe("forecast_no_positive_edge");
   });
 
+  it("measures the edge against the quoted fill, not the discovery mid", () => {
+    // Discovery mid says 60, but this stake actually fills at 72 after
+    // spread, slippage and fee: a forecast of 66 is an edge against the mid
+    // and a loss against the fill.
+    const quoted: QuoteEvidence = { ...freshQuote, entryProbability: 72 };
+    expect(
+      validateAction(
+        { ...goodPm, forecastProbability: 66 },
+        ctx({
+          spec: allSpec,
+          observation: pricedPm(0.6),
+          quote: quoted,
+        }),
+      ).code,
+    ).toBe("forecast_no_positive_edge");
+    expect(
+      validateAction(
+        { ...goodPm, forecastProbability: 80 },
+        ctx({ spec: allSpec, observation: pricedPm(0.6), quote: quoted }),
+      ).valid,
+    ).toBe(true);
+  });
+
   it("exempts the mechanical benchmarks, whose forecast is a baseline", () => {
     // market-implied submits exactly the market probability, base-rate a flat
     // 50: both are calibration baselines, not edge claims.

@@ -81,6 +81,7 @@ export async function fetchQuote(
     entryPrice: asNum(d.entryPrice), // futures
     liquidationPrice: asNum(d.liquidationPrice), // futures
     executionPrice: asNum(d.executionPrice), // spot live fill price
+    entryProbability: asNum(d.entryProbability), // pm fill probability
     estimatedCostMusd: asNum(d.estimatedCostMusd), // spot gross notional
     // Freshness lives in the response's `observation` block (anti-look-ahead).
     freshness: freshnessOf(asObj(d.observation)),

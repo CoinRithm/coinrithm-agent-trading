@@ -571,12 +571,17 @@ export function validateAction(
     // buying that outcome only makes sense when the forecast clears what the
     // market charges for it. An ABSENT forecast still never blocks a bet (the
     // prompt promises that); a PRESENT one that contradicts the trade does.
+    // The QUOTE's entryProbability is what this stake actually fills at
+    // (assessEntry: bid/ask, size slippage, fee), so it is what the forecast
+    // must beat. The discovery mid is only a fallback for an older backend
+    // that does not return one.
+    const fillProbability = ctx.quote.entryProbability ?? mkt.probability;
     if (
       !ctx.mechanical &&
       action.forecastProbability != null &&
-      mkt.probability != null
+      fillProbability != null
     ) {
-      const marketProbability = mkt.probability;
+      const marketProbability = fillProbability;
       if (Number.isFinite(marketProbability)) {
         const entryPct =
           marketProbability <= 1 ? marketProbability * 100 : marketProbability;
