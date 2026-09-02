@@ -1495,8 +1495,14 @@ paths:
           schema: { type: integer, minimum: 0, default: 0 }
         - name: q
           in: query
-          schema: { type: string }
-          description: Search title, outcomes, topics and related coins.
+          schema: { type: string, maxLength: 80 }
+          description: |
+            Search title, outcomes (4+ character words), topics and related
+            coins. The server normalizes the query (Unicode NFKC, whitespace
+            collapsed, lower-cased) and TRUNCATES it to the first 80 code
+            points and the first 6 words; longer input is not rejected.
+            `%`, `_` and `\` are matched literally, never as wildcards.
+            Words of 1-2 characters match on word boundaries only.
         - name: tag
           in: query
           schema: { type: string }
