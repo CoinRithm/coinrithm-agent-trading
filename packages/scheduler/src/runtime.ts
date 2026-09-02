@@ -92,7 +92,11 @@ export function shouldUseHostedRouter(
   );
 }
 
-function limitForRoute(route: ModelRoute, input: DecideInput, config: Config) {
+export function limitForRoute(
+  route: ModelRoute,
+  input: DecideInput,
+  config: Config,
+) {
   const reserveTokens =
     Math.ceil((input.system.length + input.user.length) / 4) +
     (input.maxTokens ?? 1024);
@@ -108,8 +112,14 @@ function limitForRoute(route: ModelRoute, input: DecideInput, config: Config) {
       leaseTtlSeconds: config.capacityLeaseTtlSeconds,
     };
   }
+  // One capacity bucket PER MODEL on the shared key (2026-09-02): NVIDIA
+  // rate-limits per model (super-120b 429s while nano-30b was clean on the
+  // same key, 2026-08-27), yet the fleet drew from ONE 15 RPM bucket, so a
+  // third of all cycles were deferred on our own budget while upstream 429s
+  // stayed rare. Each living model now gets its own bucket at the same
+  // per-model rate; the cooldown/429 block still keys on keyRef.
   return {
-    routeKey: route.keyRef,
+    routeKey: `${route.keyRef}:${route.model}`,
     provider: route.provider,
     model: route.model,
     requestsPerMinute: config.nvidiaRpm,

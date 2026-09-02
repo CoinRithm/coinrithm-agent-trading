@@ -143,3 +143,36 @@ describe("shared provider capacity", () => {
     expect(insert?.[1]?.[3]).toBe(12_000);
   });
 });
+
+describe("per-model capacity buckets on the shared key (2026-09-02)", () => {
+  it("two NVIDIA models draw from two buckets; the OpenAI backup keeps its keyRef bucket", async () => {
+    const { limitForRoute } = await import("./runtime");
+    const { loadConfig } = await import("./config");
+    const config = loadConfig({
+      DATABASE_URL: "postgres://x",
+      ENCRYPTION_KEY: "0".repeat(64),
+      NVIDIA_API_KEYS: "k",
+    } as NodeJS.ProcessEnv);
+    const input = { system: "s", user: "u", maxTokens: 64 } as never;
+    const nano = limitForRoute(
+      { provider: "nvidia", model: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning", keyRef: "nvidia:shared:0" },
+      input,
+      config,
+    );
+    const superRoute = limitForRoute(
+      { provider: "nvidia", model: "nvidia/nemotron-3-super-120b-a12b", keyRef: "nvidia:shared:0" },
+      input,
+      config,
+    );
+    expect(nano.routeKey).toBe("nvidia:shared:0:nvidia/nemotron-3-nano-omni-30b-a3b-reasoning");
+    expect(superRoute.routeKey).toBe("nvidia:shared:0:nvidia/nemotron-3-super-120b-a12b");
+    expect(nano.routeKey).not.toBe(superRoute.routeKey);
+    expect(nano.requestsPerMinute).toBe(superRoute.requestsPerMinute);
+    const openai = limitForRoute(
+      { provider: "openai", model: "gpt-x", keyRef: "openai:shared:backup" },
+      input,
+      config,
+    );
+    expect(openai.routeKey).toBe("openai:shared:backup");
+  });
+});
