@@ -1,20 +1,20 @@
 {
-  "configHash": "sha256:66a1f1caf7f94705dc3aedb3ae36eee6fd946c125ac93fdf38e8890c718d2beb",
+  "configHash": "sha256:3c91943e64b50a8ba44543e0c2d35c12509ffa235c5aecde4a2b7e973af5aba6",
   "contentHashes": {
-    "agent.md": "sha256:c992b3886181f3896431a7c96818b06b752e756895c1a2c8c87b63292eed315a",
+    "agent.md": "sha256:a200327c459c920037b35d2768116db879e6585b3ff0fd5593b3fb7a9ca0a1a8",
     "character/abstention.yaml": "sha256:24df02b20cbc240248cc7888962a8194ecefa41cd52b56aa22cce2111ee939a8",
     "character/guards.md": "sha256:317dfc5e4b43b2fb76c9e307b8008c1dd00e2d04e86a91c39be6f16f5013bb2a",
-    "character/limits.yaml": "sha256:6e0a8deeb2f97e34f65d6af6a12c7c604598a482f65063ef09f08e22a13b716c",
-    "character/persona.md": "sha256:c78bb4af5d33e1c64e915c28420c056c720cdca35fa95f11b7caf6154dbdcb12",
-    "character/risk.yaml": "sha256:d08610a380abaed63d728664804bbed609ec41cfe7086f330ec65c2418ec4286",
-    "character/sizing.yaml": "sha256:e6cbb950835d62979e5e11311fbb446e26e1355087ad33b6deb2e814d4aad339",
+    "character/limits.yaml": "sha256:eedc0d10455aaab8405096b874985853e39241a65ebaa60f0a96b166d617abfb",
+    "character/persona.md": "sha256:7b55d6dcb25ef7cd3da167a33cac547e51e29209ec359848bf12d6f338eae597",
+    "character/risk.yaml": "sha256:37f59d6fe8e2bfa300a69fa044e588fe0c41a822ccd5277ee75b2f9b3795b871",
+    "character/sizing.yaml": "sha256:595f02654b082962262967171d334b4ffa56bc17f93908b052908ed7b4bdfbc0",
     "character/skills/risk-first-sizing.md": "sha256:03c06e062f75fecd35d27f4807aa4f6e0939d81efbb687b712474ebcf5ddbbeb",
     "character/skills/swing-trend.md": "sha256:31118cff53207e23bf97a6673862f16b8e97d61ed40011d072d980b3c60c4b24",
     "character/thesis.md": "sha256:3280d0bf58e5e61eeb344fcd3c9583633ad837813257a15a9b47b4a4f3fd42b4",
-    "functionality/coinrithm.yaml": "sha256:30a129c5f38bf6dd3cd33a9d594fd4e7045e73553e8462bd55378250db160d75",
+    "functionality/coinrithm.yaml": "sha256:3be2bc043fd06c1ae969dae7d93f11e0e6cc5fd7535292e5bd209142c1a9355c",
     "journal/notes.md": "sha256:2121bfae825526a158b97e5cc58658476543cb51db05df341f10315502fbb411",
     "runtime.yaml": "sha256:bf074f710fa3edd8858ab7d682b3151b1571d725119790e5a80cef33ad3f92a2",
-    "safety/killSwitch.yaml": "sha256:661f453d01600b702db055753fe0162a1560685cb750d3a8cb13c6e3cc08b022"
+    "safety/killSwitch.yaml": "sha256:c73792585fb648aa23b9fa9378b2f62b9af024fad17d4e43d7c10e574c233ea4"
   },
   "indicatorVersion": "coinrithm.indicators.v1",
   "provenance": {
@@ -67,7 +67,8 @@
       "onWeakSignal": true
     },
     "capabilities": [
-      "indicators"
+      "indicators",
+      "news"
     ],
     "description": "Risk-managed swing futures agent that holds positions across cycles, sizes from stop distance, and optimizes risk-adjusted return on CoinRithm paper trading.",
     "include": [
@@ -77,12 +78,12 @@
     "killSwitch": {
       "maxConsecutiveModelFailures": 15,
       "maxConsecutiveRejects": 0,
-      "maxDrawdownMusd": 2500,
+      "maxDrawdownMusd": 7500,
       "onRateLimitPressure": true
     },
     "limits": {
-      "maxDailyLossMusd": 1500,
-      "maxOpenMarginMusd": 4500,
+      "maxDailyLossMusd": 3000,
+      "maxOpenMarginMusd": 10000,
       "maxTradesPerDay": 0,
       "maxWritesPerCycle": 1
     },
@@ -101,9 +102,9 @@
       ]
     },
     "risk": {
-      "maxConcurrentPositions": 3,
+      "maxConcurrentPositions": 4,
       "maxLeverage": 3,
-      "perTradeMarginMusd": 1500,
+      "perTradeMarginMusd": 2500,
       "requireStopLoss": true,
       "watchlist": [
         "BTC",
@@ -113,8 +114,8 @@
       ]
     },
     "sizing": {
-      "kellyFraction": 0.3,
-      "riskPerTradePct": 1,
+      "kellyFraction": 0.4,
+      "riskPerTradePct": 2,
       "riskRewardMin": 2
     },
     "spec": "coinrithm.agent.v1",
@@ -140,18 +141,19 @@
       "onWeakSignal": true
     },
     "capabilities": [
-      "indicators"
+      "indicators",
+      "news"
     ],
     "description": "Risk-managed swing futures agent that holds positions across cycles, sizes from stop distance, and optimizes risk-adjusted return on CoinRithm paper trading.",
     "killSwitch": {
       "maxConsecutiveModelFailures": 15,
       "maxConsecutiveRejects": 0,
-      "maxDrawdownMusd": 2500,
+      "maxDrawdownMusd": 7500,
       "onRateLimitPressure": true
     },
     "limits": {
-      "maxDailyLossMusd": 1500,
-      "maxOpenMarginMusd": 4500,
+      "maxDailyLossMusd": 3000,
+      "maxOpenMarginMusd": 10000,
       "maxTradesPerDay": 1000000,
       "maxWritesPerCycle": 1
     },
@@ -170,9 +172,9 @@
     },
     "risk": {
       "blocklist": [],
-      "maxConcurrentPositions": 3,
+      "maxConcurrentPositions": 4,
       "maxLeverage": 3,
-      "perTradeMarginMusd": 1500,
+      "perTradeMarginMusd": 2500,
       "requireStopLoss": true,
       "watchlist": [
         "BTC",

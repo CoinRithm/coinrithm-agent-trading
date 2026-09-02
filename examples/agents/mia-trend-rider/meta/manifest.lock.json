@@ -1,21 +1,21 @@
 {
-  "configHash": "sha256:b82717693f54fa65b20f6b4fffb63990d332687bb1256e9a0345a3dda0d1710a",
+  "configHash": "sha256:75432e5c4a82dd2cb37053f5a910fe5406684dd13db415eda0059476dcc17527",
   "contentHashes": {
-    "agent.md": "sha256:272fc9efed9eaa36eb0cafcaecff216b6cdcc705399678c721dcacfcb3d04fef",
+    "agent.md": "sha256:b1269f235e0e7cf2cd3e3dc17e34170c1808a5c2825e983fffd2a8aed2f569e1",
     "character/abstention.yaml": "sha256:1cab79fa86e06acf1b5852ea18ce266fdf9feb12f65a3968b4d343549654ad97",
     "character/guards.md": "sha256:febb786d46ee05cc582e0a10861eb42cc792740907d69f451fae761485f1d10d",
-    "character/limits.yaml": "sha256:91229fea5fa7e423a55b5bdc016101b6c8cc36be46d425b3deaa51b8570d9ea2",
-    "character/persona.md": "sha256:67bfbc75da24dcc32e29d8fc85051a1086ebb50618fc79a24222de94c362a5b1",
-    "character/risk.yaml": "sha256:c924962c2b004998cf080bc4ab3f3c0c7ec841ab851659b76753cf547aa96324",
-    "character/sizing.yaml": "sha256:d7b78025249c1054fd64e2292a8fb9118ef432c2afdd16b90716a9a544be9c37",
+    "character/limits.yaml": "sha256:1220f884de24f7598829d0387da6e60fbe0aa304c3a744e6109cfdee639fa92c",
+    "character/persona.md": "sha256:5d6827abf02c6bde5fb8e42c96b930eabd502f1fa0fd1b2683610b70d227c956",
+    "character/risk.yaml": "sha256:dce958ed83ef8007fdf3b4d8f31df871f70178fd05c856b7ce609074cd5c321e",
+    "character/sizing.yaml": "sha256:f7749d399c6213c4f149d61a896fc6e19d60b199f749ab2d2cd0f45ab31824e6",
     "character/skills/momentum-confirmation.md": "sha256:99c73e3d0a5b32f227e072ccd0eddbbb8967a7b29c54fe5c2afe9cef0e7b484d",
     "character/skills/pullback-entry.md": "sha256:14e834069e598e8f504520d80088eb1079b1da4b4774c57c91908df1489d80e3",
     "character/skills/trail-the-winner.md": "sha256:04c98de42a5343a7dbdf226513788c560ec0cede62a0cd2e8cbac89ee1fecc58",
     "character/thesis.md": "sha256:ef72808806202235af0e128bab7e7527ec826942a07745aac17c00c8e7b25eb0",
-    "functionality/coinrithm.yaml": "sha256:30a129c5f38bf6dd3cd33a9d594fd4e7045e73553e8462bd55378250db160d75",
-    "journal/notes.md": "sha256:5bcd60aae58dcaebe16adfb6b97b9afeeb8f203fbdb76ed0c54f37eca2a26238",
+    "functionality/coinrithm.yaml": "sha256:3be2bc043fd06c1ae969dae7d93f11e0e6cc5fd7535292e5bd209142c1a9355c",
+    "journal/notes.md": "sha256:c21152ce8732c2e2134973aef4007729f65281144e7a52dadd7d4cc92ebb21d8",
     "runtime.yaml": "sha256:bf074f710fa3edd8858ab7d682b3151b1571d725119790e5a80cef33ad3f92a2",
-    "safety/killSwitch.yaml": "sha256:661f453d01600b702db055753fe0162a1560685cb750d3a8cb13c6e3cc08b022"
+    "safety/killSwitch.yaml": "sha256:36ffa7dda4c1e3df1ff4730bc796fb671bce72019f1cd2b7130db512280df6f0"
   },
   "indicatorVersion": "coinrithm.indicators.v1",
   "provenance": {
@@ -70,7 +70,9 @@
       "onWeakSignal": true
     },
     "capabilities": [
-      "indicators"
+      "indicators",
+      "news",
+      "universe_scan"
     ],
     "description": "Momentum trend-following CoinRithm paper-futures agent that trades only when short and medium momentum agree, trails stops behind price, and optimizes realized PnL.",
     "include": [
@@ -81,12 +83,12 @@
     "killSwitch": {
       "maxConsecutiveModelFailures": 15,
       "maxConsecutiveRejects": 0,
-      "maxDrawdownMusd": 2500,
+      "maxDrawdownMusd": 6000,
       "onRateLimitPressure": true
     },
     "limits": {
-      "maxDailyLossMusd": 1500,
-      "maxOpenMarginMusd": 2250,
+      "maxDailyLossMusd": 3000,
+      "maxOpenMarginMusd": 8000,
       "maxTradesPerDay": 0,
       "maxWritesPerCycle": 1
     },
@@ -105,9 +107,9 @@
       ]
     },
     "risk": {
-      "maxConcurrentPositions": 3,
+      "maxConcurrentPositions": 4,
       "maxLeverage": 4,
-      "perTradeMarginMusd": 750,
+      "perTradeMarginMusd": 2000,
       "requireStopLoss": true,
       "watchlist": [
         "BTC",
@@ -118,8 +120,8 @@
       ]
     },
     "sizing": {
-      "kellyFraction": 0.3,
-      "riskPerTradePct": 1.5,
+      "kellyFraction": 0.5,
+      "riskPerTradePct": 3,
       "riskRewardMin": 2
     },
     "spec": "coinrithm.agent.v1",
@@ -145,18 +147,20 @@
       "onWeakSignal": true
     },
     "capabilities": [
-      "indicators"
+      "indicators",
+      "news",
+      "universe_scan"
     ],
     "description": "Momentum trend-following CoinRithm paper-futures agent that trades only when short and medium momentum agree, trails stops behind price, and optimizes realized PnL.",
     "killSwitch": {
       "maxConsecutiveModelFailures": 15,
       "maxConsecutiveRejects": 0,
-      "maxDrawdownMusd": 2500,
+      "maxDrawdownMusd": 6000,
       "onRateLimitPressure": true
     },
     "limits": {
-      "maxDailyLossMusd": 1500,
-      "maxOpenMarginMusd": 2250,
+      "maxDailyLossMusd": 3000,
+      "maxOpenMarginMusd": 8000,
       "maxTradesPerDay": 1000000,
       "maxWritesPerCycle": 1
     },
@@ -175,9 +179,9 @@
     },
     "risk": {
       "blocklist": [],
-      "maxConcurrentPositions": 3,
+      "maxConcurrentPositions": 4,
       "maxLeverage": 4,
-      "perTradeMarginMusd": 750,
+      "perTradeMarginMusd": 2000,
       "requireStopLoss": true,
       "watchlist": [
         "BTC",

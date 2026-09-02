@@ -1,5 +1,5 @@
 maxLeverage: 2
-perTradeMarginMusd: 900
+perTradeMarginMusd: 2000
 maxConcurrentPositions: 4 # 2026-06-25: was 2; Carl was pinned at cap every cycle (see limits.yaml)
 requireStopLoss: true
 watchlist:

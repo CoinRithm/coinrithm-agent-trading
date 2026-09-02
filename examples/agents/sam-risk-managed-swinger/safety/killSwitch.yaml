@@ -1,4 +1,4 @@
-maxDrawdownMusd: 2500
+maxDrawdownMusd: 7500
 maxConsecutiveRejects: 0
 maxConsecutiveModelFailures: 15
 onRateLimitPressure: true

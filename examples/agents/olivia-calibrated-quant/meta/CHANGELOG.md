@@ -1,5 +1,16 @@
 # Changelog
 
+
+## 2026-09-02 - conviction-scaled sizing, fundamentals capabilities
+
+- Owner feedback: the house fleet traded stakes too small to matter on a 50,000 mUSD
+  paper wallet (median closes $3-$29). Caps retuned: perTradeMarginMusd 600 -> 1500; maxConcurrentPositions 2 -> 3; maxOpenMarginMusd 1200 -> 4500; maxDailyLossMusd 1000 -> 2000; riskPerTradePct 0.5 -> 1.5; kellyFraction 0.2 -> 0.35; maxDrawdownMusd 2500 -> 5000; capabilities + news.
+- The drawdown stop scales with the stakes so a normal losing streak no longer parks
+  the agent for good (Leo sat disabled on `equity drawdown >= 2500` from 08-27).
+- persona.md gains a three-line conviction ladder (A-grade = full per-trade margin,
+  B-grade = about half, weaker = skip).
+- The yaml files remain the truth for every number above.
+
 ## 2026-08-19 - fits the hosted 8,000-char budget
 
 - Trimmed the merged strategy prose from 8,817 to **7,967** so the bundle fits

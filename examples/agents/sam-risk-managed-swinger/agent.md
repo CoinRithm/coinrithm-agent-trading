@@ -20,6 +20,7 @@ objective:
   horizon: 7d
 capabilities:
   - indicators
+  - news
 sizing:
   $ref: character/sizing.yaml
 risk:

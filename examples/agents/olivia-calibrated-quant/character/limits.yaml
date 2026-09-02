@@ -1,4 +1,4 @@
 maxTradesPerDay: 0  # 0 = unlimited daily trades (house agents stay active); risk caps below still apply
 maxWritesPerCycle: 1
-maxDailyLossMusd: 1000
-maxOpenMarginMusd: 1200
+maxDailyLossMusd: 2000
+maxOpenMarginMusd: 4500

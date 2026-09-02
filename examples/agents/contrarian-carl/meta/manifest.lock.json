@@ -1,20 +1,20 @@
 {
-  "configHash": "sha256:c226179b84d19c0170b537f48051a4a8aba953c83bd28875a4f83e9af559d027",
+  "configHash": "sha256:94299f2af9852f763cc15487d9a2e879baab33325d296ac05a01cfabb90266dd",
   "contentHashes": {
-    "agent.md": "sha256:a196f1a428814ff05d78475d36f457174704e6d36dfcfd729ddcb7ecf90f8bf4",
+    "agent.md": "sha256:c553e6d82354581f0c3b6ade58521826849b10df7c8d041e9baf0288af748072",
     "character/abstention.yaml": "sha256:24df02b20cbc240248cc7888962a8194ecefa41cd52b56aa22cce2111ee939a8",
     "character/guards.md": "sha256:dc336e17e09e0fde6d54b89e5e4de1de19499ee0ae3a85e84475499bab982347",
-    "character/limits.yaml": "sha256:8c0a6e0cc44d89b29d733008a4517af3fbcaf187173094dbbbbaef0044900a3d",
-    "character/persona.md": "sha256:64cf1fc2ffc5d32776c804bb70af53d1a30573435f84597975c08fbf6abd129f",
-    "character/risk.yaml": "sha256:7a945bcc3fca6e676e3386619ee134e3a51939bcaa3a98eb2b6eea59d5bf0275",
-    "character/sizing.yaml": "sha256:39ef3114d43ae621ef15e7b3379988f82ff197097f781ca3be96cf61923e1d49",
+    "character/limits.yaml": "sha256:80c9cc545bcc6303486310c800f4432125de6ab2c54baf969a03a728dc6d41d3",
+    "character/persona.md": "sha256:307bbae7a00baba905d19c03a998dc12fdae69763b796598369b2bf806ec99a0",
+    "character/risk.yaml": "sha256:22e346db978b59dcf6f4935d07367eff9a022f0424e1caed5880eb50fec0216b",
+    "character/sizing.yaml": "sha256:0bad3d9a4250d5ee7aa149b59a37d4ffeec4926e9c48faa6b622d1f205beefc8",
     "character/skills/blowoff-fade.md": "sha256:f6a55feaa353e11300c9536c70e96caf1ec117047842a1047f7e6ff1e3aae432",
     "character/skills/oversold-bounce.md": "sha256:a624febb2af2b6a5824abea373b223d268ee2d40cd56998f0a0284cccf235547",
-    "character/thesis.md": "sha256:13f49c1ed84f046d193eeafaf249ff80562ae2b1823fb63a91a8fd699354476b",
-    "functionality/coinrithm.yaml": "sha256:30a129c5f38bf6dd3cd33a9d594fd4e7045e73553e8462bd55378250db160d75",
+    "character/thesis.md": "sha256:7eeed00130fd22c26f1fdd031704e3bb7bc6cf3abc58fecc9f925baa3b691851",
+    "functionality/coinrithm.yaml": "sha256:3be2bc043fd06c1ae969dae7d93f11e0e6cc5fd7535292e5bd209142c1a9355c",
     "journal/notes.md": "sha256:ece7e4c55ab8b612aeb7f75240e545a0f558c0cc9bf8b3a79eaba564f22eb771",
     "runtime.yaml": "sha256:a2dde8ea84ccfc8be5e4b731f3cb77b6ffa67b74fc778649a2990ea287b11013",
-    "safety/killSwitch.yaml": "sha256:661f453d01600b702db055753fe0162a1560685cb750d3a8cb13c6e3cc08b022"
+    "safety/killSwitch.yaml": "sha256:36ffa7dda4c1e3df1ff4730bc796fb671bce72019f1cd2b7130db512280df6f0"
   },
   "indicatorVersion": "coinrithm.indicators.v1",
   "provenance": {
@@ -67,7 +67,8 @@
       "onWeakSignal": true
     },
     "capabilities": [
-      "indicators"
+      "indicators",
+      "news"
     ],
     "description": "A patient mean-reversion CoinRithm paper-futures agent that fades statistically stretched moves with low leverage, tight stops, and a drawdown-control objective.",
     "include": [
@@ -77,12 +78,12 @@
     "killSwitch": {
       "maxConsecutiveModelFailures": 15,
       "maxConsecutiveRejects": 0,
-      "maxDrawdownMusd": 2500,
+      "maxDrawdownMusd": 6000,
       "onRateLimitPressure": true
     },
     "limits": {
-      "maxDailyLossMusd": 1200,
-      "maxOpenMarginMusd": 3600,
+      "maxDailyLossMusd": 2500,
+      "maxOpenMarginMusd": 8000,
       "maxTradesPerDay": 0,
       "maxWritesPerCycle": 2
     },
@@ -103,7 +104,7 @@
     "risk": {
       "maxConcurrentPositions": 4,
       "maxLeverage": 2,
-      "perTradeMarginMusd": 900,
+      "perTradeMarginMusd": 2000,
       "requireStopLoss": true,
       "watchlist": [
         "BTC",
@@ -113,8 +114,8 @@
       ]
     },
     "sizing": {
-      "kellyFraction": 0.15,
-      "riskPerTradePct": 0.5,
+      "kellyFraction": 0.3,
+      "riskPerTradePct": 1.5,
       "riskRewardMin": 1.5
     },
     "spec": "coinrithm.agent.v1",
@@ -140,18 +141,19 @@
       "onWeakSignal": true
     },
     "capabilities": [
-      "indicators"
+      "indicators",
+      "news"
     ],
     "description": "A patient mean-reversion CoinRithm paper-futures agent that fades statistically stretched moves with low leverage, tight stops, and a drawdown-control objective.",
     "killSwitch": {
       "maxConsecutiveModelFailures": 15,
       "maxConsecutiveRejects": 0,
-      "maxDrawdownMusd": 2500,
+      "maxDrawdownMusd": 6000,
       "onRateLimitPressure": true
     },
     "limits": {
-      "maxDailyLossMusd": 1200,
-      "maxOpenMarginMusd": 3600,
+      "maxDailyLossMusd": 2500,
+      "maxOpenMarginMusd": 8000,
       "maxTradesPerDay": 1000000,
       "maxWritesPerCycle": 2
     },
@@ -172,7 +174,7 @@
       "blocklist": [],
       "maxConcurrentPositions": 4,
       "maxLeverage": 2,
-      "perTradeMarginMusd": 900,
+      "perTradeMarginMusd": 2000,
       "requireStopLoss": true,
       "watchlist": [
         "BTC",

@@ -1,6 +1,6 @@
 maxLeverage: 5
-perTradeMarginMusd: 1500
-maxConcurrentPositions: 2
+perTradeMarginMusd: 3000
+maxConcurrentPositions: 3
 requireStopLoss: true
 watchlist:
   - BTC
