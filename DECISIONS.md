@@ -359,3 +359,38 @@ live chat-completion probe succeeding on the account that will run it.** The
 same rule powers BYO acceptance (backend `byoModelProbe.ts`: probe with the
 user's key before the deploy is accepted). Historical rows keep their dead
 model labels; only routing changes.
+
+## D19 — A full NIM worker pool is CAPACITY, not a provider outage (2026-09-03)
+
+**Context.** NVIDIA answers two very different conditions with HTTP 503. A
+generic 503 is a real provider failure. A 503 whose body reads
+`ResourceExhausted: Worker local total request limit reached (16/16)` is
+backpressure from ONE model's worker pool — exactly what a 429 means elsewhere.
+
+`classifyFailure` in `packages/scheduler/src/route.ts` treated every 503 as
+`transient`, and the routing loop keys on that class: `capacity` blocks only
+the saturated route, while `transient` blocks the WHOLE provider whenever an
+independent one exists. Since NIM limits are per-model (see D18's probe rule
+and the per-model 429 evidence), a full pool on nano was retiring the healthy
+super sibling behind a provider-wide block, and the cycle was recorded as a
+model failure rather than a capacity defer — feeding a model-failure streak
+that can disable a working agent.
+
+**Measured on production, 6h to 2026-09-03T09:22Z:** 1,288 routed calls, 169
+`model_failed`. **142 of those 169 (84%)** carried that exact body. By model:
+super-120b 705 calls / 33 failed (4.7%), nano-omni-30b 583 / 136 (23.3%).
+
+**Decision.** A 503 whose body matches `/resourceexhausted|worker local total
+request limit/i` classifies as `capacity`. Generic 503 and all 500s stay
+`transient`, so a real provider failure is still never erased as a harmless
+defer (the Codex 50894 invariant).
+
+**Result, equal-length windows either side of the deploy:** model failures fell
+from **10.7% to 4.6%** on matched sample sizes (~150 cycles each), and
+capacity-caused failures specifically fell from 15 to 2 while capacity defers
+rose 43 → 50 — i.e. the outcomes were relabelled correctly rather than hidden.
+Over ~1,750 cycles per side the rate settled at **9.1% → 3.1%**.
+
+**Rule.** Classify a provider error by what the body SAYS, not by its status
+code alone. The class drives routing behaviour, so a mislabelled error does not
+just misreport — it retires healthy capacity.

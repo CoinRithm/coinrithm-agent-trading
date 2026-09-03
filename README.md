@@ -399,11 +399,18 @@ did:
   the related trade/position ids already in the ledger (spot orders matched via
   their idempotency key once the terminal `ClosedOrder` exists). Reports
   `coverage` as `none`, `partial`, or `complete`; stores nothing new.
-- **`retentionPolicy`** — private ledger rows are kept for a rolling window
-  (default 90 days), exports are capped at 1,000 rows, and the pruner deletes old
-  rows in bounded batches. Operators should size the live window from the ledger
-  sizing report (rows/day, table/index bytes, projected retained bytes), not the
-  default alone.
+- **`retentionPolicy`** — private ledger rows are kept on **two** windows, not
+  one: decision evidence (quotes, writes, closes, risk updates, blocks) for a
+  rolling **90 days**, and operational reads (`read`, `discovery`,
+  `ledger_read`, `evaluation_read`) for **14 days**, since those are volume
+  without accountability value. Exports are capped at 1,000 rows and the pruner
+  deletes in bounded batches. Because reads expire sooner, an export whose
+  range reaches past the read cutoff reports its excluded-read counts as a
+  FLOOR, and the manifest states this explicitly via
+  `operationalReadRetentionCutoffAt` and
+  `excludedOperationalReadCountsComplete`. Decision evidence is unaffected.
+  Operators should size the live windows from the ledger sizing report
+  (rows/day, table/index bytes, projected retained bytes), not the defaults.
 
 Market reads attach a compact **`observation`** block (source, input, row count,
 freshness/as-of, and a short payload hash); traced runs store it in the private
