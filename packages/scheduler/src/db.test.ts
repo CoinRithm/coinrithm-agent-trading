@@ -286,7 +286,10 @@ describe("provider circuits — reliability slice 1 (never disable on provider f
         model: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
         error: "410 end of life",
       },
-      model: { provider: "nvidia", name: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning" },
+      model: {
+        provider: "nvidia",
+        name: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+      },
     });
 
     const sqls = query.mock.calls.map((c) => String(c[0]));
