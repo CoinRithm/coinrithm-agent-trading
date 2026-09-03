@@ -93,10 +93,34 @@ function cleanError(value: string | undefined): string | undefined {
     .slice(0, 200);
 }
 
+/**
+ * NVIDIA NIM answers two very different conditions with HTTP 503.
+ *
+ * A generic 503 is a real provider failure and stays `transient` (Codex 50894:
+ * a real 503/500 must not be erased as a harmless defer). But a 503 whose body
+ * reads `ResourceExhausted: Worker local total request limit reached (16/16)`
+ * is backpressure from ONE model's worker pool, which is exactly what 429
+ * means on other providers.
+ *
+ * The distinction matters because of what the routing loop does with each
+ * class: `capacity` blocks only the saturated route, while `transient` blocks
+ * the whole provider whenever an independent one exists. NIM limits are
+ * per-model, so treating a full worker pool as a provider-wide outage retires
+ * healthy sibling models for no reason, and counts a capacity defer as a model
+ * failure on top.
+ *
+ * Measured on production over the 6h to 2026-09-03T10:20Z: 142 of 169 model
+ * failures (84%) carried exactly this body, with nano-omni at 23.3% failed
+ * calls against super-120b's 4.7%.
+ */
+const CAPACITY_503_BODY = /resourceexhausted|worker local total request limit/i;
+
 export function classifyFailure(
   result: Extract<DecideResult, { ok: false }>,
 ): RouteFailureClass {
   if (result.status === 429) return "capacity";
+  if (result.status === 503 && CAPACITY_503_BODY.test(result.error ?? ""))
+    return "capacity";
   if (result.status === 404 || result.status === 410) return "permanent";
   return "transient";
 }
