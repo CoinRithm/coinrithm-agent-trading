@@ -427,3 +427,46 @@ describe("RoutedProvider", () => {
     expect(seen[0]?.error?.length).toBeLessThanOrEqual(200);
   });
 });
+
+describe("pinned model: one route, no failover", () => {
+  // A fallback silently swaps the model mid-experiment. Measured on production
+  // for one agent over 7 days: 125 of 852 cycles (16.2%) were served by a
+  // LARGER model through circuit/provider/capacity/malformed fallbacks, so a
+  // variant comparison over that window was never a single-model test.
+  const configured = { provider: "nvidia" as const, model: NEMOTRON_NANO };
+
+  it("collapses the chain to the configured model alone", () => {
+    const pinned = resolveRouteChain({
+      configured,
+      byo: false,
+      openAiBackup: true,
+      pinnedModel: true,
+    });
+    expect(pinned.routes).toHaveLength(1);
+    expect(pinned.routes[0]?.model).toBe(NEMOTRON_NANO);
+    // The sibling Nemotron and the independent OpenAI backup are both dropped:
+    // availability is traded for validity on purpose.
+    expect(pinned.routes.map((r) => r.model)).not.toContain(NEMOTRON_SUPER);
+    expect(pinned.routes.map((r) => r.provider)).not.toContain("openai");
+  });
+
+  it("still keeps the profile, so nothing else changes shape", () => {
+    const pinned = resolveRouteChain({
+      configured,
+      byo: false,
+      openAiBackup: true,
+      pinnedModel: true,
+    });
+    expect(pinned.profile).toBe("fast");
+  });
+
+  it("leaves the fleet default alone when not pinned", () => {
+    const normal = resolveRouteChain({
+      configured,
+      byo: false,
+      openAiBackup: true,
+    });
+    expect(normal.routes.length).toBeGreaterThan(1);
+    expect(normal.routes.map((r) => r.model)).toContain(NEMOTRON_SUPER);
+  });
+});

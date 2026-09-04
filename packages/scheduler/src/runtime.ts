@@ -50,6 +50,20 @@ class HostedProviderSetupError extends Error {}
 // given agent always uses the same key (stable idempotency/rate behavior), while
 // the fleet spreads evenly across the pool. Empty pool => undefined (selectProvider
 // then errors clearly that no key is configured).
+
+/**
+ * Does this agent pin its model?
+ *
+ * Read defensively: `spec` is jsonb written by the studio and may be anything.
+ * Anything other than an explicit `true` means the fleet default, failover on —
+ * a malformed spec must never silently pin an agent and strand it whenever its
+ * model is saturated.
+ */
+export function agentPinsModel(spec: unknown): boolean {
+  if (!spec || typeof spec !== "object") return false;
+  return (spec as { pinnedModel?: unknown }).pinnedModel === true;
+}
+
 function pickNvidiaKey(
   agent: AgentRow,
   config: Config,
@@ -156,6 +170,11 @@ function routedProviderFor(
     openAiBackup: Boolean(
       config.openAiBackupKey && config.openAiBackupEligible,
     ),
+    // Opt-in per agent, via `pinnedModel: true` in its compiled spec. A pinned
+    // agent SKIPS a cycle rather than letting the router substitute a model,
+    // which is what a controlled variant comparison needs and what a live desk
+    // does not. Default stays false, so the fleet keeps failing over.
+    pinnedModel: agentPinsModel(agent.spec),
   });
 
   const hookFailure = (stage: string, error: unknown): void => {

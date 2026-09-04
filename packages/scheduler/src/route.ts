@@ -140,10 +140,33 @@ function routeKey(route: ModelRoute): string {
  * BYO is deliberately verbatim. Shared Nemotron profiles get the other
  * live-probed Nemotron model, then an optional independent OpenAI route.
  */
+/**
+ * PINNED MODE: one route, no failover, for controlled experiments.
+ *
+ * Routing exists so a live agent keeps trading when a model is saturated or
+ * retired, and for the house fleet that is right. It is wrong when the point of
+ * the run is to compare variants, because a fallback silently swaps the model
+ * mid-experiment.
+ *
+ * Measured on production for one agent over 7 days: of 852 cycles, 587 ran the
+ * since-retired configured model, ~136 the current one, and 125 (16.2%) were
+ * served by a LARGER model through circuit, provider, capacity and malformed
+ * fallbacks. A customer comparing variants over that window was not running a
+ * single-model experiment, and no amount of after-the-fact reporting fixes a
+ * result that already mixed two models.
+ *
+ * Pinning trades availability for validity: a pinned agent SKIPS a cycle rather
+ * than substituting a model. That is the correct trade for an experiment and
+ * the wrong one for a live desk, so it is opt-in per agent and off by default.
+ * `manifest.modelAttribution.singleModelRange` in the audit export is how a run
+ * is confirmed clean afterwards; this is how it is made clean in advance.
+ */
 export function resolveRouteChain(args: {
   configured: Omit<ModelRoute, "keyRef"> & { keyRef?: string };
   byo: boolean;
   openAiBackup: boolean;
+  /** Opt-in: no failover, so the run cannot silently change model. */
+  pinnedModel?: boolean;
 }): { profile: RouteProfile; routes: ModelRoute[] } {
   const configured: ModelRoute = {
     ...args.configured,
@@ -152,7 +175,9 @@ export function resolveRouteChain(args: {
       (args.byo ? "byo" : `${args.configured.provider}:shared:0`),
   };
   const profile = routeProfileFor(configured.model);
-  if (args.byo) return { profile, routes: [configured] };
+  // BYO is already single-route: a user's own key has no house alternate to
+  // fall back to. Pinning takes the same shape for a different reason.
+  if (args.byo || args.pinnedModel) return { profile, routes: [configured] };
 
   const routes: ModelRoute[] = [configured];
   if (profile === "fast") {
