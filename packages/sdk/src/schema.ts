@@ -2936,15 +2936,20 @@ export interface components {
                 /** @constant */
                 smallSampleBelowDecidedTrades: 20;
             };
+            /** @description Since 2026-09-05 every API key (agent) trades its own paper book funded with 50,000 mUSD on first use; the human UI keeps its own. Results before that date came from one shared account wallet and are labelled shared-capital in audit exports. Field names are kept for existing readers; the values changed on 2026-09-05 and independentWalletSince dates it. */
             capital: {
                 /** @constant */
                 normalizedBaselineMusd: 50000;
                 /** @constant */
-                executionWalletScope: "user_account";
+                startingEquityMusd: 50000;
+                /** @constant */
+                executionWalletScope: "api_key";
                 /** @constant */
                 performanceAttributionScope: "api_key";
                 /** @constant */
-                independentWalletPerAgent: false;
+                independentWalletPerAgent: true;
+                /** @constant */
+                independentWalletSince: "2026-09-05";
             };
             evidence: {
                 /** @constant */
@@ -4948,7 +4953,14 @@ export interface operations {
             query?: {
                 limit?: number;
                 offset?: number;
-                /** @description Search title, outcomes, topics and related coins. */
+                /**
+                 * @description Search title, outcomes (4+ character words), topics and related
+                 *     coins. The server normalizes the query (Unicode NFKC, whitespace
+                 *     collapsed, lower-cased) and TRUNCATES it to the first 80 code
+                 *     points and the first 6 words; longer input is not rejected.
+                 *     `%`, `_` and `\` are matched literally, never as wildcards.
+                 *     Words of 1-2 characters match on word boundaries only.
+                 */
                 q?: string;
                 tag?: string;
                 status?: string;

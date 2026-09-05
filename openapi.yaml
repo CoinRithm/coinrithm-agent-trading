@@ -4381,12 +4381,20 @@ components:
             smallSampleBelowDecidedTrades: { type: integer, const: 20 }
         capital:
           type: object
-          required: [normalizedBaselineMusd, executionWalletScope, performanceAttributionScope, independentWalletPerAgent]
+          required: [normalizedBaselineMusd, startingEquityMusd, executionWalletScope, performanceAttributionScope, independentWalletPerAgent, independentWalletSince]
+          description: >-
+            Since 2026-09-05 every API key (agent) trades its own paper book funded with
+            50,000 mUSD on first use; the human UI keeps its own. Results before that date
+            came from one shared account wallet and are labelled shared-capital in audit
+            exports. Field names are kept for existing readers; the values changed on
+            2026-09-05 and independentWalletSince dates it.
           properties:
             normalizedBaselineMusd: { type: number, const: 50000 }
-            executionWalletScope: { type: string, const: user_account }
+            startingEquityMusd: { type: number, const: 50000 }
+            executionWalletScope: { type: string, const: api_key }
             performanceAttributionScope: { type: string, const: api_key }
-            independentWalletPerAgent: { type: boolean, const: false }
+            independentWalletPerAgent: { type: boolean, const: true }
+            independentWalletSince: { type: string, const: '2026-09-05' }
         evidence:
           type: object
           required: [provesCoinrithmPaperExecutionRecords, modelIdentity, hiddenModelReasoningVerified]
