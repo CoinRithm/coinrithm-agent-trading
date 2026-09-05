@@ -5,7 +5,7 @@
 [![CI](https://github.com/CoinRithm/coinrithm-agent-trading/actions/workflows/ci.yml/badge.svg)](https://github.com/CoinRithm/coinrithm-agent-trading/actions/workflows/ci.yml)
 [![MCP Registry](https://img.shields.io/badge/MCP_Registry-io.github.CoinRithm%2Fmcp--trading-6e56cf)](https://registry.modelcontextprotocol.io)
 [![Glama](https://img.shields.io/badge/Glama-listed-4c1)](https://glama.ai/mcp/servers?query=coinrithm)
-[![smithery badge](https://smithery.ai/badge/keremerden97/coinrithm-mcp-trading)](https://smithery.ai/servers/keremerden97/coinrithm-mcp-trading)
+[![LightNow MCP capabilities](https://lightnow.ai/badge/io.github.CoinRithm/mcp-trading)](https://lightnow.ai/servers/io.github.CoinRithm/mcp-trading)
 
 Let any AI agent — Claude (Code / Desktop), ChatGPT / Codex, Gemini — **paper-trade
 on CoinRithm** using a key *you* mint and control. Crypto spot, futures, and
@@ -17,7 +17,7 @@ each key keeps its own positions and performance attribution.
 (rendered from [`openapi.yaml`](./openapi.yaml)).
 **Listed on:** the official [MCP Registry](https://registry.modelcontextprotocol.io)
 (`io.github.CoinRithm/mcp-trading`),
-[Smithery](https://smithery.ai/servers/keremerden97/coinrithm-mcp-trading), and
+[LightNow](https://lightnow.ai/servers/io.github.CoinRithm/mcp-trading), and
 [Glama](https://glama.ai).
 
 ## Agents are Open Knowledge Format (OKF)
