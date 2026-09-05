@@ -29,7 +29,7 @@ unchanged.
 `character/`, `safety/`, `functionality/`, `evaluation/`, `meta/` parts. A
 resolver compiles a single file OR a decomposed folder into one `AgentSpec`.
 
-**Why.** The folder *is* the interface — portable, anchored, diff-able,
+**Why.** The folder _is_ the interface — portable, anchored, diff-able,
 fine-tunable per block, and a branded template users can clone. The structure
 carries the architecture, so most tuning is editing files, not code.
 
@@ -54,7 +54,7 @@ stake min/max, kill-switch) is enforced by the runner's validator against the
 runner disposes.
 
 **Why.** Injection-proof by construction: a cap that lives in code the model
-cannot see cannot be argued away. It also makes a cheaper/weaker brain *safe* —
+cannot see cannot be argued away. It also makes a cheaper/weaker brain _safe_ —
 the worst a bad proposal does is get rejected.
 
 ## D4 — Machine-read config and LLM prose never cross
@@ -87,20 +87,20 @@ to the model. Neither is allowed to happen silently.
 
 **Decision.** `run` is dry-run unless `--live` (or `LIVE=1`) AND not `--dry-run`.
 
-**Why.** You see exactly what the agent *would* do before any paper trade is
+**Why.** You see exactly what the agent _would_ do before any paper trade is
 placed.
 
 ## D7 — Composition is $ref + extends + include, tighten-only
 
 **Context.** Decomposed agents need to share base layers and stack tactics
-without a tactic being able to *loosen* a limit.
+without a tactic being able to _loosen_ a limit.
 
 **Decision.** `$ref` (per-block part-files), `extends` (a base layer of whole
 blocks, e.g. `runtime.yaml`), `include` (tactic skills). A tactic may patch only
 `risk`/`limits`, **tighten-only**, merged most-restrictive-wins; any widening is
 rejected.
 
-**Why.** A decomposed agent is then *strictly safer* than its inline form can be —
+**Why.** A decomposed agent is then _strictly safer_ than its inline form can be —
 file/merge order can never relax a cap.
 
 ## D8 — Deterministic lock + strict key-lint (no silent coercion)
@@ -394,3 +394,35 @@ Over ~1,750 cycles per side the rate settled at **9.1% → 3.1%**.
 **Rule.** Classify a provider error by what the body SAYS, not by its status
 code alone. The class drives routing behaviour, so a mislabelled error does not
 just misreport — it retires healthy capacity.
+
+## D20 — Pinned model is a Studio option, not a scheduler secret (2026-09-04)
+
+**Context.** `spec.pinnedModel` has existed in the scheduler since the routing
+work in D18/D19: a pinned agent is routed to ONLY its configured model
+(`route.ts`) and SKIPS the cycle when that model is unavailable, instead of
+being served a substitute. It was correct and unreachable. No Studio control,
+no compiler path and no API field set it; zero production agents had it, and
+in the 24h to 2026-09-04 2,924 of 4,774 model calls were fallback cycles. Every
+hosted comparison was therefore a mixed-model comparison, whatever its label.
+
+**Decision.** The pin is part of the agent's spec contract, end to end:
+
+- Backend `mergeSpecOverrides` accepts `pinnedModel` as a validated boolean on
+  deploy and edit (wrong type keeps the base, absent leaves it untouched). It
+  lives in the spec on purpose: the revision content hash already covers
+  `stableStringify(spec)`, so every revision records it, and the audit export
+  manifest names `agent.pinnedModel` explicitly rather than burying it.
+- Studio exposes it as a checkbox beside capabilities, with the honest copy:
+  unavailable pinned model = skipped cycle, recorded. The agent card shows a
+  "Pinned model" badge and, when a different model ran, the route reason.
+- The scheduler is unchanged; it already honoured the field.
+
+**Rule.** Any property that decides whether a comparison is controlled must be
+settable by the person running the comparison, hashed into the revision, and
+visible in the export. A safeguard nobody can turn on is documentation, not a
+safeguard.
+
+**Verification.** Backend `f7ec3e9` then `978c951` (books default-on), frontend
+`db58d7be` / `840ee8a1`; all live 2026-09-05 05:54Z. Backend 161 suites / 2039
+tests, frontend 181 files / 1272 tests, plus two server-side Docker build
+proofs (see coinrithm/CLAUDE.md) before master.
