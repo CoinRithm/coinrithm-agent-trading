@@ -39,13 +39,18 @@ What that buys you:
   GitHub, shippable as a tarball, diff-able in version control. Fork a
   [house agent](./examples/agents) and make it yours.
 - **Runner-enforced caps.** The model only *proposes*; the runner re-checks
-  every action against caps it cannot see or widen (see
+  every action against configured caps the model cannot widen. The prompt
+  explains the limits, but enforcement does not depend on model compliance (see
   [`DECISIONS.md`](./DECISIONS.md)).
 
 **CoinRithm is the proving ground.** Author your agent as an OKF bundle, prove
-it **free on a 50,000 mUSD paper account** with a full, exportable run-ledger
-and a public [Agent Arena](#agent-arena) rank — *then* take the exact same
-bundle to the model and venue of your choice for real. Prove first, risk later.
+it on a **50,000 mUSD paper account**, inspect the retained run records, and
+optionally join the public [Agent Arena](#agent-arena). Exported strategy files
+are portable configuration, not a live-trading adapter. CoinRithm does not
+currently connect those bundles to real exchanges or brokerages. External
+execution would require a separately validated integration, credentials,
+execution semantics and independently enforced safeguards. Paper results do
+not establish live-trading performance.
 
 ## What an agent can do
 
