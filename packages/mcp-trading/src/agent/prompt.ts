@@ -3,7 +3,35 @@
 // The model only PROPOSES — the runner re-checks every action against the caps,
 // so the prompt states the caps but never relies on the model to honor them.
 
-import { AgentSpec, Observation, PmResolution } from "./types.js";
+import { AgentSpec, Observation, PmResolution, RunState } from "./types.js";
+
+// Prompt-only context, not an Observation receipt or a new persisted counter.
+export interface DailyRiskBudget {
+  version: "coinrithm.daily-risk-budget.v1";
+  utcDay: string;
+  limit: number | null; // null means no daily count cap
+  used: number;
+  remaining: number | null;
+}
+
+// The runner has already called rollDay. Use the same counter as validation,
+// including conservative legacy-state migration; never infer it from writes,
+// model calls, or the number of positions that remain open.
+export function buildDailyRiskBudget(
+  spec: AgentSpec,
+  state: Pick<RunState, "dayKey" | "riskIncreasesToday">,
+): DailyRiskBudget {
+  const limit =
+    spec.limits.maxTradesPerDay > 0 ? spec.limits.maxTradesPerDay : null;
+  return {
+    version: "coinrithm.daily-risk-budget.v1",
+    utcDay: state.dayKey,
+    limit,
+    used: state.riskIncreasesToday,
+    remaining:
+      limit === null ? null : Math.max(0, limit - state.riskIncreasesToday),
+  };
+}
 
 // Whole-dollar rendering for the compact PM rows (tokens, not precision).
 const roundUsd = (v?: number): number | undefined =>
@@ -101,6 +129,7 @@ export function buildSystemPrompt(
     mergedProse.trim() || "(no strategy prose provided)",
     "",
     "## Hard caps the runner enforces (do not exceed; proposing over a cap wastes the cycle)",
+    "- When supplied, the user prompt's dailyRiskBudget is the remaining UTC-day entry/add allowance. It outranks setup/entry pressure: exhaustion is a legitimate skip for new risk, never a reason to skip otherwise-valid closes or protection. All other caps still apply, even when this daily count is unlimited.",
     `- venues you may act in: ${v.join(", ")}`,
     `- perTradeMarginMusd ${r.perTradeMarginMusd} is the per-trade SIZE cap (${sizeKinds.join(" / ")})`,
     ...(hasFutures
@@ -261,7 +290,10 @@ export function buildSystemPrompt(
 export function buildUserPrompt(
   obs: Observation,
   journal?: Array<{ at: string; did: string }>,
-  opts: { venues?: AgentSpec["venues"] } = {},
+  opts: {
+    venues?: AgentSpec["venues"];
+    dailyRiskBudget?: DailyRiskBudget;
+  } = {},
 ): string {
   // Default to every venue for backwards-compatible direct callers and probes.
   // The runner always supplies the real spec, so disabled venue instructions and
@@ -273,6 +305,30 @@ export function buildUserPrompt(
   const lines: string[] = [
     "Decide for THIS cycle using only the observation below (data available now — no look-ahead).",
   ];
+  if (opts.dailyRiskBudget) {
+    const entryActions = [
+      ...(hasFutures ? ["futures_open (including adds)"] : []),
+      ...(hasSpot ? ["spot_order buys"] : []),
+      ...(hasPm ? ["pm_open"] : []),
+    ];
+    const protectiveActions = [
+      ...(hasFutures ? ["futures_close", "futures_set_sltp"] : []),
+      ...(hasSpot ? ["spot_order sells", "spot_cancel"] : []),
+    ];
+    lines.push(
+      `dailyRiskBudget below is a runtime-state snapshot: each successful ${entryActions.join(" / ")} uses one slot. It is NOT a model-call, API-call or total-write budget. Multiple entries/adds in one decision share the remaining slots; propose no more than remain. Closing does not restore a used slot. A null limit/remaining means no daily count cap; other risk caps still apply.`,
+      ...(protectiveActions.length > 0
+        ? [
+            `Otherwise-valid ${protectiveActions.join(" / ")} do not consume these slots and remain available when the entry/add budget is exhausted.`,
+          ]
+        : []),
+      ...(opts.dailyRiskBudget.remaining === 0
+        ? [
+            "Today's entry/add budget is EXHAUSTED until the next UTC day: propose no new entries or adds. Manage/protect existing positions and orders where valid, or skip; a flagged setup does not override this budget.",
+          ]
+        : []),
+    );
+  }
   // Flat-state steer: when the agent holds NOTHING, weaker models (Llama 3.1 8B)
   // still emit futures_close / futures_set_sltp / spot_cancel with a hallucinated
   // positionId/orderId — which fails the whole cycle's strict parse (one bad id
@@ -341,6 +397,9 @@ export function buildUserPrompt(
     // and the trade ledger is capped so a busy shared book can't bloat the prompt.
     JSON.stringify({
       asOf: obs.asOf,
+      ...(opts.dailyRiskBudget
+        ? { dailyRiskBudget: opts.dailyRiskBudget }
+        : {}),
       cashAvailableMusd: obs.cashAvailableMusd,
       equityMusd: obs.equityMusd,
       openPositions: obs.openPositions,

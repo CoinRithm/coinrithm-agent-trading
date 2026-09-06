@@ -24,7 +24,11 @@ import { decideMechanical } from "./mechanical.js";
 import { evaluateGate, noteLlmCall, estimateCostUsd } from "./gate.js";
 import { baseSymbol, scanSetups } from "./setups.js";
 import { observe } from "./observe.js";
-import { buildSystemPrompt, buildUserPrompt } from "./prompt.js";
+import {
+  buildDailyRiskBudget,
+  buildSystemPrompt,
+  buildUserPrompt,
+} from "./prompt.js";
 import { parseDecision } from "./decision.js";
 import {
   validateAction,
@@ -775,6 +779,7 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
     });
     const user = buildUserPrompt(observation, state.journal, {
       venues: spec.venues,
+      dailyRiskBudget: buildDailyRiskBudget(spec, state),
     });
     const tokensInEst = Math.round((system.length + user.length) / 4);
     // Prompt-size + trigger visibility in the live terminal.

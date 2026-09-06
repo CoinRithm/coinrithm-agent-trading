@@ -151,6 +151,171 @@ function deps(
   };
 }
 
+describe("runCycle daily risk budget prompt", () => {
+  afterEach(() => vi.useRealTimers());
+
+  function capture(decision: unknown = { decision: "skip" }) {
+    const decide = vi.fn<Provider["decide"]>().mockResolvedValue({
+      ok: true,
+      text: JSON.stringify(decision),
+    });
+    const prov: Provider = { label: "capture", decide };
+    return {
+      prov,
+      decide,
+      budget: (call = 0) =>
+        JSON.parse(
+          decide.mock.calls[call][0].user.match(/```json\n(.*)\n```/)![1],
+        ).dailyRiskBudget,
+    };
+  }
+
+  it("uses rolled UTC-day state before the model sees the budget", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-07T23:59:59.000Z"));
+    const c = capture();
+    const d = deps({}, baseClient(), c.prov);
+    d.spec.limits.maxTradesPerDay = 3;
+    d.state.riskIncreasesToday = 3;
+    d.state.writesToday = 20;
+    await runCycle(d);
+    expect(c.budget()).toMatchObject({
+      utcDay: "2026-09-07",
+      used: 3,
+      remaining: 0,
+    });
+
+    vi.setSystemTime(new Date("2026-09-08T00:00:00.000Z"));
+    await runCycle(d);
+    expect(c.budget(1)).toMatchObject({
+      utcDay: "2026-09-08",
+      used: 0,
+      remaining: 3,
+    });
+    expect(d.state.writesToday).toBe(0);
+    expect(d.state.riskIncreasesToday).toBe(0);
+  });
+
+  it.each(["futures_close", "futures_set_sltp"] as const)(
+    "keeps %s executable at an exhausted budget without spending/restoring slots",
+    async (type) => {
+      const client = baseClient({
+        futuresPositions: async () =>
+          okData({ positions: [{ id: 7, status: "open", marginMusd: 50 }] }),
+      });
+      const c = capture({
+        decision: "act",
+        actions: [
+          {
+            type,
+            positionId: 7,
+            ...(type === "futures_set_sltp" ? { stopLossPrice: 60000 } : {}),
+          },
+        ],
+      });
+      const d = deps({ live: true }, client, c.prov);
+      d.spec.limits.maxTradesPerDay = 1;
+      d.state.riskIncreasesToday = 1;
+      d.state.writesToday = 10;
+      const result = await runCycle(d);
+      expect(c.budget()).toMatchObject({ limit: 1, used: 1, remaining: 0 });
+      expect(result.planned[0].executed).toBe(true);
+      expect(d.state.writesToday).toBe(11);
+      expect(d.state.riskIncreasesToday).toBe(1);
+    },
+  );
+
+  it("shares one remaining slot across a multi-action decision and refreshes the next prompt", async () => {
+    const c = capture({
+      ...VALID_OPEN,
+      actions: [
+        VALID_OPEN.actions[0],
+        { ...VALID_OPEN.actions[0], symbol: "ETH" },
+      ],
+    });
+    const client = baseClient();
+    const d = deps({ live: true }, client, c.prov);
+    d.spec.limits.maxTradesPerDay = 3;
+    d.spec.limits.maxWritesPerCycle = 2;
+    d.state.riskIncreasesToday = 2;
+    d.state.writesToday = 10;
+    const result = await runCycle(d);
+    expect(c.budget()).toMatchObject({ used: 2, remaining: 1 });
+    expect(result.planned[0].executed).toBe(true);
+    expect(result.planned[1].code).toBe("daily_trade_cap");
+    expect(client.openFutures).toHaveBeenCalledTimes(1);
+    expect(d.state.riskIncreasesToday).toBe(3);
+    c.decide.mockResolvedValue({
+      ok: true,
+      text: JSON.stringify({ decision: "skip" }),
+    });
+    await runCycle(d);
+    expect(c.budget(1)).toMatchObject({ used: 3, remaining: 0 });
+  });
+
+  it("counts successful adds to held futures positions as entry/add risk", async () => {
+    const c = capture({
+      ...VALID_OPEN,
+      actions: [{ ...VALID_OPEN.actions[0], stopLossPrice: undefined }],
+    });
+    const client = baseClient({
+      futuresPositions: async () =>
+        okData({
+          positions: [
+            { id: 7, status: "open", marginMusd: 50, coin: { symbol: "BTC" } },
+          ],
+        }),
+    });
+    const d = deps({ live: true }, client, c.prov);
+    // Existing add validation forbids SL/TP on adds; this fixture permits an
+    // add without new triggers. No production policy is changed.
+    d.spec.risk.requireStopLoss = false;
+    d.spec.limits.maxTradesPerDay = 3;
+    d.state.riskIncreasesToday = 1;
+    const result = await runCycle(d);
+    expect(result.planned[0].executed).toBe(true);
+    expect(c.budget()).toMatchObject({ used: 1, remaining: 2 });
+    expect(d.state.riskIncreasesToday).toBe(2);
+    c.decide.mockResolvedValue({
+      ok: true,
+      text: JSON.stringify({ decision: "skip" }),
+    });
+    await runCycle(d);
+    expect(c.budget(1)).toMatchObject({ used: 2, remaining: 1 });
+  });
+
+  it.each(["dry-run", "rejected", "failed"])(
+    "does not spend a slot for a %s proposal or its model call",
+    async (outcome) => {
+      const c = capture(outcome === "rejected" ? OVER_LEVERAGE : VALID_OPEN);
+      const client = baseClient({
+        ...(outcome === "failed"
+          ? {
+              openFutures: vi.fn(async () => ({
+                ok: false,
+                status: 500,
+                data: {},
+              })),
+            }
+          : {}),
+      });
+      const d = deps({ live: outcome !== "dry-run" }, client, c.prov);
+      d.spec.limits.maxTradesPerDay = 3;
+      d.state.riskIncreasesToday = 1;
+      d.state.writesToday = 20;
+      await runCycle(d);
+      expect(c.budget()).toMatchObject({ used: 1, remaining: 2 });
+      expect(d.state.riskIncreasesToday).toBe(1);
+      c.decide.mockResolvedValue({
+        ok: true,
+        text: JSON.stringify({ decision: "skip" }),
+      });
+      await runCycle(d);
+      expect(c.budget(1)).toMatchObject({ used: 1, remaining: 2 });
+    },
+  );
+});
+
 describe("runCycle", () => {
   it("does not consume debounce or model-failure state when every route is capacity-deferred", async () => {
     const deferred: Provider = {

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  buildDailyRiskBudget,
   buildSystemPrompt,
   buildUserPrompt,
   formatPmResolutions,
@@ -7,6 +8,7 @@ import {
 import { parseSkill } from "./skill.js";
 import { renderFolderOfOne } from "./templates.js";
 import { Observation, PmResolution } from "./types.js";
+import { newState } from "./state.js";
 
 const baseObs = (over: Partial<Observation> = {}): Observation => ({
   asOf: "t",
@@ -24,6 +26,92 @@ const baseObs = (over: Partial<Observation> = {}): Observation => ({
   newClosedTrades: [],
   polledBeforeWrite: true,
   ...over,
+});
+
+describe("daily entry/add risk budget context", () => {
+  it.each([
+    { limit: 5, used: 2, remaining: 3 },
+    { limit: 5, used: 5, remaining: 0 },
+    { limit: 5, used: 7, remaining: 0 },
+    { limit: 0, used: 999, remaining: null },
+  ])(
+    "renders limit=$limit used=$used as remaining=$remaining",
+    ({ limit, used, remaining }) => {
+      const spec = parseSkill(renderFolderOfOne("a", "conservative")).spec;
+      spec.limits.maxTradesPerDay = limit;
+      const state = newState("r");
+      state.riskIncreasesToday = used;
+      // Protective writes and calls must not reduce the available entry slots.
+      state.writesToday = 2000;
+      state.llmCallTimestamps = [1, 2, 3];
+      const before = structuredClone(state);
+      const budget = buildDailyRiskBudget(spec, state);
+      expect(budget).toEqual({
+        version: "coinrithm.daily-risk-budget.v1",
+        utcDay: state.dayKey,
+        limit: limit || null,
+        used,
+        remaining,
+      });
+      expect(state).toEqual(before);
+
+      const obs = baseObs({
+        openPositions: [
+          { venue: "futures", id: 7, symbol: "BTC", status: "open" },
+        ],
+        openOrders: [{ id: 8, symbol: "ETH" }],
+      });
+      const out = buildUserPrompt(obs, undefined, { dailyRiskBudget: budget });
+      const input = JSON.parse(out.match(/```json\n(.*)\n```/)![1]);
+      expect(input.dailyRiskBudget).toEqual(budget);
+      expect(input.openPositions).toEqual(obs.openPositions);
+      expect(input.openOrders).toEqual(obs.openOrders);
+      expect(input.cashAvailableMusd).toBe(obs.cashAvailableMusd);
+      expect(input.equityMusd).toBe(obs.equityMusd);
+      expect(out.match(/"openPositions":/g)).toHaveLength(1);
+      expect(out).toContain(
+        "futures_open (including adds) / spot_order buys / pm_open",
+      );
+      expect(out).toContain("NOT a model-call, API-call or total-write budget");
+      expect(out).toContain(
+        "Multiple entries/adds in one decision share the remaining slots",
+      );
+      expect(out).toContain("Closing does not restore a used slot");
+      expect(out).toContain(
+        "futures_close / futures_set_sltp / spot_order sells / spot_cancel",
+      );
+      expect(out).toContain(
+        "remain available when the entry/add budget is exhausted",
+      );
+      expect(out.includes("EXHAUSTED until the next UTC day")).toBe(
+        remaining === 0,
+      );
+    },
+  );
+
+  it("keeps budget action guidance scoped to enabled venues", () => {
+    const spec = parseSkill(renderFolderOfOne("a", "conservative")).spec;
+    const out = buildUserPrompt(baseObs(), undefined, {
+      venues: ["futures"],
+      dailyRiskBudget: buildDailyRiskBudget(spec, newState("r")),
+    });
+    expect(out).toContain("futures_open (including adds)");
+    expect(out).toContain("futures_set_sltp");
+    expect(out).not.toMatch(/pm_open|spot_order|spot_cancel/);
+  });
+
+  it("does not invent an allowance for callers without runtime state", () => {
+    const out = buildUserPrompt(baseObs());
+    expect(out).not.toContain("dailyRiskBudget");
+    expect(out).not.toContain("EXHAUSTED");
+  });
+
+  it("makes budget exhaustion outrank setup pressure without forbidding protection", () => {
+    const spec = parseSkill(renderFolderOfOne("a", "conservative")).spec;
+    expect(buildSystemPrompt(spec, "strategy")).toContain(
+      "exhaustion is a legitimate skip for new risk, never a reason to skip otherwise-valid closes or protection",
+    );
+  });
 });
 
 describe("formatPmResolutions", () => {
