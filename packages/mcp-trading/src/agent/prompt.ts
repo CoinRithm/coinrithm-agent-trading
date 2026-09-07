@@ -4,6 +4,7 @@
 // so the prompt states the caps but never relies on the model to honor them.
 
 import { AgentSpec, Observation, PmResolution, RunState } from "./types.js";
+import { pmQualityOf, pmDecisionSupportOf } from "./pmContext.js";
 
 // Prompt-only context, not an Observation receipt or a new persisted counter.
 export interface DailyRiskBudget {
@@ -164,7 +165,7 @@ export function buildSystemPrompt(
       : []),
     ...(hasPm
       ? [
-          "- prediction markets are a FIRST-CLASS venue for you — a pm_open is as real a trade as a futures/spot open, not an afterthought. Each observation.pmMarkets entry carries a short `ref` (pm1, pm2, …), an `outcome` label, and `prob` (0..1, the market's CURRENT odds). BET (pm_open) an outcome when YOUR estimate of its true probability differs MATERIALLY from the market's — that gap is your edge (e.g. prob 0.35 but you think it's really ~0.55 -> buy). Skip only markets pinned near 0 or 1 (no edge left). Every entry in observation.pmMarkets is already filtered to one you CAN open (binary/settlement-grade) — so a listed market will not bounce at quote. Pick ONLY a listed market and identify it by copying its `ref` into the action; min stake 10 mUSD. Do NOT re-bet a market+outcome you ALREADY hold (check observation.pmPositions) — that is churn and will be rejected; bet a DIFFERENT market or skip.",
+          "- prediction markets are a FIRST-CLASS venue for you. Each observation.pmMarkets entry carries a short `ref` (pm1, pm2, ...), an `outcome` label, and `prob` (0..1, the market's current odds). BET (pm_open) when your independently formed estimate differs materially from the market's, after costs. Discovery filters known ineligible candidates but is NOT an execution promise: fresh quote and open-time guards still apply. `quality` contains eligibility and warning evidence; `decisionSupport` describes liquidity/activity/structure, NOT winning probability or forecast accuracy. Missing quality is unknown, not approval. Check warning reasons, freshness age and flags before deciding. Pick ONLY a listed market by its `ref`; min stake 10 mUSD. Do NOT re-bet a market+outcome already held (check observation.pmPositions); choose a different market or skip.",
           "- PM stake is a SEPARATE budget from your futures margin: the futures margin cap (maxOpenMarginMusd) does NOT limit pm_open. So when your futures are at the margin/position cap — you hold the max, or a futures_open keeps getting REJECTED with open_margin_exceeds_cap — prediction markets are STILL fully open to you. PIVOT to pm_open on a mispriced market instead of re-proposing a futures_open that will just be rejected: a rejected open wastes the entire cycle, an eligible PM bet does not.",
           "- YOUR SHARPEST PM EDGE is the crypto price view you JUST formed: crypto PM markets resolve on the very prices you analyse, so you have a genuine information edge there that you do NOT have on coin futures alone. EVERY cycle you reach a price conviction, it is REQUIRED that you scan observation.pmMarkets for a LISTED crypto market that same view prices wrong and, if one is materially mispriced, open it with pm_open by its `ref` — treat that mispricing exactly like a flagged coin setup (an ACT, not a skip). If you are bearish BTC, a 'BTC above $X by <date>' priced high is a NO; if bullish ETH, an 'ETH above $Y' priced low is a YES. ESCAPE HATCH — only the markets actually listed in observation.pmMarkets THIS cycle (pm1..pmN) are bettable: if NONE of them matches the coin or view you formed, that is a legitimate SKIP for PM (say so in one clause and move on) — do NOT invent, guess, or increment a ref for a market you wish existed, because a made-up ref is rejected (pm_ref_unknown) and wastes the whole cycle exactly like a rejected open. The mistake to avoid is leaving a LISTED, clearly mispriced crypto market untraded — a mispricing that is NOT on this cycle's board is simply not actionable now, not a miss. (For non-crypto events you have no special edge; skip unless the odds are obviously off.)",
         ]
@@ -417,6 +418,11 @@ export function buildUserPrompt(
               outcome: m.outcomeName,
               prob: m.probability,
               freshness: m.freshness?.status,
+              ageSeconds: m.freshness?.ageSeconds,
+              sourceAsOf: m.freshness?.asOf,
+              freshnessBasis: m.freshness?.basis,
+              quality: pmQualityOf(m.quality),
+              decisionSupport: pmDecisionSupportOf(m.decisionSupport),
               // Slice 2 fundamentals: resolution date, 24h volume, liquidity.
               end: m.endDate,
               vol24h: roundUsd(m.volumeUsd),

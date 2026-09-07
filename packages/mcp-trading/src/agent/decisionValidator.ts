@@ -571,27 +571,35 @@ export function validateAction(
     // buying that outcome only makes sense when the forecast clears what the
     // market charges for it. An ABSENT forecast still never blocks a bet (the
     // prompt promises that); a PRESENT one that contradicts the trade does.
-    // The QUOTE's entryProbability is what this stake actually fills at
-    // (assessEntry: bid/ask, size slippage, fee), so it is what the forecast
-    // must beat. The discovery mid is only a fallback for an older backend
-    // that does not return one.
-    const fillProbability = ctx.quote.entryProbability ?? mkt.probability;
-    if (
-      !ctx.mechanical &&
-      action.forecastProbability != null &&
-      fillProbability != null
-    ) {
-      const marketProbability = fillProbability;
-      if (Number.isFinite(marketProbability)) {
-        const entryPct =
-          marketProbability <= 1 ? marketProbability * 100 : marketProbability;
-        const edge = action.forecastProbability - entryPct;
-        if (edge < PM_MIN_FORECAST_EDGE_POINTS) {
-          return fail(
-            "forecast_no_positive_edge",
-            `forecast ${action.forecastProbability} vs entry ${entryPct.toFixed(1)} = ${edge.toFixed(1)}pt edge, under the ${PM_MIN_FORECAST_EDGE_POINTS}pt minimum`,
-          );
-        }
+    // The API's entryProbability is the RAW mid, and executionModel's effective
+    // probability excludes fee. Total stake / net shares is the fee-inclusive
+    // break-even cost. Do not guess units or fall back to a discovery mid.
+    if (!ctx.mechanical && action.forecastProbability != null) {
+      const stake = ctx.quote.stakeMusd;
+      const shares = ctx.quote.sharesEstimate;
+      const entryPct =
+        typeof stake === "number" &&
+        Number.isFinite(stake) &&
+        stake > 0 &&
+        stake === action.stakeMusd &&
+        typeof shares === "number" &&
+        Number.isFinite(shares) &&
+        shares > 0
+          ? (stake / shares) * 100
+          : NaN;
+      if (!Number.isFinite(entryPct) || entryPct <= 0) {
+        return fail(
+          "pm_quote_cost_unavailable",
+          "forecast edge requires a matching stake and positive finite net share estimate",
+        );
+      }
+      const edge = action.forecastProbability - entryPct;
+      // A cost over 100 is possible; do not clamp an uneconomic quote into range.
+      if (edge + 1e-9 < PM_MIN_FORECAST_EDGE_POINTS) {
+        return fail(
+          "forecast_no_positive_edge",
+          `forecast ${action.forecastProbability} vs entry ${entryPct.toFixed(1)} = ${edge.toFixed(1)}pt edge, under the ${PM_MIN_FORECAST_EDGE_POINTS}pt minimum`,
+        );
       }
     }
     if (thesisContradictsOutcome(action.thesis?.summary, mkt.outcomeName)) {

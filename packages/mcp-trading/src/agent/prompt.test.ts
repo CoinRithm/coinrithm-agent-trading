@@ -174,6 +174,51 @@ describe("formatPmResolutions", () => {
 });
 
 describe("buildUserPrompt — settlement feedback integration", () => {
+  it("shows bounded PM quality and age without promising quote approval", () => {
+    const spec = parseSkill(renderFolderOfOne("a", "conservative")).spec;
+    spec.venues = ["pm"];
+    const obs = baseObs({
+      pmMarkets: [
+        {
+          ref: "pm1",
+          source: "polymarket",
+          slug: "test",
+          outcomeExternalMarketId: "yes",
+          probability: 0.01,
+          freshness: {
+            status: "fresh",
+            ageSeconds: 600,
+            asOf: "2026-09-07T01:55:17.076Z",
+            basis: "latest_snapshot",
+          },
+          quality: {
+            decisionEligible: true,
+            warningReasons: ["anomaly_flagged"],
+            blockReasons: [],
+            reasonsOmitted: true,
+          },
+          decisionSupport: {
+            qualityTier: "medium",
+            flags: { highAmbiguity: true },
+          },
+        },
+      ],
+    });
+    const prompt = buildUserPrompt(obs, undefined, { venues: ["pm"] });
+    const data = JSON.parse(prompt.match(/```json\n(.*)\n```/)![1]);
+    expect(data.pmMarkets[0]).toMatchObject({
+      prob: 0.01,
+      ageSeconds: 600,
+      freshnessBasis: "latest_snapshot",
+      quality: { warningReasons: ["anomaly_flagged"], reasonsOmitted: true },
+      decisionSupport: { flags: { highAmbiguity: true } },
+    });
+    const system = buildSystemPrompt(spec, "strategy");
+    expect(system).toContain("NOT an execution promise");
+    expect(system).toContain("NOT winning probability or forecast accuracy");
+    expect(system).not.toContain("a listed market will not bounce at quote");
+  });
+
   it("omits the resolutions block when there are none", () => {
     const out = buildUserPrompt(baseObs());
     expect(out).not.toMatch(/settlement feedback/i);

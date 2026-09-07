@@ -9,9 +9,9 @@ import {
   ApiResult,
   Observation,
   QuoteEvidence,
-  Freshness,
 } from "./types.js";
-import { asObj, asNum, asStr } from "./extract.js";
+import { asObj, asNum } from "./extract.js";
+import { freshnessOf } from "./pmContext.js";
 
 function coinIdFor(
   observation: Observation,
@@ -22,12 +22,6 @@ function coinIdFor(
       (w) => w.symbol.toUpperCase() === symbol.toUpperCase(),
     )?.coinId ?? undefined
   );
-}
-
-function freshnessOf(block: Record<string, unknown>): Freshness | undefined {
-  const fr = asObj(block.freshness);
-  const status = asStr(fr.status);
-  return status ? { status, ageSeconds: asNum(fr.ageSeconds) } : undefined;
 }
 
 // Read-only quote BEFORE any open. Returns ineligible (never throws) on error.
@@ -81,7 +75,13 @@ export async function fetchQuote(
     entryPrice: asNum(d.entryPrice), // futures
     liquidationPrice: asNum(d.liquidationPrice), // futures
     executionPrice: asNum(d.executionPrice), // spot live fill price
-    entryProbability: asNum(d.entryProbability), // pm fill probability
+    entryProbability: asNum(d.entryProbability), // pm raw probability POINTS
+    ...(action.type === "pm_open"
+      ? {
+          stakeMusd: asNum(d.stakeMusd),
+          sharesEstimate: asNum(d.sharesEstimate),
+        }
+      : {}),
     estimatedCostMusd: asNum(d.estimatedCostMusd), // spot gross notional
     // Freshness lives in the response's `observation` block (anti-look-ahead).
     freshness: freshnessOf(asObj(d.observation)),

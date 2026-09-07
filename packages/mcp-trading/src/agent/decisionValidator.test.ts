@@ -117,6 +117,7 @@ describe("validateAction", () => {
     const atCap = ctx({
       spec: capped,
       observation: obsWithPos,
+      quote: undefined,
       riskIncreasesThisCycle: 1,
       riskIncreasesToday: 1,
     });
@@ -521,6 +522,7 @@ describe("validateAction", () => {
         ctx({
           spec: allSpec,
           observation: obs,
+          quote: undefined,
           riskIncreasesThisCycle: 99,
           riskIncreasesToday: 99,
         }),
@@ -567,6 +569,16 @@ describe("validateAction", () => {
     confidence: 0.7,
   };
 
+  // The API echoes the stake and returns shares net of execution fees. The raw
+  // entryProbability remains the gate mid, not the all-in break-even cost.
+  const pmQuoteForCost = (costPoints: number): QuoteEvidence => ({
+    eligible: true,
+    freshness: { status: "fresh" },
+    entryProbability: 60,
+    stakeMusd: 20,
+    sharesEstimate: (100 * 20) / costPoints,
+  });
+
   it("accepts a compliant pm_open on a discovered market", () => {
     expect(
       validateAction(goodPm, ctx({ spec: allSpec, observation: obsWithPm }))
@@ -595,7 +607,11 @@ describe("validateAction", () => {
     const leo = { ...goodPm, forecastProbability: 45 };
     const r = validateAction(
       leo,
-      ctx({ spec: allSpec, observation: pricedPm(0.65) }),
+      ctx({
+        spec: allSpec,
+        observation: pricedPm(0.65),
+        quote: pmQuoteForCost(65),
+      }),
     );
     expect(r.code).toBe("forecast_no_positive_edge");
     expect(r.reason).toContain("45");
@@ -605,7 +621,11 @@ describe("validateAction", () => {
     expect(
       validateAction(
         sam,
-        ctx({ spec: allSpec, observation: pricedPm(0.82, "Yes") }),
+        ctx({
+          spec: allSpec,
+          observation: pricedPm(0.82, "Yes"),
+          quote: pmQuoteForCost(82),
+        }),
       ).code,
     ).toBe("forecast_no_positive_edge");
   });
@@ -614,29 +634,41 @@ describe("validateAction", () => {
     expect(
       validateAction(
         { ...goodPm, forecastProbability: 70 },
-        ctx({ spec: allSpec, observation: pricedPm(0.6) }),
+        ctx({
+          spec: allSpec,
+          observation: pricedPm(0.6),
+          quote: pmQuoteForCost(60),
+        }),
       ).valid,
     ).toBe(true);
     // 2 points is the floor: 62 vs 60 passes, 61.9 vs 60 does not.
     expect(
       validateAction(
         { ...goodPm, forecastProbability: 62 },
-        ctx({ spec: allSpec, observation: pricedPm(0.6) }),
+        ctx({
+          spec: allSpec,
+          observation: pricedPm(0.6),
+          quote: pmQuoteForCost(60),
+        }),
       ).valid,
     ).toBe(true);
     expect(
       validateAction(
         { ...goodPm, forecastProbability: 61.9 },
-        ctx({ spec: allSpec, observation: pricedPm(0.6) }),
+        ctx({
+          spec: allSpec,
+          observation: pricedPm(0.6),
+          quote: pmQuoteForCost(60),
+        }),
       ).code,
     ).toBe("forecast_no_positive_edge");
   });
 
-  it("measures the edge against the quoted fill, not the discovery mid", () => {
-    // Discovery mid says 60, but this stake actually fills at 72 after
-    // spread, slippage and fee: a forecast of 66 is an edge against the mid
-    // and a loss against the fill.
-    const quoted: QuoteEvidence = { ...freshQuote, entryProbability: 72 };
+  it("measures edge against fee-inclusive share cost, not the quoted or discovery mid", () => {
+    // API-shaped example: mid 60, ask/slippage price 70.0035, fee-inclusive
+    // break-even cost 71.07812967. The raw quote entryProbability stays 60.
+    const quoted = pmQuoteForCost(71.07812967);
+    expect(quoted.entryProbability).toBe(60);
     expect(
       validateAction(
         { ...goodPm, forecastProbability: 66 },
@@ -647,12 +679,106 @@ describe("validateAction", () => {
         }),
       ).code,
     ).toBe("forecast_no_positive_edge");
+    // 72.5 clears the ask/slippage price by more than two points, but the fee
+    // consumes that margin. Omitting fees would incorrectly accept this bet.
+    expect(72.5 - 70.0035).toBeGreaterThan(2);
+    expect(
+      validateAction(
+        { ...goodPm, forecastProbability: 72.5 },
+        ctx({ spec: allSpec, observation: pricedPm(0.6), quote: quoted }),
+      ).code,
+    ).toBe("forecast_no_positive_edge");
     expect(
       validateAction(
         { ...goodPm, forecastProbability: 80 },
         ctx({ spec: allSpec, observation: pricedPm(0.6), quote: quoted }),
       ).valid,
     ).toBe(true);
+  });
+
+  it.each([0.5, 1])(
+    "treats an all-in cost of %s as points without magnitude guessing",
+    (cost) => {
+      expect(
+        validateAction(
+          { ...goodPm, forecastProbability: cost + 2 },
+          ctx({
+            spec: allSpec,
+            observation: pricedPm(0.005),
+            quote: pmQuoteForCost(cost),
+          }),
+        ).valid,
+      ).toBe(true);
+    },
+  );
+
+  it("accepts a two-point edge despite floating-point noise but not a genuinely smaller edge", () => {
+    const quote = pmQuoteForCost(60 + Number.EPSILON * 64);
+    const context = ctx({ spec: allSpec, observation: pricedPm(0.6), quote });
+    expect(
+      validateAction({ ...goodPm, forecastProbability: 62 }, context).valid,
+    ).toBe(true);
+    expect(
+      validateAction({ ...goodPm, forecastProbability: 61.999999 }, context)
+        .code,
+    ).toBe("forecast_no_positive_edge");
+  });
+
+  it.each([
+    ["missing stake", { stakeMusd: undefined }],
+    ["missing shares", { sharesEstimate: undefined }],
+    ["null stake", { stakeMusd: null }],
+    ["null shares", { sharesEstimate: null }],
+    ["NaN stake", { stakeMusd: Number.NaN }],
+    ["NaN shares", { sharesEstimate: Number.NaN }],
+    ["infinite stake", { stakeMusd: Number.POSITIVE_INFINITY }],
+    ["infinite shares", { sharesEstimate: Number.POSITIVE_INFINITY }],
+    ["numeric-string stake", { stakeMusd: "20" }],
+    ["numeric-string shares", { sharesEstimate: "30" }],
+    ["boolean stake", { stakeMusd: true }],
+    ["boolean shares", { sharesEstimate: true }],
+    ["zero stake", { stakeMusd: 0 }],
+    ["zero shares", { sharesEstimate: 0 }],
+    ["negative shares", { sharesEstimate: -1 }],
+    ["mismatched stake", { stakeMusd: 21 }],
+    ["overflowing cost", { sharesEstimate: Number.MIN_VALUE }],
+  ] as const)(
+    "fails closed for %s without falling back to either mid",
+    (_name, override) => {
+      const quote = {
+        ...pmQuoteForCost(60),
+        ...override,
+        entryProbability: 1,
+      } as unknown as QuoteEvidence;
+      expect(
+        validateAction(
+          { ...goodPm, forecastProbability: 99 },
+          ctx({ spec: allSpec, observation: pricedPm(0.01), quote }),
+        ).code,
+      ).toBe("pm_quote_cost_unavailable");
+    },
+  );
+
+  it("rejects an older quote with no cost evidence despite an apparently favorable mid", () => {
+    expect(
+      validateAction(
+        { ...goodPm, forecastProbability: 99 },
+        ctx({ spec: allSpec, observation: pricedPm(0.01), quote: freshQuote }),
+      ).code,
+    ).toBe("pm_quote_cost_unavailable");
+  });
+
+  it("allows cost above 100 points to fail the edge gate instead of clamping it", () => {
+    expect(
+      validateAction(
+        { ...goodPm, forecastProbability: 99 },
+        ctx({
+          spec: allSpec,
+          observation: pricedPm(0.6),
+          quote: pmQuoteForCost(101),
+        }),
+      ).code,
+    ).toBe("forecast_no_positive_edge");
   });
 
   it("exempts the mechanical benchmarks, whose forecast is a baseline", () => {
@@ -693,7 +819,11 @@ describe("validateAction", () => {
     expect(
       validateAction(
         conflicted,
-        ctx({ spec: allSpec, observation: pricedPm(0.6) }),
+        ctx({
+          spec: allSpec,
+          observation: pricedPm(0.6),
+          quote: pmQuoteForCost(60),
+        }),
       ).code,
     ).toBe("thesis_action_conflict");
     // A thesis that backs the same outcome is untouched.
@@ -707,7 +837,11 @@ describe("validateAction", () => {
     expect(
       validateAction(
         aligned,
-        ctx({ spec: allSpec, observation: pricedPm(0.6) }),
+        ctx({
+          spec: allSpec,
+          observation: pricedPm(0.6),
+          quote: pmQuoteForCost(60),
+        }),
       ).valid,
     ).toBe(true);
   });

@@ -3,12 +3,28 @@
 import type { AgentSpec, Observation, RunState } from "./types.js";
 import { buildDailyRiskBudget, type DailyRiskBudget } from "./prompt.js";
 import { sha256, stableStringify } from "./util.js";
+import {
+  sourceTimestamp,
+  FRESHNESS_BASES,
+  PM_BLOCK_REASONS,
+  PM_WARNING_REASONS,
+  PM_FLAGS,
+  PM_TIERS,
+  PM_SPREAD_TIERS,
+  PM_QUALITY_CAPS,
+  pmQualityOf,
+  pmDecisionSupportOf,
+  freshnessOf as parseFreshness,
+} from "./pmContext.js";
 
 export const DECISION_INPUT_MAX_BYTES = 16 * 1024;
 export type DecisionInputPhase =
   "before_observation" | "observed" | "decision_input";
 type Scalar = string | number | boolean | null;
-type Row = Record<string, Scalar | Record<string, Scalar>>;
+type Row = Record<
+  string,
+  Scalar | string[] | Record<string, Scalar | string[]>
+>;
 export interface DecisionInputRecord {
   version: "coinrithm.decision-input.v1";
   visibility: "private";
@@ -71,7 +87,7 @@ const numeric = (
 ): Record<string, number | null> =>
   Object.fromEntries(keys.map((key) => [key, num(raw[key])]));
 const freshness = (value: unknown): Record<string, Scalar> => {
-  const raw = obj(value);
+  const raw = obj(parseFreshness({ freshness: value }));
   return {
     status: code(raw.status, [
       "fresh",
@@ -81,6 +97,8 @@ const freshness = (value: unknown): Record<string, Scalar> => {
       "unknown",
     ]),
     ageSeconds: num(raw.ageSeconds),
+    asOf: sourceTimestamp(raw.asOf) ?? null,
+    basis: code(raw.basis, FRESHNESS_BASES),
   };
 };
 
@@ -142,7 +160,8 @@ export function buildDecisionInputRecord(
       "no_model_replay_guarantee",
       "prose_prompts_and_model_reasoning_excluded",
       "journal_news_thesis_and_other_free_text_excluded",
-      "source_timestamps_and_source_counts_not_available",
+      "some_source_timestamps_and_source_counts_not_available",
+      "pm_discovery_filtered_candidates_not_recorded",
       "raw_closed_trade_records_excluded",
     ],
   };
@@ -248,14 +267,37 @@ export function buildDecisionInputRecord(
       "currentProbability",
     ]),
   }));
-  add("pmMarkets", obs.pmMarkets, (r) => ({
-    ref: id(r.ref, 16),
-    source: id(r.source, 32),
-    slug: id(r.slug, 128),
-    outcomeExternalMarketId: id(r.outcomeExternalMarketId, 128),
-    ...numeric(r, ["probability", "volumeUsd", "liquidityUsd"]),
-    freshness: freshness(r.freshness),
-  }));
+  add("pmMarkets", obs.pmMarkets, (r) => {
+    const quality = pmQualityOf(r.quality);
+    const support = pmDecisionSupportOf(r.decisionSupport);
+    return {
+      ref: id(r.ref, 16),
+      source: id(r.source, 32),
+      slug: id(r.slug, 128),
+      outcomeExternalMarketId: id(r.outcomeExternalMarketId, 128),
+      ...numeric(r, ["probability", "volumeUsd", "liquidityUsd"]),
+      freshness: freshness(r.freshness),
+      quality: {
+        decisionEligible: quality?.decisionEligible ?? null,
+        policyVersion: quality?.policyVersion ?? null,
+        assessedAt: quality?.assessedAt ?? null,
+        warningReasons: quality?.warningReasons ?? [],
+        blockReasons: quality?.blockReasons ?? [],
+        reasonsOmitted: quality?.reasonsOmitted ?? null,
+      },
+      decisionSupport: {
+        qualityScore: support?.qualityScore ?? null,
+        qualityTier: support?.qualityTier ?? null,
+        qualityCapReason: support?.qualityCapReason ?? null,
+        spreadTier: support?.spreadTier ?? null,
+        liquidityTier: support?.liquidityTier ?? null,
+        volumeTier: support?.volumeTier ?? null,
+        ...Object.fromEntries(
+          PM_FLAGS.map((key) => [key, support?.flags?.[key] ?? null]),
+        ),
+      },
+    };
+  });
   add("signals", obs.setups, (r) => ({
     symbol: id(r.symbol, 20),
     kind: code(r.kind, [
@@ -337,6 +379,8 @@ const OMISSIONS = [
   "prose_prompts_and_model_reasoning_excluded",
   "journal_news_thesis_and_other_free_text_excluded",
   "source_timestamps_and_source_counts_not_available",
+  "some_source_timestamps_and_source_counts_not_available",
+  "pm_discovery_filtered_candidates_not_recorded",
   "raw_closed_trade_records_excluded",
   "unsafe_identifier_omitted",
   "config_fingerprint_unavailable",
@@ -396,11 +440,30 @@ const LIST_KEYS: Record<string, string[]> = {
     "volumeUsd",
     "liquidityUsd",
     "freshness",
+    "quality",
+    "decisionSupport",
   ],
   signals: ["symbol", "kind", "bias", "strength", "held"],
 };
 const NESTED_KEYS: Record<string, string[]> = {
-  freshness: ["status", "ageSeconds"],
+  freshness: ["status", "ageSeconds", "asOf", "basis"],
+  quality: [
+    "decisionEligible",
+    "policyVersion",
+    "assessedAt",
+    "warningReasons",
+    "blockReasons",
+    "reasonsOmitted",
+  ],
+  decisionSupport: [
+    "qualityScore",
+    "qualityTier",
+    "qualityCapReason",
+    "spreadTier",
+    "liquidityTier",
+    "volumeTier",
+    ...PM_FLAGS,
+  ],
   indicators: [
     "asOfClose",
     "rsi14",
@@ -427,6 +490,27 @@ function validRow(value: unknown, keys: string[]): boolean {
   return Object.entries(obj(value)).every(([key, v]) => {
     if (v === null) return true;
     if (NESTED_KEYS[key]) return validRow(v, NESTED_KEYS[key]);
+    if (key === "asOf" || key === "assessedAt") return sourceTimestamp(v) === v;
+    if (key === "basis") return code(v, FRESHNESS_BASES) !== null;
+    if (key === "policyVersion")
+      return typeof v === "string" && /^pm-quality-\d{1,3}$/.test(v);
+    if (key === "warningReasons" || key === "blockReasons") {
+      const allowed =
+        key === "warningReasons" ? PM_WARNING_REASONS : PM_BLOCK_REASONS;
+      return (
+        Array.isArray(v) &&
+        v.length <= allowed.length &&
+        new Set(v).size === v.length &&
+        v.every((x) => code(x, allowed) !== null)
+      );
+    }
+    if (["qualityTier", "liquidityTier", "volumeTier"].includes(key))
+      return code(v, PM_TIERS) !== null;
+    if (key === "qualityCapReason") return code(v, PM_QUALITY_CAPS) !== null;
+    if (key === "spreadTier") return code(v, PM_SPREAD_TIERS) !== null;
+    if (key === "qualityScore")
+      return num(v) !== null && (v as number) >= 0 && (v as number) <= 100;
+    if (key === "ageSeconds") return num(v) !== null && (v as number) >= 0;
     if (
       [
         "symbol",
@@ -471,6 +555,9 @@ function validRow(value: unknown, keys: string[]): boolean {
         "ema20AboveEma50",
         "brokeRecentHigh",
         "brokeRecentLow",
+        "decisionEligible",
+        "reasonsOmitted",
+        ...PM_FLAGS,
       ].includes(key)
     )
       return typeof v === "boolean";

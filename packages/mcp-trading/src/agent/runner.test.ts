@@ -74,14 +74,17 @@ function baseClient(over: Record<string, unknown> = {}) {
             title: "BTC up?",
             freshness: { status: "fresh" },
             outcomes: [
-              { externalMarketId: "yes-1", name: "Yes", probability: 0.5 },
+              { externalMarketId: "yes-1", name: "Yes", probability: 50 },
             ],
           },
         ],
       }),
-    pmQuote: vi.fn(async () =>
+    pmQuote: vi.fn(async (body: { stakeMusd: number }) =>
       okData({
         eligible: true,
+        entryProbability: 50,
+        stakeMusd: body.stakeMusd,
+        sharesEstimate: body.stakeMusd / 0.51,
         observation: { freshness: { status: "fresh" } },
       }),
     ),
@@ -1219,8 +1222,7 @@ describe("runCycle — PM independent forecast submission", () => {
     else process.env.HOUSE_AGENT_FORECAST_ENABLED = prevFlag;
   });
 
-  // baseClient's discover surfaces one market (kalshi/btc-up/yes-1) at prob 0.5,
-  // so the market's integer probability is 50%.
+  // The real discovery API uses 0..100 points; the observation uses 0..1.
   const pmDecision = (forecastProbability?: number) => ({
     decision: "act",
     confidence: 0.8,
@@ -1297,6 +1299,56 @@ describe("runCycle — PM independent forecast submission", () => {
       true,
     );
   });
+
+  it("rejects a forecast above the raw mid but below the fee-inclusive quoted cost", async () => {
+    delete process.env.HOUSE_AGENT_FORECAST_ENABLED;
+    const client = baseClient({
+      pmQuote: vi.fn(async () =>
+        okData({
+          eligible: true,
+          entryProbability: 60,
+          stakeMusd: 20,
+          sharesEstimate: 20 / 0.7107812966754956,
+          executionModel: { effectiveProbability: 70.0035 },
+          observation: { freshness: { status: "fresh", ageMinutes: 10 } },
+        }),
+      ),
+    });
+    const d = deps({ live: true }, client, provider(pmDecision(66)));
+    d.spec.venues = ["spot", "futures", "pm"];
+    const result = await runCycle(d);
+    expect(client.pmQuote).toHaveBeenCalledTimes(1);
+    expect(result.planned[0]).toMatchObject({
+      accepted: false,
+      code: "forecast_no_positive_edge",
+    });
+    expect(client.openPmPosition).not.toHaveBeenCalled();
+  });
+
+  it.each([{ stakeMusd: 20 }, { stakeMusd: 10, sharesEstimate: 40 }])(
+    "rejects unavailable or differently-sized cost evidence without using the raw mid: %j",
+    async (cost) => {
+      delete process.env.HOUSE_AGENT_FORECAST_ENABLED;
+      const client = baseClient({
+        pmQuote: vi.fn(async () =>
+          okData({
+            eligible: true,
+            entryProbability: 50,
+            ...cost,
+            observation: { freshness: { status: "fresh" } },
+          }),
+        ),
+      });
+      const d = deps({ live: true }, client, provider(pmDecision(80)));
+      d.spec.venues = ["spot", "futures", "pm"];
+      const result = await runCycle(d);
+      expect(result.planned[0]).toMatchObject({
+        accepted: false,
+        code: "pm_quote_cost_unavailable",
+      });
+      expect(client.openPmPosition).not.toHaveBeenCalled();
+    },
+  );
 
   it("kill-switch OFF: request is byte-identical (no forecastProbability) even when the model forecasts", async () => {
     process.env.HOUSE_AGENT_FORECAST_ENABLED = "false";

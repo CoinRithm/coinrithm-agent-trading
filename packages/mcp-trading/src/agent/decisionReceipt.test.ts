@@ -53,6 +53,83 @@ function input(): DecisionInputCapture {
 }
 
 describe("private partial decision input record", () => {
+  it("retains PM quality facts and source time while rejecting nested free-text smuggling", () => {
+    const i = input();
+    i.observation!.pmMarkets = [
+      {
+        ref: "pm1",
+        source: "polymarket",
+        slug: "test",
+        outcomeExternalMarketId: "yes",
+        probability: 0.01,
+        freshness: {
+          status: "fresh",
+          ageSeconds: 600,
+          asOf: "2026-09-07T01:55:17.076Z",
+          basis: "latest_snapshot",
+        },
+        quality: {
+          decisionEligible: true,
+          warningReasons: ["anomaly_flagged", "SECRET_REASON"],
+          blockReasons: [],
+          policyVersion: "pm-quality-3",
+          assessedAt: "2026-09-07T01:55:17.076Z",
+          reasonsOmitted: false,
+        },
+        decisionSupport: {
+          qualityScore: 74,
+          qualityTier: "medium",
+          qualityCapReason: "raw_book",
+          spreadTier: "tight",
+          flags: { highAmbiguity: true, staleData: false },
+        },
+      },
+    ];
+    const receipt = buildDecisionInputRecord(i);
+    expect(receipt.lists.pmMarkets[0]).toMatchObject({
+      freshness: { ageSeconds: 600, asOf: "2026-09-07T01:55:17.076Z" },
+      quality: {
+        decisionEligible: true,
+        warningReasons: ["anomaly_flagged"],
+        policyVersion: "pm-quality-3",
+      },
+      decisionSupport: {
+        highAmbiguity: true,
+        staleData: false,
+        qualityTier: "medium",
+      },
+    });
+    expect(sanitizeDecisionInputRecord(receipt)).toEqual(receipt);
+    expect(JSON.stringify(receipt)).not.toContain("SECRET_REASON");
+    expect(receipt.lists.pmMarkets[0].quality).toMatchObject({
+      reasonsOmitted: true,
+    });
+    expect(receipt.omissions).toContain(
+      "pm_discovery_filtered_candidates_not_recorded",
+    );
+    for (const [field, extension] of [
+      ["quality", { warningReasons: ["SECRET_REASON"] }],
+      ["quality", { policyVersion: "PRIVATE_USER_PROSE" }],
+      ["quality", { rationale: "PRIVATE_REASONING" }],
+      ["decisionSupport", { highAmbiguity: "PRIVATE_REASONING" }],
+      ["decisionSupport", { qualityScore: 101 }],
+      ["freshness", { asOf: "PRIVATE_TIMESTAMP" }],
+    ] as const) {
+      const modified = structuredClone(receipt);
+      Object.assign(modified.lists.pmMarkets[0][field] as object, extension);
+      expect(sanitizeDecisionInputRecord(modified)).toBeUndefined();
+    }
+    const before = JSON.stringify(receipt.lists.pmMarkets);
+    i.observation!.pmMarkets[0].decisionSupport!.flags!.highAmbiguity = false;
+    expect(
+      JSON.stringify(buildDecisionInputRecord(i).lists.pmMarkets),
+    ).not.toBe(before);
+    i.observation!.pmMarkets[0].decisionSupport!.qualityScore = 101;
+    expect(
+      buildDecisionInputRecord(i).lists.pmMarkets[0].decisionSupport,
+    ).toMatchObject({ qualityScore: null });
+  });
+
   it("keeps structured facts and fingerprints but never free text or secrets", () => {
     const i = input();
     i.mergedProse = "PRIVATE_USER_PROSE sk-this-is-a-provider-secret";

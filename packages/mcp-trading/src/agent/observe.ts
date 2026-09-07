@@ -16,11 +16,11 @@ import {
   CoinFundamentals,
   WatchEntry,
   AgentTrace,
-  Freshness,
 } from "./types.js";
 import { asObj, asArr, asNum, asStr } from "./extract.js";
 import { computeIndicators, Candle, IndicatorSet } from "./indicators.js";
 import { scanSetups } from "./setups.js";
+import { freshnessOf, pmQualityOf, pmDecisionSupportOf } from "./pmContext.js";
 
 export interface ObserveOutput {
   observation: Observation;
@@ -230,12 +230,6 @@ function attachHeadlines(watch: WatchEntry[], items: NewsItem[]): void {
   }
 }
 
-function freshnessOf(block: Record<string, unknown>): Freshness | undefined {
-  const fr = asObj(block.freshness);
-  const status = asStr(fr.status);
-  return status ? { status, ageSeconds: asNum(fr.ageSeconds) } : undefined;
-}
-
 // Does a market title reference the given watchlist coin? Matches on the PM coin
 // NAME ("Bitcoin") or the ticker ("BTC"), case-insensitively — the discover `q`
 // is a phrase match so a q=Bitcoin result reliably carries "Bitcoin"/"BTC" in the
@@ -264,6 +258,13 @@ function expandPmMarkets(
     asArr(dd.data ?? dd.markets ?? dd.results)
       .map(asObj)
       .flatMap((ev) => {
+        // Explicit negative evidence removes only NEW-entry candidates. Unknown
+        // quality stays unknown; fresh quote + transactional guards remain final.
+        if (
+          ev.eligible === false ||
+          asObj(ev.quality).decisionEligible === false
+        )
+          return [];
         const source = (asStr(ev.source) ?? "").toLowerCase();
         const slug = (asStr(ev.slug) ?? "").toLowerCase();
         // Keep titles SHORT: the model only needs to recognise the market.
@@ -274,6 +275,8 @@ function expandPmMarkets(
           80,
         );
         const freshness = freshnessOf(ev); // freshness is event-level
+        const quality = pmQualityOf(ev.quality);
+        const decisionSupport = pmDecisionSupportOf(ev.decisionSupport);
         // Event-level 24h volume (the discover payload's `volume24h`, USD). Feeds
         // the mechanical BENCHMARK agents' deterministic highest-volume pick rule.
         // Same for every outcome of the event; undefined on an older backend.
@@ -284,13 +287,19 @@ function expandPmMarkets(
         // model never bets a market that would fail the binary entry gate at
         // quote. Back-compat: an older backend omits `eligible` (undefined) ->
         // the outcome is kept (current behaviour).
-        const outcomes = asArr(ev.outcomes)
+        const outcomes = (
+          Object.hasOwn(ev, "outcomes") ? asArr(ev.outcomes) : [ev]
+        )
           .map(asObj)
           .filter((o) => o.eligible !== false)
+          .filter((o) => {
+            const p = asNum(o.probability);
+            return p != null && p >= 0 && p <= 100;
+          })
           .slice(0, 3);
-        // A market with no outcomes array still round-trips a flat fallback row.
-        const rows = outcomes.length > 0 ? outcomes : [ev];
-        return rows.map((o) => ({
+        // Only an absent legacy outcomes field permits the flat fallback. A
+        // present empty/malformed/all-rejected array must never resurrect ev.
+        return outcomes.map((o) => ({
           source,
           slug,
           outcomeExternalMarketId:
@@ -300,11 +309,14 @@ function expandPmMarkets(
           outcomeName: asStr(o.name) ?? asStr(o.outcomeName) ?? undefined,
           // Backend returns probability as 0..100 (percent) — normalise to 0..1
           // to match the prompt's "0..1" framing (probed 2026-06-24).
-          probability: ((p) => (p == null ? undefined : p > 1 ? p / 100 : p))(
+          probability: ((p) =>
+            p == null || p < 0 || p > 100 ? undefined : p / 100)(
             asNum(o.probability),
           ),
           title,
           freshness,
+          quality,
+          decisionSupport,
           volumeUsd,
           // Event-level fundamentals from the same payload (slice 2): the
           // resolution date and the venue-reported liquidity (USD).
@@ -312,7 +324,13 @@ function expandPmMarkets(
           liquidityUsd: asNum(ev.liquidity) ?? undefined,
         }));
       })
-      .filter((m) => m.source && m.slug && m.outcomeExternalMarketId)
+      .filter(
+        (m) =>
+          m.source &&
+          m.slug &&
+          m.outcomeExternalMarketId &&
+          m.probability != null,
+      )
       // Drop already-held markets so the model only sees markets it can actually
       // open — done BEFORE any slice so held positions don't consume candidate slots.
       .filter(

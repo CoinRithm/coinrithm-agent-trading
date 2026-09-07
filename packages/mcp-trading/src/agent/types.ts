@@ -236,6 +236,8 @@ export const fail = (code: string, reason: string): ValidationResult => ({
 export interface Freshness {
   status: string; // "fresh" | "stale" | "never_ingested" | ...
   ageSeconds?: number;
+  asOf?: string;
+  basis?: string;
 }
 
 export interface WatchEntry {
@@ -398,6 +400,37 @@ export interface PmMarket {
   // are deliberately NOT here (absent > fabricated).
   endDate?: string;
   liquidityUsd?: number;
+  quality?: PmQuality;
+  decisionSupport?: PmDecisionSupport;
+}
+
+// Bounded server evidence, not a probability of winning. Missing stays unknown.
+export interface PmQuality {
+  decisionEligible?: boolean;
+  warningReasons: string[];
+  blockReasons: string[];
+  policyVersion?: string;
+  assessedAt?: string;
+  reasonsOmitted?: boolean;
+}
+
+export interface PmDecisionSupport {
+  qualityScore?: number;
+  qualityTier?: string;
+  qualityCapReason?: string | null;
+  spreadTier?: string;
+  liquidityTier?: string;
+  volumeTier?: string;
+  flags?: Partial<
+    Record<
+      | "thinMarket"
+      | "inactiveMarket"
+      | "highAmbiguity"
+      | "nearResolution"
+      | "staleData",
+      boolean
+    >
+  >;
 }
 
 // A deterministic "this cycle has tradeable structure" flag, computed from the
@@ -655,11 +688,12 @@ export interface QuoteEvidence {
   entryPrice?: number; // futures fill price
   liquidationPrice?: number; // futures
   executionPrice?: number; // spot fill price
-  // PM: the probability this stake would actually enter at, from the server's
-  // assessEntry (bid/ask, size slippage and fee included). This is what the
-  // position is bought at, so it, not the discovery mid, is what a forecast
-  // has to beat.
+  // PM raw outcome probability in 0..100 POINTS, not the fee-inclusive cost.
   entryProbability?: number;
+  // PM quote evidence: total stake and net shares bought after friction/fees.
+  // Break-even cost points = 100 * stakeMusd / sharesEstimate; can exceed 100.
+  stakeMusd?: number;
+  sharesEstimate?: number;
   estimatedCostMusd?: number; // spot gross notional (server-computed)
   freshness?: Freshness;
   // PM open-time quality-gate PREVIEW (distinct from eligible/blockReasons, which

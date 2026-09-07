@@ -34,6 +34,139 @@ function fakeClient(over: Record<string, unknown> = {}): CoinRithmClient {
 }
 
 describe("observe", () => {
+  const pmObservation = async (events: unknown[]) =>
+    (
+      await observe(
+        fakeClient({
+          pmPositions: async () => okData({ positions: [] }),
+          discoverPmMarkets: async () => okData({ data: events }),
+        }),
+        { ...spec, venues: ["pm"], risk: { ...spec.risk, watchlist: [] } },
+        newState("pm-context-test"),
+      )
+    ).observation;
+  const pmEvent = (probability: unknown = 50) => ({
+    source: "polymarket",
+    slug: "audit-market",
+    title: "Audit market",
+    freshness: {
+      status: "fresh",
+      ageMinutes: 10,
+      asOf: "2026-09-07T01:55:17.076Z",
+      basis: "latest_snapshot",
+    },
+    outcomes: [
+      { externalMarketId: "yes", name: "Yes", probability, eligible: true },
+    ],
+  });
+
+  it.each([0, 0.5, 1, 1.01, 50, 100])(
+    "normalizes API probability %p points without guessing units",
+    async (p) => {
+      expect((await pmObservation([pmEvent(p)])).pmMarkets[0].probability).toBe(
+        p / 100,
+      );
+    },
+  );
+  it.each([null, undefined, false, "50", NaN, Infinity, -1, 101])(
+    "does not invent a price for invalid probability %p",
+    async (p) => {
+      const event = pmEvent();
+      event.outcomes[0].probability = p;
+      expect((await pmObservation([event])).pmMarkets).toEqual([]);
+    },
+  );
+  it("keeps bounded quality/ambiguity evidence and converts the actual PM freshness shape", async () => {
+    const event = {
+      ...pmEvent(25),
+      quality: {
+        decisionEligible: true,
+        warningReasons: ["anomaly_flagged", "SECRET_FREE_TEXT"],
+        blockReasons: [],
+        policyVersion: "pm-quality-3",
+        assessedAt: "2026-09-07T01:55:17.076Z",
+        raw: "SECRET_RAW",
+      },
+      decisionSupport: {
+        qualityScore: 74,
+        qualityTier: "medium",
+        qualityCapReason: "raw_book",
+        spreadTier: "tight",
+        liquidityTier: "high",
+        volumeTier: "high",
+        flags: {
+          highAmbiguity: true,
+          staleData: false,
+          injected: "SECRET_FLAG",
+        },
+      },
+    };
+    const market = (await pmObservation([event])).pmMarkets[0];
+    expect(market.freshness).toEqual({
+      status: "fresh",
+      ageSeconds: 600,
+      asOf: "2026-09-07T01:55:17.076Z",
+      basis: "latest_snapshot",
+    });
+    expect(market.quality).toMatchObject({
+      decisionEligible: true,
+      warningReasons: ["anomaly_flagged"],
+      reasonsOmitted: true,
+      policyVersion: "pm-quality-3",
+    });
+    expect(market.decisionSupport).toMatchObject({
+      qualityScore: 74,
+      qualityTier: "medium",
+      flags: { highAmbiguity: true, staleData: false },
+    });
+    expect(JSON.stringify(market)).not.toContain("SECRET");
+  });
+  it("excludes explicitly quality-blocked and event-ineligible rows but preserves unknown quality", async () => {
+    const observation = await pmObservation([
+      {
+        ...pmEvent(),
+        slug: "blocked",
+        quality: { decisionEligible: false, blockReasons: ["quote_dead"] },
+      },
+      { ...pmEvent(), slug: "ineligible", eligible: false },
+      { ...pmEvent(), slug: "unknown" },
+    ]);
+    expect(observation.pmMarkets.map((m) => m.slug)).toEqual(["unknown"]);
+    expect(observation.pmMarkets[0].quality).toBeUndefined();
+  });
+  it.each([
+    [],
+    null,
+    {},
+    [{ externalMarketId: "yes", probability: 50, eligible: false }],
+  ])(
+    "never resurrects a present empty/malformed/rejected outcome list (%p)",
+    async (outcomes) => {
+      expect(
+        (
+          await pmObservation([
+            {
+              ...pmEvent(),
+              externalMarketId: "legacy",
+              probability: 50,
+              outcomes,
+            },
+          ])
+        ).pmMarkets,
+      ).toEqual([]);
+    },
+  );
+  it("preserves genuinely flat legacy rows with unknown quality and valid points", async () => {
+    const { outcomes: _outcomes, ...flat } = pmEvent();
+    expect(
+      (
+        await pmObservation([
+          { ...flat, externalMarketId: "legacy", probability: 1 },
+        ])
+      ).pmMarkets[0],
+    ).toMatchObject({ outcomeExternalMarketId: "legacy", probability: 0.01 });
+  });
+
   it("records poll-before-write after /trades succeeds", async () => {
     const { observation, skip } = await observe(
       fakeClient(),
@@ -86,8 +219,8 @@ describe("observe", () => {
               title: "BTC up?",
               freshness: { status: "fresh" },
               outcomes: [
-                { externalMarketId: "yes-1", name: "Yes" },
-                { externalMarketId: "no-1", name: "No" },
+                { externalMarketId: "yes-1", name: "Yes", probability: 60 },
+                { externalMarketId: "no-1", name: "No", probability: 40 },
               ],
             },
           ],
@@ -134,8 +267,8 @@ describe("observe", () => {
               title: "BTC up?",
               freshness: { status: "fresh" },
               outcomes: [
-                { externalMarketId: "yes-1", name: "Yes" }, // held -> filtered out
-                { externalMarketId: "no-1", name: "No" }, // not held -> kept
+                { externalMarketId: "yes-1", name: "Yes", probability: 60 }, // held -> filtered out
+                { externalMarketId: "no-1", name: "No", probability: 40 }, // not held -> kept
               ],
             },
           ],

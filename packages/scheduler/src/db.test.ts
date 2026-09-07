@@ -110,6 +110,54 @@ describe.each(["recordCycle", "persistCycleResult"] as const)(
       }
     });
 
+    it("retains bounded PM provenance through the rebuilt engine sanitizer without a public copy", async () => {
+      const record = privateRecord();
+      record.lists.pmMarkets = [
+        {
+          source: "kalshi",
+          slug: "test-market",
+          probability: 0.01,
+          freshness: {
+            status: "fresh",
+            ageSeconds: 600,
+            asOf: "2026-09-07T01:00:00.000Z",
+            basis: "latest_snapshot",
+          },
+          quality: {
+            decisionEligible: true,
+            policyVersion: "pm-quality-3",
+            assessedAt: "2026-09-07T01:00:00.000Z",
+            warningReasons: ["source_time_unverified"],
+            blockReasons: [],
+            reasonsOmitted: false,
+          },
+          decisionSupport: {
+            qualityScore: 0,
+            qualityTier: "low",
+            qualityCapReason: "raw_book",
+            highAmbiguity: true,
+            staleData: false,
+          },
+        },
+      ];
+      record.counts.pmMarkets = { source: 1, retained: 1, omitted: 0 };
+      const { params } = await write(record);
+      expect(JSON.parse(String(params[25]))).toEqual(record);
+      expect(JSON.stringify(params.slice(0, 25))).not.toContain("test-market");
+      expect(JSON.stringify(params.slice(0, 25))).not.toContain(
+        "source_time_unverified",
+      );
+
+      record.lists.pmMarkets[0].quality = {
+        warningReasons: ["PRIVATE_MUST_NOT_PERSIST"],
+      };
+      const rejected = await write(record);
+      expect(rejected.params[25]).toBeNull();
+      expect(JSON.stringify(rejected.params)).not.toContain(
+        "PRIVATE_MUST_NOT_PERSIST",
+      );
+    });
+
     it.each([
       "absent",
       "null",

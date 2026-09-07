@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { executeAction } from "./act.js";
+import { executeAction, fetchQuote } from "./act.js";
 import type { CoinRithmClient } from "./client.js";
 import type { Observation, ProposedAction, AgentTrace } from "./types.js";
 
@@ -23,6 +23,109 @@ const emptyObservation = (): Observation => ({
 });
 
 const trace: AgentTrace = { runId: "run-1", decisionId: "dec-1" };
+
+describe("fetchQuote PM execution-cost evidence", () => {
+  const action: ProposedAction = {
+    type: "pm_open",
+    source: "polymarket",
+    slug: "btc-up",
+    outcomeExternalMarketId: "yes-1",
+    stakeMusd: 20,
+    confidence: 0.7,
+  };
+  const payload = {
+    eligible: true,
+    entryProbability: 60,
+    stakeMusd: 20,
+    sharesEstimate: 20 / 0.7107812967,
+    executionModel: { effectiveProbability: 70.0035 },
+    observation: { freshness: { status: "fresh", ageMinutes: 0.5 } },
+  };
+  const quoteFrom = async (data: unknown) => {
+    const pmQuote = vi.fn(async (_params: unknown) => okData(data));
+    const client = { pmQuote } as unknown as CoinRithmClient;
+    return {
+      quote: await fetchQuote(client, action, emptyObservation(), trace),
+      pmQuote,
+    };
+  };
+
+  it("retains the raw mid separately from stake and fee-adjusted shares", async () => {
+    const { quote, pmQuote } = await quoteFrom(payload);
+    expect(pmQuote).toHaveBeenCalledWith(
+      {
+        source: action.source,
+        slug: action.slug,
+        outcomeExternalMarketId: action.outcomeExternalMarketId,
+        stakeMusd: 20,
+      },
+      trace,
+    );
+    expect(quote).toMatchObject({
+      eligible: true,
+      entryProbability: 60,
+      stakeMusd: 20,
+      sharesEstimate: payload.sharesEstimate,
+      freshness: { status: "fresh", ageSeconds: 30 },
+    });
+    expect((100 * quote!.stakeMusd!) / quote!.sharesEstimate!).toBeCloseTo(
+      71.07812967,
+      8,
+    );
+  });
+
+  it.each([0.5, 1])("does not rescale a raw mid of %s points", async (mid) => {
+    const { quote } = await quoteFrom({ ...payload, entryProbability: mid });
+    expect(quote?.entryProbability).toBe(mid);
+  });
+
+  it.each(["20", "", null, false, Number.NaN, Number.POSITIVE_INFINITY])(
+    "does not coerce malformed stake or shares %s into valid numbers",
+    async (value) => {
+      const { quote } = await quoteFrom({
+        ...payload,
+        stakeMusd: value,
+        sharesEstimate: value,
+      });
+      expect(Number.isFinite(quote?.stakeMusd)).toBe(false);
+      expect(Number.isFinite(quote?.sharesEstimate)).toBe(false);
+    },
+  );
+
+  it("does not manufacture cost inputs for legacy quotes", async () => {
+    const { quote } = await quoteFrom({
+      eligible: true,
+      entryProbability: 60,
+      observation: { freshness: { status: "fresh" } },
+    });
+    expect(quote?.stakeMusd).toBeUndefined();
+    expect(quote?.sharesEstimate).toBeUndefined();
+  });
+
+  it.each<ProposedAction>([
+    { type: "futures_close", positionId: 7, fraction: 1 },
+    { type: "futures_set_sltp", positionId: 7, stopLossPrice: 60000 },
+    { type: "spot_cancel", orderId: 42 },
+  ])(
+    "does not fetch any quote for a reducing action $type",
+    async (reducing) => {
+      const pmQuote = vi.fn();
+      const futuresQuote = vi.fn();
+      const spotQuote = vi.fn();
+      const client = {
+        pmQuote,
+        futuresQuote,
+        spotQuote,
+      } as unknown as CoinRithmClient;
+      expect(
+        await fetchQuote(client, reducing, emptyObservation(), trace),
+      ).toBeUndefined();
+      expect(pmQuote).not.toHaveBeenCalled();
+      expect(futuresQuote).not.toHaveBeenCalled();
+      expect(spotQuote).not.toHaveBeenCalled();
+    },
+  );
+});
 
 // A retried cycle re-issues the SAME deterministic idempotency key the runner
 // computed for the intent — these two mutating ops must carry it through so a
