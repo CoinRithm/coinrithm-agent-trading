@@ -59,10 +59,19 @@ const portfolio = (over = {}) => ({
 });
 const wallet = (over = {}) => ({ walletId: 42, usdt: cash, ...over });
 const futures = {
-  positions: [{ status: "open", marginMusd: 2_000, unrealizedPnlMusd: -200 }],
+  positions: [
+    {
+      status: "open",
+      walletId: 42,
+      marginMusd: 2_000,
+      unrealizedPnlMusd: -200,
+    },
+  ],
 };
 const pm = {
-  positions: [{ status: "open", stakeMusd: 1_000, unrealizedPnl: 400 }],
+  positions: [
+    { status: "open", walletId: 42, stakeMusd: 1_000, unrealizedPnl: 400 },
+  ],
 };
 const emptyBook = () =>
   deriveCapitalBook(
@@ -139,7 +148,14 @@ describe("owned conservative capital basis", () => {
   it("applies negative PM marks as well without relabeling them realized", () => {
     expect(
       deriveCapitalBook(portfolio(), wallet(), futures, {
-        positions: [{ status: "open", stakeMusd: 1_000, unrealizedPnl: -300 }],
+        positions: [
+          {
+            status: "open",
+            walletId: 42,
+            stakeMusd: 1_000,
+            unrealizedPnl: -300,
+          },
+        ],
       }),
     ).toMatchObject({ conservativeEquityMusd: 49_500 });
   });
@@ -192,7 +208,14 @@ describe("owned conservative capital basis", () => {
       wallet(),
       futures,
       {
-        positions: [{ status: "open", stakeMusd: 1_000, unrealizedPnl: null }],
+        positions: [
+          {
+            status: "open",
+            walletId: 42,
+            stakeMusd: 1_000,
+            unrealizedPnl: null,
+          },
+        ],
       },
     ],
     [
@@ -206,7 +229,12 @@ describe("owned conservative capital basis", () => {
       wallet(),
       {
         positions: [
-          { status: "open", marginMusd: 2_000, unrealizedPnlMusd: -50_000 },
+          {
+            status: "open",
+            walletId: 42,
+            marginMusd: 2_000,
+            unrealizedPnlMusd: -50_000,
+          },
         ],
       },
       pm,
@@ -225,6 +253,108 @@ describe("owned conservative capital basis", () => {
       status: "unavailable",
       reason: "held_collateral_coverage_mismatch",
     });
+  });
+  it("reconciles current-book collateral and marks without removing other-book management rows", () => {
+    const f = {
+      positions: [
+        ...futures.positions,
+        {
+          status: "open",
+          walletId: 7,
+          marginMusd: 500,
+          unrealizedPnlMusd: -50_000,
+        },
+      ],
+    };
+    const m = {
+      positions: [
+        ...pm.positions,
+        { status: "open", walletId: 7, stakeMusd: 100, unrealizedPnl: -100 },
+      ],
+    };
+    const before = structuredClone({ f, m });
+    expect(deriveCapitalBook(portfolio(), wallet(), f, m)).toEqual(
+      deriveCapitalBook(portfolio(), wallet(), futures, pm),
+    );
+    expect({ f, m }).toEqual(before);
+  });
+  it("does not require another known book's mark to value this book", () => {
+    expect(
+      deriveCapitalBook(
+        portfolio(),
+        wallet(),
+        {
+          positions: [
+            ...futures.positions,
+            {
+              status: "open",
+              walletId: 7,
+              marginMusd: 500,
+              unrealizedPnlMusd: null,
+            },
+          ],
+        },
+        pm,
+      ).status,
+    ).toBe("ready");
+  });
+  it.each([
+    undefined,
+    null,
+    0,
+    -1,
+    1.5,
+    "42",
+    NaN,
+    Infinity,
+    Number.MAX_SAFE_INTEGER + 1,
+  ])("fails closed on unknown open wallet attribution %s", (walletId) => {
+    for (const venue of ["futures", "pm"]) {
+      const unknown = {
+        status: "open",
+        walletId,
+        marginMusd: 0,
+        stakeMusd: 0,
+        unrealizedPnlMusd: 0,
+        unrealizedPnl: 0,
+      };
+      expect(
+        deriveCapitalBook(
+          portfolio(),
+          wallet(),
+          venue === "futures"
+            ? { positions: [...futures.positions, unknown] }
+            : futures,
+          venue === "pm" ? { positions: [...pm.positions, unknown] } : pm,
+        ),
+      ).toMatchObject({
+        status: "unavailable",
+        reason: "held_position_wallet_unavailable",
+      });
+    }
+  });
+  it("cannot use another wallet's collateral to conceal missing current-book coverage", () => {
+    expect(
+      deriveCapitalBook(
+        portfolio(),
+        wallet(),
+        { positions: [{ ...futures.positions[0], walletId: 7 }] },
+        pm,
+      ),
+    ).toMatchObject({
+      status: "unavailable",
+      reason: "held_collateral_coverage_mismatch",
+    });
+  });
+  it("does not require wallet attribution for closed history", () => {
+    expect(
+      deriveCapitalBook(
+        portfolio(),
+        wallet(),
+        { positions: [...futures.positions, { status: "closed" }] },
+        pm,
+      ).status,
+    ).toBe("ready");
   });
 });
 

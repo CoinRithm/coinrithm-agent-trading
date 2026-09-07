@@ -57,6 +57,9 @@ describe("opt-in capital sizing prompt context", () => {
     expect(input.capitalSizingPolicy).toEqual(policy);
     expect(text).toContain("NOT complete marked equity");
     expect(text).toContain(
+      "Positions on other walletIds remain visible for management",
+    );
+    expect(text).toContain(
       "Missing/unavailable capitalBook means no new entries",
     );
     expect(obs).toEqual(before);

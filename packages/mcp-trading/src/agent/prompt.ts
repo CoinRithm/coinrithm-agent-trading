@@ -315,7 +315,7 @@ export function buildUserPrompt(
   ];
   if (opts.capitalSizing) {
     lines.push(
-      "capitalSizingPolicy is the opt-in paper sizing policy (percent fields use percentage points). capitalBook is captured owned-book collateral plus marked spot, reduced only by negative futures/PM marks; positive open-position gains are excluded, so this is NOT complete marked equity. Missing/unavailable capitalBook means no new entries; otherwise-valid closes, protection, cancellations and spot sells remain available.",
+      "capitalSizingPolicy is the opt-in paper sizing policy (percent fields use percentage points). capitalBook is captured owned-book collateral plus marked spot, reduced only by negative futures/PM marks on its walletId; positive open-position gains are excluded, so this is NOT complete marked equity. Positions on other walletIds remain visible for management but their collateral, marks and close proceeds do not fund this book. Missing/unavailable capitalBook means no new entries; otherwise-valid closes, protection, cancellations and spot sells remain available.",
     );
   }
   if (opts.dailyRiskBudget) {

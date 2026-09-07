@@ -413,6 +413,7 @@ export async function observe(
       return {
         venue: "futures" as const,
         id: Number(asNum(p.id) ?? p.id),
+        ...(usesCapitalSizing(spec) ? { walletId: asNum(p.walletId) } : {}),
         coinId: asStr(coin.ucid) ?? asStr(p.coinId),
         symbol: asStr(coin.symbol) ?? asStr(p.symbol),
         side: asStr(p.side),
@@ -672,6 +673,7 @@ export async function observe(
         .filter((p) => (asStr(p.status) ?? "open") === "open")
         .map((p) => ({
           id: Number(asNum(p.id) ?? p.id),
+          ...(usesCapitalSizing(spec) ? { walletId: asNum(p.walletId) } : {}),
           // The /positions/pm API returns `eventSlug` and the outcome id NESTED at
           // outcome.externalMarketId — NOT `slug` / `outcomeExternalMarketId`.
           // Reading the wrong keys left both undefined, which silently broke the

@@ -4,6 +4,7 @@ import { parseSkill } from "./skill.js";
 import { renderFolderOfOne } from "./templates.js";
 import { newState } from "./state.js";
 import { CoinRithmClient } from "./client.js";
+import { CAPITAL_VALUATION_BASIS } from "./capitalSizing.js";
 
 const okData = (data: unknown) => ({ ok: true, status: 200, data });
 // The scaffold now declares capabilities: [indicators] (dormancy fix,
@@ -34,6 +35,120 @@ function fakeClient(over: Record<string, unknown> = {}): CoinRithmClient {
 }
 
 describe("observe", () => {
+  it.each(["opted", "omitted", "mechanical"] as const)(
+    "keeps all originating books manageable; wallet context is opt-in only (%s)",
+    async (mode) => {
+      const config = {
+        ...spec,
+        venues: ["futures", "pm"] as typeof spec.venues,
+      };
+      if (mode !== "omitted")
+        config.capitalSizing = {
+          version: "equity_fraction_v1",
+          futuresRiskPct: 0.75,
+          pmMaxLossPct: 2,
+          perTicketCapitalPct: 6,
+          totalCapitalPct: 40,
+          cashReservePct: 20,
+          minRewardRisk: 1.5,
+        };
+      if (mode === "mechanical")
+        config.model = { provider: "mechanical", name: "market-implied" };
+      const cash = {
+        available: 49_880,
+        frozen: 0,
+        frozenPm: 20,
+        frozenFutures: 100,
+      };
+      const client = fakeClient({
+        me: async () =>
+          okData({ scopes: ["read", "trade:futures", "trade:pm"] }),
+        portfolio: async () =>
+          okData({
+            walletId: 42,
+            bookScope: "api_key",
+            equity: {
+              ...cash,
+              totalUsd: 50_000,
+              valuationBasis: CAPITAL_VALUATION_BASIS,
+              spotValuationComplete: true,
+            },
+          }),
+        wallet: async () => okData({ walletId: 42, usdt: cash }),
+        futuresPositions: async () =>
+          okData({
+            positions: [
+              {
+                id: 1,
+                status: "open",
+                walletId: 42,
+                marginMusd: 100,
+                unrealizedPnlMusd: -10,
+              },
+              {
+                id: 2,
+                status: "open",
+                walletId: 7,
+                marginMusd: 200,
+                unrealizedPnlMusd: -30,
+              },
+            ],
+          }),
+        pmPositions: async () =>
+          okData({
+            positions: [
+              {
+                id: 3,
+                status: "open",
+                walletId: 42,
+                stakeMusd: 20,
+                unrealizedPnl: -5,
+              },
+              {
+                id: 4,
+                status: "open",
+                walletId: 7,
+                stakeMusd: 40,
+                unrealizedPnl: -8,
+              },
+            ],
+          }),
+        discoverPmMarkets: async () => okData({ data: [] }),
+      });
+      const { observation, skip } = await observe(
+        client,
+        config,
+        newState("book-scope"),
+      );
+      expect(skip).toBeUndefined();
+      expect(observation.openPositions.map((p) => p.id)).toEqual([1, 2]);
+      expect(observation.pmPositions?.map((p) => p.id)).toEqual([3, 4]);
+      expect(observation.openPositions.map((p) => p.marginMusd)).toEqual([
+        100, 200,
+      ]);
+      if (mode === "opted") {
+        expect(observation.capitalBook).toMatchObject({
+          status: "ready",
+          conservativeEquityMusd: 49_985,
+          committedCapitalMusd: 120,
+        });
+        expect(observation.openPositions.map((p) => p.walletId)).toEqual([
+          42, 7,
+        ]);
+        expect(observation.pmPositions?.map((p) => p.walletId)).toEqual([
+          42, 7,
+        ]);
+      } else {
+        expect(observation).not.toHaveProperty("capitalBook");
+        for (const row of [
+          ...observation.openPositions,
+          ...(observation.pmPositions ?? []),
+        ])
+          expect(row).not.toHaveProperty("walletId");
+      }
+    },
+  );
+
   const pmObservation = async (events: unknown[]) =>
     (
       await observe(

@@ -331,6 +331,7 @@ export interface CoinFundamentals {
 export interface OpenPosition {
   venue: Venue;
   id: number;
+  walletId?: number; // originating book; retained only for opt-in capital context
   coinId?: string;
   symbol?: string;
   side?: string;
@@ -366,6 +367,7 @@ export interface SpotOrder {
 
 export interface PmPosition {
   id: number;
+  walletId?: number; // originating book; legacy positions remain manageable
   source?: string;
   slug?: string;
   outcomeExternalMarketId?: string;

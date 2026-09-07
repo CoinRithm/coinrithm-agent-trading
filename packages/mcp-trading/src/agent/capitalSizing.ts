@@ -27,7 +27,9 @@ const nonnegative = (n: unknown): n is number =>
 /** Reconcile the bounded open-position reads against the wallet's frozen
  * buckets. A full page is not assumed complete: the collateral checksums must
  * agree. No held mark, unknown status, missing bucket, or mismatched book can
- * silently become zero exposure. Closed history never contributes unrealized. */
+ * silently become zero exposure. Lists retain legacy positions on other books
+ * for management; only explicitly attributed current-book rows reconcile its
+ * cash and marks. Closed history never contributes unrealized. */
 export function deriveCapitalBook(
   portfolio: unknown,
   wallet: unknown,
@@ -85,6 +87,15 @@ export function deriveCapitalBook(
       if (typeof position.status !== "string")
         return unavailable("position_status_unavailable");
       if (position.status !== "open") continue;
+      if (
+        !Number.isSafeInteger(position.walletId) ||
+        (position.walletId as number) <= 0
+      )
+        return unavailable("held_position_wallet_unavailable");
+      // The key-scoped API includes legacy/shared-book positions. Their
+      // liabilities settle to their originating wallet, not this active book.
+      // Do not filter the management observation or credit their close proceeds.
+      if (position.walletId !== p.walletId) continue;
       const amount = position[amountKey];
       const mark = markKeys
         .map((key) => asNum(position[key]))

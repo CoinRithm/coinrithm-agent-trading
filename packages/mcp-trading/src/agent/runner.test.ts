@@ -284,6 +284,64 @@ describe("opt-in owned-book capital sizing", () => {
     );
   });
 
+  it("keeps a known legacy-wallet position closeable while sizing this wallet's PM entry", async () => {
+    const client = sizedClient({
+      futuresPositions: async () =>
+        okData({
+          positions: [
+            {
+              id: 7,
+              status: "open",
+              walletId: 7,
+              marginMusd: 50,
+              unrealizedPnlMusd: -10,
+            },
+          ],
+        }),
+    });
+    const d = sizedDeps(true, client, {
+      decision: "act",
+      confidence: 0.9,
+      actions: [
+        { type: "futures_close", positionId: 7, fraction: 1 },
+        { type: "pm_open", ref: "pm1", stakeMusd: 10, forecastProbability: 70 },
+      ],
+    });
+    const result = await runCycle(d);
+    expect(result.planned.map((p) => p.executed)).toEqual([true, true]);
+    expect(client.closeFutures).toHaveBeenCalledTimes(1);
+    expect(result.planned[1].capitalSizing).toMatchObject({
+      conservativeEquityMusd: 50_000,
+      sizedAmountMusd: 1_000,
+    });
+  });
+
+  it("keeps legacy-wallet positions in the existing absolute futures margin ceiling", async () => {
+    const client = sizedClient({
+      futuresPositions: async () =>
+        okData({
+          positions: [
+            {
+              id: 7,
+              status: "open",
+              walletId: 7,
+              marginMusd: 50,
+              unrealizedPnlMusd: -10,
+            },
+          ],
+        }),
+    });
+    const d = sizedDeps(true, client, VALID_OPEN);
+    d.spec.limits.maxOpenMarginMusd = 50;
+    const result = await runCycle(d);
+    expect(result.planned[0]).toMatchObject({
+      accepted: false,
+      reason: "capital_ticket_below_minimum",
+    });
+    expect(client.futuresQuote).not.toHaveBeenCalled();
+    expect(client.openFutures).not.toHaveBeenCalled();
+  });
+
   it.each([false, true])(
     "reserves spot fees across successive dry/live=%s entries",
     async (live) => {
