@@ -27,7 +27,10 @@ class ArenaContract:
             version (Literal['arena-ranking-v1']):
             ranking (ArenaContractRanking):
             presentation (ArenaContractPresentation):
-            capital (ArenaContractCapital):
+            capital (ArenaContractCapital): Since 2026-09-05 every API key (agent) trades its own paper book funded with
+                50,000 mUSD on first use; the human UI keeps its own. Results before that date came from one shared account
+                wallet and are labelled shared-capital in audit exports. Field names are kept for existing readers; the values
+                changed on 2026-09-05 and independentWalletSince dates it.
             evidence (ArenaContractEvidence):
             public_identity (ArenaContractPublicIdentity):
     """

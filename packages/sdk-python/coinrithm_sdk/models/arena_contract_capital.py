@@ -11,22 +11,32 @@ T = TypeVar("T", bound="ArenaContractCapital")
 
 @_attrs_define
 class ArenaContractCapital:
-    """
-    Attributes:
-        normalized_baseline_musd (Literal[50000]):
-        execution_wallet_scope (Literal['user_account']):
-        performance_attribution_scope (Literal['api_key']):
-        independent_wallet_per_agent (bool):
+    """Since 2026-09-05 every API key (agent) trades its own paper book funded with 50,000 mUSD on first use; the human UI
+    keeps its own. Results before that date came from one shared account wallet and are labelled shared-capital in audit
+    exports. Field names are kept for existing readers; the values changed on 2026-09-05 and independentWalletSince
+    dates it.
+
+        Attributes:
+            normalized_baseline_musd (Literal[50000]):
+            starting_equity_musd (Literal[50000]):
+            execution_wallet_scope (Literal['api_key']):
+            performance_attribution_scope (Literal['api_key']):
+            independent_wallet_per_agent (bool):
+            independent_wallet_since (Literal['2026-09-05']):
     """
 
     normalized_baseline_musd: Literal[50000]
-    execution_wallet_scope: Literal["user_account"]
+    starting_equity_musd: Literal[50000]
+    execution_wallet_scope: Literal["api_key"]
     performance_attribution_scope: Literal["api_key"]
     independent_wallet_per_agent: bool
+    independent_wallet_since: Literal["2026-09-05"]
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         normalized_baseline_musd = self.normalized_baseline_musd
+
+        starting_equity_musd = self.starting_equity_musd
 
         execution_wallet_scope = self.execution_wallet_scope
 
@@ -34,14 +44,18 @@ class ArenaContractCapital:
 
         independent_wallet_per_agent = self.independent_wallet_per_agent
 
+        independent_wallet_since = self.independent_wallet_since
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
                 "normalizedBaselineMusd": normalized_baseline_musd,
+                "startingEquityMusd": starting_equity_musd,
                 "executionWalletScope": execution_wallet_scope,
                 "performanceAttributionScope": performance_attribution_scope,
                 "independentWalletPerAgent": independent_wallet_per_agent,
+                "independentWalletSince": independent_wallet_since,
             }
         )
 
@@ -54,9 +68,13 @@ class ArenaContractCapital:
         if normalized_baseline_musd != 50000:
             raise ValueError(f"normalizedBaselineMusd must match const 50000, got '{normalized_baseline_musd}'")
 
-        execution_wallet_scope = cast(Literal["user_account"], d.pop("executionWalletScope"))
-        if execution_wallet_scope != "user_account":
-            raise ValueError(f"executionWalletScope must match const 'user_account', got '{execution_wallet_scope}'")
+        starting_equity_musd = cast(Literal[50000], d.pop("startingEquityMusd"))
+        if starting_equity_musd != 50000:
+            raise ValueError(f"startingEquityMusd must match const 50000, got '{starting_equity_musd}'")
+
+        execution_wallet_scope = cast(Literal["api_key"], d.pop("executionWalletScope"))
+        if execution_wallet_scope != "api_key":
+            raise ValueError(f"executionWalletScope must match const 'api_key', got '{execution_wallet_scope}'")
 
         performance_attribution_scope = cast(Literal["api_key"], d.pop("performanceAttributionScope"))
         if performance_attribution_scope != "api_key":
@@ -66,11 +84,17 @@ class ArenaContractCapital:
 
         independent_wallet_per_agent = d.pop("independentWalletPerAgent")
 
+        independent_wallet_since = cast(Literal["2026-09-05"], d.pop("independentWalletSince"))
+        if independent_wallet_since != "2026-09-05":
+            raise ValueError(f"independentWalletSince must match const '2026-09-05', got '{independent_wallet_since}'")
+
         arena_contract_capital = cls(
             normalized_baseline_musd=normalized_baseline_musd,
+            starting_equity_musd=starting_equity_musd,
             execution_wallet_scope=execution_wallet_scope,
             performance_attribution_scope=performance_attribution_scope,
             independent_wallet_per_agent=independent_wallet_per_agent,
+            independent_wallet_since=independent_wallet_since,
         )
 
         arena_contract_capital.additional_properties = d

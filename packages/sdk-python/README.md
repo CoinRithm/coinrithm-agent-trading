@@ -9,6 +9,18 @@ OpenAPI contract that drives the hosted MCP at `mcp.coinrithm.com`.
   dashboard, sent as a bearer token.
 - The API is paper-only: no real funds ever move.
 
+## 1.8.0 release notes
+
+- Includes the generated Arena methodology models and response fields added
+  after the 1.7.0 distribution, including ranking, capital, evidence, and public
+  identity metadata.
+- Regenerates capital metadata for independent per-key paper books, including
+  starting equity and the 2026-09-05 cutover date. The old generated model
+  incorrectly expected a shared account wallet.
+  These models describe current Arena responses, not pre-cutover audit records.
+- The SDK distribution is versioned independently from the API contract, which
+  remains 1.7.0. This release does not change execution or model-routing policy.
+
 ## Install
 
 ```bash
