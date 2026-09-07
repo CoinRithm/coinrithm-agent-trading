@@ -791,7 +791,7 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
     const route = res.route;
     const actualCallMade = route
       ? route.attempts.some((attempt) => attempt.outcome !== "deferred")
-      : true;
+      : res.ok || !res.deferred;
     // Capacity deferral made no provider call, so it must not consume the
     // runner's debounce/LLM budget or delay recovery after capacity returns.
     if (actualCallMade) noteLlmCall(state, gate.codes, nowMs);
@@ -822,7 +822,10 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
       effectiveModel: actualCallMade
         ? (route?.effectiveModel ?? spec.model?.name)
         : undefined,
-      routeReason: route?.reason,
+      // Direct is not necessarily BYO: the self-host runner and a non-routed
+      // hosted shared provider use this same path. Attribute only actual calls.
+      routeReason:
+        route?.reason ?? (actualCallMade ? "configured_direct" : undefined),
       routeAttempts: route?.attempts,
     };
     if (!res.ok) {
@@ -833,8 +836,11 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
       // no action, no fallback invented here, and no model-failure streak that
       // could stop an otherwise healthy agent after repeated quota pressure.
       const capacityOnlyFailure =
-        !!route?.attempts?.length &&
-        route.attempts.every((attempt) => attempt.failureClass === "capacity");
+        (!route && res.status === 429) ||
+        (!!route?.attempts?.length &&
+          route.attempts.every(
+            (attempt) => attempt.failureClass === "capacity",
+          ));
       if (res.deferred || !actualCallMade || capacityOnlyFailure) {
         saveState(stateFile, state);
         log(`capacity deferred: ${res.error}`);

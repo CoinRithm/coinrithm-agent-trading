@@ -117,18 +117,28 @@ const DEFAULT_TIMEOUT_MS = 300_000;
 // in the capability table — providerCapabilities.ts is the single source; this
 // module only assembles and sends.
 
-// fetch with a hard timeout via AbortController. A custom fetchFn (tests) that
-// ignores `signal` still works — the timer just never fires for it.
-async function fetchWithTimeout(
-  fetchFn: typeof fetch,
-  url: string,
-  init: RequestInit,
+// One deadline covers both headers AND response-body consumption. fetch resolves
+// at headers, so clearing a fetch-only timer there leaves text/json unbounded.
+// Abort native I/O and race the deadline as well: an injected implementation that
+// ignores AbortSignal must still release the caller rather than its run lock.
+async function withProviderTimeout<T>(
   timeoutMs: number,
-): Promise<Response> {
+  operation: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      reject(
+        Object.assign(new Error("model deadline exceeded"), {
+          name: "AbortError",
+        }),
+      );
+      controller.abort();
+    }, timeoutMs);
+  });
   try {
-    return await fetchFn(url, { ...init, signal: controller.signal });
+    return await Promise.race([operation(controller.signal), deadline]);
   } finally {
     clearTimeout(timer);
   }
@@ -225,51 +235,69 @@ class AnthropicProvider implements Provider {
   }
   async decide(input: DecideInput): Promise<DecideResult> {
     const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    let failureResponse: Response | undefined;
     try {
-      const res = await fetchWithTimeout(
-        this.fetchFn,
-        "https://api.anthropic.com/v1/messages",
-        {
-          method: "POST",
-          headers: {
-            "x-api-key": this.apiKey,
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json",
-          },
-          body: JSON.stringify({
-            model: this.model,
-            max_tokens: input.maxTokens ?? 1024,
-            system: input.system,
-            messages: [{ role: "user", content: input.user }],
-          }),
-        },
+      return await withProviderTimeout(
         timeoutMs,
-      );
-      if (!res.ok)
-        return {
-          ok: false,
-          // Cap the upstream body: it lands in agent_cycles.skip_reason, so an
-          // unbounded provider error page must not bloat the ledger row.
-          error: `anthropic HTTP ${res.status}: ${(await res.text()).slice(0, 2000)}`,
-          status: res.status,
-          retryAfterMs: retryAfterMs(res),
-        };
-      const json = (await res.json()) as {
-        content?: Array<{ text?: string }>;
-        usage?: { input_tokens?: number; output_tokens?: number };
-      };
-      const text = json.content?.map((c) => c.text ?? "").join("") ?? "";
-      const usage = json.usage
-        ? {
-            promptTokens: json.usage.input_tokens ?? 0,
-            completionTokens: json.usage.output_tokens ?? 0,
+        async (signal): Promise<DecideResult> => {
+          const res = await this.fetchFn(
+            "https://api.anthropic.com/v1/messages",
+            {
+              method: "POST",
+              signal,
+              headers: {
+                "x-api-key": this.apiKey,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+              },
+              body: JSON.stringify({
+                model: this.model,
+                max_tokens: input.maxTokens ?? 1024,
+                system: input.system,
+                messages: [{ role: "user", content: input.user }],
+              }),
+            },
+          );
+          if (!res.ok) {
+            failureResponse = res;
+            return {
+              ok: false,
+              // Cap the upstream body: it lands in agent_cycles.skip_reason, so an
+              // unbounded provider error page must not bloat the ledger row.
+              error: `anthropic HTTP ${res.status}: ${(await res.text()).slice(0, 2000)}`,
+              status: res.status,
+              retryAfterMs: retryAfterMs(res),
+            };
           }
-        : undefined;
-      return text
-        ? { ok: true, text, usage }
-        : { ok: false, error: "anthropic returned empty content" };
+          const json = (await res.json()) as {
+            content?: Array<{ text?: string }>;
+            usage?: { input_tokens?: number; output_tokens?: number };
+          };
+          const text = json.content?.map((c) => c.text ?? "").join("") ?? "";
+          const usage = json.usage
+            ? {
+                promptTokens: json.usage.input_tokens ?? 0,
+                completionTokens: json.usage.output_tokens ?? 0,
+              }
+            : undefined;
+          return text
+            ? { ok: true, text, usage }
+            : { ok: false, error: "anthropic returned empty content" };
+        },
+      );
     } catch (err) {
-      return { ok: false, error: callError(err, timeoutMs) };
+      return {
+        ok: false,
+        error: failureResponse
+          ? `anthropic HTTP ${failureResponse.status}: ${callError(err, timeoutMs)}`
+          : callError(err, timeoutMs),
+        ...(failureResponse
+          ? {
+              status: failureResponse.status,
+              retryAfterMs: retryAfterMs(failureResponse),
+            }
+          : {}),
+      };
     }
   }
 }
@@ -288,63 +316,78 @@ class OpenAiCompatProvider implements Provider {
   async decide(input: DecideInput): Promise<DecideResult> {
     const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     const shape = chatShapeFor(this.provider, this.model, this.baseUrl);
+    let failureResponse: Response | undefined;
     try {
-      const res = await fetchWithTimeout(
-        this.fetchFn,
-        `${this.baseUrl}/chat/completions`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${this.apiKey}`,
-            "content-type": "application/json",
-          },
-          body: JSON.stringify(
-            buildChatBody(shape, {
-              model: this.model,
-              system: input.system,
-              user: input.user,
-              maxTokens: input.maxTokens ?? 1024,
-            }),
-          ),
-        },
+      return await withProviderTimeout(
         timeoutMs,
-      );
-      if (!res.ok)
-        return {
-          ok: false,
-          // Cap the upstream body: it lands in agent_cycles.skip_reason, so an
-          // unbounded provider error page must not bloat the ledger row.
-          error: `provider HTTP ${res.status}: ${(await res.text()).slice(0, 2000)}`,
-          status: res.status,
-          retryAfterMs: retryAfterMs(res),
-        };
-      const json = (await res.json()) as {
-        choices?: Array<{
-          message?: {
-            content?: string | null;
-            tool_calls?: Array<{
-              function?: { name?: string; arguments?: string };
-            }>;
-          };
-        }>;
-        usage?: { prompt_tokens?: number; completion_tokens?: number };
-      };
-      const message = json.choices?.[0]?.message;
-      const decisionArguments = message?.tool_calls?.find(
-        (call) => call.function?.name === DECISION_TOOL_NAME,
-      )?.function?.arguments;
-      const text = decisionArguments ?? message?.content ?? "";
-      const usage = json.usage
-        ? {
-            promptTokens: json.usage.prompt_tokens ?? 0,
-            completionTokens: json.usage.completion_tokens ?? 0,
+        async (signal): Promise<DecideResult> => {
+          const res = await this.fetchFn(`${this.baseUrl}/chat/completions`, {
+            method: "POST",
+            signal,
+            headers: {
+              Authorization: `Bearer ${this.apiKey}`,
+              "content-type": "application/json",
+            },
+            body: JSON.stringify(
+              buildChatBody(shape, {
+                model: this.model,
+                system: input.system,
+                user: input.user,
+                maxTokens: input.maxTokens ?? 1024,
+              }),
+            ),
+          });
+          if (!res.ok) {
+            failureResponse = res;
+            return {
+              ok: false,
+              // Cap the upstream body: it lands in agent_cycles.skip_reason, so an
+              // unbounded provider error page must not bloat the ledger row.
+              error: `provider HTTP ${res.status}: ${(await res.text()).slice(0, 2000)}`,
+              status: res.status,
+              retryAfterMs: retryAfterMs(res),
+            };
           }
-        : undefined;
-      return text
-        ? { ok: true, text, usage }
-        : { ok: false, error: "provider returned empty content" };
+          const json = (await res.json()) as {
+            choices?: Array<{
+              message?: {
+                content?: string | null;
+                tool_calls?: Array<{
+                  function?: { name?: string; arguments?: string };
+                }>;
+              };
+            }>;
+            usage?: { prompt_tokens?: number; completion_tokens?: number };
+          };
+          const message = json.choices?.[0]?.message;
+          const decisionArguments = message?.tool_calls?.find(
+            (call) => call.function?.name === DECISION_TOOL_NAME,
+          )?.function?.arguments;
+          const text = decisionArguments ?? message?.content ?? "";
+          const usage = json.usage
+            ? {
+                promptTokens: json.usage.prompt_tokens ?? 0,
+                completionTokens: json.usage.completion_tokens ?? 0,
+              }
+            : undefined;
+          return text
+            ? { ok: true, text, usage }
+            : { ok: false, error: "provider returned empty content" };
+        },
+      );
     } catch (err) {
-      return { ok: false, error: callError(err, timeoutMs) };
+      return {
+        ok: false,
+        error: failureResponse
+          ? `provider HTTP ${failureResponse.status}: ${callError(err, timeoutMs)}`
+          : callError(err, timeoutMs),
+        ...(failureResponse
+          ? {
+              status: failureResponse.status,
+              retryAfterMs: retryAfterMs(failureResponse),
+            }
+          : {}),
+      };
     }
   }
 }

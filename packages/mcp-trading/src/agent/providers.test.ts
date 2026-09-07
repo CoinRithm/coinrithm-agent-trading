@@ -1,10 +1,150 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { selectProvider } from "./providers.js";
 import { parseSkill } from "./skill.js";
 import { renderFolderOfOne } from "./templates.js";
 
 // conservative template -> model anthropic/claude-sonnet-4-6.
 const spec = parseSkill(renderFolderOfOne("a", "conservative")).spec;
+
+describe.each(["nvidia", "anthropic"] as const)(
+  "%s provider end-to-end deadline",
+  (providerName) => {
+    afterEach(() => vi.useRealTimers());
+
+    function makeProvider(fetchFn: typeof fetch) {
+      return selectProvider(
+        { ...spec, model: { provider: providerName, name: "test-model" } },
+        { NVIDIA_API_KEY: "test-only", ANTHROPIC_API_KEY: "test-only" },
+        fetchFn,
+      );
+    }
+
+    it("releases a header wait even when fetch ignores abort", async () => {
+      vi.useFakeTimers();
+      let signal: AbortSignal | null | undefined;
+      const fetchFn = vi.fn<typeof fetch>().mockImplementation((_url, init) => {
+        signal = init?.signal;
+        return new Promise<Response>(() => {});
+      });
+      const pending = makeProvider(fetchFn).decide({
+        system: "s",
+        user: "u",
+        timeoutMs: 20,
+      });
+      await vi.advanceTimersByTimeAsync(20);
+      const result = await pending;
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toContain("timed out after 20ms");
+        expect(result.status).toBeUndefined();
+      }
+      expect(signal?.aborted).toBe(true);
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+      expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it.each([200, 429, 410])(
+      "bounds an HTTP %i body wait that ignores abort, preserving known error status",
+      async (status) => {
+        vi.useFakeTimers();
+        let signal: AbortSignal | null | undefined;
+        let rejectBody!: (reason: Error) => void;
+        const response = new Response("", {
+          status,
+          ...(status === 429 ? { headers: { "Retry-After": "12" } } : {}),
+        });
+        const body = vi
+          .spyOn(response, status === 200 ? "json" : "text")
+          .mockImplementation(
+            () =>
+              new Promise((_resolve, reject) => {
+                rejectBody = reject;
+              }),
+          );
+        const fetchFn = vi
+          .fn<typeof fetch>()
+          .mockImplementation(async (_url, init) => {
+            signal = init?.signal;
+            return response;
+          });
+        const pending = makeProvider(fetchFn).decide({
+          system: "s",
+          user: "u",
+          timeoutMs: 20,
+        });
+        await vi.advanceTimersByTimeAsync(20);
+        const result = await pending;
+        expect(body).toHaveBeenCalledTimes(1);
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.error).toContain("timed out after 20ms");
+          expect(result.status).toBe(status === 200 ? undefined : status);
+          expect(result.retryAfterMs).toBe(status === 429 ? 12_000 : undefined);
+          if (status !== 200) expect(result.error).toContain(`HTTP ${status}`);
+        }
+        expect(signal?.aborted).toBe(true);
+        expect(fetchFn).toHaveBeenCalledTimes(1);
+        expect(vi.getTimerCount()).toBe(0);
+        // A body that eventually rejects after its deadline must not cause an
+        // unhandled rejection or change the already-returned cycle result.
+        rejectBody(new Error("late body rejection"));
+        await Promise.resolve();
+      },
+    );
+
+    it("retains normal decoded output and clears the deadline after body completion", async () => {
+      vi.useFakeTimers();
+      let signal: AbortSignal | null | undefined;
+      const decision = '{"decision":"skip"}';
+      const payload =
+        providerName === "anthropic"
+          ? {
+              content: [{ text: decision }],
+              usage: { input_tokens: 7, output_tokens: 3 },
+            }
+          : {
+              choices: [{ message: { content: decision } }],
+              usage: { prompt_tokens: 7, completion_tokens: 3 },
+            };
+      const fetchFn = vi
+        .fn<typeof fetch>()
+        .mockImplementation(async (_url, init) => {
+          signal = init?.signal;
+          return new Response(JSON.stringify(payload));
+        });
+      const result = await makeProvider(fetchFn).decide({
+        system: "s",
+        user: "u",
+        timeoutMs: 20,
+      });
+      expect(result).toEqual({
+        ok: true,
+        text: decision,
+        usage: { promptTokens: 7, completionTokens: 3 },
+      });
+      expect(vi.getTimerCount()).toBe(0);
+      await vi.advanceTimersByTimeAsync(100);
+      expect(signal?.aborted).toBe(false);
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+    });
+
+    it("returns malformed-body failure and clears its deadline without an extra request", async () => {
+      vi.useFakeTimers();
+      const fetchFn = vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(new Response("not JSON"));
+      const result = await makeProvider(fetchFn).decide({
+        system: "s",
+        user: "u",
+        timeoutMs: 20,
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error).not.toContain("timed out");
+      expect(vi.getTimerCount()).toBe(0);
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+    });
+  },
+);
 
 describe("selectProvider", () => {
   it("throws when the env key is missing (key never from the agent file)", () => {

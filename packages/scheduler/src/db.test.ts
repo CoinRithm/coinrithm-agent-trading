@@ -217,7 +217,7 @@ describe("reviveDisabledAgents — authoritative stops must stick", () => {
 });
 
 describe("migrateAgentsOffEolModels — NVIDIA 2026-08-26 EOL event", () => {
-  it("remaps every EOL'd model to a live-probe-verified successor, then revives only model_unavailable disables", async () => {
+  it("remaps shared unpinned EOL models, then revives only their model_unavailable disables", async () => {
     const query = vi
       .fn()
       .mockResolvedValueOnce({ rowCount: 35, rows: [] })
@@ -250,6 +250,20 @@ describe("migrateAgentsOffEolModels — NVIDIA 2026-08-26 EOL event", () => {
     expect(reviveSql).toContain("model_unavailable%");
     expect(reviveSql).toContain("status = 'disabled'");
     expect(reviveSql).toContain("next_run_at = now()");
+    // BOTH boot paths must preserve the owner's BYO/pinned selection and stop.
+    // Checking only the remap leaves a previously migrated pinned/BYO agent
+    // eligible for automatic revival when its name already is a successor.
+    for (const sql of [remapSql, reviveSql]) {
+      expect(sql).toContain("brain_key_enc IS NULL");
+      expect(sql).toContain(
+        "(spec->'pinnedModel') IS DISTINCT FROM 'true'::jsonb",
+      );
+      // JSONB equality pins only boolean true, not string "true", and includes
+      // absent/null/malformed values without an unsafe boolean cast. Legacy
+      // shared agents with no pin continue through the existing migration.
+      expect(sql).not.toMatch(/pinnedModel[^\n]*::boolean/);
+      expect(sql).not.toContain("is_house");
+    }
   });
 
   it("de-Groq targets are living models (the old targets were EOL'd)", async () => {
@@ -261,6 +275,11 @@ describe("migrateAgentsOffEolModels — NVIDIA 2026-08-26 EOL event", () => {
     expect(sql).toContain("nvidia/nemotron-3-nano-omni-30b-a3b-reasoning");
     expect(sql).not.toContain("meta/llama-3.1-70b-instruct");
     expect(sql).not.toContain("llama-3.3-nemotron-super-49b-v1");
+    expect(sql).toContain("is_house = true");
+    expect(sql).toContain("brain_key_enc IS NULL");
+    expect(sql).toContain(
+      "(spec->'pinnedModel') IS DISTINCT FROM 'true'::jsonb",
+    );
   });
 });
 

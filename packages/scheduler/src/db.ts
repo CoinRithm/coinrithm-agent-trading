@@ -155,6 +155,13 @@ export async function migrate(pool: Pool): Promise<void> {
 // fix never waits on a manual re-seed. No-op once no house agent is on Groq.
 // (Targets updated 2026-08-26: the previous targets were themselves EOL'd by
 // NVIDIA — see EOL_MODEL_SUCCESSORS.)
+// Match the runtime's exact pin semantics: only JSON boolean true pins a model.
+// Never cast arbitrary user JSON to boolean (strings/objects can be malformed).
+// A BYO credential or explicit pin makes model selection owner-controlled even
+// if the row is a house agent. Use this on BOTH remapping and model revival.
+const AUTOMATIC_MODEL_MIGRATION_SCOPE =
+  "brain_key_enc IS NULL AND (spec->'pinnedModel') IS DISTINCT FROM 'true'::jsonb";
+
 export async function migrateHouseAgentsOffGroq(pool: Pool): Promise<number> {
   const { rowCount } = await pool.query(
     `UPDATE agent_runtime.agents
@@ -166,7 +173,8 @@ export async function migrateHouseAgentsOffGroq(pool: Pool): Promise<number> {
             END,
             model_base_url = NULL,
             updated_at = now()
-      WHERE is_house = true AND model_provider = 'groq'`,
+      WHERE is_house = true AND model_provider = 'groq'
+        AND ${AUTOMATIC_MODEL_MIGRATION_SCOPE}`,
   );
   return rowCount ?? 0;
 }
@@ -198,12 +206,13 @@ export const EOL_MODEL_SUCCESSORS: Record<string, string> = {
     "nvidia/nemotron-3-super-120b-a12b",
 };
 
-/** Boot-run, idempotent (same pattern as the de-Groq migration): remap every
- * NVIDIA-provider agent still pointing at an EOL'd model to its verified
+/** Boot-run, idempotent (same pattern as the de-Groq migration): remap shared,
+ * unpinned NVIDIA-provider agents pointing at an EOL'd model to its verified
  * successor, then REVIVE agents the model_unavailable classifier disabled —
  * the disable was correct (the model was gone); with a living model mapped,
  * the permanent-failure cause no longer exists. Drawdown/key_invalid
- * disables are untouched. Returns [remapped, revived]. */
+ * disables are untouched, as are BYO and explicitly pinned agents, including
+ * their disabled state. Returns [remapped, revived]. */
 export async function migrateAgentsOffEolModels(
   pool: Pool,
 ): Promise<[number, number]> {
@@ -217,7 +226,8 @@ export async function migrateAgentsOffEolModels(
     `UPDATE agent_runtime.agents
         SET model_name = CASE ${cases} ELSE model_name END,
             updated_at = now()
-      WHERE model_provider = 'nvidia' AND model_name IN (${deadList})`,
+      WHERE model_provider = 'nvidia' AND model_name IN (${deadList})
+        AND ${AUTOMATIC_MODEL_MIGRATION_SCOPE}`,
     params,
   );
   const { rowCount: revived } = await pool.query(
@@ -229,6 +239,7 @@ export async function migrateAgentsOffEolModels(
       WHERE status = 'disabled'
         AND disabled_reason ILIKE 'model_unavailable%'
         AND model_provider = 'nvidia'
+        AND ${AUTOMATIC_MODEL_MIGRATION_SCOPE}
         AND model_name = ANY($1::text[])`,
     [Object.values(EOL_MODEL_SUCCESSORS)],
   );
