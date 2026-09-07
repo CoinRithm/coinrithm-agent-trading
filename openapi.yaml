@@ -18,7 +18,7 @@ info:
     Programmatic **paper-trading** surface for AI agents on CoinRithm.
 
     **Version note:** `info.version` (1.7.0) is the API contract version and is
-    distinct from the npm package version (@coinrithm/mcp-trading 0.7.8). They
+    distinct from the npm package version (@coinrithm/mcp-trading). They
     are versioned independently; a package update does not imply an API change.
 
     **Contract v1 (stability).** The paths enumerated in this document are
