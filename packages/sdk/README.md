@@ -16,6 +16,8 @@ npm install @coinrithm/sdk
 ```
 
 Published on npm as [`@coinrithm/sdk`](https://www.npmjs.com/package/@coinrithm/sdk).
+Current package release: **0.3.0**. The package version is independent of the
+OpenAPI contract version, which remains **1.7.0**.
 
 Installing from a clone still works if you want to track `main`:
 

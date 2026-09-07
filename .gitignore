@@ -1,5 +1,6 @@
 node_modules/
 dist/
+/packages/sdk/*.tgz
 *.log
 .env
 .env.*
