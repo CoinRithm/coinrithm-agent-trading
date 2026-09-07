@@ -2,6 +2,7 @@ import { Pool } from "pg";
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { sanitizeDecisionInputRecord } from "@coinrithm/mcp-trading/dist/agent/engine.js";
 
 export interface AgentRow {
   id: number;
@@ -51,6 +52,14 @@ export interface CycleRecord {
   effectiveModel?: string;
   routeReason?: string;
   routeAttempts?: unknown[];
+  // Owner-private input projection, never copied to actions/log or public APIs.
+  // The runtime type is not trusted here: a second allowlist validates storage.
+  decisionInputRecord?: unknown;
+}
+
+function decisionInputJson(value: unknown): string | null {
+  const safe = sanitizeDecisionInputRecord(value);
+  return safe ? JSON.stringify(safe) : null;
 }
 
 export function createPool(databaseUrl: string): Pool {
@@ -557,9 +566,10 @@ export async function recordCycle(
        (agent_id, decision, skip_reason, rationale, confidence, raw_model_output, model_failed, disabled, actions, log, error,
         trigger_codes, llm_call_made, tokens_in, tokens_out, estimated_cost_usd, decision_type, write_attempted, write_accepted,
         observation_hash, indicator_version, effective_provider, effective_model,
-        route_reason, route_attempts)
+        route_reason, route_attempts, decision_input_record, decision_input_record_expires_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21,
-             $22, $23, $24, $25::jsonb)`,
+             $22, $23, $24, $25::jsonb, $26::jsonb,
+             CASE WHEN $26::jsonb IS NOT NULL THEN now() + interval '30 days' ELSE NULL END)`,
     [
       agentId,
       rec.decision,
@@ -592,6 +602,7 @@ export async function recordCycle(
       rec.routeAttempts === undefined
         ? null
         : JSON.stringify(sanitizeRouteAttempts(rec.routeAttempts)),
+      decisionInputJson(rec.decisionInputRecord),
     ],
   );
 }
@@ -631,9 +642,10 @@ export async function persistCycleResult(
          (agent_id, decision, skip_reason, rationale, confidence, raw_model_output, model_failed, disabled, actions, log, error,
           trigger_codes, llm_call_made, tokens_in, tokens_out, estimated_cost_usd, decision_type, write_attempted, write_accepted,
           observation_hash, indicator_version, effective_provider, effective_model,
-          route_reason, route_attempts)
+          route_reason, route_attempts, decision_input_record, decision_input_record_expires_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21,
-               $22, $23, $24, $25::jsonb)`,
+               $22, $23, $24, $25::jsonb, $26::jsonb,
+               CASE WHEN $26::jsonb IS NOT NULL THEN now() + interval '30 days' ELSE NULL END)`,
       [
         agentId,
         c.decision,
@@ -658,12 +670,17 @@ export async function persistCycleResult(
         c.writeAccepted ?? null,
         c.observationHash ?? null,
         c.indicatorVersion ?? null,
-        c.effectiveProvider ?? args.model?.provider ?? null,
-        c.effectiveModel ?? args.model?.name ?? null,
+        c.effectiveProvider ??
+          (c.llmCallMade === true ? args.model?.provider : null) ??
+          null,
+        c.effectiveModel ??
+          (c.llmCallMade === true ? args.model?.name : null) ??
+          null,
         c.routeReason ?? null,
         c.routeAttempts === undefined
           ? null
           : JSON.stringify(sanitizeRouteAttempts(c.routeAttempts)),
+        decisionInputJson(c.decisionInputRecord),
       ],
     );
     if (args.providerHold) {
@@ -686,7 +703,12 @@ export async function persistCycleResult(
            updated_at = now()`,
         [h.provider, h.model, h.error.slice(0, 500)],
       );
-    } else if (args.model && c.llmCallMade && !c.modelFailed) {
+    } else if (
+      args.model &&
+      c.llmCallMade === true &&
+      !c.modelFailed &&
+      (c.decisionType === "act" || c.decisionType === "skip")
+    ) {
       // A real, successful model call on this route closes its circuit.
       await client.query(
         `DELETE FROM agent_runtime.provider_circuits WHERE provider = $1 AND model = $2`,

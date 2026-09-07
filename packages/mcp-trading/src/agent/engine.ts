@@ -8,6 +8,11 @@
 
 export { runCycle, type RunnerDeps } from "./runner.js";
 export {
+  DECISION_INPUT_MAX_BYTES,
+  sanitizeDecisionInputRecord,
+  type DecisionInputRecord,
+} from "./decisionReceipt.js";
+export {
   selectProvider,
   providerForRoute,
   type ProviderEnv,

@@ -13,6 +13,11 @@ import { renderFolderOfOne } from "./templates.js";
 import { newState } from "./state.js";
 import { CoinRithmClient } from "./client.js";
 import { Provider, selectProvider } from "./providers.js";
+import {
+  DECISION_INPUT_MAX_BYTES,
+  type DecisionInputRecord,
+} from "./decisionReceipt.js";
+import * as privateEvidence from "./decisionReceipt.js";
 
 const okData = (data: unknown) => ({ ok: true, status: 200, data });
 
@@ -241,6 +246,10 @@ describe("runCycle daily risk budget prompt", () => {
     d.state.writesToday = 10;
     const result = await runCycle(d);
     expect(c.budget()).toMatchObject({ used: 2, remaining: 1 });
+    expect(result.decisionInputRecord?.dailyRiskBudget).toMatchObject({
+      used: 2,
+      remaining: 1,
+    });
     expect(result.planned[0].executed).toBe(true);
     expect(result.planned[1].code).toBe("daily_trade_cap");
     expect(client.openFutures).toHaveBeenCalledTimes(1);
@@ -251,6 +260,12 @@ describe("runCycle daily risk budget prompt", () => {
     });
     await runCycle(d);
     expect(c.budget(1)).toMatchObject({ used: 3, remaining: 0 });
+    // The first receipt must remain the PRE-decision state after execution and
+    // subsequent cycles have advanced the mutable runner counters.
+    expect(result.decisionInputRecord?.dailyRiskBudget).toMatchObject({
+      used: 2,
+      remaining: 1,
+    });
   });
 
   it("counts successful adds to held futures positions as entry/add risk", async () => {
@@ -314,6 +329,162 @@ describe("runCycle daily risk budget prompt", () => {
       expect(c.budget(1)).toMatchObject({ used: 1, remaining: 2 });
     },
   );
+});
+
+describe("runCycle private input evidence", () => {
+  it("keeps input evidence out of public trace, ordinary JSON, spreads and logs", async () => {
+    const log = vi.fn();
+    const onDecisionInputRecord = vi.fn();
+    const client = baseClient();
+    const result = await runCycle(
+      deps({ live: true, log, onDecisionInputRecord }, client),
+    );
+    const record = result.decisionInputRecord!;
+    expect(record).toMatchObject({
+      visibility: "private",
+      completeness: "partial",
+      phase: "decision_input",
+      outcome: "returned",
+    });
+    expect(record.runId).toBe("run-1");
+    expect(record.decisionId).toMatch(/^cycle-1-/);
+    expect(record.observationFingerprint).toBe(result.observationHash);
+    expect(Buffer.byteLength(JSON.stringify(record))).toBeLessThanOrEqual(
+      DECISION_INPUT_MAX_BYTES,
+    );
+    expect(onDecisionInputRecord).toHaveBeenCalledTimes(1);
+    expect(onDecisionInputRecord.mock.calls[0][0]).not.toBe(record);
+    expect(JSON.stringify(result)).not.toContain("decisionInputRecord");
+    expect({ ...result }.decisionInputRecord).toBeUndefined();
+    expect(JSON.stringify(client.openFutures.mock.calls)).not.toContain(
+      "decisionInputRecord",
+    );
+    expect(JSON.stringify(log.mock.calls)).not.toContain(
+      "coinrithm.decision-input",
+    );
+  });
+
+  it.each(["hold", "capacity", "model_error", "malformed"])(
+    "captures %s, not just acted cycles",
+    async (kind) => {
+      const prov: Provider = {
+        label: "fixture",
+        decide: async () =>
+          kind === "capacity"
+            ? { ok: false, deferred: true, error: "capacity" }
+            : kind === "model_error"
+              ? { ok: false, status: 503, error: "upstream unavailable" }
+              : {
+                  ok: true,
+                  text:
+                    kind === "malformed"
+                      ? "not JSON"
+                      : '{"decision":"skip","actions":[]}',
+                },
+      };
+      const result = await runCycle(deps({}, baseClient(), prov));
+      expect(result.decisionInputRecord).toMatchObject({
+        phase: "decision_input",
+        outcome: "returned",
+        completeness: "partial",
+      });
+      expect(result.decisionInputRecord?.account?.cashAvailableMusd).toBe(1000);
+      expect(result.planned).toEqual([]);
+    },
+  );
+
+  it("records no-input kill-switch stops and observed no-trigger skips", async () => {
+    const stopped = deps({});
+    stopped.spec.killSwitch.maxConsecutiveRejects = 1;
+    stopped.state.consecutiveRejectCycles = 1;
+    const stopResult = await runCycle(stopped);
+    expect(stopResult.decisionInputRecord).toMatchObject({
+      phase: "before_observation",
+      account: null,
+    });
+    expect(stopResult.decisionInputRecord?.omissions).toContain(
+      "observation_not_available",
+    );
+    const gated = deps({});
+    gated.spec.triggerPolicy!.mode = "event_driven";
+    gated.spec.triggerPolicy!.skipLlmWhenNoTrigger = true;
+    gated.spec.triggerPolicy!.pmEvalCooldownMinutes = 0;
+    const gateResult = await runCycle(gated);
+    expect(gateResult.llmCallMade).toBe(false);
+    expect(gateResult.decisionInputRecord?.phase).toBe("decision_input");
+  });
+
+  it("preserves thrown errors while delivering only fixed failure metadata to private callback", async () => {
+    const error = new Error("PRIVATE_UPSTREAM_EXCEPTION");
+    const record = vi.fn();
+    const prov: Provider = {
+      label: "broken",
+      decide: async () => {
+        throw error;
+      },
+    };
+    await expect(
+      runCycle(deps({ onDecisionInputRecord: record }, baseClient(), prov)),
+    ).rejects.toBe(error);
+    const captured = record.mock.calls[0][0] as DecisionInputRecord;
+    expect(captured).toMatchObject({
+      phase: "decision_input",
+      outcome: "runtime_error",
+    });
+    expect(captured.omissions).toContain("runtime_exception_after_snapshot");
+    expect(JSON.stringify(captured)).not.toContain(
+      "PRIVATE_UPSTREAM_EXCEPTION",
+    );
+  });
+
+  it("evidence callback failure or mutation cannot change execution or the returned record", async () => {
+    const client = baseClient();
+    const result = await runCycle(
+      deps(
+        {
+          live: true,
+          onDecisionInputRecord: (r) => {
+            r.dailyRiskBudget = null;
+            throw new Error("PRIVATE_CALLBACK_ERROR");
+          },
+        },
+        client,
+      ),
+    );
+    expect(client.openFutures).toHaveBeenCalledTimes(1);
+    expect(result.decisionInputRecord?.dailyRiskBudget).not.toBeNull();
+    const asyncFailure = await runCycle(
+      deps({
+        onDecisionInputRecord: async () => {
+          throw new Error("async callback failure");
+        },
+      }),
+    );
+    expect(asyncFailure.decision).toBe("act");
+    await Promise.resolve();
+  });
+
+  it("an evidence helper failure produces fixed omission metadata without affecting execution", async () => {
+    const spy = vi
+      .spyOn(privateEvidence, "buildDecisionInputRecord")
+      .mockImplementation(() => {
+        throw new Error("PRIVATE_CAPTURE_ERROR");
+      });
+    try {
+      const client = baseClient();
+      const result = await runCycle(deps({ live: true }, client));
+      expect(client.openFutures).toHaveBeenCalledTimes(1);
+      expect(result.decisionInputRecord?.omissions).toContain(
+        "evidence_capture_failed",
+      );
+      expect(result.decisionInputRecord?.dailyRiskBudget).toBeNull();
+      expect(JSON.stringify(result.decisionInputRecord)).not.toContain(
+        "PRIVATE_CAPTURE_ERROR",
+      );
+    } finally {
+      spy.mockRestore();
+    }
+  });
 });
 
 describe("runCycle", () => {

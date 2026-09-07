@@ -7,6 +7,7 @@
 // money.
 
 import { IndicatorSet } from "./indicators.js";
+import type { DecisionInputRecord } from "./decisionReceipt.js";
 
 export const SPEC_VERSION = "coinrithm.agent.v1";
 
@@ -752,6 +753,8 @@ export interface PlannedAction {
 }
 
 export interface CycleResult {
+  /** Private non-enumerable evidence. Never forward through AgentTrace/public APIs. */
+  decisionInputRecord?: DecisionInputRecord;
   decision: "skip" | "act";
   skipReason?: string;
   // Reasoning surfaced to the Arena terminal (keystone transparency). rationale

@@ -52,6 +52,13 @@ import { asObj, asNum, asStr } from "./extract.js";
 import { parseCadenceMs, sleep } from "./util.js";
 import { buildObservationReceipt } from "./observationReceipt.js";
 import {
+  buildDecisionInputRecord,
+  sanitizeDecisionInputRecord,
+  unavailableDecisionInputRecord,
+  type DecisionInputCapture,
+  type DecisionInputRecord,
+} from "./decisionReceipt.js";
+import {
   attachTheses,
   bindThesis,
   forgetThesis,
@@ -69,6 +76,8 @@ export interface RunnerDeps {
   live: boolean;
   stateFile?: string;
   log?: (line: string) => void;
+  /** Optional private storage hook. Its failure never changes cycle execution. */
+  onDecisionInputRecord?: (record: DecisionInputRecord) => void;
 }
 
 // Independent-forecast kill-switch. Default ON: the fleet elicits + submits its
@@ -437,6 +446,50 @@ function blockReasonsOf(data: unknown): string | undefined {
 }
 
 export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
+  let record = unavailableDecisionInputRecord();
+  const capture = (input: DecisionInputCapture): void => {
+    try {
+      record =
+        sanitizeDecisionInputRecord(buildDecisionInputRecord(input)) ??
+        unavailableDecisionInputRecord();
+    } catch {
+      record = unavailableDecisionInputRecord();
+    }
+  };
+  const notify = (): void => {
+    try {
+      void Promise.resolve(
+        deps.onDecisionInputRecord?.(
+          JSON.parse(JSON.stringify(record)) as DecisionInputRecord,
+        ),
+      ).catch(() => {});
+    } catch {
+      /* private evidence must not change inference or execution */
+    }
+  };
+  try {
+    const result = await runCycleCore(deps, capture);
+    record.outcome = "returned";
+    // Non-enumerable on purpose: CLI data/results JSON and object spreads must
+    // not accidentally expose this private account/position snapshot.
+    Object.defineProperty(result, "decisionInputRecord", {
+      value: record,
+      enumerable: false,
+    });
+    notify();
+    return result;
+  } catch (error) {
+    record.outcome = "runtime_error";
+    record.omissions.push("runtime_exception_after_snapshot");
+    notify();
+    throw error;
+  }
+}
+
+async function runCycleCore(
+  deps: RunnerDeps,
+  capture: (input: DecisionInputCapture) => void,
+): Promise<CycleResult> {
   const { client, provider, spec, mergedProse, state, live, stateFile } = deps;
   const log = deps.log ?? (() => {});
   // One flag read per cycle governs BOTH the prompt extension and the submission,
@@ -448,6 +501,10 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
   const provenance = buildRunnerProvenance(spec);
   state.cyclesRun += 1;
   rollDay(state);
+  const runId = state.runId;
+  const decisionId = makeDecisionId(state.cyclesRun);
+  const captureBase = { runId, decisionId, spec, mergedProse, state };
+  capture({ ...captureBase, phase: "before_observation" });
 
   // Kill-switch pre-check: a disabled agent never observes, decides, or acts.
   const tripped = checkKillSwitch(spec, state);
@@ -465,8 +522,6 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
     };
   }
 
-  const runId = state.runId;
-  const decisionId = makeDecisionId(state.cyclesRun);
   const baseTrace = makeTrace(runId, decisionId, spec);
 
   // Opportunity capture (kills evaluation selection bias). Post at most ONE
@@ -523,6 +578,7 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
   for (const key of thesisMaint.pruned)
     log(`thesis dropped: ${key} (position no longer open)`);
   let observationReceipt = buildObservationReceipt(observation);
+  const preThesisObservationFingerprint = observationReceipt.observationHash;
   // Reads build the observation, so its hash cannot exist before they finish.
   // From this point every durable write carries the exact decision-input receipt.
   Object.assign(baseTrace, observationReceipt);
@@ -560,6 +616,14 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
       ].slice(-12);
     }
   }
+
+  capture({
+    ...captureBase,
+    phase: "observed",
+    observation,
+    observationFingerprint: observationReceipt.observationHash,
+    preThesisObservationFingerprint,
+  });
 
   // Equity-aware drawdown: open mark-to-market losses trip the kill-switch too,
   // not only realized losses. Includes BOTH futures AND prediction-market books —
@@ -719,6 +783,13 @@ export async function runCycle(deps: RunnerDeps): Promise<CycleResult> {
   // so it touches NO kill-switch counter; it just records the cheap cycle.
   const policy = spec.triggerPolicy ?? DEFAULT_TRIGGER_POLICY;
   const gate = evaluateGate(observation, state, policy, nowMs);
+  capture({
+    ...captureBase,
+    phase: "decision_input",
+    observation,
+    observationFingerprint: observationReceipt.observationHash,
+    preThesisObservationFingerprint,
+  });
   const providerName = spec.model?.provider ?? "nvidia";
   if (!gate.fire) {
     saveState(stateFile, state);

@@ -383,6 +383,18 @@ describe("runCycle: thesis evaluation and exits", () => {
       code: "thesis_invalidated",
       action: { type: "futures_close", positionId: 52 },
     });
+    expect(client.closeFutures.mock.calls[0][0]).toMatchObject({
+      agentTrace: {
+        observationHash: r.decisionInputRecord?.preThesisObservationFingerprint,
+      },
+    });
+    expect(r.decisionInputRecord?.observationFingerprint).toBe(
+      r.observationHash,
+    );
+    expect(r.decisionInputRecord?.observationFingerprint).not.toBe(
+      r.decisionInputRecord?.preThesisObservationFingerprint,
+    );
+    expect(r.decisionInputRecord?.lists.futuresPositions).toEqual([]);
     // State: thesis forgotten, write counted, journal remembers the exit.
     expect(d.state.theses?.["futures:52"]).toBeUndefined();
     expect(d.state.writesToday).toBe(1);

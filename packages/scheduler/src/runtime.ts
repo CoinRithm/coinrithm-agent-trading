@@ -13,6 +13,7 @@ import {
   type ProviderEnv,
   type ProviderName,
   type DecideInput,
+  type DecisionInputRecord,
 } from "@coinrithm/mcp-trading/dist/agent/engine.js";
 import { decrypt } from "./crypto.js";
 import {
@@ -325,6 +326,9 @@ export async function runAgentOnce(
   config: Config,
 ): Promise<void> {
   const log: string[] = [];
+  // Kept only in this invocation. A failed run can retain its captured inputs
+  // without putting private input data into the public log/action surfaces.
+  let decisionInputRecord: DecisionInputRecord | undefined;
 
   // A DB read blip here is transient (not the agent's fault) — record + retry.
   let stateRaw: unknown;
@@ -334,6 +338,7 @@ export async function runAgentOnce(
     await recordCycle(pool, agent.id, {
       decision: "error",
       error: `loadState: ${errMsg(e)}`,
+      llmCallMade: false,
     }).catch(() => {});
     return;
   }
@@ -375,6 +380,9 @@ export async function runAgentOnce(
       live: agent.live,
       stateFile: undefined, // DB-backed: no file I/O; we persist deps.state below
       log: (l) => log.push(l),
+      onDecisionInputRecord: (record) => {
+        decisionInputRecord = record;
+      },
     };
   } catch (e) {
     const msg = errMsg(e);
@@ -383,6 +391,7 @@ export async function runAgentOnce(
         decision: "skip",
         skipReason: "hosted provider temporarily unavailable",
         modelFailed: false,
+        llmCallMade: false,
         log: log.join("\n"),
         error: `platform setup: ${msg}`,
       }).catch(() => {});
@@ -392,6 +401,7 @@ export async function runAgentOnce(
     await recordCycle(pool, agent.id, {
       decision: "error",
       error: `setup: ${msg}`,
+      llmCallMade: false,
       log: log.join("\n"),
     }).catch(() => {});
     await disableAgent(pool, agent.id, `setup error: ${msg}`).catch(() => {});
@@ -436,6 +446,7 @@ export async function runAgentOnce(
         effectiveModel: result.effectiveModel,
         routeReason: result.routeReason,
         routeAttempts: result.routeAttempts,
+        decisionInputRecord: result.decisionInputRecord ?? decisionInputRecord,
       },
       disableReason: result.disabled
         ? (result.disabledReason ?? "kill-switch")
@@ -465,6 +476,7 @@ export async function runAgentOnce(
       decision: "error",
       error: errMsg(e),
       log: log.join("\n"),
+      decisionInputRecord,
     }).catch(() => {});
   }
 }

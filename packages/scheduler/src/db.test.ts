@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import type { Pool, PoolClient } from "pg";
+import type { DecisionInputRecord } from "@coinrithm/mcp-trading/dist/agent/engine.js";
 import {
   recordCycle,
   persistCycleResult,
@@ -28,6 +29,150 @@ import {
 // raw_model_output is bound positionally as the 6th SQL parameter ($6) in
 // both INSERT statements below — see the column list in db.ts.
 const RAW_MODEL_OUTPUT_PARAM_INDEX = 5;
+
+function privateRecord(): DecisionInputRecord {
+  return {
+    version: "coinrithm.decision-input.v1",
+    visibility: "private",
+    completeness: "partial",
+    phase: "decision_input",
+    outcome: "returned",
+    runId: "private-run",
+    decisionId: "private-cycle",
+    configFingerprint: `sha256:${"a".repeat(64)}`,
+    observationFingerprint: `sha256:${"b".repeat(64)}`,
+    preThesisObservationFingerprint: `sha256:${"b".repeat(64)}`,
+    dailyRiskBudget: {
+      version: "coinrithm.daily-risk-budget.v1",
+      utcDay: "2026-09-07",
+      limit: 3,
+      used: 2,
+      remaining: 1,
+    },
+    guardState: { riskIncreasesToday: 2, disabled: false },
+    account: { cashAvailableMusd: 8765 },
+    lists: { watch: [{ symbol: "BTC", priceUsd: 67000 }] },
+    counts: { watch: { source: 1, retained: 1, omitted: 0 } },
+    omissions: ["partial_projection_not_full_model_input"],
+  };
+}
+
+describe.each(["recordCycle", "persistCycleResult"] as const)(
+  "%s private input storage boundary",
+  (writer) => {
+    async function write(decisionInputRecord: unknown) {
+      const query = vi.fn().mockResolvedValue({ rows: [] });
+      const release = vi.fn();
+      const pool = {
+        query,
+        connect: vi.fn().mockResolvedValue({ query, release }),
+      } as unknown as Pool;
+      const cycle = {
+        decision: "skip",
+        actions: [],
+        log: "ordinary safe log",
+        decisionInputRecord,
+      };
+      if (writer === "recordCycle") await recordCycle(pool, 42, cycle);
+      else
+        await persistCycleResult(pool, 42, { state: { cyclesRun: 1 }, cycle });
+      const call = query.mock.calls.find((c) =>
+        String(c[0]).includes("INSERT INTO agent_runtime.agent_cycles"),
+      )!;
+      return {
+        query,
+        release,
+        sql: String(call[0]),
+        params: call[1] as unknown[],
+      };
+    }
+
+    it("retains only the private payload with server expiry and no log/action copy", async () => {
+      const record = privateRecord();
+      const { query, release, sql, params } = await write(record);
+      expect(JSON.parse(String(params[25]))).toEqual(record);
+      expect(sql).toContain("decision_input_record_expires_at");
+      expect(sql).toMatch(
+        /CASE WHEN \$26::jsonb IS NOT NULL THEN now\(\) \+ interval '30 days' ELSE NULL END/,
+      );
+      expect(params).toHaveLength(26);
+      expect(params[8]).toBe("[]");
+      expect(params[9]).toBe("ordinary safe log");
+      expect(JSON.stringify(params.slice(0, 25))).not.toContain("private-run");
+      expect(JSON.stringify(params.slice(0, 25))).not.toContain("8765");
+      if (writer === "persistCycleResult") {
+        const sqls = query.mock.calls.map((c) => String(c[0]));
+        expect(sqls[0]).toBe("BEGIN");
+        expect(sqls[1]).toContain("agent_runtime.agent_state");
+        expect(sqls[2]).toContain("agent_runtime.agent_cycles");
+        expect(sqls.at(-1)).toBe("COMMIT");
+        expect(release).toHaveBeenCalledOnce();
+      }
+    });
+
+    it.each([
+      "absent",
+      "null",
+      "foreign",
+      "nested",
+      "free_text",
+      "oversized",
+      "secret_identifier",
+    ])(
+      "rejects %s payloads and leaves expiry null through the same SQL condition",
+      async (kind) => {
+        const r = privateRecord();
+        const candidates: Record<string, unknown> = {
+          absent: undefined,
+          null: null,
+          foreign: { ...r, prompt: "PRIVATE_MUST_NOT_PERSIST" },
+          nested: {
+            ...r,
+            lists: {
+              watch: [{ symbol: "BTC", prompt: "PRIVATE_MUST_NOT_PERSIST" }],
+            },
+          },
+          free_text: { ...r, omissions: ["PRIVATE_MUST_NOT_PERSIST"] },
+          oversized: { ...r, runId: "PRIVATE_MUST_NOT_PERSIST".repeat(1000) },
+          secret_identifier: {
+            ...r,
+            runId: "crk_live_PRIVATE_MUST_NOT_PERSIST",
+          },
+        };
+        const { sql, params } = await write(candidates[kind]);
+        expect(params[25]).toBeNull();
+        expect(sql).toContain("CASE WHEN $26::jsonb IS NOT NULL");
+        expect(sql).toContain("ELSE NULL END");
+        expect(JSON.stringify(params)).not.toContain(
+          "PRIVATE_MUST_NOT_PERSIST",
+        );
+      },
+    );
+  },
+);
+
+describe("private cycle transaction failure", () => {
+  it("rolls back state and payload together when the cycle insert fails", async () => {
+    const failure = new Error("cycle insert unavailable");
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes("INSERT INTO agent_runtime.agent_cycles")) throw failure;
+      return { rows: [] };
+    });
+    const release = vi.fn();
+    const pool = {
+      connect: vi.fn().mockResolvedValue({ query, release }),
+    } as unknown as Pool;
+    await expect(
+      persistCycleResult(pool, 42, {
+        state: { cyclesRun: 1 },
+        cycle: { decision: "skip", decisionInputRecord: privateRecord() },
+      }),
+    ).rejects.toBe(failure);
+    expect(query.mock.calls.map((c) => c[0])).toContain("ROLLBACK");
+    expect(query.mock.calls.map((c) => c[0])).not.toContain("COMMIT");
+    expect(release).toHaveBeenCalledOnce();
+  });
+});
 
 describe("recordCycle — no-CoT DB write boundary", () => {
   it("persists at most two allowlisted route attempts with secrets removed", async () => {
@@ -340,6 +485,7 @@ describe("provider circuits — reliability slice 1 (never disable on provider f
       state: {},
       cycle: {
         decision: "act",
+        decisionType: "act",
         llmCallMade: true,
         modelFailed: false,
       } as CycleRecord,
@@ -360,6 +506,101 @@ describe("provider circuits — reliability slice 1 (never disable on provider f
     });
     sqls = query.mock.calls.map((c) => String(c[0]));
     expect(sqls.some((s) => s.includes("status = 'disabled'"))).toBe(true);
+  });
+
+  it.each([
+    {
+      label: "upstream 429",
+      llmCallMade: true,
+      decisionType: "gate_skip",
+      modelFailed: false,
+    },
+    {
+      label: "local defer",
+      llmCallMade: false,
+      decisionType: "gate_skip",
+      modelFailed: false,
+    },
+    {
+      label: "no-call skip",
+      llmCallMade: false,
+      decisionType: "skip",
+      modelFailed: false,
+    },
+    {
+      label: "historical unknown call",
+      llmCallMade: undefined,
+      decisionType: "skip",
+      modelFailed: false,
+    },
+    {
+      label: "historical unknown result",
+      llmCallMade: true,
+      decisionType: undefined,
+      modelFailed: false,
+    },
+    {
+      label: "model failure",
+      llmCallMade: true,
+      decisionType: "model_error",
+      modelFailed: true,
+    },
+    {
+      label: "malformed call flag",
+      llmCallMade: "true",
+      decisionType: "skip",
+      modelFailed: false,
+    },
+  ])(
+    "does not close a circuit for $label",
+    async ({ llmCallMade, decisionType, modelFailed }) => {
+      const query = vi.fn().mockResolvedValue({ rows: [] });
+      const pool = {
+        connect: vi.fn().mockResolvedValue({ query, release: vi.fn() }),
+      } as unknown as Pool;
+      await persistCycleResult(pool, 42, {
+        state: {},
+        cycle: {
+          decision: "skip",
+          llmCallMade,
+          decisionType,
+          modelFailed,
+        } as CycleRecord,
+        model: { provider: "nvidia", name: "configured-model" },
+      });
+      expect(
+        query.mock.calls.some((c) =>
+          String(c[0]).includes("DELETE FROM agent_runtime.provider_circuits"),
+        ),
+      ).toBe(false);
+      const params = query.mock.calls.find((c) =>
+        String(c[0]).includes("INSERT INTO agent_runtime.agent_cycles"),
+      )![1] as unknown[];
+      expect(params[21]).toBe(llmCallMade === true ? "nvidia" : null);
+      expect(params[22]).toBe(llmCallMade === true ? "configured-model" : null);
+    },
+  );
+
+  it("preserves actual routed attribution instead of overwriting it with the configured model", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const pool = {
+      connect: vi.fn().mockResolvedValue({ query, release: vi.fn() }),
+    } as unknown as Pool;
+    await persistCycleResult(pool, 42, {
+      state: {},
+      cycle: {
+        decision: "skip",
+        decisionType: "skip",
+        llmCallMade: true,
+        effectiveProvider: "actual-provider",
+        effectiveModel: "actual-model",
+      },
+      model: { provider: "nvidia", name: "configured-model" },
+    });
+    const params = query.mock.calls.find((c) =>
+      String(c[0]).includes("INSERT INTO agent_runtime.agent_cycles"),
+    )![1] as unknown[];
+    expect(params.slice(21, 23)).toEqual(["actual-provider", "actual-model"]);
   });
 
   it("claimDueAgents excludes shared-key agents on OPEN circuits but never BYO-key agents", async () => {
