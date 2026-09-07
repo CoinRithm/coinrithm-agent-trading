@@ -5,7 +5,12 @@ ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (t
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
 versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
-## Unreleased
+## 0.7.8
+
+Runner decision-quality, evidence and paper-capital release. Additive: no MCP
+tool was renamed or removed, and the API **contract stays 1.7.0**. This release
+contains all package changes since published 0.7.7 (`gitHead` `80d0cae`), not
+just the previously listed thesis work.
 
 **Thesis exits.** Every opening action (`futures_open`, `spot_order`,
 `pm_open`) now carries a `thesis`: a one-sentence summary plus an
@@ -45,6 +50,43 @@ market.
 **Fix:** the public movers feed serializes `change24h` / `currentPrice` as
 decimal strings; the universe-scan context rows read them strictly as numbers
 and shipped `undefined` for every mover.
+
+**Opt-in equity-based paper sizing.** A runner can size entries from a
+conservative fraction of its independently attributed paper book instead of a
+fixed stake/margin. The book is accepted only when wallet identity, cash
+partitions, held-position attribution and spot-mark coverage reconcile. Quotes
+then enforce per-entry, per-symbol, deployed-capital and daily-entry limits;
+fee buffers and the API's fee-inclusive quote evidence are included. Any
+missing or inconsistent evidence fails closed. Legacy positions on a different
+book remain visible for management but never inflate the current book's buying
+power.
+
+**Prediction-market decisions use executable economics.** PM opens now reject
+an invalid raw probability and a model forecast that does not clear the quoted
+entry price. Forecast edge is measured against the actual fee/slippage-adjusted
+fill, not the headline market probability. Quote-expiry outcomes are recorded
+separately from risk/balance rejection, and futures risk/reward validation uses
+fee-inclusive entry and stop economics.
+
+**Decision evidence is structured and bounded.** Cycles can expose a sanitized,
+partial private decision-input record: configuration and observation
+fingerprints, daily budget and guard state, plus bounded observation rows with
+explicit omission counts. It is not a prompt, transcript, raw model output or
+hidden reasoning record. The runner also reports quote/validation evidence for
+abstained, forecast-only and quote-expired PM opportunities. Hosted persistence
+and retention remain the caller's responsibility.
+
+**Runtime controls are more faithful.** The model sees the remaining daily
+entry/add budget rather than only static maxima. Entry caps still block new
+risk, while closes and other risk-reducing actions remain available. Direct
+provider HTTP 429 responses are capacity skips rather than model failures, so
+BYO agents do not build a failure streak during ordinary quota pressure.
+Structured-tool decisions remain required where the provider supports that
+contract.
+
+**Scorecard fix.** Maximum drawdown now measures decline from starting equity,
+so an immediate loss is no longer hidden by treating the first post-trade point
+as the high-water mark.
 
 ## 0.7.7
 
