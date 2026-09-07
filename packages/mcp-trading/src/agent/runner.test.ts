@@ -18,6 +18,7 @@ import {
   type DecisionInputRecord,
 } from "./decisionReceipt.js";
 import * as privateEvidence from "./decisionReceipt.js";
+import { CAPITAL_VALUATION_BASIS } from "./capitalSizing.js";
 
 const okData = (data: unknown) => ({ ok: true, status: 200, data });
 
@@ -158,6 +159,287 @@ function deps(
     ...over,
   };
 }
+
+describe("opt-in owned-book capital sizing", () => {
+  const policy = {
+    version: "equity_fraction_v1" as const,
+    futuresRiskPct: 0.75,
+    pmMaxLossPct: 2,
+    perTicketCapitalPct: 6,
+    totalCapitalPct: 40,
+    cashReservePct: 20,
+    minRewardRisk: 1.5,
+  };
+  function sizedClient(over: Record<string, unknown> = {}) {
+    const partitions = {
+      available: 50_000,
+      frozen: 0,
+      frozenPm: 0,
+      frozenFutures: 0,
+    };
+    return baseClient({
+      me: async () =>
+        okData({ scopes: ["read", "trade:futures", "trade:pm", "trade:spot"] }),
+      portfolio: async () =>
+        okData({
+          walletId: 42,
+          bookScope: "api_key",
+          equity: {
+            totalUsd: 50_000,
+            ...partitions,
+            valuationBasis: CAPITAL_VALUATION_BASIS,
+            spotValuationComplete: true,
+          },
+        }),
+      wallet: async () => okData({ walletId: 42, usdt: partitions }),
+      futuresQuote: vi.fn(
+        async (a: { marginMusd: number; leverage: number }) => {
+          const entryFee = a.marginMusd * a.leverage * 0.0005;
+          return okData({
+            eligible: true,
+            entryPrice: 67_000,
+            liquidationPrice: 40_000,
+            executionModel: { feeBps: 5, estimatedEntryFeeMusd: entryFee },
+            cashRequiredMusd: a.marginMusd + entryFee,
+            observation: { freshness: { status: "fresh" } },
+          });
+        },
+      ),
+      discoverPmMarkets: async () =>
+        okData({
+          data: [1, 2, 3].map((id) => ({
+            source: "kalshi",
+            slug: `btc-up-${id}`,
+            title: `BTC up ${id}?`,
+            freshness: { status: "fresh" },
+            outcomes: [
+              { externalMarketId: `yes-${id}`, name: "Yes", probability: 50 },
+            ],
+          })),
+        }),
+      ...over,
+    });
+  }
+  function sizedDeps(
+    live: boolean,
+    client: ReturnType<typeof baseClient>,
+    decision: unknown,
+  ) {
+    const d = deps({ live }, client, provider(decision));
+    d.spec.capitalSizing = { ...policy };
+    d.spec.venues = ["pm", "futures", "spot"];
+    d.spec.risk.perTradeMarginMusd = 10_000;
+    d.spec.limits.maxOpenMarginMusd = 20_000;
+    d.spec.limits.maxWritesPerCycle = 5;
+    return d;
+  }
+  it.each([false, true])(
+    "reserves successive PM tickets with identical bounds in dry/live=%s",
+    async (live) => {
+      const client = sizedClient();
+      const d = sizedDeps(live, client, {
+        decision: "act",
+        confidence: 0.9,
+        actions: [1, 2, 3].map((id) => ({
+          type: "pm_open",
+          ref: `pm${id}`,
+          stakeMusd: 10,
+          forecastProbability: 70,
+        })),
+      });
+      d.spec.capitalSizing!.perTicketCapitalPct = 3;
+      d.spec.capitalSizing!.totalCapitalPct = 3;
+      const result = await runCycle(d);
+      expect(
+        result.planned.map((p) => [
+          p.accepted,
+          p.capitalSizing?.sizedAmountMusd,
+        ]),
+      ).toEqual([
+        [true, 1_000],
+        [true, 500],
+        [false, undefined],
+      ]);
+      expect(client.pmQuote).toHaveBeenCalledTimes(2);
+      expect(client.openPmPosition).toHaveBeenCalledTimes(live ? 2 : 0);
+      expect(result.planned[0].capitalSizing?.proposedAmountMusd).toBe(10);
+    },
+  );
+  it("sends resized futures amount to exactly one quote and execution, with net RR protection", async () => {
+    const client = sizedClient();
+    const result = await runCycle(sizedDeps(true, client, VALID_OPEN));
+    const planned = result.planned[0];
+    expect(planned.accepted).toBe(true);
+    expect(planned.executed).toBe(true);
+    expect(planned.capitalSizing?.sizedAmountMusd).toBeGreaterThan(50);
+    expect(client.futuresQuote).toHaveBeenCalledTimes(1);
+    expect(client.futuresQuote.mock.calls[0][0].marginMusd).toBe(
+      planned.capitalSizing?.sizedAmountMusd,
+    );
+    expect(client.openFutures.mock.calls[0][0].marginMusd).toBe(
+      planned.capitalSizing?.sizedAmountMusd,
+    );
+    expect(planned.quote?.cashRequiredMusd).toBeGreaterThan(
+      planned.capitalSizing!.sizedAmountMusd!,
+    );
+  });
+
+  it.each([false, true])(
+    "reserves spot fees across successive dry/live=%s entries",
+    async (live) => {
+      const client = sizedClient({
+        spotQuote: vi.fn(async () =>
+          okData({
+            eligible: true,
+            executionPrice: 185,
+            estimatedCostMusd: 185,
+            estimatedFeeMusd: 5,
+            observation: { freshness: { status: "fresh" } },
+          }),
+        ),
+      });
+      const d = sizedDeps(live, client, {
+        decision: "act",
+        confidence: 0.9,
+        actions: [1, 2].map(() => ({
+          type: "spot_order",
+          symbol: "BTC",
+          side: "buy",
+          orderType: "market",
+          quantity: 1,
+        })),
+      });
+      d.spec.capitalSizing!.perTicketCapitalPct = 0.75;
+      d.spec.capitalSizing!.totalCapitalPct = 0.75;
+      const result = await runCycle(d);
+      expect(result.planned[0].accepted).toBe(true);
+      expect(result.planned[0].quote?.estimatedFeeMusd).toBe(5);
+      expect(result.planned[1].code).toBe(
+        "capital_combined_allocation_exceeded",
+      );
+      expect(client.spotQuote).toHaveBeenCalledTimes(2);
+      expect(client.placeSpotOrder).toHaveBeenCalledTimes(live ? 1 : 0);
+    },
+  );
+
+  it("rejects opt-in spot without fee evidence using one quote and no write", async () => {
+    const client = sizedClient();
+    const result = await runCycle(
+      sizedDeps(true, client, {
+        decision: "act",
+        confidence: 0.9,
+        actions: [
+          {
+            type: "spot_order",
+            symbol: "BTC",
+            side: "buy",
+            orderType: "market",
+            quantity: 0.001,
+          },
+        ],
+      }),
+    );
+    expect(result.planned[0].code).toBe("capital_quote_cost_evidence_missing");
+    expect(client.spotQuote).toHaveBeenCalledTimes(1);
+    expect(client.placeSpotOrder).not.toHaveBeenCalled();
+  });
+
+  it.each([null, false, {}, { ...policy, minRewardRisk: undefined }])(
+    "persisted malformed policy blocks entries, never protection (%j)",
+    async (capitalSizing) => {
+      const client = sizedClient({
+        futuresPositions: async () =>
+          okData({ positions: [{ id: 7, status: "open", marginMusd: 50 }] }),
+      });
+      const d = sizedDeps(true, client, {
+        decision: "act",
+        confidence: 0.9,
+        actions: [
+          VALID_OPEN.actions[0],
+          { type: "futures_close", positionId: 7, fraction: 1 },
+        ],
+      });
+      d.spec.capitalSizing = capitalSizing as typeof policy;
+      const result = await runCycle(d);
+      expect(result.planned[0]).toMatchObject({
+        accepted: false,
+        reason: "capital_policy_invalid",
+      });
+      expect(result.planned[1].executed).toBe(true);
+      expect(client.futuresQuote).not.toHaveBeenCalled();
+      expect(client.closeFutures).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("reserves possibly-filled live entries after an ambiguous response", async () => {
+    const client = sizedClient({
+      openPmPosition: vi.fn(async () => ({ ok: false, status: 0, data: {} })),
+    });
+    const d = sizedDeps(true, client, {
+      decision: "act",
+      confidence: 0.9,
+      actions: [1, 2, 3].map((id) => ({
+        type: "pm_open",
+        ref: `pm${id}`,
+        stakeMusd: 10,
+        forecastProbability: 70,
+      })),
+    });
+    d.spec.capitalSizing!.perTicketCapitalPct = 3;
+    d.spec.capitalSizing!.totalCapitalPct = 3;
+    const result = await runCycle(d);
+    expect(result.planned.map((p) => p.capitalSizing?.sizedAmountMusd)).toEqual(
+      [1_000, 500, undefined],
+    );
+    expect(result.planned.slice(0, 2).every((p) => p.executed === false)).toBe(
+      true,
+    );
+    expect(client.pmQuote).toHaveBeenCalledTimes(2);
+    expect(d.state.riskIncreasesToday).toBe(0);
+  });
+  it("rejects missing actual quote fees, without a second quote or open", async () => {
+    const client = sizedClient({
+      futuresQuote: vi.fn(async () =>
+        okData({
+          eligible: true,
+          entryPrice: 67_000,
+          liquidationPrice: 40_000,
+          observation: { freshness: { status: "fresh" } },
+        }),
+      ),
+    });
+    const decision = {
+      ...VALID_OPEN,
+      actions: [{ ...VALID_OPEN.actions[0], takeProfitPrice: 80_000 }],
+    };
+    const result = await runCycle(sizedDeps(true, client, decision));
+    expect(result.planned[0].code).toBe("capital_quote_cost_evidence_missing");
+    expect(client.futuresQuote).toHaveBeenCalledTimes(1);
+    expect(client.openFutures).not.toHaveBeenCalled();
+  });
+  it("missing owned-book evidence blocks only entries, preserving closes", async () => {
+    const client = sizedClient({
+      portfolio: async () =>
+        okData({ walletId: 999, equity: { totalUsd: 50_000 } }),
+      futuresPositions: async () =>
+        okData({ positions: [{ id: 7, status: "open", marginMusd: 50 }] }),
+    });
+    const result = await runCycle(
+      sizedDeps(true, client, {
+        decision: "act",
+        confidence: 0.9,
+        actions: [
+          VALID_OPEN.actions[0],
+          { type: "futures_close", positionId: 7, fraction: 1 },
+        ],
+      }),
+    );
+    expect(result.planned[0].code).toBe("capital_sizing_unavailable");
+    expect(result.planned[1].accepted).toBe(true);
+    expect(client.futuresQuote).not.toHaveBeenCalled();
+    expect(client.closeFutures).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe("runCycle daily risk budget prompt", () => {
   afterEach(() => vi.useRealTimers());

@@ -25,6 +25,7 @@ const ALLOWED_KEYS: Record<string, string[] | null> = {
     "venues",
     "risk",
     "sizing",
+    "capitalSizing",
     "limits",
     "abstention",
     "sync",
@@ -58,6 +59,15 @@ const ALLOWED_KEYS: Record<string, string[] | null> = {
     "direction",
   ],
   sizing: null,
+  capitalSizing: [
+    "version",
+    "futuresRiskPct",
+    "pmMaxLossPct",
+    "perTicketCapitalPct",
+    "totalCapitalPct",
+    "cashReservePct",
+    "minRewardRisk",
+  ],
   limits: [
     "maxTradesPerDay",
     "maxWritesPerCycle",
@@ -145,6 +155,7 @@ export function strictLint(raw: Record<string, unknown>): ResolveIssue[] {
     "triggerPolicy",
     "model",
     "risk",
+    "capitalSizing",
     "limits",
     "abstention",
     "sync",
@@ -156,6 +167,14 @@ export function strictLint(raw: Record<string, unknown>): ResolveIssue[] {
   }
 
   // Enum checks.
+  const capitalSizing = raw.capitalSizing;
+  if (isObj(capitalSizing) && capitalSizing.version !== "equity_fraction_v1") {
+    issues.push({
+      code: "bad_enum",
+      path: "capitalSizing.version",
+      message: 'capitalSizing.version must be "equity_fraction_v1"',
+    });
+  }
   const model = raw.model;
   if (
     isObj(model) &&

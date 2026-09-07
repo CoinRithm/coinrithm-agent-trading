@@ -5,6 +5,7 @@
 
 import { AgentSpec, Observation, PmResolution, RunState } from "./types.js";
 import { pmQualityOf, pmDecisionSupportOf } from "./pmContext.js";
+import { usesCapitalSizing } from "./capitalSizing.js";
 
 // Prompt-only context, not an Observation receipt or a new persisted counter.
 export interface DailyRiskBudget {
@@ -133,6 +134,11 @@ export function buildSystemPrompt(
     "- When supplied, the user prompt's dailyRiskBudget is the remaining UTC-day entry/add allowance. It outranks setup/entry pressure: exhaustion is a legitimate skip for new risk, never a reason to skip otherwise-valid closes or protection. All other caps still apply, even when this daily count is unlimited.",
     `- venues you may act in: ${v.join(", ")}`,
     `- perTradeMarginMusd ${r.perTradeMarginMusd} is the per-trade SIZE cap (${sizeKinds.join(" / ")})`,
+    ...(usesCapitalSizing(spec)
+      ? [
+          `- Opt-in paper capital policy ${spec.capitalSizing?.version ?? "invalid"}: the runner REPLACES proposed futures margins and PM stakes using current owned-book evidence, stops and fixed policy limits; it does not treat your confidence or the nominal starting grant as a sizing instruction. Choose the market, direction and meaningful protection; invalid policy, quoted costs, shared allocation and cash reserve can still reject an entry.`,
+        ]
+      : []),
     ...(hasFutures
       ? [
           `- futures: maxLeverage ${r.maxLeverage}, maxConcurrentPositions ${r.maxConcurrentPositions}, requireStopLoss ${r.requireStopLoss} (long stop below entry, short stop above)`,
@@ -294,6 +300,7 @@ export function buildUserPrompt(
   opts: {
     venues?: AgentSpec["venues"];
     dailyRiskBudget?: DailyRiskBudget;
+    capitalSizing?: AgentSpec["capitalSizing"];
   } = {},
 ): string {
   // Default to every venue for backwards-compatible direct callers and probes.
@@ -306,6 +313,11 @@ export function buildUserPrompt(
   const lines: string[] = [
     "Decide for THIS cycle using only the observation below (data available now — no look-ahead).",
   ];
+  if (opts.capitalSizing) {
+    lines.push(
+      "capitalSizingPolicy is the opt-in paper sizing policy (percent fields use percentage points). capitalBook is captured owned-book collateral plus marked spot, reduced only by negative futures/PM marks; positive open-position gains are excluded, so this is NOT complete marked equity. Missing/unavailable capitalBook means no new entries; otherwise-valid closes, protection, cancellations and spot sells remain available.",
+    );
+  }
   if (opts.dailyRiskBudget) {
     const entryActions = [
       ...(hasFutures ? ["futures_open (including adds)"] : []),
@@ -403,6 +415,12 @@ export function buildUserPrompt(
         : {}),
       cashAvailableMusd: obs.cashAvailableMusd,
       equityMusd: obs.equityMusd,
+      ...(opts.capitalSizing
+        ? {
+            capitalSizingPolicy: opts.capitalSizing,
+            ...(obs.capitalBook ? { capitalBook: obs.capitalBook } : {}),
+          }
+        : {}),
       openPositions: obs.openPositions,
       openOrders: obs.openOrders,
       ...(hasPm ? { pmPositions: obs.pmPositions } : {}),

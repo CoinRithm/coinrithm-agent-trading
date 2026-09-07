@@ -21,6 +21,7 @@ import { asObj, asArr, asNum, asStr } from "./extract.js";
 import { computeIndicators, Candle, IndicatorSet } from "./indicators.js";
 import { scanSetups } from "./setups.js";
 import { freshnessOf, pmQualityOf, pmDecisionSupportOf } from "./pmContext.js";
+import { deriveCapitalBook, usesCapitalSizing } from "./capitalSizing.js";
 
 export interface ObserveOutput {
   observation: Observation;
@@ -625,6 +626,7 @@ export async function observe(
 
   // PM open positions + discovered quote-ready candidates — only if pm enabled.
   let pmPositions: PmPosition[] = [];
+  let capitalPmData: unknown;
   let pmResolutions: PmResolution[] = [];
   let pmMarkets: PmMarket[] = [];
   if (wantPm) {
@@ -664,6 +666,7 @@ export async function observe(
       if (fb.ok) pmDiscR = fb;
     }
     if (pmPosR.ok) {
+      capitalPmData = pmPosR.data;
       pmPositions = asArr(asObj(pmPosR.data).positions)
         .map(asObj)
         .filter((p) => (asStr(p.status) ?? "open") === "open")
@@ -870,6 +873,16 @@ export async function observe(
     scopes,
     cashAvailableMusd,
     equityMusd,
+    ...(usesCapitalSizing(spec)
+      ? {
+          capitalBook: deriveCapitalBook(
+            portR.data,
+            walletR.data,
+            posR.data,
+            capitalPmData,
+          ),
+        }
+      : {}),
     openPositions,
     openOrders,
     pmPositions,

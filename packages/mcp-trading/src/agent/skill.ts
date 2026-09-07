@@ -19,6 +19,7 @@ import {
   DEFAULT_TRIGGER_POLICY,
   ResolvedAgent,
   ResolveIssue,
+  CapitalSizingPolicy,
 } from "./types.js";
 import { resolveAgent, ResolveError } from "./resolve.js";
 import { strictLint } from "./strictLint.js";
@@ -90,6 +91,21 @@ function buildModel(raw: unknown): ModelConfig | undefined {
   };
 }
 
+// No implicit opt-in and no invented risk percentages. Invalid supplied values
+// remain visibly invalid until validateSkill rejects the raw configuration.
+function buildCapitalSizing(raw: unknown): CapitalSizingPolicy {
+  const policy = obj(raw);
+  return {
+    version: policy.version as CapitalSizingPolicy["version"],
+    futuresRiskPct: num(policy.futuresRiskPct, Number.NaN),
+    pmMaxLossPct: num(policy.pmMaxLossPct, Number.NaN),
+    perTicketCapitalPct: num(policy.perTicketCapitalPct, Number.NaN),
+    totalCapitalPct: num(policy.totalCapitalPct, Number.NaN),
+    cashReservePct: num(policy.cashReservePct, Number.NaN),
+    minRewardRisk: num(policy.minRewardRisk, Number.NaN),
+  };
+}
+
 // Coerce raw frontmatter into a best-effort AgentSpec. This NEVER throws on bad
 // values — it fills in what it can and lets validateSkill report problems
 // against the raw frontmatter. The runner only proceeds when validation passes.
@@ -117,6 +133,9 @@ export function buildSpec(raw: Record<string, unknown>): AgentSpec {
     },
     model: buildModel(raw.model),
     venues,
+    ...(raw.capitalSizing !== undefined
+      ? { capitalSizing: buildCapitalSizing(raw.capitalSizing) }
+      : {}),
     risk: {
       maxLeverage: num(risk.maxLeverage, 1),
       perTradeMarginMusd: num(risk.perTradeMarginMusd, 0),

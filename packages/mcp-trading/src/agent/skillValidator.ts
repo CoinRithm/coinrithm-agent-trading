@@ -36,6 +36,86 @@ const isPosNum = (v: unknown): v is number =>
 const isNonNegNum = (v: unknown): v is number =>
   typeof v === "number" && Number.isFinite(v) && v >= 0;
 
+// Shared by skill loading and the runtime: persisted specs can bypass the
+// loader, so a present malformed policy must never become permissive NaN math.
+export function validateCapitalSizingPolicy(
+  value: unknown,
+): ValidationResult[] {
+  const issues: ValidationResult[] = [];
+  const add = (code: string, reason: string) => issues.push(fail(code, reason));
+  const p = value;
+  if (!isObj(p)) {
+    add("skill_capital_sizing", "capitalSizing must be an object");
+    return issues;
+  }
+  const percentKeys = [
+    "futuresRiskPct",
+    "pmMaxLossPct",
+    "perTicketCapitalPct",
+    "totalCapitalPct",
+  ] as const;
+  const allowedKeys = new Set<string>([
+    "version",
+    ...percentKeys,
+    "cashReservePct",
+    "minRewardRisk",
+  ]);
+  for (const key of Object.keys(p)) {
+    if (!allowedKeys.has(key))
+      add(
+        "skill_capital_sizing_unknown_key",
+        `unknown capitalSizing key "${key}"`,
+      );
+  }
+  if (p.version !== "equity_fraction_v1") {
+    add(
+      "skill_capital_sizing_version",
+      'capitalSizing.version must be "equity_fraction_v1"',
+    );
+  }
+  for (const key of percentKeys) {
+    if (!isPosNum(p[key]) || (p[key] as number) > 100) {
+      add(
+        "skill_capital_sizing_percent",
+        `capitalSizing.${key} must be a finite number in (0, 100]`,
+      );
+    }
+  }
+  if (!isNonNegNum(p.cashReservePct) || p.cashReservePct >= 100) {
+    add(
+      "skill_capital_sizing_reserve",
+      "capitalSizing.cashReservePct must be a finite number in [0, 100)",
+    );
+  }
+  if (!isPosNum(p.minRewardRisk) || p.minRewardRisk < 1) {
+    add(
+      "skill_capital_sizing_reward_risk",
+      "capitalSizing.minRewardRisk must be a finite number >= 1",
+    );
+  }
+  if (
+    isPosNum(p.perTicketCapitalPct) &&
+    isPosNum(p.totalCapitalPct) &&
+    p.perTicketCapitalPct > p.totalCapitalPct
+  ) {
+    add(
+      "skill_capital_sizing_ticket_cap",
+      "capitalSizing.perTicketCapitalPct cannot exceed totalCapitalPct",
+    );
+  }
+  if (
+    isPosNum(p.totalCapitalPct) &&
+    isNonNegNum(p.cashReservePct) &&
+    p.totalCapitalPct + p.cashReservePct > 100
+  ) {
+    add(
+      "skill_capital_sizing_total_reserve",
+      "capitalSizing.totalCapitalPct + cashReservePct cannot exceed 100",
+    );
+  }
+  return issues;
+}
+
 export function validateSkill(
   parsed: ParsedSkill,
   mode: SkillValidationMode = "self-host",
@@ -120,6 +200,11 @@ export function validateSkill(
         'risk.direction must be "long_only" or "short_only" (omit for both)',
       );
   }
+
+  // Opt-in capital sizing is strict in BOTH hosting modes. The older `sizing`
+  // prose block remains soft guidance and never silently activates this policy.
+  if (raw.capitalSizing !== undefined)
+    issues.push(...validateCapitalSizingPolicy(raw.capitalSizing));
 
   // Model
   if (raw.model === undefined) {

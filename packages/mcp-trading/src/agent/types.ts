@@ -127,6 +127,40 @@ export interface LimitsConfig {
   maxOpenMarginMusd: number;
 }
 
+/** Opt-in paper experiment. Percent fields are percentage POINTS, not fractions. */
+export interface CapitalSizingPolicy {
+  version: "equity_fraction_v1";
+  futuresRiskPct: number;
+  pmMaxLossPct: number;
+  perTicketCapitalPct: number;
+  totalCapitalPct: number;
+  cashReservePct: number;
+  minRewardRisk: number;
+}
+
+export type CapitalBook =
+  | { status: "unavailable"; reason: string }
+  | {
+      status: "ready";
+      walletId: number;
+      /** Marked spot + collateral, reduced by known negative position marks.
+       * Positive open-position gains are excluded; this is NOT complete MTM. */
+      conservativeEquityMusd: number;
+      cashAvailableMusd: number;
+      committedCapitalMusd: number;
+    };
+
+export interface CapitalSizingAdjustment {
+  version: "equity_fraction_v1";
+  basis: "owned_collateral_spot_marked_negative_position_marks_only";
+  proposedAmountMusd?: number;
+  sizedAmountMusd?: number;
+  conservativeEquityMusd?: number;
+  riskBudgetMusd?: number;
+  /** Runner safety estimate, not a claim that the venue charges this fee. */
+  feeBufferBps?: number;
+}
+
 export interface AbstentionConfig {
   // RESERVED (2026-08-19 honesty pass): the four booleans parse, validate,
   // and default to true, but NO code path currently branches on them — the
@@ -200,6 +234,7 @@ export interface AgentSpec {
   model?: ModelConfig; // omitted => hosted free-tier default (invalid for self-host)
   venues: Venue[];
   risk: RiskConfig;
+  capitalSizing?: CapitalSizingPolicy;
   limits: LimitsConfig;
   abstention: AbstentionConfig;
   sync: SyncConfig;
@@ -470,6 +505,7 @@ export interface Observation {
   scopes: string[];
   cashAvailableMusd: number | null;
   equityMusd: number | null;
+  capitalBook?: CapitalBook;
   openPositions: OpenPosition[]; // open FUTURES positions
   openOrders: SpotOrder[]; // resting SPOT orders
   pmPositions: PmPosition[]; // open prediction-market positions
@@ -695,6 +731,10 @@ export interface QuoteEvidence {
   stakeMusd?: number;
   sharesEstimate?: number;
   estimatedCostMusd?: number; // spot gross notional (server-computed)
+  estimatedFeeMusd?: number; // spot modeled entry fee, separate from gross
+  futuresFeeBps?: number;
+  estimatedEntryFeeMusd?: number;
+  cashRequiredMusd?: number;
   freshness?: Freshness;
   // PM open-time quality-gate PREVIEW (distinct from eligible/blockReasons, which
   // describe the mock-entry SHAPE gate). openBlocked=true means a pm/open right now
@@ -784,6 +824,7 @@ export interface PlannedAction {
   quote?: QuoteEvidence;
   executed?: boolean;
   result?: unknown;
+  capitalSizing?: CapitalSizingAdjustment;
 }
 
 export interface CycleResult {

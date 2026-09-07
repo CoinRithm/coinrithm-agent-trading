@@ -24,6 +24,74 @@ const emptyObservation = (): Observation => ({
 
 const trace: AgentTrace = { runId: "run-1", decisionId: "dec-1" };
 
+describe("spot quote fee evidence", () => {
+  it.each([0, 1, undefined, "1", null, Number.NaN, Number.POSITIVE_INFINITY])(
+    "retains only finite numeric modeled fees (%s)",
+    async (estimatedFeeMusd) => {
+      const obs = emptyObservation();
+      obs.watch = [{ symbol: "BTC", coinId: "1" }];
+      const client = {
+        spotQuote: async () =>
+          okData({ eligible: true, estimatedCostMusd: 100, estimatedFeeMusd }),
+      } as unknown as CoinRithmClient;
+      const quote = await fetchQuote(
+        client,
+        {
+          type: "spot_order",
+          symbol: "BTC",
+          side: "buy",
+          orderType: "market",
+          quantity: 1,
+        },
+        obs,
+      );
+      expect(quote?.estimatedCostMusd).toBe(100);
+      expect(quote?.estimatedFeeMusd).toBe(
+        typeof estimatedFeeMusd === "number" &&
+          Number.isFinite(estimatedFeeMusd)
+          ? estimatedFeeMusd
+          : undefined,
+      );
+    },
+  );
+});
+
+describe("futures quote capital-cost evidence", () => {
+  it.each([5, "5", null, Number.NaN, Number.POSITIVE_INFINITY])(
+    "retains only numeric fee evidence (%s)",
+    async (feeBps) => {
+      const obs = emptyObservation();
+      obs.watch = [{ symbol: "BTC", coinId: "1" }];
+      const client = {
+        futuresQuote: async () =>
+          okData({
+            eligible: true,
+            executionModel: { feeBps, estimatedEntryFeeMusd: 1 },
+            cashRequiredMusd: 101,
+          }),
+      } as unknown as CoinRithmClient;
+      const q = await fetchQuote(
+        client,
+        {
+          type: "futures_open",
+          symbol: "BTC",
+          side: "long",
+          leverage: 2,
+          marginMusd: 100,
+        },
+        obs,
+      );
+      expect(q?.futuresFeeBps).toBe(
+        typeof feeBps === "number" && Number.isFinite(feeBps)
+          ? feeBps
+          : undefined,
+      );
+      expect(q?.estimatedEntryFeeMusd).toBe(1);
+      expect(q?.cashRequiredMusd).toBe(101);
+    },
+  );
+});
+
 describe("fetchQuote PM execution-cost evidence", () => {
   const action: ProposedAction = {
     type: "pm_open",

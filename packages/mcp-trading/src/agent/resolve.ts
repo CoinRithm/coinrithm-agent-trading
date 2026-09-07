@@ -53,6 +53,7 @@ const CONFIG_BLOCKS = [
   "venues",
   "risk",
   "sizing",
+  "capitalSizing",
   "limits",
   "abstention",
   "sync",

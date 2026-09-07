@@ -83,6 +83,18 @@ export async function fetchQuote(
         }
       : {}),
     estimatedCostMusd: asNum(d.estimatedCostMusd), // spot gross notional
+    ...(action.type === "spot_order"
+      ? { estimatedFeeMusd: asNum(d.estimatedFeeMusd) }
+      : {}),
+    ...(action.type === "futures_open"
+      ? {
+          futuresFeeBps: asNum(asObj(d.executionModel).feeBps),
+          estimatedEntryFeeMusd: asNum(
+            asObj(d.executionModel).estimatedEntryFeeMusd,
+          ),
+          cashRequiredMusd: asNum(d.cashRequiredMusd),
+        }
+      : {}),
     // Freshness lives in the response's `observation` block (anti-look-ahead).
     freshness: freshnessOf(asObj(d.observation)),
     // PM open-time quality-gate preview (additive; older backends omit it → the

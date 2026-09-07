@@ -28,6 +28,63 @@ const baseObs = (over: Partial<Observation> = {}): Observation => ({
   ...over,
 });
 
+describe("opt-in capital sizing prompt context", () => {
+  const policy = {
+    version: "equity_fraction_v1" as const,
+    futuresRiskPct: 0.75,
+    pmMaxLossPct: 2,
+    perTicketCapitalPct: 6,
+    totalCapitalPct: 40,
+    cashReservePct: 20,
+    minRewardRisk: 1.5,
+  };
+  it("explains amount replacement and includes only the already-captured capital evidence", () => {
+    const spec = parseSkill(renderFolderOfOne("a", "conservative")).spec;
+    spec.capitalSizing = policy;
+    expect(buildSystemPrompt(spec, "strategy")).toContain(
+      "REPLACES proposed futures margins and PM stakes",
+    );
+    const obs = baseObs({
+      capitalBook: {
+        status: "unavailable",
+        reason: "independent_agent_book_unproven",
+      },
+    });
+    const before = structuredClone(obs);
+    const text = buildUserPrompt(obs, undefined, { capitalSizing: policy });
+    const input = JSON.parse(text.match(/```json\n(.*)\n```/)![1]);
+    expect(input.capitalBook).toEqual(obs.capitalBook);
+    expect(input.capitalSizingPolicy).toEqual(policy);
+    expect(text).toContain("NOT complete marked equity");
+    expect(text).toContain(
+      "Missing/unavailable capitalBook means no new entries",
+    );
+    expect(obs).toEqual(before);
+  });
+  it("leaves legacy prompt bytes identical when capital evidence exists but the policy is omitted", () => {
+    const obs = baseObs();
+    const original = buildUserPrompt(obs);
+    expect(
+      buildUserPrompt({
+        ...obs,
+        capitalBook: { status: "unavailable", reason: "unavailable" },
+      }),
+    ).toBe(original);
+    const spec = parseSkill(renderFolderOfOne("a", "conservative")).spec;
+    const system = buildSystemPrompt(spec, "strategy");
+    expect(
+      buildSystemPrompt({ ...spec, capitalSizing: undefined }, "strategy"),
+    ).toBe(system);
+    const mechanical = {
+      ...spec,
+      model: { provider: "mechanical" as const, name: "market-implied" },
+    };
+    expect(
+      buildSystemPrompt({ ...mechanical, capitalSizing: policy }, "strategy"),
+    ).toBe(buildSystemPrompt(mechanical, "strategy"));
+  });
+});
+
 describe("daily entry/add risk budget context", () => {
   it.each([
     { limit: 5, used: 2, remaining: 3 },

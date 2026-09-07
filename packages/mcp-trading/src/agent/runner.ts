@@ -19,7 +19,14 @@ import {
   Thesis,
   spotBuyCost,
   DEFAULT_TRIGGER_POLICY,
+  CapitalSizingAdjustment,
 } from "./types.js";
+import {
+  usesCapitalSizing,
+  prepareCapitalAction,
+  validateCapitalAction,
+  capitalCashCost,
+} from "./capitalSizing.js";
 import { decideMechanical } from "./mechanical.js";
 import { evaluateGate, noteLlmCall, estimateCostUsd } from "./gate.js";
 import { baseSymbol, scanSetups } from "./setups.js";
@@ -199,6 +206,7 @@ const DEFAULT_TP_RR = 1.5; // reward:risk of the substituted take-profit
 export function repairFuturesTakeProfit(
   action: ProposedAction,
   quote?: QuoteEvidence,
+  capitalMinimumRewardRisk?: number,
 ): { action: ProposedAction; repaired: boolean } {
   if (action.type !== "futures_open") return { action, repaired: false };
   const entry = quote?.entryPrice;
@@ -219,9 +227,30 @@ export function repairFuturesTakeProfit(
   // isn't, leave the action for the validator to reject (don't fabricate).
   const risk = isLong ? entry - sl : sl - entry;
   if (!(risk > 0)) return { action, repaired: false };
-  const target = isLong
+  let target = isLong
     ? entry + DEFAULT_TP_RR * risk
     : entry - DEFAULT_TP_RR * risk;
+  if (capitalMinimumRewardRisk !== undefined) {
+    const bps = quote?.futuresFeeBps,
+      entryFee = quote?.estimatedEntryFeeMusd;
+    if (
+      typeof bps !== "number" ||
+      !Number.isFinite(bps) ||
+      bps < 0 ||
+      typeof entryFee !== "number" ||
+      !Number.isFinite(entryFee) ||
+      entryFee < 0
+    )
+      return { action, repaired: false };
+    const notional = action.marginMusd * action.leverage;
+    const fee = bps / 10_000;
+    const stopRisk =
+      (notional * risk) / entry + entryFee + ((notional * sl) / entry) * fee;
+    const required = (capitalMinimumRewardRisk + 1e-8) * stopRisk;
+    target = isLong
+      ? (entry * (notional + entryFee + required)) / (notional * (1 - fee))
+      : (entry * (notional - entryFee - required)) / (notional * (1 + fee));
+  }
   if (!(target > 0)) return { action, repaired: false };
   return { action: { ...action, takeProfitPrice: target }, repaired: true };
 }
@@ -851,6 +880,7 @@ async function runCycleCore(
     const user = buildUserPrompt(observation, state.journal, {
       venues: spec.venues,
       dailyRiskBudget: buildDailyRiskBudget(spec, state),
+      ...(usesCapitalSizing(spec) ? { capitalSizing: spec.capitalSizing } : {}),
     });
     const tokensInEst = Math.round((system.length + user.length) / 4);
     // Prompt-size + trigger visibility in the live terminal.
@@ -1069,6 +1099,19 @@ async function runCycleCore(
     .filter((p) => p.venue === "futures")
     .reduce((s, p) => s + (p.marginMusd ?? 0), 0);
   let cashAvailableMusd = observation.cashAvailableMusd;
+  const capitalSizingEnabled = usesCapitalSizing(
+    spec,
+    providerName === "mechanical",
+  );
+  let committedCapitalMusd =
+    observation.capitalBook?.status === "ready"
+      ? observation.capitalBook.committedCapitalMusd
+      : 0;
+  const capitalBudget = () => ({
+    cashAvailableMusd: cashAvailableMusd ?? Number.NaN,
+    committedCapitalMusd,
+    openMarginMusd,
+  });
   const realizedLossTodayMusd = Math.max(0, -state.realizedPnlTodayMusd);
   const targetedPositionIds: number[] = [];
   const targetedOrderIds: number[] = [];
@@ -1077,6 +1120,7 @@ async function runCycleCore(
   let anyExecFailed = false;
 
   for (let action of decision.actions) {
+    let capitalSizing: CapitalSizingAdjustment | undefined;
     // Resolve a short PM ref (pm1…pmN) to the canonical {source,slug,outcome} BEFORE
     // any quote/validation. Small models copy a 3-char ref reliably but mis-copy the
     // long outcomeExternalMarketId; an unknown/missing ref is rejected here with a
@@ -1162,6 +1206,31 @@ async function runCycleCore(
         action = { ...pm, forecastProbability: undefined };
       }
     }
+    if (capitalSizingEnabled) {
+      const sized = prepareCapitalAction(
+        action,
+        spec,
+        observation,
+        capitalBudget(),
+      );
+      capitalSizing = sized.adjustment;
+      if (sized.rejection) {
+        planned.push({
+          action,
+          accepted: false,
+          code: "capital_sizing_unavailable",
+          reason: sized.rejection,
+          capitalSizing,
+        });
+        log(`reject ${action.type}: capital sizing (${sized.rejection})`);
+        continue;
+      }
+      action = sized.action;
+      if (capitalSizing?.sizedAmountMusd !== undefined)
+        log(
+          `paper capital ${capitalSizing.version}: ${capitalSizing.proposedAmountMusd} -> ${capitalSizing.sizedAmountMusd}mUSD (${capitalSizing.basis})`,
+        );
+    }
     // Anti-churn critic: block re-opening a futures position we ALREADY hold unless
     // it's a confirmed WINNER with room (a legit scale-in). Stops the re-open-a-
     // loser / re-open-into-the-cap churn deterministically — before we even spend a
@@ -1190,6 +1259,7 @@ async function runCycleCore(
             action,
             accepted: false,
             code: "duplicate_intent",
+            ...(capitalSizing ? { capitalSizing } : {}),
             reason: `already hold ${fo.symbol} ${fo.side}${winning ? " (no margin room to add)" : " — manage it, do not average down or re-open"}`,
           });
           log(
@@ -1212,6 +1282,7 @@ async function runCycleCore(
         action,
         accepted: false,
         code: "pm_open_blocked",
+        ...(capitalSizing ? { capitalSizing } : {}),
         reason: `open-time quality gate would reject this (422): ${JSON.stringify(reasons)}`,
         quote,
       });
@@ -1224,7 +1295,11 @@ async function runCycleCore(
     // off the stop, so the open isn't silently rejected server-side (the runner
     // owns trigger orientation; weak models routinely mis-sign it).
     {
-      const fixed = repairFuturesTakeProfit(action, quote);
+      const fixed = repairFuturesTakeProfit(
+        action,
+        quote,
+        capitalSizingEnabled ? spec.capitalSizing?.minRewardRisk : undefined,
+      );
       if (fixed.repaired) {
         action = fixed.action;
         log(
@@ -1259,8 +1334,24 @@ async function runCycleCore(
         code: v.code,
         reason: v.reason,
         quote,
+        ...(capitalSizing ? { capitalSizing } : {}),
       });
       log(`reject ${action.type}: ${v.code} (${v.reason})`);
+      continue;
+    }
+    const capitalRejection = capitalSizingEnabled
+      ? validateCapitalAction(action, spec, observation, capitalBudget(), quote)
+      : undefined;
+    if (capitalRejection) {
+      planned.push({
+        action,
+        accepted: false,
+        code: capitalRejection,
+        reason: "paper capital policy rejected quoted economics",
+        quote,
+        capitalSizing,
+      });
+      log(`reject ${action.type}: ${capitalRejection}`);
       continue;
     }
     anyAccepted = true;
@@ -1271,7 +1362,25 @@ async function runCycleCore(
       targetedOrderIds.push(action.orderId);
     }
     if (!live) {
-      planned.push({ action, accepted: true, quote, executed: false });
+      planned.push({
+        action,
+        accepted: true,
+        quote,
+        executed: false,
+        ...(capitalSizing ? { capitalSizing } : {}),
+      });
+      // Opt-in simulations reserve the same accepted capital as paper-live.
+      // No close/sell proceeds are credited until a future observed wallet read.
+      if (capitalSizingEnabled && isRiskIncreasingAction(action)) {
+        riskIncreasesThisCycle += 1;
+        const spent = capitalCashCost(action, quote);
+        cashAvailableMusd = (cashAvailableMusd ?? 0) - spent;
+        committedCapitalMusd += spent;
+        if (action.type === "futures_open") {
+          openCount += 1;
+          openMarginMusd += action.marginMusd;
+        }
+      }
       log(`DRY-RUN: would ${action.type}`);
       continue;
     }
@@ -1315,6 +1424,7 @@ async function runCycleCore(
       quote,
       executed: r.ok,
       result: r.data,
+      ...(capitalSizing ? { capitalSizing } : {}),
     });
     if (r.ok) {
       anyExecuted = true;
@@ -1356,9 +1466,31 @@ async function runCycleCore(
       // Decrement running cash by what this action consumed (futures margin /
       // spot buy notional / PM stake) so a later action this cycle sees it spent.
       if (cashAvailableMusd != null)
-        cashAvailableMusd -= cashConsumed(action, quote);
+        cashAvailableMusd -= capitalSizingEnabled
+          ? capitalCashCost(action, quote)
+          : cashConsumed(action, quote);
+      if (capitalSizingEnabled)
+        committedCapitalMusd += capitalCashCost(action, quote);
     } else {
       anyExecFailed = true;
+      // A transport/server failure does not prove an entry stayed unfilled.
+      // Reserve its possible spend for subsequent actions this cycle, without
+      // recording a confirmed trade or advancing its idempotency sequence.
+      if (
+        capitalSizingEnabled &&
+        isRiskIncreasingAction(action) &&
+        (r.status <= 0 || r.status >= 500)
+      ) {
+        riskIncreasesThisCycle += 1;
+        const spent = capitalCashCost(action, quote);
+        cashAvailableMusd = (cashAvailableMusd ?? 0) - spent;
+        committedCapitalMusd += spent;
+        if (action.type === "futures_open") {
+          openCount += 1;
+          openMarginMusd += action.marginMusd;
+        }
+        log(`paper capital reserved after ambiguous ${action.type} response`);
+      }
       // Quote-expiry capture: a validated pm_open the SERVER rejected at act time
       // with a 422 mock_entry_blocked — the eligibility/quality/pricing state moved
       // between the quote we validated and the act, so the quote expired. Report it

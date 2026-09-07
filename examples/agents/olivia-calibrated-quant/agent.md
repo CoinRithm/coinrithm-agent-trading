@@ -22,6 +22,14 @@ capabilities:
   - news
 sizing:
   $ref: character/sizing.yaml
+capitalSizing:
+  version: equity_fraction_v1
+  futuresRiskPct: 0.75
+  pmMaxLossPct: 2
+  perTicketCapitalPct: 6
+  totalCapitalPct: 40
+  cashReservePct: 20
+  minRewardRisk: 1.5
 risk:
   $ref: character/risk.yaml
 limits:
