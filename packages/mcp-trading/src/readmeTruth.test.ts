@@ -51,6 +51,39 @@ describe("public docs stay truthful", () => {
     expect(apiClaim![1]).toBe(actual![1]);
   });
 
+  it("openapi.yaml tells the truth about candle `v` being a rolling 24h volume", () => {
+    // `v` is the mean rolling 24-HOUR quote volume observed at the bar, not
+    // the volume traded during it. The contract used to say only "Volume in
+    // USD regardless of fiat", which a generated client carries into someone's
+    // IDE as per-candle volume. Measured on production 2026-09-12: 60
+    // one-minute BTC bars each carried ~$1.8B and summed to ~$107B against a
+    // reported 24h volume of ~$1.8B, so the misreading is silently wrong by
+    // roughly 59x rather than an error anyone would notice.
+    const openapi = readFileSync(join(repoRoot, "openapi.yaml"), "utf-8");
+    const candlesSection = openapi.slice(
+      openapi.indexOf("OHLCV candles for one coin"),
+    );
+    // YAML folded scalars (">") wrap prose across lines, so match against a
+    // whitespace-collapsed view rather than the raw file.
+    const vDescription = candlesSection
+      .slice(0, candlesSection.indexOf("AgentObservation"))
+      .replace(/\s+/g, " ");
+
+    expect(vDescription, "candle v must name the 24h basis").toMatch(
+      /rolling 24-HOUR quote volume/i,
+    );
+    expect(vDescription, "candle v must deny per-candle volume").toMatch(
+      /NOT the volume traded during the candle/i,
+    );
+    expect(vDescription, "candle v must warn against aggregation").toMatch(
+      /do not aggregate it/i,
+    );
+    // The bare pre-2026-09-12 wording must not come back on its own.
+    expect(vDescription).not.toMatch(
+      /description: Volume in USD regardless of fiat\./,
+    );
+  });
+
   it("runner, changelog, spec note, and example bundles pin the served contract", () => {
     const openapi = readFileSync(join(repoRoot, "openapi.yaml"), "utf-8");
     const actual = openapi.match(/^\s{2}version:\s*["']?([\d.]+)["']?/m);

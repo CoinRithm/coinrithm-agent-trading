@@ -551,8 +551,11 @@ paths:
         1D = 288×5-minute, 1W = 672×15-minute, 1M = 720×1-hour,
         3M = 540×4-hour candles. Candles are oldest→newest with `t` in unix
         SECONDS. o/h/l/c are converted to `fiat` (default USD) at the nearest
-        stored rate; `v` (volume) stays USD regardless of fiat. Pure market
-        data, cached ~60s server-side. Requires scope `read`.
+        stored rate; `v` stays USD regardless of fiat. These are sampled
+        composite-price bars, not venue trade candles, and `v` is a rolling
+        24h volume observation rather than per-candle volume (see the field
+        description). Pure market data, cached ~60s server-side. Requires
+        scope `read`.
       parameters:
         - name: coinId
           in: path
@@ -604,7 +607,17 @@ paths:
                         c: { type: number }
                         v:
                           type: number
-                          description: Volume in USD regardless of fiat.
+                          description: >
+                            Mean rolling 24-HOUR quote volume observed at this
+                            bar, in USD regardless of `fiat`. This is NOT the
+                            volume traded during the candle. Every bar in a
+                            range carries its own ~24h figure, so summing `v`
+                            across bars adds the same window repeatedly, and
+                            differencing consecutive bars is not a volume delta.
+                            Measured 2026-09-12: 60 one-minute BTC bars summed
+                            to ~$107B against a reported 24h volume of ~$1.8B.
+                            Read a single bar's `v` as a liquidity level; do not
+                            aggregate it.
                   observation: { $ref: "#/components/schemas/AgentObservation" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
