@@ -243,6 +243,8 @@ const EVENT_SUMMARY_FIELDS = [
   "startDate",
   "endDate",
   "resolvedAt",
+  "resolvedAtBasis",
+  "settlementWindowClosedAt",
   "freshness",
   "volume",
   "volume24h",
@@ -252,6 +254,8 @@ const EVENT_SUMMARY_FIELDS = [
   "bestBid",
   "bestAsk",
   "spread",
+  "spreadPoints",
+  "probabilityBook",
   "marketsCount",
   "referenceProbability",
   "crossPlatform",
@@ -263,6 +267,7 @@ const OUTCOME_SUMMARY_FIELDS = [
   "externalMarketId",
   "name",
   "probability",
+  "normalizedProbability",
   "priceChange24h",
 ] as const;
 
@@ -304,7 +309,17 @@ function eventSummary(value: unknown): unknown {
   if (!isJsonRecord(value)) return value;
 
   const source = isJsonRecord(value.source)
-    ? pick(value.source, ["id", "name", "kind", "supportsTrading"])
+    ? pick(value.source, [
+        "id",
+        "name",
+        "kind",
+        "supportsTrading",
+        // Quotes remain venue-native. Magnitude cannot distinguish a 0.5-point
+        // bid from a 0.5 ratio; keep the API's explicit unit with the number.
+        "quoteScale",
+        "methodology",
+        "supportsMarketMetrics",
+      ])
     : value.source;
   const outcomes = Array.isArray(value.outcomes)
     ? value.outcomes
@@ -993,6 +1008,9 @@ export function registerTools(
         "1H=60x1-minute, 1D=288x5-minute, 1W=672x15-minute, 1M=720x1-hour, " +
         "3M=540x4-hour candles. Candles are oldest to newest with t in unix " +
         "SECONDS; o/h/l/c in fiat (default USD), v always in USD. " +
+        "These are sampled composite-price bars, not venue trade candles. " +
+        "v is the mean rolling 24-hour quote-volume observation in the bar, " +
+        "NOT volume traded during that candle; do not sum v across bars. " +
         PAPER_NOTE,
       inputSchema: {
         coinId: z

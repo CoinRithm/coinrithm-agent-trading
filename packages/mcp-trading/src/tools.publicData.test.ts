@@ -39,6 +39,124 @@ const event = {
 };
 
 describe("compact public prediction-market MCP responses", () => {
+  it.each(["ratio", "points"])(
+    "preserves %s quote units and normalized-book evidence without inferring numbers",
+    (quoteScale) => {
+      // Backend-shaped complete exclusive book: six raw quotes sum to 110,
+      // and the API normalizes the FULL book before MCP retains its top five.
+      const completeOutcomes = [
+        ["a", 33, 30],
+        ["b", 27.5, 25],
+        ["c", 22, 20],
+        ["d", 16.5, 15],
+        ["e", 5.5, 5],
+        ["f", 5.5, 5],
+      ].map(([id, raw, normalized]) => ({
+        externalMarketId: String(id),
+        name: `Winner ${id}`,
+        probability: Number(raw),
+        normalizedProbability: Number(normalized),
+      }));
+      const source = {
+        data: [
+          {
+            ...event,
+            bestBid: 0.5,
+            bestAsk: 0.6,
+            spread: 20,
+            spreadPoints: quoteScale === "ratio" ? 10 : 0.1,
+            probabilityBook: {
+              basis: "normalized_complete_book",
+              rawSum: 110,
+              overroundPoints: 10,
+            },
+            outcomes: completeOutcomes,
+            source: {
+              ...event.source,
+              id: quoteScale === "ratio" ? "polymarket" : "kalshi",
+              kind: "market",
+              quoteScale,
+              methodology: "Market-implied probability",
+              supportsMarketMetrics: true,
+            },
+          },
+        ],
+      };
+      const compact = compactPublicPmEvents(source) as typeof source;
+      expect(compact.data[0]).toMatchObject({
+        bestBid: 0.5,
+        bestAsk: 0.6,
+        spread: 20,
+        spreadPoints: source.data[0].spreadPoints,
+        probabilityBook: source.data[0].probabilityBook,
+        outcomeCount: 6,
+        outcomes: completeOutcomes.slice(0, 5),
+        source: source.data[0].source,
+      });
+      expect(compact.data[0].outcomes).toHaveLength(5);
+      // The omitted sixth outcome retains its 5% share. Re-normalizing the
+      // truncated result to 100 would silently inflate every surviving quote.
+      expect(
+        compact.data[0].outcomes.reduce(
+          (sum, outcome) => sum + outcome.normalizedProbability,
+          0,
+        ),
+      ).toBe(95);
+      expect(source.data[0].outcomes).toHaveLength(6);
+    },
+  );
+
+  it("keeps provider expiration distinct from settlement throughout compact detail", () => {
+    const expirationOnly = {
+      ...event,
+      resolvedAt: null,
+      resolvedAtBasis: "provider_expiration",
+      settlementWindowClosedAt: "2026-09-12T18:00:00.000Z",
+      source: { ...event.source, quoteScale: null },
+      spreadPoints: null,
+      probabilityBook: {
+        basis: "raw_quotes",
+        rawSum: 150,
+        overroundPoints: null,
+      },
+      outcomes: [{ name: "Yes", probability: 0, normalizedProbability: null }],
+    };
+    const compact = compactPublicPmEvent({
+      event: expirationOnly,
+      relatedEvents: [expirationOnly],
+      crossSourceMatches: [{ event: expirationOnly }],
+    }) as Record<string, any>;
+    for (const row of [
+      compact.event,
+      compact.relatedEvents[0],
+      compact.crossSourceMatches[0].event,
+    ]) {
+      expect(row).toMatchObject({
+        resolvedAt: null,
+        resolvedAtBasis: "provider_expiration",
+        settlementWindowClosedAt: expirationOnly.settlementWindowClosedAt,
+        source: { quoteScale: null },
+        spreadPoints: null,
+        probabilityBook: expirationOnly.probabilityBook,
+        outcomes: expirationOnly.outcomes,
+      });
+    }
+  });
+
+  it("does not invent unit, settlement or normalization evidence absent from the API", () => {
+    const compact = compactPublicPmEvents({ data: [event] }) as Record<
+      string,
+      any
+    >;
+    const row = compact.data[0];
+    expect(row.source).not.toHaveProperty("quoteScale");
+    expect(row).not.toHaveProperty("resolvedAtBasis");
+    expect(row).not.toHaveProperty("settlementWindowClosedAt");
+    expect(row).not.toHaveProperty("spreadPoints");
+    expect(row).not.toHaveProperty("probabilityBook");
+    expect(row.outcomes[0]).not.toHaveProperty("normalizedProbability");
+  });
+
   it("keeps overview truth while replacing heavyweight highlights with summaries", () => {
     const source = {
       stats: { totalOpenMarkets: 29_048 },

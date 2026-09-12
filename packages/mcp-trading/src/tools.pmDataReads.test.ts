@@ -44,6 +44,22 @@ const NEW_PUBLIC_DATA_TOOLS = [
 ] as const;
 
 describe("new keyless pm_data_* read tools", () => {
+  it("discloses the sampled price and rolling-volume meaning of candle data", () => {
+    const candleTool = capture({}).find((tool) => tool.name === "get_candles");
+    expect(candleTool?.config.description).toContain(
+      "sampled composite-price bars",
+    );
+    expect(candleTool?.config.description).toContain(
+      "mean rolling 24-hour quote-volume",
+    );
+    expect(candleTool?.config.description).toContain(
+      "NOT volume traded during that candle",
+    );
+    expect(candleTool?.config.description).toContain(
+      "do not sum v across bars",
+    );
+  });
+
   it("are all registered as read-only, non-destructive tools", () => {
     const tools = capture({});
     for (const name of NEW_PUBLIC_DATA_TOOLS) {

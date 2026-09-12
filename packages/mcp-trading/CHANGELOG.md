@@ -5,6 +5,34 @@ ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (t
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
 versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
+## 0.7.9 (unreleased)
+
+Prepared in the source tree; npm publication is pending. The latest published
+npm release verified on 2026-09-12 remains 0.7.8.
+
+Public market-data fidelity release. Additive: no MCP tool was renamed or
+removed, and the API **contract stays 1.7.0**. Paper execution and runner
+decision logic are unchanged.
+
+**Compact prediction-market evidence.** Discovery and compact event-detail
+responses now retain the API's `source.quoteScale`, `source.methodology` and
+`source.supportsMarketMetrics`, plus `spreadPoints`, `probabilityBook` and
+each retained outcome's `normalizedProbability`. Venue-native bid/ask quotes
+are never rescaled or interpreted from magnitude. Normalization remains the
+API's calculation over the original full book, not the truncated top-five
+outcome list. Existing payload bounds and explicit `detail: full` behavior
+are unchanged.
+
+**Settlement-time provenance.** Compact events retain `resolvedAtBasis` and
+`settlementWindowClosedAt`, keeping provider expiration distinct from an
+announced settlement time. Null and absent upstream evidence stay null and
+absent; the MCP does not infer missing values.
+
+**Candle semantics.** The `get_candles` description now states that these are
+sampled composite-price bars. Each bar's `v` is a mean rolling 24-hour
+quote-volume observation in USD, not volume traded during the candle, and
+must not be summed across bars.
+
 ## 0.7.8
 
 Runner decision-quality, evidence and paper-capital release. Additive: no MCP
