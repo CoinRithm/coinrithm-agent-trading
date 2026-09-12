@@ -107,8 +107,11 @@ def sync_detailed(
     1D = 288×5-minute, 1W = 672×15-minute, 1M = 720×1-hour,
     3M = 540×4-hour candles. Candles are oldest→newest with `t` in unix
     SECONDS. o/h/l/c are converted to `fiat` (default USD) at the nearest
-    stored rate; `v` (volume) stays USD regardless of fiat. Pure market
-    data, cached ~60s server-side. Requires scope `read`.
+    stored rate; `v` stays USD regardless of fiat. These are sampled
+    composite-price bars, not venue trade candles, and `v` is a rolling
+    24h volume observation rather than per-candle volume (see the field
+    description). Pure market data, cached ~60s server-side. Requires
+    scope `read`.
 
     Args:
         coin_id (str):
@@ -152,8 +155,11 @@ def sync(
     1D = 288×5-minute, 1W = 672×15-minute, 1M = 720×1-hour,
     3M = 540×4-hour candles. Candles are oldest→newest with `t` in unix
     SECONDS. o/h/l/c are converted to `fiat` (default USD) at the nearest
-    stored rate; `v` (volume) stays USD regardless of fiat. Pure market
-    data, cached ~60s server-side. Requires scope `read`.
+    stored rate; `v` stays USD regardless of fiat. These are sampled
+    composite-price bars, not venue trade candles, and `v` is a rolling
+    24h volume observation rather than per-candle volume (see the field
+    description). Pure market data, cached ~60s server-side. Requires
+    scope `read`.
 
     Args:
         coin_id (str):
@@ -192,8 +198,11 @@ async def asyncio_detailed(
     1D = 288×5-minute, 1W = 672×15-minute, 1M = 720×1-hour,
     3M = 540×4-hour candles. Candles are oldest→newest with `t` in unix
     SECONDS. o/h/l/c are converted to `fiat` (default USD) at the nearest
-    stored rate; `v` (volume) stays USD regardless of fiat. Pure market
-    data, cached ~60s server-side. Requires scope `read`.
+    stored rate; `v` stays USD regardless of fiat. These are sampled
+    composite-price bars, not venue trade candles, and `v` is a rolling
+    24h volume observation rather than per-candle volume (see the field
+    description). Pure market data, cached ~60s server-side. Requires
+    scope `read`.
 
     Args:
         coin_id (str):
@@ -235,8 +244,11 @@ async def asyncio(
     1D = 288×5-minute, 1W = 672×15-minute, 1M = 720×1-hour,
     3M = 540×4-hour candles. Candles are oldest→newest with `t` in unix
     SECONDS. o/h/l/c are converted to `fiat` (default USD) at the nearest
-    stored rate; `v` (volume) stays USD regardless of fiat. Pure market
-    data, cached ~60s server-side. Requires scope `read`.
+    stored rate; `v` stays USD regardless of fiat. These are sampled
+    composite-price bars, not venue trade candles, and `v` is a rolling
+    24h volume observation rather than per-candle volume (see the field
+    description). Pure market data, cached ~60s server-side. Requires
+    scope `read`.
 
     Args:
         coin_id (str):

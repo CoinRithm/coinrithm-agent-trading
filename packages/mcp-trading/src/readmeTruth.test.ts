@@ -76,8 +76,17 @@ describe("public docs stay truthful", () => {
       /NOT the volume traded during the candle/i,
     );
     expect(vDescription, "candle v must warn against aggregation").toMatch(
-      /do not aggregate it/i,
+      /do not sum it as interval turnover/i,
     );
+    expect(
+      vDescription,
+      "volume must not be described as executable liquidity",
+    ).toMatch(/not order-book depth or executable liquidity/i);
+    expect(
+      vDescription,
+      "missing contributor caveat must survive codegen",
+    ).toMatch(/Missing venue contributions can change this observation/i);
+    expect(vDescription).not.toMatch(/as a liquidity level/i);
     // The bare pre-2026-09-12 wording must not come back on its own.
     expect(vDescription).not.toMatch(
       /description: Volume in USD regardless of fiat\./,

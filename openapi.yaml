@@ -614,10 +614,12 @@ paths:
                             range carries its own ~24h figure, so summing `v`
                             across bars adds the same window repeatedly, and
                             differencing consecutive bars is not a volume delta.
-                            Measured 2026-09-12: 60 one-minute BTC bars summed
-                            to ~$107B against a reported 24h volume of ~$1.8B.
-                            Read a single bar's `v` as a liquidity level; do not
-                            aggregate it.
+                            Read a single bar's `v` as a rolling daily
+                            quote-volume observation, not order-book depth or
+                            executable liquidity. Do not sum it as interval
+                            turnover. Missing venue contributions can change
+                            this observation without representing a change in
+                            activity at the missing venues.
                   observation: { $ref: "#/components/schemas/AgentObservation" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }

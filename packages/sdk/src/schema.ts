@@ -186,8 +186,11 @@ export interface paths {
          *     1D = 288×5-minute, 1W = 672×15-minute, 1M = 720×1-hour,
          *     3M = 540×4-hour candles. Candles are oldest→newest with `t` in unix
          *     SECONDS. o/h/l/c are converted to `fiat` (default USD) at the nearest
-         *     stored rate; `v` (volume) stays USD regardless of fiat. Pure market
-         *     data, cached ~60s server-side. Requires scope `read`.
+         *     stored rate; `v` stays USD regardless of fiat. These are sampled
+         *     composite-price bars, not venue trade candles, and `v` is a rolling
+         *     24h volume observation rather than per-candle volume (see the field
+         *     description). Pure market data, cached ~60s server-side. Requires
+         *     scope `read`.
          */
         get: operations["getCandles"];
         put?: never;
@@ -4264,7 +4267,7 @@ export interface operations {
                             h?: number;
                             l?: number;
                             c?: number;
-                            /** @description Volume in USD regardless of fiat. */
+                            /** @description Mean rolling 24-HOUR quote volume observed at this bar, in USD regardless of `fiat`. This is NOT the volume traded during the candle. Every bar in a range carries its own ~24h figure, so summing `v` across bars adds the same window repeatedly, and differencing consecutive bars is not a volume delta. Read a single bar's `v` as a rolling daily quote-volume observation, not order-book depth or executable liquidity. Do not sum it as interval turnover. Missing venue contributions can change this observation without representing a change in activity at the missing venues. */
                             v?: number;
                         }[];
                         observation?: components["schemas"]["AgentObservation"];

@@ -20,7 +20,12 @@ class GetCandlesResponse200CandlesItem:
         h (float | Unset):
         l (float | Unset):
         c (float | Unset):
-        v (float | Unset): Volume in USD regardless of fiat.
+        v (float | Unset): Mean rolling 24-HOUR quote volume observed at this bar, in USD regardless of `fiat`. This is
+            NOT the volume traded during the candle. Every bar in a range carries its own ~24h figure, so summing `v` across
+            bars adds the same window repeatedly, and differencing consecutive bars is not a volume delta. Read a single
+            bar's `v` as a rolling daily quote-volume observation, not order-book depth or executable liquidity. Do not sum
+            it as interval turnover. Missing venue contributions can change this observation without representing a change
+            in activity at the missing venues.
     """
 
     t: int | Unset = UNSET
