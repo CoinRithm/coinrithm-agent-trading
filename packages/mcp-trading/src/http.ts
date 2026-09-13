@@ -24,8 +24,8 @@
 //     forwards as `extra.authInfo`, giving requestKey() a second source. Either
 //     way the caller's own key — and only that key — is used for their tool call.
 //   - Unauthenticated MCP initialization and tool-list introspection are allowed
-//     so registries can verify the server. Actual tool calls without a key return
-//     a structured 401 from CoinRithmClient before any upstream request is made.
+//     so registries can verify the server. Public data tools are also keyless;
+//     protected tools return a structured 401 when their key is missing.
 //
 // Config (env):
 //   COINRITHM_API_URL  (optional)  upstream base URL (default production).
@@ -35,7 +35,8 @@
 // the correct isolation model for a multi-user, per-request-keyed surface — no
 // session state is shared between users.
 
-import express, { type Request } from "express";
+import express, { type Request, type Response } from "express";
+import { pathToFileURL } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import {
@@ -46,6 +47,10 @@ import {
 } from "./client.js";
 import { registerTools } from "./tools.js";
 import { SERVER_VERSION } from "./version.js";
+import {
+  observeHttpCompletion,
+  type CompletionLogger,
+} from "./httpCompletion.js";
 
 // The SDK reads `req.auth` (AuthInfo) off the Node request if present and threads
 // it to handlers as `extra.authInfo`. We populate a minimal AuthInfo carrying the
@@ -54,10 +59,28 @@ type AuthedRequest = Request & {
   auth?: { token: string; clientId: string; scopes: string[] };
 };
 
-async function main(): Promise<void> {
-  const config = loadHttpConfig(); // no global key — keys arrive per request
-  const client = new CoinRithmClient(config); // constructed WITHOUT a default key
+// Factory permits isolated localhost SDK tests without opening a listener on import.
+export function createHttpApp(
+  client: CoinRithmClient,
+  options: {
+    completionLogger?: CompletionLogger;
+    createServer?: () => McpServer;
+  } = {},
+) {
   const app = express();
+  const completions = new WeakMap<
+    Response,
+    ReturnType<typeof observeHttpCompletion>
+  >();
+  app.use((req, res, next) => {
+    if (req.method === "POST" && /^\/mcp\/?$/i.test(req.path)) {
+      completions.set(
+        res,
+        observeHttpCompletion(req, res, options.completionLogger),
+      );
+    }
+    next();
+  });
   app.use(express.json());
 
   // Lightweight, unauthenticated liveness probe (handy for Coolify/uptime checks).
@@ -132,8 +155,8 @@ async function main(): Promise<void> {
     // Per-request auth: read THIS caller's key from the Authorization header,
     // or from Smithery's non-reserved forwarding header.
     // It is optional at the transport layer so registries can initialize the
-    // server and list tool schemas. Tool handlers still require a key and return
-    // a structured 401 if one is missing.
+    // server and list tool schemas. Public data tools are keyless; protected
+    // tool handlers return a structured 401 if their key is missing.
     const apiKey =
       bearerFromHeader(req.headers.authorization) ??
       bearerFromHeader(req.headers["x-coinrithm-api-key"]);
@@ -145,11 +168,13 @@ async function main(): Promise<void> {
       req.auth = { token: apiKey, clientId: "coinrithm-key", scopes: [] };
     }
 
-    const server = new McpServer({
-      name: "coinrithm-trading",
-      version: SERVER_VERSION,
-    });
-    registerTools(server, client);
+    const server =
+      options.createServer?.() ??
+      new McpServer({
+        name: "coinrithm-trading",
+        version: SERVER_VERSION,
+      });
+    if (!options.createServer) registerTools(server, client);
     const transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: undefined, // stateless: no cross-request/user state
     });
@@ -159,6 +184,7 @@ async function main(): Promise<void> {
     });
     try {
       await server.connect(transport);
+      completions.get(res)?.attach(transport);
       // The transport reads req.headers (→ extra.requestInfo) and req.auth
       // (→ extra.authInfo); tools.ts picks up the caller's key from there.
       await transport.handleRequest(req, res, req.body);
@@ -174,6 +200,13 @@ async function main(): Promise<void> {
     }
   });
 
+  return app;
+}
+
+async function main(): Promise<void> {
+  const config = loadHttpConfig(); // no global key — keys arrive per request
+  const client = new CoinRithmClient(config); // constructed WITHOUT a default key
+  const app = createHttpApp(client);
   const port = Number(process.env.PORT) || 8787;
   app.listen(port, () => {
     log(
@@ -183,7 +216,12 @@ async function main(): Promise<void> {
   });
 }
 
-main().catch((err) => {
-  log("fatal:", err instanceof Error ? err.message : err);
-  process.exit(1);
-});
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  main().catch((err) => {
+    log("fatal:", err instanceof Error ? err.message : err);
+    process.exit(1);
+  });
+}

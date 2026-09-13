@@ -123,6 +123,54 @@ for **initialize and tools/list only**. Point `COINRITHM_API_URL` at a local
 request-counting stub and assert zero upstream requests; this tests the package
 without accessing a real account. It does not prove key validity or trading.
 
+## HTTP completion diagnostics (prepared; deployment pending)
+
+The source tree includes an HTTP-only completion observer. This section describes
+the prepared implementation, **not evidence that it is deployed**. Verify the
+exact hosted image and a bounded anonymous smoke before starting a measurement
+window. Stdio, tool behavior and authentication are unchanged.
+
+Each accepted MCP RPC produces one bounded scalar JSON record on HTTP finish or
+abort; batches share the HTTP request's duration and delivery outcome. The observer
+reads the SDK's final result after output validation, not a premature tool-callback
+success. A failed send or aborted response is not recorded as successful delivery.
+Parser/transport rejections before SDK dispatch instead produce one
+`operation=invalid`, `rpc_outcome=no_response` record with the actual HTTP status.
+Health, landing and other GET probes are excluded.
+
+Records use the existing stderr prefix `[coinrithm-mcp]` followed by one JSON line
+with `event=mcp_completion`, `schema_version=1`, server version, transport,
+completion timestamp, `duration_ms`, operation, allowlisted tool name (otherwise
+`unknown`), `credential_supplied`, RPC outcome, structured result status/ok,
+HTTP status and `delivery=finished|aborted`. `result_http_status` comes from
+`structuredContent.httpStatus`: a local missing-key result can be 401 and a client
+network failure 0; it is not always an observed upstream HTTP response. Missing
+result values remain null. `duration_ms` is monotonic **HTTP request-to-completion
+latency**, shared by batch members, not independent tool execution time.
+
+No arguments, bodies, prompts, raw errors, RPC IDs, keys/hashes, IPs, URLs,
+clientInfo, User-Agent or trace fields enter these records. RPC correlation IDs
+exist only transiently in the request scope and are cleared on completion.
+`auth_verdict` and `access_path` are deliberately omitted: credential presence
+does not prove authentication or caller origin, including for public Arena calls.
+No external-builder, hosted-agent, unique-user, retention or payment claim can be
+derived from these records. Server finish is not client receipt, citation or use.
+
+For a successful tool-completion count require `operation=tools_call`,
+`delivery=finished`, `rpc_outcome=result`, `result_ok=true`, and 2xx result and
+transport statuses. Keep initialization, listing, notifications, protocol/tool
+failures and aborted delivery separate. Query only a bounded Docker/Coolify log
+window for the verified MCP container, parsing the fixed prefix/event; do not
+treat pre-existing diagnostic lines as completion records. Logger exceptions are
+isolated from responses; metrics never use stdout, which remains the stdio
+protocol channel. Missing logs are not proof of zero traffic.
+
+The operator verified the then-hosted container's Docker `json-file` rotation on
+2026-09-12 UTC as `max-size=10m`, `max-file=3` (roughly 30 MB bounded retention).
+This is **hosted configuration, not a package guarantee or durable trend store**.
+Recheck it after deployment; rotation and container replacement can remove the
+window. Retained coverage must be established before reporting longer-term trends.
+
 ## Notes / caveats
 
 - **Stateless by design.** `sessionIdGenerator: undefined` → a fresh MCP server +
