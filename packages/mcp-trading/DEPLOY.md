@@ -123,12 +123,15 @@ for **initialize and tools/list only**. Point `COINRITHM_API_URL` at a local
 request-counting stub and assert zero upstream requests; this tests the package
 without accessing a real account. It does not prove key validity or trading.
 
-## HTTP completion diagnostics (prepared; deployment pending)
+## HTTP completion diagnostics (hosted verified; npm pending)
 
-The source tree includes an HTTP-only completion observer. This section describes
-the prepared implementation, **not evidence that it is deployed**. Verify the
-exact hosted image and a bounded anonymous smoke before starting a measurement
-window. Stdio, tool behavior and authentication are unchanged.
+The HTTP-only completion observer was verified on the hosted MCP on
+**2026-09-13**, at source/image commit
+`18a0bb6a8a0665e91cebc10225fec6f7ebcdaaf7`. The bounded anonymous smoke passed
+health, initialization, listing, missing-key `whoami` 401, public search/detail
+200 and missing-detail 404. Reverify the exact image and a bounded smoke before
+a new measurement window. Stdio, tools and authentication are unchanged.
+**npm 0.7.9 remains unpublished**; hosted verification is not npm publication.
 
 Each accepted MCP RPC produces one bounded scalar JSON record on HTTP finish or
 abort; batches share the HTTP request's duration and delivery outcome. The observer

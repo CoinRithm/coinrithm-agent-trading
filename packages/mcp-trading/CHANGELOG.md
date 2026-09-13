@@ -33,7 +33,7 @@ sampled composite-price bars. Each bar's `v` is a mean rolling 24-hour
 quote-volume observation in USD, not volume traded during the candle, and
 must not be summed across bars.
 
-**HTTP completion diagnostics (prepared, not yet deployed).** The hosted HTTP
+**HTTP completion diagnostics (hosted verified; npm pending).** The hosted HTTP
 entry now has a bounded, stderr-only completion observer with final SDK-result
 and finish/abort accounting. Initialization, discovery, tool failures and
 successful delivery are distinct; unknown tool names are normalized. Records
@@ -41,8 +41,10 @@ contain no arguments, bodies, credentials, caller/RPC IDs or caller-origin label
 Credential presence is not authentication. Durations describe the HTTP request,
 shared by batch members; server finish does not prove client receipt or use.
 Stdio, tools, authentication and dependency versions are unchanged. See
-`DEPLOY.md` for the measurement and retention limits. This source addition does
-not establish hosted deployment or npm publication.
+`DEPLOY.md` for the measurement and retention limits. Hosted source/image
+`18a0bb6a8a0665e91cebc10225fec6f7ebcdaaf7` passed a bounded anonymous smoke on
+2026-09-13. npm 0.7.9 publication remains pending; hosted verification does not
+establish npm delivery.
 
 ## 0.7.8
 
