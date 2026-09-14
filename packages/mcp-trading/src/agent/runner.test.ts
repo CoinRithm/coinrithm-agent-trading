@@ -997,13 +997,17 @@ describe("runCycle", () => {
     expect(d.state.lastLlmCallAt).toBeUndefined();
   });
 
-  it.each([503, 410])(
+  it.each([503, 410, 404])(
     "still classifies a real direct BYO HTTP %i as a model failure, not capacity",
     async (status) => {
       const fetchFn = vi.fn<typeof fetch>().mockImplementation(
         async () =>
           new Response(
-            status === 410 ? "model no longer available" : "unavailable",
+            status === 410
+              ? "model no longer available"
+              : status === 404
+                ? ""
+                : "unavailable",
             {
               status,
             },
@@ -1028,18 +1032,110 @@ describe("runCycle", () => {
         routeReason: "configured_direct",
       });
       expect(d.state.consecutiveModelFailures).toBe(1);
-      if (status === 410) {
+      if (status === 410 || status === 404) {
         expect(result.providerHold).toMatchObject({
           provider: "nvidia",
           model: "test-retired-model",
         });
+        expect(d.state.consecutivePermanentModelErrors).toBe(3);
+        expect(result.routeAttempts).toBeUndefined();
       } else {
         expect(result.providerHold).toBeUndefined();
         expect(d.state.consecutivePermanentModelErrors).toBe(0);
+        expect(result.routeAttempts).toMatchObject([
+          {
+            provider: "nvidia",
+            model: "test-retired-model",
+            status: 503,
+            outcome: "failed",
+            failureClass: "transient",
+          },
+          {
+            provider: "nvidia",
+            model: "test-retired-model",
+            status: 503,
+            outcome: "failed",
+            failureClass: "transient",
+          },
+        ]);
       }
-      expect(fetchFn).toHaveBeenCalledTimes(1);
+      // Retry failures count once per cycle, not once per HTTP attempt.
+      expect(fetchFn).toHaveBeenCalledTimes(status === 503 ? 2 : 1);
+      expect(d.state.llmCallTimestamps).toHaveLength(1);
+      expect(result.writeAttempted).toBe(0);
+      expect(result.writeAccepted).toBe(0);
     },
   );
+
+  it("recovers a direct BYO 500 on the same model within one cycle and executes only once", async () => {
+    const fetchFn = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            error: {
+              message: "Internal server error",
+              type: "Internal Server Error",
+              code: 500,
+            },
+          }),
+          { status: 500 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            choices: [{ message: { content: JSON.stringify(VALID_OPEN) } }],
+            usage: { prompt_tokens: 700, completion_tokens: 80 },
+          }),
+        ),
+      );
+    const client = baseClient();
+    const d = deps({ live: true }, client);
+    const model = "nvidia/nemotron-3-super-120b-a12b";
+    d.spec.model = { provider: "nvidia", name: model };
+    d.provider = selectProvider(
+      d.spec,
+      { NVIDIA_API_KEY: "test-only" },
+      fetchFn,
+    );
+    d.state.consecutiveModelFailures = 2;
+    d.state.consecutivePermanentModelErrors = 2;
+    const result = await runCycle(d);
+    expect(result).toMatchObject({
+      decision: "act",
+      llmCallMade: true,
+      effectiveProvider: "nvidia",
+      effectiveModel: model,
+      routeReason: "configured_direct",
+      tokensIn: 700,
+      tokensOut: 80,
+      routeAttempts: [
+        {
+          provider: "nvidia",
+          model,
+          status: 500,
+          outcome: "failed",
+          failureClass: "transient",
+        },
+        { provider: "nvidia", model, outcome: "success" },
+      ],
+      writeAttempted: 1,
+      writeAccepted: 1,
+    });
+    expect(result.modelFailed).not.toBe(true);
+    expect(result.planned).toHaveLength(1);
+    expect(result.planned[0].executed).toBe(true);
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+    expect(fetchFn.mock.calls[1][0]).toBe(fetchFn.mock.calls[0][0]);
+    expect(fetchFn.mock.calls[1][1]?.body).toBe(fetchFn.mock.calls[0][1]?.body);
+    expect(client.futuresQuote).toHaveBeenCalledTimes(1);
+    expect(client.openFutures).toHaveBeenCalledTimes(1);
+    expect(d.state.riskIncreasesToday).toBe(1);
+    expect(d.state.llmCallTimestamps).toHaveLength(1);
+    expect(d.state.consecutiveModelFailures).toBe(0);
+    expect(d.state.consecutivePermanentModelErrors).toBe(0);
+  });
 
   it("attributes successful real direct calls without claiming they were hosted BYO", async () => {
     const fetchFn = vi.fn<typeof fetch>().mockImplementation(

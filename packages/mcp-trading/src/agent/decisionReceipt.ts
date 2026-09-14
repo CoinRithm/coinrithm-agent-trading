@@ -21,12 +21,14 @@ export const DECISION_INPUT_MAX_BYTES = 16 * 1024;
 export type DecisionInputPhase =
   "before_observation" | "observed" | "decision_input";
 type Scalar = string | number | boolean | null;
-type Row = Record<
-  string,
-  Scalar | string[] | Record<string, Scalar | string[]>
->;
+interface Row {
+  [key: string]: Scalar | string[] | Row;
+}
 export interface DecisionInputRecord {
   version: "coinrithm.decision-input.v1";
+  // Additive projection revision: older v1 records remain readable, but must
+  // never be mistaken for records that retained these newer nested fields.
+  projectionVersion?: "coinrithm.decision-input-projection.v2";
   visibility: "private";
   completeness: "partial";
   phase: DecisionInputPhase;
@@ -117,6 +119,7 @@ export function buildDecisionInputRecord(
   const budget = buildDailyRiskBudget(input.spec, input.state);
   const record: DecisionInputRecord = {
     version: "coinrithm.decision-input.v1",
+    projectionVersion: "coinrithm.decision-input-projection.v2",
     visibility: "private",
     completeness: "partial",
     phase: input.phase,
@@ -224,6 +227,12 @@ export function buildDecisionInputRecord(
       ema20AboveEma50: bool(obj(r.indicators).ema20AboveEma50),
       brokeRecentHigh: bool(obj(r.indicators).brokeRecentHigh),
       brokeRecentLow: bool(obj(r.indicators).brokeRecentLow),
+      bollinger: numeric(obj(obj(r.indicators).bollinger), [
+        "upper",
+        "mid",
+        "lower",
+      ]),
+      recent20: numeric(obj(obj(r.indicators).recent20), ["high", "low"]),
     },
     fundamentals: numeric(obj(r.fundamentals), [
       "marketCapRank",
@@ -231,11 +240,18 @@ export function buildDecisionInputRecord(
       "volume24hUsd",
     ]),
   }));
+  // Context-only movers are not executable candidates. Preserve their order
+  // and numeric facts without copying provider names or arbitrary free text.
+  add("universeMovers", obs.universeMovers, (r) => ({
+    symbol: id(r.symbol, 20),
+    ...numeric(r, ["change24hPct", "priceUsd"]),
+  }));
   add("futuresPositions", obs.openPositions, (r) => ({
     id: num(r.id),
     symbol: id(r.symbol, 20),
     coinId: id(r.coinId, 32),
     side: code(r.side, ["long", "short"]),
+    openedAt: sourceTimestamp(r.openedAt) ?? null,
     ...numeric(r, [
       "leverage",
       "marginMusd",
@@ -315,7 +331,6 @@ export function buildDecisionInputRecord(
     ["news", obs.news],
     ["pmResolutions", obs.pmResolutions],
     ["newClosedTrades", obs.newClosedTrades],
-    ["universeMovers", obs.universeMovers],
     ["journal", input.state.journal],
   ] as const) {
     record.counts[name] = {
@@ -324,7 +339,7 @@ export function buildDecisionInputRecord(
       omitted: arr(values).length,
     };
   }
-  record.omissions.push("unlisted_fields_and_nested_indicators_excluded");
+  record.omissions.push("unlisted_fields_excluded");
   if (Object.values(record.counts).some((v) => v.omitted > 0))
     record.omissions.push("list_rows_omitted");
   // Leave room for fixed outcome/error metadata. Drop the largest remaining
@@ -386,6 +401,7 @@ const OMISSIONS = [
   "config_fingerprint_unavailable",
   "observation_not_available",
   "unlisted_fields_and_nested_indicators_excluded",
+  "unlisted_fields_excluded",
   "list_rows_omitted",
   "byte_budget_exceeded",
   "evidence_capture_failed",
@@ -410,6 +426,7 @@ const LIST_KEYS: Record<string, string[]> = {
     "symbol",
     "coinId",
     "side",
+    "openedAt",
     "leverage",
     "marginMusd",
     "unrealizedPnlMusd",
@@ -444,6 +461,7 @@ const LIST_KEYS: Record<string, string[]> = {
     "decisionSupport",
   ],
   signals: ["symbol", "kind", "bias", "strength", "held"],
+  universeMovers: ["symbol", "change24hPct", "priceUsd"],
 };
 const NESTED_KEYS: Record<string, string[]> = {
   freshness: ["status", "ageSeconds", "asOf", "basis"],
@@ -474,7 +492,11 @@ const NESTED_KEYS: Record<string, string[]> = {
     "ema20AboveEma50",
     "brokeRecentHigh",
     "brokeRecentLow",
+    "bollinger",
+    "recent20",
   ],
+  bollinger: ["upper", "mid", "lower"],
+  recent20: ["high", "low"],
   fundamentals: ["marketCapRank", "marketCapUsd", "volume24hUsd"],
 };
 function keysOnly(value: unknown, keys: readonly string[]): boolean {
@@ -490,7 +512,8 @@ function validRow(value: unknown, keys: string[]): boolean {
   return Object.entries(obj(value)).every(([key, v]) => {
     if (v === null) return true;
     if (NESTED_KEYS[key]) return validRow(v, NESTED_KEYS[key]);
-    if (key === "asOf" || key === "assessedAt") return sourceTimestamp(v) === v;
+    if (key === "asOf" || key === "assessedAt" || key === "openedAt")
+      return sourceTimestamp(v) === v;
     if (key === "basis") return code(v, FRESHNESS_BASES) !== null;
     if (key === "policyVersion")
       return typeof v === "string" && /^pm-quality-\d{1,3}$/.test(v);
@@ -581,6 +604,7 @@ export function sanitizeDecisionInputRecord(
     if (
       !keysOnly(r, [
         "version",
+        "projectionVersion",
         "visibility",
         "completeness",
         "phase",
@@ -597,6 +621,11 @@ export function sanitizeDecisionInputRecord(
         "counts",
         "omissions",
       ])
+    )
+      return undefined;
+    if (
+      r.projectionVersion !== undefined &&
+      r.projectionVersion !== "coinrithm.decision-input-projection.v2"
     )
       return undefined;
     if (

@@ -158,6 +158,27 @@ describe.each(["recordCycle", "persistCycleResult"] as const)(
       );
     });
 
+    it("persists the newer numeric projection privately and keeps the original expiry policy", async () => {
+      const record = privateRecord();
+      record.projectionVersion = "coinrithm.decision-input-projection.v2";
+      record.lists.watch[0].indicators = {
+        bollinger: { upper: 0.97, mid: 0.75, lower: 0.53 },
+        recent20: { high: 0.95, low: 0.55 },
+      };
+      record.lists.universeMovers = [
+        { symbol: "LSK", change24hPct: 12.34, priceUsd: 0.75 },
+      ];
+      record.counts.universeMovers = { source: 1, retained: 1, omitted: 0 };
+      const { sql, params } = await write(record);
+      expect(JSON.parse(String(params[25]))).toEqual(record);
+      expect(sql).toContain("interval '30 days'");
+      expect(params[RAW_MODEL_OUTPUT_PARAM_INDEX]).toBeNull();
+      expect(JSON.stringify(params.slice(0, 25))).not.toContain("bollinger");
+      expect(JSON.stringify(params.slice(0, 25))).not.toContain(
+        "universeMovers",
+      );
+    });
+
     it.each([
       "absent",
       "null",

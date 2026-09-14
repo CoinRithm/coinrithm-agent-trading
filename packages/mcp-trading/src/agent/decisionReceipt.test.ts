@@ -11,6 +11,7 @@ import { parseSkill } from "./skill.js";
 import { renderFolderOfOne } from "./templates.js";
 import { newState } from "./state.js";
 import { buildObservationReceipt } from "./observationReceipt.js";
+import { computeIndicators } from "./indicators.js";
 
 function input(): DecisionInputCapture {
   const observation: Observation = {
@@ -53,6 +54,148 @@ function input(): DecisionInputCapture {
 }
 
 describe("private partial decision input record", () => {
+  it("retains exact nested indicators, context-only mover order and position time without free text", () => {
+    const i = input();
+    // Production candles expose numeric OHLC; preserve the computed values the
+    // model saw, not a later recalculation from a different candle series.
+    const indicators = computeIndicators(
+      Array.from({ length: 288 }, (_, n) => ({
+        open: 0.69 + n / 10000,
+        high: 0.71 + n / 10000,
+        low: 0.68 + n / 10000,
+        close: 0.7 + n / 10000,
+      })),
+    )!;
+    i.observation!.watch[0].indicators = indicators;
+    i.observation!.universeMovers = [
+      {
+        symbol: "LSK",
+        name: "PRIVATE_NAME",
+        change24hPct: 12.34,
+        priceUsd: 0.75,
+      },
+      { symbol: "VTHO", change24hPct: 5.67, priceUsd: 0.001 },
+    ];
+    i.observation!.openPositions = [
+      {
+        venue: "futures",
+        id: 14641,
+        symbol: "LSK",
+        side: "long",
+        openedAt: "2026-09-14T00:41:35.908Z",
+      },
+    ];
+    const r = buildDecisionInputRecord(i);
+    expect(r.projectionVersion).toBe("coinrithm.decision-input-projection.v2");
+    expect(r.lists.watch[0].indicators).toEqual(indicators);
+    expect(r.lists.universeMovers).toEqual([
+      { symbol: "LSK", change24hPct: 12.34, priceUsd: 0.75 },
+      { symbol: "VTHO", change24hPct: 5.67, priceUsd: 0.001 },
+    ]);
+    expect(r.counts.universeMovers).toEqual({
+      source: 2,
+      retained: 2,
+      omitted: 0,
+    });
+    expect(r.lists.futuresPositions[0].openedAt).toBe(
+      "2026-09-14T00:41:35.908Z",
+    );
+    expect(r.omissions).not.toContain(
+      "unlisted_fields_and_nested_indicators_excluded",
+    );
+    expect(JSON.stringify(r)).not.toContain("PRIVATE_NAME");
+    expect(sanitizeDecisionInputRecord(r)).toEqual(r);
+    indicators.bollinger!.upper = 999;
+    expect(r.lists.watch[0].indicators).not.toEqual(indicators);
+  });
+
+  it("rejects nested indicator/mover injection and preserves legacy partial records", () => {
+    const r = buildDecisionInputRecord(input());
+    const legacy = structuredClone(r);
+    delete legacy.projectionVersion;
+    delete (legacy.lists.watch[0].indicators as Record<string, unknown>)
+      .bollinger;
+    delete (legacy.lists.watch[0].indicators as Record<string, unknown>)
+      .recent20;
+    delete legacy.lists.universeMovers;
+    legacy.counts.universeMovers = { source: 9, retained: 0, omitted: 9 };
+    legacy.omissions.push("unlisted_fields_and_nested_indicators_excluded");
+    expect(sanitizeDecisionInputRecord(legacy)).toEqual(legacy);
+    for (const field of ["bollinger", "recent20"]) {
+      const modified = structuredClone(r);
+      (modified.lists.watch[0].indicators as Record<string, unknown>)[field] = {
+        prompt: "PRIVATE_REASONING",
+      };
+      expect(sanitizeDecisionInputRecord(modified)).toBeUndefined();
+    }
+    const mover = structuredClone(r);
+    mover.lists.universeMovers = [{ symbol: "LSK", name: "PRIVATE_REASONING" }];
+    mover.counts.universeMovers = { source: 1, retained: 1, omitted: 0 };
+    expect(sanitizeDecisionInputRecord(mover)).toBeUndefined();
+    expect(
+      sanitizeDecisionInputRecord({ ...r, projectionVersion: "PRIVATE_TEXT" }),
+    ).toBeUndefined();
+  });
+
+  it("keeps 16 enriched watch rows and nine movers within the existing production input budget", () => {
+    const i = input();
+    const indicators = computeIndicators(
+      Array.from({ length: 288 }, (_, n) => ({
+        open: 65000 + n,
+        high: 67000 + n,
+        low: 64000 + n,
+        close: 66000 + n,
+      })),
+    )!;
+    i.observation!.watch = Array.from({ length: 16 }, (_, n) => ({
+      symbol: `COIN${n}`,
+      coinId: String(n),
+      discovered: n >= 10,
+      priceUsd: 67000.123456,
+      change1h: 1.23,
+      change24h: 12.34,
+      change7d: 23.45,
+      indicators,
+      fundamentals: {
+        marketCapRank: 100,
+        marketCapUsd: 1000000000,
+        volume24hUsd: 123456789,
+      },
+    }));
+    i.observation!.universeMovers = Array.from({ length: 9 }, (_, n) => ({
+      symbol: `MOVER${n}`,
+      change24hPct: 12.34,
+      priceUsd: 0.751632,
+    }));
+    i.observation!.openPositions = Array.from({ length: 5 }, (_, n) => ({
+      venue: "futures",
+      id: n,
+      symbol: `COIN${n}`,
+      side: "long",
+      leverage: 3,
+      marginMusd: 750,
+      entryPrice: 0.75,
+      markPrice: 0.76,
+      liquidationPrice: 0.5,
+      stopLossPrice: 0.6,
+      takeProfitPrice: 0.9,
+      unrealizedPnlMusd: 10,
+      openedAt: "2026-09-14T00:41:35.908Z",
+    }));
+    const r = buildDecisionInputRecord(i);
+    expect(r.counts.watch).toEqual({ source: 16, retained: 16, omitted: 0 });
+    expect(r.counts.universeMovers).toEqual({
+      source: 9,
+      retained: 9,
+      omitted: 0,
+    });
+    expect(r.counts.futuresPositions.retained).toBe(5);
+    expect(Buffer.byteLength(JSON.stringify(r))).toBeLessThanOrEqual(
+      DECISION_INPUT_MAX_BYTES,
+    );
+    expect(sanitizeDecisionInputRecord(r)).toEqual(r);
+  });
+
   it("retains PM quality facts and source time while rejecting nested free-text smuggling", () => {
     const i = input();
     i.observation!.pmMarkets = [

@@ -38,6 +38,7 @@ export interface DecideRouteMeta {
   effectiveModel?: string;
   reason:
     | "configured"
+    | "configured_direct"
     | "circuit_fallback"
     | "capacity_fallback"
     | "provider_fallback"
@@ -65,6 +66,10 @@ export type DecideResult =
       // Parsed Retry-After (seconds or HTTP-date form), capped; the capacity
       // layer treats it as the provider's own cooldown request.
       retryAfterMs?: number;
+      // Only a fully consumed, explicitly retryable HTTP server-error response.
+      // A known 5xx with a failed/hung body must not turn a transport error into
+      // a retry merely because headers arrived before the failure.
+      retryableHttpFailure?: true;
       // True when no provider call happened (all eligible routes were held or
       // over shared capacity). This is backpressure, not a model failure.
       deferred?: boolean;
@@ -112,6 +117,7 @@ const GEMINI_BASE_URL =
 // (the recurring Leo/70B timeout). A real hang still aborts -> retried next cadence.
 // MUST stay below the scheduler's RUN_LOCK_SECONDS and HEARTBEAT_STALE_MS.
 const DEFAULT_TIMEOUT_MS = 300_000;
+const RETRYABLE_SERVER_STATUSES = new Set([500, 502, 503, 504]);
 
 // Per-route request quirks (reasoning toggles, token param, temperature) live
 // in the capability table — providerCapabilities.ts is the single source; this
@@ -149,6 +155,26 @@ function callError(err: unknown, timeoutMs: number): string {
     return `model call timed out after ${timeoutMs}ms`;
   }
   return err instanceof Error ? err.message : String(err);
+}
+
+// Error text reaches retained cycle evidence. Redact before truncating so a
+// credential crossing the size boundary cannot leave a partial key behind.
+function safeProviderError(text: string, apiKey: string): string {
+  return (apiKey ? text.split(apiKey).join("[redacted]") : text)
+    .replace(/Bearer\s+[^\s"'<>\\]+/gi, "Bearer [redacted]")
+    .replace(
+      /(?:nvapi-|crk_live_|sk-|sk_live_|ghp_|AIza)[A-Za-z0-9_-]+/g,
+      "[redacted]",
+    )
+    .replace(
+      /eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g,
+      "[redacted]",
+    )
+    .replace(
+      /((?:api[_-]?key|access[_-]?token|password|secret)["']?\s*[:=]\s*["']?)[^\s"',}&<>]+/gi,
+      "$1[redacted]",
+    )
+    .slice(0, 2000);
 }
 
 // Parse a Retry-After header (delta-seconds or HTTP-date) into ms, capped at
@@ -264,7 +290,7 @@ class AnthropicProvider implements Provider {
               ok: false,
               // Cap the upstream body: it lands in agent_cycles.skip_reason, so an
               // unbounded provider error page must not bloat the ledger row.
-              error: `anthropic HTTP ${res.status}: ${(await res.text()).slice(0, 2000)}`,
+              error: `anthropic HTTP ${res.status}: ${safeProviderError(await res.text(), this.apiKey)}`,
               status: res.status,
               retryAfterMs: retryAfterMs(res),
             };
@@ -288,9 +314,12 @@ class AnthropicProvider implements Provider {
     } catch (err) {
       return {
         ok: false,
-        error: failureResponse
-          ? `anthropic HTTP ${failureResponse.status}: ${callError(err, timeoutMs)}`
-          : callError(err, timeoutMs),
+        error: safeProviderError(
+          failureResponse
+            ? `anthropic HTTP ${failureResponse.status}: ${callError(err, timeoutMs)}`
+            : callError(err, timeoutMs),
+          this.apiKey,
+        ),
         ...(failureResponse
           ? {
               status: failureResponse.status,
@@ -343,9 +372,12 @@ class OpenAiCompatProvider implements Provider {
               ok: false,
               // Cap the upstream body: it lands in agent_cycles.skip_reason, so an
               // unbounded provider error page must not bloat the ledger row.
-              error: `provider HTTP ${res.status}: ${(await res.text()).slice(0, 2000)}`,
+              error: `provider HTTP ${res.status}: ${safeProviderError(await res.text(), this.apiKey)}`,
               status: res.status,
               retryAfterMs: retryAfterMs(res),
+              ...(RETRYABLE_SERVER_STATUSES.has(res.status)
+                ? { retryableHttpFailure: true as const }
+                : {}),
             };
           }
           const json = (await res.json()) as {
@@ -378,9 +410,12 @@ class OpenAiCompatProvider implements Provider {
     } catch (err) {
       return {
         ok: false,
-        error: failureResponse
-          ? `provider HTTP ${failureResponse.status}: ${callError(err, timeoutMs)}`
-          : callError(err, timeoutMs),
+        error: safeProviderError(
+          failureResponse
+            ? `provider HTTP ${failureResponse.status}: ${callError(err, timeoutMs)}`
+            : callError(err, timeoutMs),
+          this.apiKey,
+        ),
         ...(failureResponse
           ? {
               status: failureResponse.status,
@@ -389,6 +424,91 @@ class OpenAiCompatProvider implements Provider {
           : {}),
       };
     }
+  }
+}
+
+// A direct NVIDIA 5xx previously lost the whole cycle until the next cadence.
+// Retry only an explicit server refusal, once, on the identical configured
+// route. The shared router owns its own attempt/capacity budget and MUST NOT
+// receive this wrapper. No auth/404/429, network, timeout or decision repair
+// retries; no model substitution or request-parameter changes.
+class SameModelRetryProvider implements Provider {
+  readonly label: string;
+
+  constructor(
+    private readonly delegate: Provider,
+    private readonly provider: ProviderName,
+    private readonly model: string,
+  ) {
+    this.label = delegate.label;
+  }
+
+  async decide(input: DecideInput): Promise<DecideResult> {
+    const started = Date.now();
+    const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    const first = await this.delegate.decide(input);
+    const firstFinished = Date.now();
+    if (first.ok || !first.retryableHttpFailure) {
+      return first;
+    }
+    const delayMs = Math.max(1000, first.retryAfterMs ?? 0);
+    // Honor the provider's cooldown; a long one waits for the next cycle. Both
+    // attempts and this backoff share the ORIGINAL deadline, never two 5m caps.
+    if (delayMs > 5000 || delayMs >= timeoutMs - (firstFinished - started)) {
+      return first;
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
+    const retryStarted = Date.now();
+    const remainingMs = timeoutMs - (retryStarted - started);
+    if (remainingMs <= 0) return first;
+
+    const result = await this.delegate.decide({
+      ...input,
+      timeoutMs: remainingMs,
+    });
+    const attempt = (
+      res: DecideResult,
+      latencyMs: number,
+    ): DecideRouteAttempt => ({
+      provider: this.provider,
+      model: this.model,
+      outcome: res.ok ? "success" : "failed",
+      latencyMs,
+      ...(!res.ok
+        ? {
+            error: res.error,
+            status: res.status,
+            retryAfterMs: res.retryAfterMs,
+            ...(res.status !== undefined
+              ? {
+                  failureClass:
+                    res.status === 429
+                      ? ("capacity" as const)
+                      : res.status >= 500
+                        ? ("transient" as const)
+                        : ("permanent" as const),
+                }
+              : {}),
+          }
+        : {}),
+    });
+    return {
+      // Usage, when present, describes only the final response. The preceding
+      // 5xx did not report usage; attempt evidence is not total billed tokens
+      // or a certificate that returned text passed the trading-decision parser.
+      ...result,
+      route: {
+        policyVersion: "coinrithm.configured-same-model-retry.v1",
+        profile: "configured",
+        effectiveProvider: this.provider,
+        effectiveModel: this.model,
+        reason: "configured_direct",
+        attempts: [
+          attempt(first, firstFinished - started),
+          attempt(result, Date.now() - retryStarted),
+        ],
+      },
+    };
   }
 }
 
@@ -432,7 +552,16 @@ export function selectProvider(
   if (!resolvedBase) {
     throw new Error("openai-compatible provider needs model.baseUrl");
   }
-  return new OpenAiCompatProvider(provider, name, key, resolvedBase, fetchFn);
+  const direct = new OpenAiCompatProvider(
+    provider,
+    name,
+    key,
+    resolvedBase,
+    fetchFn,
+  );
+  return provider === "nvidia"
+    ? new SameModelRetryProvider(direct, provider, name)
+    : direct;
 }
 
 // Build a provider for an EXPLICIT route + raw key (no spec, no env) — the
