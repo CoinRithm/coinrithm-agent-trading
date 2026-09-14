@@ -1526,13 +1526,19 @@ async function runCycleCore(
   state.consecutiveExecFailures =
     anyExecFailed && !anyExecuted ? state.consecutiveExecFailures + 1 : 0;
   state.rateLimitHits = client.rateLimitHits ?? state.rateLimitHits;
-  // Slice-3 memory: journal the accepted move(s) + the thesis behind them so next
-  // cycle has continuity (manage with memory of WHY; don't re-open what we just did).
+  // Memory describes completed moves, not policy acceptance. A backend rejection,
+  // lost response, or dry-run plan must not become "opened" / "trailed stop" in
+  // the next model prompt. Attempts remain in planned[] and the audit ledger.
   const moves = planned
-    .filter((p) => p.accepted)
+    .filter((p) => p.accepted && p.executed === true)
     .map((p) => summarizeAction(p.action));
   if (moves.length > 0) {
-    const did = `${moves.join("; ")}${rationale ? ` — ${rationale.slice(0, 90)}` : ""}`;
+    // A cycle-wide rationale may describe a failed/rejected sibling action.
+    // Keep it only when every proposed action executed; per-action theses are
+    // already included by summarizeAction for confirmed opens.
+    const confirmedRationale =
+      moves.length === planned.length ? rationale : undefined;
+    const did = `${moves.join("; ")}${confirmedRationale ? ` — ${confirmedRationale.slice(0, 90)}` : ""}`;
     state.journal = [
       ...(state.journal ?? []),
       { at: observation.asOf, did },

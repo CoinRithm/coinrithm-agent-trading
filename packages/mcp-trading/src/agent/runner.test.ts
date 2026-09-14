@@ -160,6 +160,144 @@ function deps(
   };
 }
 
+describe("confirmed action memory", () => {
+  const sltp = (positionId: number) => ({
+    type: "futures_set_sltp",
+    positionId,
+    stopLossPrice: 66000,
+  });
+  const positions = () =>
+    okData({
+      positions: [7, 8].map((id) => ({
+        id,
+        status: "open",
+        side: "long",
+        marginMusd: 50,
+        coin: { symbol: "BTC", ucid: "1" },
+        markPrice: 67000,
+        stopLossPrice: 65000,
+      })),
+    });
+  function captureMemory(decision: unknown) {
+    const decide = vi
+      .fn<Provider["decide"]>()
+      .mockResolvedValue({ ok: true, text: JSON.stringify(decision) });
+    return { decide, prov: { label: "fake", decide } satisfies Provider };
+  }
+  it.each([422, 503, 0])(
+    "does not turn an unconfirmed SL/TP response (%s) into next-cycle completed memory",
+    async (status) => {
+      const c = captureMemory({
+        decision: "act",
+        actions: [sltp(7)],
+        rationale: "failed-update-marker",
+      });
+      const client = baseClient({
+        futuresPositions: positions,
+        setFuturesSlTp: vi.fn(async () => ({
+          ok: false,
+          status,
+          data: {
+            error: status === 0 ? "network_error" : "sl_tp_invalid",
+            blockReasons: ["stop_loss_not_below_mark"],
+          },
+        })),
+      });
+      const d = deps({ live: true }, client, c.prov);
+      d.state.journal = [
+        { at: "2026-09-01T00:00:00Z", did: "confirmed earlier action" },
+      ];
+      const before = structuredClone(d.state.journal);
+      const result = await runCycle(d);
+      expect(result.planned[0]).toMatchObject({
+        accepted: true,
+        executed: false,
+      });
+      expect(client.setFuturesSlTp).toHaveBeenCalledTimes(1);
+      expect(d.state.journal).toEqual(before);
+      c.decide.mockResolvedValue({
+        ok: true,
+        text: JSON.stringify({ decision: "skip" }),
+      });
+      await runCycle(d);
+      expect(c.decide.mock.calls[1][0].user).not.toContain(
+        "trailed stop on pos#7",
+      );
+      expect(c.decide.mock.calls[1][0].user).not.toContain(
+        "failed-update-marker",
+      );
+      expect(c.decide.mock.calls[1][0].user).toContain(
+        "confirmed earlier action",
+      );
+    },
+  );
+  it("keeps only confirmed moves and omits the whole-cycle rationale on partial success", async () => {
+    const c = captureMemory({
+      decision: "act",
+      actions: [sltp(7), sltp(8)],
+      rationale: "both-stops-completed-marker",
+    });
+    const client = baseClient({
+      futuresPositions: positions,
+      setFuturesSlTp: vi
+        .fn()
+        .mockResolvedValueOnce(okData({ position: { id: 7 } }))
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 422,
+          data: { error: "sl_tp_invalid" },
+        }),
+    });
+    const d = deps({ live: true }, client, c.prov);
+    d.spec.limits.maxWritesPerCycle = 2;
+    const result = await runCycle(d);
+    expect(result.planned.map((p) => p.executed)).toEqual([true, false]);
+    expect(d.state.journal).toEqual([
+      { at: expect.any(String), did: "trailed stop on pos#7" },
+    ]);
+    c.decide.mockResolvedValue({
+      ok: true,
+      text: JSON.stringify({ decision: "skip" }),
+    });
+    await runCycle(d);
+    expect(c.decide.mock.calls[1][0].user).toContain("trailed stop on pos#7");
+    expect(c.decide.mock.calls[1][0].user).not.toContain(
+      "trailed stop on pos#8",
+    );
+    expect(c.decide.mock.calls[1][0].user).not.toContain(
+      "both-stops-completed-marker",
+    );
+  });
+  it("does not journal a dry-run accepted plan as completed", async () => {
+    const client = baseClient();
+    const d = deps({ live: false }, client);
+    const result = await runCycle(d);
+    expect(result.planned[0]).toMatchObject({
+      accepted: true,
+      executed: false,
+    });
+    expect(client.openFutures).not.toHaveBeenCalled();
+    expect(d.state.journal ?? []).toEqual([]);
+  });
+  it("retains confirmed live execution and rationale in the next prompt", async () => {
+    const c = captureMemory({
+      ...VALID_OPEN,
+      rationale: "confirmed-open-marker",
+    });
+    const d = deps({ live: true }, baseClient(), c.prov);
+    const result = await runCycle(d);
+    expect(result.planned[0].executed).toBe(true);
+    expect(d.state.journal?.[0].did).toContain("opened long BTC");
+    c.decide.mockResolvedValue({
+      ok: true,
+      text: JSON.stringify({ decision: "skip" }),
+    });
+    await runCycle(d);
+    expect(c.decide.mock.calls[1][0].user).toContain("opened long BTC");
+    expect(c.decide.mock.calls[1][0].user).toContain("confirmed-open-marker");
+  });
+});
+
 describe("opt-in owned-book capital sizing", () => {
   const policy = {
     version: "equity_fraction_v1" as const,
