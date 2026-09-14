@@ -136,6 +136,89 @@ const quote = (margin: number, bps = 5): QuoteEvidence => ({
 });
 
 describe("owned conservative capital basis", () => {
+  const settledBook = (over: Record<string, unknown> = {}) => {
+    const partitions = {
+      available: 44_066.39306730944,
+      frozen: 0,
+      frozenPm: 0,
+      frozenFutures: 0,
+      ...over,
+    };
+    return {
+      p: portfolio({
+        equity: {
+          ...portfolio().equity,
+          ...partitions,
+          totalUsd: 44_066.39306730944,
+        },
+      }),
+      w: wallet({ usdt: { ...partitions } }),
+    };
+  };
+  it.each(["frozen", "frozenPm", "frozenFutures"])(
+    "reconciles bounded floating-point thaw residue in %s without changing inputs or buying power",
+    (bucket) => {
+      for (const residue of [
+        -1.13686837721616e-13, -6.821210263296962e-13, -1e-8,
+      ]) {
+        const { p, w } = settledBook({ [bucket]: residue });
+        const before = JSON.stringify({ p, w });
+        expect(
+          deriveCapitalBook(p, w, { positions: [] }, { positions: [] }),
+        ).toEqual({
+          status: "ready",
+          walletId: 42,
+          conservativeEquityMusd: 44_066.39306730944,
+          cashAvailableMusd: 44_066.39306730944,
+          committedCapitalMusd: 0,
+        });
+        expect(JSON.stringify({ p, w })).toBe(before);
+      }
+    },
+  );
+  it.each([-1.00001e-8, -0.001, undefined, null, "0", NaN, Infinity])(
+    "still rejects invalid frozen partitions (%s) in either read",
+    (value) => {
+      for (const bucket of ["frozen", "frozenPm", "frozenFutures"]) {
+        const bad = settledBook({ [bucket]: value });
+        const good = settledBook();
+        for (const [p, w] of [
+          [bad.p, good.w],
+          [good.p, bad.w],
+        ]) {
+          expect(
+            deriveCapitalBook(p, w, { positions: [] }, { positions: [] }),
+          ).toEqual({
+            status: "unavailable",
+            reason: "cash_partitions_incomplete_or_changed",
+          });
+        }
+      }
+    },
+  );
+  it("does not normalize negative available cash or hide drift at the tolerance boundary", () => {
+    const negativeCash = settledBook({ available: -1e-13 });
+    const negativeFrozen = settledBook({ frozenPm: -1e-8 });
+    const changedFrozen = settledBook({ frozenPm: 0.011 });
+    for (const [p, w] of [
+      [negativeCash.p, negativeCash.w],
+      [negativeFrozen.p, changedFrozen.w],
+    ]) {
+      expect(
+        deriveCapitalBook(p, w, { positions: [] }, { positions: [] }),
+      ).toEqual({
+        status: "unavailable",
+        reason: "cash_partitions_incomplete_or_changed",
+      });
+    }
+  });
+  it("still rejects uncovered held collateral after frozen residue normalization", () => {
+    const { p, w } = settledBook({ frozenPm: -6.821210263296962e-13 });
+    expect(deriveCapitalBook(p, w, { positions: [] }, pm)).toEqual({
+      status: "unavailable",
+      reason: "held_collateral_coverage_mismatch",
+    });
+  });
   it("counts marked noncash holdings and ALL frozen allocations; ignores positive position gains", () => {
     expect(deriveCapitalBook(portfolio(), wallet(), futures, pm)).toEqual({
       status: "ready",

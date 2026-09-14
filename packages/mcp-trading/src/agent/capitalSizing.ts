@@ -18,6 +18,11 @@ export const CAPITAL_VALUATION_BASIS =
 // This is not an exchange-fill, funding or stop-execution guarantee.
 export const CAPITAL_FEE_BUFFER_BPS = 10;
 const CENT_TOLERANCE = 0.011;
+// Paper settlement writers use EPS=1e-8 on floating-point frozen balances.
+// Thawing the final position can leave negative dust (observed: -6.82e-13).
+// Normalize only that bounded frozen residue, never spendable cash or debt.
+// This is much tighter than reconciliation tolerance and does not edit balances.
+const FROZEN_RESIDUE_TOLERANCE = 1e-8;
 const centsDown = (n: number) => Math.floor(n * 100) / 100;
 const positive = (n: unknown): n is number =>
   asNum(n) !== undefined && (n as number) > 0;
@@ -39,7 +44,8 @@ export function deriveCapitalBook(
   const p = asObj(portfolio),
     w = asObj(wallet),
     eq = asObj(p.equity),
-    cash = asObj(w.usdt);
+    rawCash = asObj(w.usdt);
+  const cash = { ...rawCash };
   const unavailable = (reason: string): CapitalBook => ({
     status: "unavailable",
     reason,
@@ -58,12 +64,19 @@ export function deriveCapitalBook(
     return unavailable("held_spot_valuation_unproven");
   const buckets = ["available", "frozen", "frozenPm", "frozenFutures"] as const;
   for (const key of buckets) {
+    const walletValue = asNum(rawCash[key]);
+    const portfolioValue = asNum(eq[key]);
+    const minimum = key === "available" ? 0 : -FROZEN_RESIDUE_TOLERANCE;
     if (
-      !nonnegative(cash[key]) ||
-      !nonnegative(eq[key]) ||
-      Math.abs(cash[key] - eq[key]) > CENT_TOLERANCE
+      walletValue === undefined ||
+      portfolioValue === undefined ||
+      walletValue < minimum ||
+      portfolioValue < minimum ||
+      // Compare raw reads first: normalization must not hide snapshot drift.
+      Math.abs(walletValue - portfolioValue) > CENT_TOLERANCE
     )
       return unavailable("cash_partitions_incomplete_or_changed");
+    cash[key] = Math.max(0, walletValue);
   }
   const cashTotal = buckets.reduce((sum, k) => sum + (cash[k] as number), 0);
   if (eq.totalUsd + CENT_TOLERANCE < cashTotal)
