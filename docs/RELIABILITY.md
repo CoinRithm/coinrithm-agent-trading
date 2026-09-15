@@ -131,11 +131,11 @@ whose path contains spaces. It checks CLI startup, MCP initialization and
 38-tool discovery, supported/legacy engine imports, state replacement and
 failure on corrupt state. SDK calls use offline transports.
 
-| Lane | Environments | Scope |
-| --- | --- | --- |
-| Node | Linux, Windows, macOS × Node 18, 20, 22, 24 | Installed MCP/runner and TypeScript SDK |
-| Python | Linux 3.10–3.14; Windows/macOS 3.12 | Installed wheel imports and sync/async requests |
-| PostgreSQL | Disposable PostgreSQL 17 in CI | Capacity, concurrent migration replay, interrupted transactions, credential rotation/recovery |
+| Lane       | Environments                                | Scope                                                                                         |
+| ---------- | ------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Node       | Linux, Windows, macOS × Node 18, 20, 22, 24 | Installed MCP/runner and TypeScript SDK                                                       |
+| Python     | Linux 3.10–3.14; Windows/macOS 3.12         | Installed wheel imports and sync/async requests                                               |
+| PostgreSQL | Disposable PostgreSQL 17 in CI              | Capacity, concurrent migration replay, interrupted transactions, credential rotation/recovery |
 
 These are focused compatibility smokes; the complete suites still run on
 Ubuntu/Node 20 and Python 3.12. Future runtime releases are not implicitly
@@ -237,11 +237,34 @@ discovery and the compiled reporting-outcome probes. These are controlled checks
 Hosted MCP deployment **2502** and scheduler deployment **2503** finished on
 `7e8ebe8b75ffb328b34316afc5ef01501895b848`. Both images' 52 compiled MCP/runner
 JavaScript files match the archive; their success/error/timeout/exception probes
-passed without provider calls or trades. Public MCP reports 0.7.11 and returns
-market data. Rollback images are retained, and all 58 agent configuration
+passed without provider calls or trades. Public MCP reported 0.7.11 and returned
+market data at verification. Rollback images were retained, and all 58 agent configuration
 fingerprints were unchanged. No opportunity-report events were observed in the
 bounded scheduler-log sample from 14:37:59 to 14:39:54 UTC.
 
-The official MCP Registry lists 0.7.11 as latest, verified after its
+The official MCP Registry listed 0.7.11 as latest at that verification, after its
 [release workflow](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/34985466551).
 SDK runtime versions remain TypeScript 0.3.1 and Python 1.8.1.
+
+**0.7.12 delivery was verified on 15 September 2026.** This release clarifies
+`whoami`, `cancel_spot_order` and `report_pm_opportunity` descriptions and
+side-effect/retry annotations; all 38 tools and their accepted inputs remain.
+[All 25 CI jobs passed for `394b3b3`](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/34991197700),
+including 1,215 MCP/runner tests. MCP coverage remains 96.68% lines and 92.21%
+branches. The historical package measurements above are from the 0.7.11 run.
+
+The npm and [GitHub release](https://github.com/CoinRithm/coinrithm-agent-trading/releases/tag/mcp-trading-v0.7.12)
+downloads match the CI artifact. A clean Windows/Node 24.11.0 registry install
+passed stdio initialization, 38-tool discovery and the corrected definition
+checks, with all 52 compiled JavaScript files matching the artifact. Those
+metadata checks made no provider calls or trades.
+
+Hosted MCP deployment **2505** finished on
+`394b3b39cd13e31256504ad3704817808c7e97ad`; its 52 compiled JavaScript files match
+the artifact. Public initialization reports 0.7.12, tool definitions match,
+health and a bounded public-data read passed, and the prior image is retained
+for rollback. The scheduler remains on its verified 0.7.11 engine.
+The official MCP Registry lists 0.7.12 as latest after its
+[release workflow](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/34993755405).
+SDK versions remain TypeScript 0.3.1 and Python 1.8.1. Glama release numbers and
+profile scores are separate from npm versions and runtime reliability evidence.

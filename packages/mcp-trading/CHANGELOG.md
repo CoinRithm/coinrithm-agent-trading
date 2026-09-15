@@ -17,8 +17,11 @@ requires `decisionId` (or `agentTrace.decisionId`) under the same API key; the
 first stored record wins. Reporting remains a write despite requiring only the
 `read` scope, and its evidence remains explicitly self-reported.
 
-Tool names, accepted inputs and execution behavior are unchanged. This source
-entry does not establish registry publication, deployment or a new Glama score.
+Tool names, accepted inputs and execution behavior are unchanged. Published on
+npm and deployed to hosted MCP on 2026-09-15; registry and GitHub downloads match
+the CI archive. A clean registry installation passed startup and tool metadata
+checks. See the [release record](https://github.com/CoinRithm/coinrithm-agent-trading/releases/tag/mcp-trading-v0.7.12).
+Glama's evaluation score is separate from package delivery.
 
 ## 0.7.11 — 2026-09-15
 

@@ -48,7 +48,9 @@ This patch clarifies `whoami`, `cancel_spot_order` and `report_pm_opportunity`
 for MCP clients. Cancellation is marked safe to repeat; opportunity reporting
 is a write whose duplicate protection requires a decision ID. Tool names,
 accepted inputs and execution behavior are unchanged. See [CHANGELOG.md](./CHANGELOG.md).
-This source entry does not establish publication. Check
+Published on npm and verified on 2026-09-15: the registry archive matches the
+CI-tested artifact, and a clean install passed startup and tool metadata checks.
+See the [release record](https://github.com/CoinRithm/coinrithm-agent-trading/releases/tag/mcp-trading-v0.7.12). Check
 `npm view @coinrithm/mcp-trading version` for the latest published version;
 hosted deployments and npm releases are separate.
 
