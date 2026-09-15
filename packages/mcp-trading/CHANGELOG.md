@@ -5,6 +5,21 @@ ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (t
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
 versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
+## 0.7.12 — 2026-09-15
+
+Clarify `whoami`, `cancel_spot_order` and `report_pm_opportunity` descriptions,
+removing execution-cost prose unrelated to these operations. Document actual
+authentication, side effects, result fields and retry behavior.
+
+Spot cancellation now advertises its existing idempotent behavior. Opportunity
+reporting no longer advertises unconditional idempotency: duplicate protection
+requires `decisionId` (or `agentTrace.decisionId`) under the same API key; the
+first stored record wins. Reporting remains a write despite requiring only the
+`read` scope, and its evidence remains explicitly self-reported.
+
+Tool names, accepted inputs and execution behavior are unchanged. This source
+entry does not establish registry publication, deployment or a new Glama score.
+
 ## 0.7.11 — 2026-09-15
 
 Fix opportunity reporting that previously treated resolved API failures as
