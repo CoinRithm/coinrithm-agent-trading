@@ -4,13 +4,13 @@
 
 ## What is measured
 
-Release 0.7.10 source measurements on 15 September 2026, using Vitest 4.1.11
+Release 0.7.11 source measurements on 15 September 2026, using Vitest 4.1.11
 with V8 coverage and pytest-cov with branch measurement enabled.
-[All 25 CI jobs passed for `9dc6e6e`](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/34972402819).
+[All 25 CI jobs passed for `7e8ebe8`](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/34982139090).
 
 | Package               | Statements | Branches | Functions |  Lines |
 | --------------------- | ---------: | -------: | --------: | -----: |
-| MCP server and runner |     96.08% |   92.19% |    94.32% | 96.67% |
+| MCP server and runner |     96.08% |   92.21% |    94.33% | 96.68% |
 | Hosted scheduler      |     97.27% |   91.71% |    95.10% | 98.02% |
 | TypeScript SDK        |       100% |     100% |      100% |   100% |
 | Python SDK            |     96.58% |   94.84% |         — | 96.58% |
@@ -30,7 +30,7 @@ this is not a claim that every file exceeds 90%.
 | Runtime file                                        | Statements | Branches | Functions |  Lines |
 | --------------------------------------------------- | ---------: | -------: | --------: | -----: |
 | MCP `src/agent/client.ts`                           |       100% |   98.73% |    97.05% |   100% |
-| MCP `src/agent/runner.ts`                           |     98.96% |   90.94% |    97.82% | 98.89% |
+| MCP `src/agent/runner.ts`                           |     98.96% |   91.02% |    97.82% | 98.89% |
 | MCP `src/http.ts`                                   |       100% |     100% |      100% |   100% |
 | Scheduler `src/capacity.ts`                         |       100% |     100% |      100% |   100% |
 | Python `client.py`                                  |       100% |     100% |         — |   100% |
@@ -57,6 +57,11 @@ Do not interpret a change between those reports as entirely new test coverage.
 CI uploads complete HTML/JSON reports for each package, including failures.
 
 ## Behaviors protected
+
+- Opportunity reports confirm only successful API results. HTTP errors remain
+  unconfirmed; transport failures and exceptions have an unknown outcome. The
+  attempted payload is retained separately, with no extra reporter retries.
+  Skip/act regressions verify unchanged trading results and runner state.
 
 - Periodic prediction-market evaluations obey the runner's hourly model-call
   budget. Existing position-management and explicit always-on exemptions remain;
@@ -221,4 +226,22 @@ JavaScript files in each image match the archive; health and public MCP reads
 passed. Both prior images are retained for rollback. Production credentials
 were not rotated. The official MCP Registry lists the same version, verified
 after [its release workflow](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/34977695186).
+SDK runtime versions remain TypeScript 0.3.1 and Python 1.8.1.
+
+**0.7.11 delivery was verified on 15 September 2026.** The npm and
+[GitHub release](https://github.com/CoinRithm/coinrithm-agent-trading/releases/tag/mcp-trading-v0.7.11)
+archives match the exact artifact tested in compatibility CI. A clean registry
+installation passed startup, engine imports, locking, persistence, 38-tool
+discovery and the compiled reporting-outcome probes. These are controlled checks.
+
+Hosted MCP deployment **2502** and scheduler deployment **2503** finished on
+`7e8ebe8b75ffb328b34316afc5ef01501895b848`. Both images' 52 compiled MCP/runner
+JavaScript files match the archive; their success/error/timeout/exception probes
+passed without provider calls or trades. Public MCP reports 0.7.11 and returns
+market data. Rollback images are retained, and all 58 agent configuration
+fingerprints were unchanged. No opportunity-report events were observed in the
+bounded scheduler-log sample from 14:37:59 to 14:39:54 UTC.
+
+The official MCP Registry lists 0.7.11 as latest, verified after its
+[release workflow](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/34985466551).
 SDK runtime versions remain TypeScript 0.3.1 and Python 1.8.1.

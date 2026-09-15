@@ -22,8 +22,14 @@ Opportunity-report status correction following 0.7.10:
 - Add regressions for resolved 503/422 errors, transport failures and thrown
   exceptions, including unchanged trading results and state in skip/act cycles.
 
-The SDK versions remain 0.3.1 (TypeScript) and 1.8.1 (Python). Publication and
-hosted deployment are tracked separately from this source entry.
+The SDK versions remain 0.3.1 (TypeScript) and 1.8.1 (Python). npm and GitHub
+release downloads match the CI-tested archive; a clean registry installation
+passed startup, persistence and reporting-outcome checks. Hosted MCP deployment
+2502 and scheduler deployment 2503 finished on
+`7e8ebe8b75ffb328b34316afc5ef01501895b848`, with all 52 compiled MCP/runner
+JavaScript files in each image matching the archive and rollback images retained.
+The official MCP Registry lists 0.7.11 as latest. See the
+[release and checksum](https://github.com/CoinRithm/coinrithm-agent-trading/releases/tag/mcp-trading-v0.7.11).
 
 ## 0.7.10 — 2026-09-15
 
@@ -50,7 +56,8 @@ Delivery was verified separately from source/CI: npm and GitHub release
 downloads match the CI-tested archive; a clean registry installation passed
 the package and restart checks. Hosted MCP deployment 2499 and scheduler
 deployment 2501 finished on `9dc6e6ed470b47222d97e370fc04427fc83e0a92`, with
-rollback images retained. The official MCP Registry lists 0.7.10 as latest.
+rollback images retained. The official MCP Registry listed 0.7.10 as latest
+at that release.
 See the [release and checksum](https://github.com/CoinRithm/coinrithm-agent-trading/releases/tag/mcp-trading-v0.7.10).
 
 ## 2026-09-15 — Runner reliability and SDK verification
