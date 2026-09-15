@@ -8,9 +8,9 @@ Each package has its own version; the API contract is versioned separately.
 [TypeScript history](packages/sdk/CHANGELOG.md) ·
 [Python release notes](packages/sdk-python/README.md)
 
-## 0.7.10 — Unreleased
+## 0.7.10 — 2026-09-15
 
-Prepared follow-up to the published 0.7.9 release. The TypeScript SDK remains
+Published follow-up to the 0.7.9 release. The TypeScript SDK remains
 0.3.1 and Python remains 1.8.1; their runtime source is unchanged.
 
 - Persist file-backed run identity before execution so a first-cycle process
@@ -29,8 +29,12 @@ Prepared follow-up to the published 0.7.9 release. The TypeScript SDK remains
 - Pin workflow actions and verify release-tool checksums. Add installed-package
   compatibility and restart smoke checks across operating systems and runtimes.
 
-Source/CI checks, registry publication and production deployment are separate.
-This entry does not claim that 0.7.10 is published or deployed.
+Delivery was verified separately from source/CI: npm and GitHub release
+downloads match the CI-tested archive; a clean registry installation passed
+the package and restart checks. Hosted MCP deployment 2499 and scheduler
+deployment 2501 finished on `9dc6e6ed470b47222d97e370fc04427fc83e0a92`, with
+rollback images retained. The official MCP Registry lists 0.7.10 as latest.
+See the [release and checksum](https://github.com/CoinRithm/coinrithm-agent-trading/releases/tag/mcp-trading-v0.7.10).
 
 ## 2026-09-15 — Runner reliability and SDK verification
 
