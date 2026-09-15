@@ -117,9 +117,9 @@ info:
 
     ## Versions and compatibility
 
-    **1.7.0 is the API contract version**, independent of MCP and SDK package
-    versions. The paths documented here form contract **v1** and remain under
-    `/api/...`; do not add a `/v1` prefix.
+    **`info.version` (1.7.0) identifies the API contract**, independent of MCP
+    and SDK package versions. The paths documented here form contract **v1**
+    and remain under `/api/...`; do not add a `/v1` prefix.
 
     Within v1, documented fields retain their names, types and meanings. New
     fields and endpoints may be added, so preserve or tolerate unknown response
