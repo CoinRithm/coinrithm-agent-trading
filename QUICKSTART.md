@@ -49,7 +49,7 @@ URL:    https://mcp.coinrithm.com/mcp
 Header: Authorization: Bearer crk_live_your_key
 ```
 
-The hosted server forwards *your* key to CoinRithm on every request. Use this
+The hosted server forwards _your_ key to CoinRithm on every request. Use this
 with any MCP client that supports a remote (Streamable HTTP) server.
 
 ### Secondary — local server (Claude Desktop / Cursor / Codex)
@@ -63,10 +63,11 @@ npx -y @coinrithm/mcp-trading
 …with your key in the config as `COINRITHM_API_KEY`. See **Client setup** below
 for exact files.
 
-### ChatGPT / Codex & Gemini (OpenAPI)
+### Choose your client's setup
 
-- **ChatGPT (Actions) / Codex:** import [`openapi.yaml`](./openapi.yaml), set
-  Authentication = **API Key → Bearer**, paste the key.
+- **Codex:** use the [remote or local MCP configuration](./examples/codex.md).
+- **ChatGPT Custom GPT Actions:** follow the
+  [OpenAPI and Bearer authentication guide](./examples/chatgpt-action-setup.md).
 - **Gemini:** pass `Authorization: Bearer …` on the tool, or point Gemini at the
   MCP server via [`examples/gemini-mcp.py`](./examples/gemini-mcp.py).
 
@@ -98,7 +99,7 @@ Happy with what it reads? Now allow trading:
 3. Ask it to **quote first and confirm before placing**:
 
 > "Get a **futures quote** for BTC long, 5x leverage, 100 mUSD margin. If it looks
-> fine, show me the numbers and *ask me before opening anything.*"
+> fine, show me the numbers and _ask me before opening anything._"
 
 A well-configured agent will:
 
@@ -157,12 +158,16 @@ touching the others.
 
 ## Client setup
 
-### Claude Desktop / Cursor / Codex (local server)
+### Claude Desktop / Cursor (local server)
 
 Copy [`examples/claude_desktop_config.json`](./examples/claude_desktop_config.json)
 into your client's MCP config, fill in your key (`COINRITHM_API_KEY`), restart.
-The same stdio server (`npx -y @coinrithm/mcp-trading`) works for Cursor and
-Codex MCP configs.
+The same stdio server (`npx -y @coinrithm/mcp-trading`) works for Cursor.
+
+### Codex (remote or local MCP)
+
+Use [`examples/codex.md`](./examples/codex.md) for the TOML configuration.
+Keep the API key in an environment variable available to Codex.
 
 ### Claude Code
 
@@ -171,12 +176,12 @@ Run the `claude mcp add` command in
 playbook + risk rules, also install the skill in
 [`skills/coinrithm-trader/`](./skills/coinrithm-trader).
 
-### ChatGPT / Codex (Custom GPT Actions)
+### ChatGPT (Custom GPT Actions)
 
 Follow [`examples/chatgpt-action-setup.md`](./examples/chatgpt-action-setup.md):
-create a GPT, **Add action**, import `openapi.yaml`, set Bearer auth, paste your
-key, and use [`prompts/chatgpt-gpt-instructions.md`](./prompts/chatgpt-gpt-instructions.md)
-as the GPT instructions.
+create a private GPT, configure an Action with the operations you need and
+Bearer auth, and use [`prompts/chatgpt-gpt-instructions.md`](./prompts/chatgpt-gpt-instructions.md)
+as the GPT instructions. Verify schema acceptance and `whoami` in the editor.
 
 ### Gemini
 
@@ -203,7 +208,7 @@ discovered movers included). Details:
 
 ## Sanity check
 
-Once configured, ask: *"Call whoami on CoinRithm."* You should get back your
+Once configured, ask: _"Call whoami on CoinRithm."_ You should get back your
 `userId`, `keyId`, and the `scopes` on the key. `401 Missing or malformed API
 key` → the key is wrong or truncated; `403` → the key lacks the scope for the
 action you tried.

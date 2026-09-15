@@ -29,8 +29,16 @@ jobs:
           npm run generate
           git diff --exit-code -- src/schema.ts
           npm run typecheck
+          npm run test:coverage
           npm run build
           npm pack --dry-run
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: typescript-sdk-coverage
+          path: packages/sdk/coverage
+          if-no-files-found: error
 
   # The published PyPI SDK: deterministic Python 3.12 environment, generated
   # client behavior, and installable artifacts. uv.lock is committed.
@@ -67,6 +75,13 @@ jobs:
           uv run --isolated --no-project --with ./dist/coinrithm_sdk-*.whl \
             python -c "from coinrithm_sdk import Client; assert Client(base_url='https://api.coinrithm.com')"
 
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: python-sdk-coverage
+          path: packages/sdk-python/coverage
+          if-no-files-found: error
+
   # The published npm package: MCP server + agent runner (both live here).
   mcp-trading:
     runs-on: ubuntu-latest
@@ -100,16 +115,40 @@ jobs:
         working-directory: packages/mcp-trading
         run: |
           npm ci
+          npm audit --audit-level=high
           npm run lint
           npm run format:check
           npm run typecheck
-          npm test
+          npm run test:coverage
           npm run build
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mcp-trading-coverage
+          path: packages/mcp-trading/coverage
+          if-no-files-found: error
 
   # The hosted agent scheduler. Depends on @coinrithm/mcp-trading's built dist,
   # so build that first.
   scheduler:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: local-ci-only
+          POSTGRES_DB: capacity_admission_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d capacity_admission_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      CAPACITY_TEST_DATABASE_URL: postgresql://postgres:local-ci-only@127.0.0.1:5432/capacity_admission_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -128,11 +167,19 @@ jobs:
         working-directory: packages/scheduler
         run: |
           npm ci
+          npm audit --audit-level=high
           npm run lint
           npm run format:check
           npm run typecheck
-          npm test
+          npm run test:coverage
           npm run build
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scheduler-coverage
+          path: packages/scheduler/coverage
+          if-no-files-found: error
 
   # The agent contract: the OpenAPI spec must be Redocly-clean (ZERO errors) and
   # the example bundles must parse.

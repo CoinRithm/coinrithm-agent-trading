@@ -4,6 +4,7 @@
 // execution — the model only proposes; the runner disposes.
 
 import { AgentSpec, ProviderName } from "./types.js";
+import { retryAfterSeconds } from "../retryAfter.js";
 import {
   chatShapeFor,
   buildChatBody,
@@ -181,16 +182,10 @@ function safeProviderError(text: string, apiKey: string): string {
 // one hour — a provider asking for more is treated as "an hour, then re-probe".
 const RETRY_AFTER_CAP_MS = 3_600_000;
 function retryAfterMs(res: Response): number | undefined {
-  const raw = res.headers.get("retry-after");
-  if (!raw) return undefined;
-  const secs = Number(raw);
-  if (Number.isFinite(secs) && secs >= 0) {
-    return Math.min(Math.round(secs * 1000), RETRY_AFTER_CAP_MS);
-  }
-  const at = Date.parse(raw);
-  if (!Number.isFinite(at)) return undefined;
-  const ms = at - Date.now();
-  return ms > 0 ? Math.min(ms, RETRY_AFTER_CAP_MS) : 0;
+  const seconds = retryAfterSeconds(res.headers.get("retry-after"));
+  return seconds === undefined
+    ? undefined
+    : Math.min(Math.round(seconds * 1000), RETRY_AFTER_CAP_MS);
 }
 
 function envKey(provider: ProviderName, env: ProviderEnv): string | undefined {

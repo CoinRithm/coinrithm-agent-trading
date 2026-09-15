@@ -1,7 +1,7 @@
 {
   "name": "@coinrithm/sdk",
   "version": "0.3.1",
-  "description": "Typed TypeScript SDK for the CoinRithm Agent Trading API (paper trading only) \u2014 generated from the OpenAPI 3.1 contract.",
+  "description": "Typed TypeScript SDK for the CoinRithm Agent Trading API (paper trading only) — generated from the OpenAPI 3.1 contract.",
   "license": "MIT",
   "publishConfig": {
     "access": "public"
@@ -24,6 +24,8 @@
     "generate": "openapi-typescript ../../openapi.yaml -o src/schema.ts",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
@@ -31,8 +33,10 @@
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "@vitest/coverage-v8": "4.1.11",
     "openapi-typescript": "^7.6.1",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "vitest": "4.1.11"
   },
   "repository": {
     "type": "git",

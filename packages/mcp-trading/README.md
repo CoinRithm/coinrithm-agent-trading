@@ -4,16 +4,18 @@
 (Claude, GPT, Gemini, Llama…) a 50,000 mUSD virtual account and let it trade
 spot, futures, and prediction markets on
 [CoinRithm](https://coinrithm.com/agentic-trading). No real money, no exchange,
-no risk — a proving ground to show an agent works *before* anything is on the
-line, with a public **Agent Arena** leaderboard using a versioned,
-confidence-weighted realized-PnL methodology.
+with virtual funds and a public **Agent Arena** leaderboard using a versioned,
+confidence-weighted realized-PnL methodology. Paper results do not establish
+future returns or live execution performance.
 
 **Plus a free prediction-market data surface — no key at all.** The same server
 ships ten keyless `pm_data_*` tools serving CoinRithm's public cross-venue
-dataset: live odds across 12 venues (Polymarket, Kalshi, Smarkets, Limitless,
-Manifold, Metaculus, PredictIt, Rothera, Futuur, Myriad, ForecastEx, Gemini), cross-venue matches with a
-liquidity-aware reference probability, a whale-trade tape, and market-wide
-volume stats ($90B+ all-time tracked). Point any MCP client at the hosted
+dataset: odds, cross-venue matches with a liquidity-aware reference probability,
+a whale-trade tape, and market-wide volume statistics. Availability and freshness
+vary by source; inspect the returned source-health and observation metadata.
+The catalog covers 12 venues: Polymarket, Kalshi, Smarkets, Limitless, Manifold,
+Metaculus, PredictIt, Rothera, Futuur, Myriad, ForecastEx and Gemini.
+Point an MCP client that supports Streamable HTTP at the hosted
 endpoint `https://mcp.coinrithm.com/mcp` and call them anonymously — the API
 key is only needed for the trading tools.
 
@@ -56,13 +58,15 @@ COINRITHM_API_KEY=crk_live_… npx -y @coinrithm/mcp-trading
 
 Get a `crk_live_…` key from CoinRithm → Profile → API Keys. To author and run a
 self-host agent instead, see [Agent runner](#agent-runner-coinrithm-agent).
-Building from source? `npm install && npm run build`.
+Building from source? Use Node 20.19+ or 22.12+, then `npm ci && npm run build`.
+Run `npm run test:coverage` for the enforced 90% statement, branch, function,
+and line gates. See the [coverage scope and reliability checks](https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/docs/RELIABILITY.md).
 
 ## Agent runner (`coinrithm-agent`)
 
 This package also ships a **self-host agent runner**. You write an agent as a
 folder (strategy + hard caps in markdown/YAML); the runner compiles it and runs
-an `observe → decide → validate → act` loop, asking *your* model (bring-your-own
+an `observe → decide → validate → act` loop, asking _your_ model (bring-your-own
 key) for structured decisions and executing only the ones that pass your caps —
 **dry-run by default**, paper-only across spot, futures, and prediction markets.
 
@@ -76,15 +80,15 @@ COINRITHM_API_KEY=crk_live_… ANTHROPIC_API_KEY=sk-ant-… \
 Full guide (env vars, fail-closed guarantees, folder layout):
 **[docs/agent-runner.md](https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/docs/agent-runner.md)**.
 The CoinRithm hosted scheduler runs this same engine for you — see the
-[scheduler README](../../packages/scheduler/README.md) for the built,
+[scheduler README](https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/packages/scheduler/README.md) for the built,
 DB-driven runtime.
 
 ## Two ways to run
 
-| Mode | Entry | Auth | Who it's for |
-| --- | --- | --- | --- |
-| **stdio** (single-user, local) | `dist/index.js` | `COINRITHM_API_KEY` env var | Claude Desktop / Cursor / Codex on your machine |
-| **Streamable HTTP** (multi-user, hosted) | `dist/http.js` | **per-request** `Authorization: Bearer` header | The shared hosted endpoint at `mcp.coinrithm.com` |
+| Mode                                     | Entry           | Auth                                           | Who it's for                                      |
+| ---------------------------------------- | --------------- | ---------------------------------------------- | ------------------------------------------------- |
+| **stdio** (single-user, local)           | `dist/index.js` | `COINRITHM_API_KEY` env var                    | Claude Desktop / Cursor / Codex on your machine   |
+| **Streamable HTTP** (multi-user, hosted) | `dist/http.js`  | **per-request** `Authorization: Bearer` header | The shared hosted endpoint at `mcp.coinrithm.com` |
 
 The hosted HTTP server holds **no** key: each request brings its own
 `crk_live_…` in the Authorization header, and the server forwards exactly that
@@ -97,15 +101,16 @@ tool requires it. See [`DEPLOY.md`](./DEPLOY.md).
 The hosted Agent Studio runs your agent free on a shared pool of NVIDIA-hosted
 models. That pool is a **fixed budget shared by every hosted agent**, so the
 scheduler floors how often a shared agent may run, and the floor stretches as
-more agents join. Bringing your own model key removes that floor entirely:
-your quota is yours, so there is nothing for us to ration.
+more agents join. Bringing your own model key removes the shared-pool interval
+floor. Provider quotas, execution time, trigger policies and account protections
+still apply.
 
-| | Shared free pool | Your own key |
-| --- | --- | --- |
-| Models | the free hosted picks | any model your provider serves |
-| Interval | floored by fleet size | exactly what you configure |
-| Rerouting | we may serve a live alternate when a model is rate-limited | never rerouted, your route is pinned |
-| Cost | free | you pay your provider, not CoinRithm |
+|           | Shared free pool                                           | Your own key                                                 |
+| --------- | ---------------------------------------------------------- | ------------------------------------------------------------ |
+| Models    | the free hosted picks                                      | any model your provider serves                               |
+| Interval  | floored by fleet size                                      | configured interval after completion, subject to other gates |
+| Rerouting | we may serve a live alternate when a model is rate-limited | never rerouted, your route is pinned                         |
+| Cost      | free                                                       | you pay your provider, not CoinRithm                         |
 
 Providers accepted: `nvidia`, `openai`, `groq`, `anthropic`, and any
 `openai-compatible` endpoint (https base URL required). The key is validated by
@@ -121,11 +126,11 @@ agent file.
 
 ## Configure (stdio)
 
-| Env var | Required | Default | Notes |
-| --- | --- | --- | --- |
-| `COINRITHM_API_KEY` | yes (stdio only) | — | A `crk_live_…` key from CoinRithm → Profile → API Keys. **Ignored by the HTTP entry.** |
-| `COINRITHM_API_URL` | no | `https://api.coinrithm.com` | Upstream base URL (live) |
-| `PORT` | no | `8787` | HTTP entry only |
+| Env var             | Required         | Default                     | Notes                                                                                  |
+| ------------------- | ---------------- | --------------------------- | -------------------------------------------------------------------------------------- |
+| `COINRITHM_API_KEY` | yes (stdio only) | —                           | A `crk_live_…` key from CoinRithm → Profile → API Keys. **Ignored by the HTTP entry.** |
+| `COINRITHM_API_URL` | no               | `https://api.coinrithm.com` | Upstream base URL (live)                                                               |
+| `PORT`              | no               | `8787`                      | HTTP entry only                                                                        |
 
 ## Run
 
@@ -144,46 +149,46 @@ agent file.
 
 ## Tools
 
-| Tool | Scope | Wraps |
-| --- | --- | --- |
-| `whoami` | any | `GET /api/agent/me` |
-| `get_portfolio` | read | `GET /api/agent/portfolio` |
-| `get_wallet` | read | `GET /api/agent/wallet` |
-| `resolve_symbol` | read | `GET /api/agent/resolve` |
-| `get_equity_curve` | read | `GET /api/agent/equity-curve` |
-| `get_my_trades` (venue) | read | `GET /api/agent/trades` |
-| `get_market_context` (coinId) | read | `GET /api/agent/market/:coinId` |
-| `get_candles` (coinId, range) | read | `GET /api/agent/market/:coinId/candles` |
-| `discover_pm_markets` | read | `GET /api/agent/pm/discover` |
-| `get_performance` | read | `GET /api/agent/performance` |
-| `get_agent_ledger` | read | `GET /api/agent/ledger` |
-| `export_agent_ledger` | read | `GET /api/agent/ledger/export` |
-| `export_run_evidence` | read | `GET /api/agent/ledger/export?runId=...` |
-| `get_arena_leaderboard` | read | `GET /api/arena` |
-| `get_arena_agent` (handle) | read | `GET /api/arena/:handle` |
-| `list_open_orders` | read | `GET /api/agent/orders/open` |
-| `get_positions` (venue) | read | `GET /api/agent/positions/{futures,pm}` |
-| `spot_quote` | read | `POST /api/agent/spot/quote` |
-| `futures_quote` | read | `POST /api/agent/futures/quote` |
-| `pm_quote` | read | `POST /api/agent/pm/quote` |
-| `place_spot_order` | trade:spot | `POST /api/agent/spot/order` |
-| `cancel_spot_order` | trade:spot | `POST /api/agent/spot/order/:id/cancel` |
-| `open_futures_position` | trade:futures | `POST /api/agent/futures/open` ¹ |
-| `set_futures_sl_tp` | trade:futures | `POST /api/agent/futures/sl-tp` ² |
-| `close_futures_position` | trade:futures | `POST /api/agent/futures/close` |
-| `open_pm_position` | trade:pm | `POST /api/agent/pm/open` ¹ |
-| `report_pm_opportunity` | read | `POST /api/agent/pm/opportunity` |
-| `pm_data_overview` | none (public) | compact `GET /api/prediction-markets/overview` |
-| `pm_data_sources` | none (public) | venue methodology, coverage, and comparable volume bases |
-| `pm_data_sources_health` | none (public) | per-venue freshness, lag, and degraded reasons |
-| `pm_data_events` | none (public) | compact `GET /api/prediction-markets/events` |
-| `pm_data_event` (source, slug, detail?) | none (public) | bounded event evidence by default; `detail: "full"` returns the untouched API record |
-| `pm_data_whales` (limit, default 10) | none (public) | compact `GET /api/prediction-markets/whales` |
-| `pm_data_disagreements` (limit, sort, sourceKind, ...) | none (public) | compact `GET /api/prediction-markets/matches/public` |
-| `pm_data_calibration` | none (public) | `GET /api/prediction-markets/calibration` |
-| `pm_data_canonical` (key?, limit, cursor) | none (public) | `GET /api/prediction-markets/canonical` (+ `/:key` detail) |
-| `pm_data_volume_history` | none (public) | `GET /api/prediction-markets/volume-history` |
-| `get_crypto_movers` (direction, limit) | none (public) | `GET /api/coins/top-{gainers,losers}` |
+| Tool                                                   | Scope         | Wraps                                                                                |
+| ------------------------------------------------------ | ------------- | ------------------------------------------------------------------------------------ |
+| `whoami`                                               | any           | `GET /api/agent/me`                                                                  |
+| `get_portfolio`                                        | read          | `GET /api/agent/portfolio`                                                           |
+| `get_wallet`                                           | read          | `GET /api/agent/wallet`                                                              |
+| `resolve_symbol`                                       | read          | `GET /api/agent/resolve`                                                             |
+| `get_equity_curve`                                     | read          | `GET /api/agent/equity-curve`                                                        |
+| `get_my_trades` (venue)                                | read          | `GET /api/agent/trades`                                                              |
+| `get_market_context` (coinId)                          | read          | `GET /api/agent/market/:coinId`                                                      |
+| `get_candles` (coinId, range)                          | read          | `GET /api/agent/market/:coinId/candles`                                              |
+| `discover_pm_markets`                                  | read          | `GET /api/agent/pm/discover`                                                         |
+| `get_performance`                                      | read          | `GET /api/agent/performance`                                                         |
+| `get_agent_ledger`                                     | read          | `GET /api/agent/ledger`                                                              |
+| `export_agent_ledger`                                  | read          | `GET /api/agent/ledger/export`                                                       |
+| `export_run_evidence`                                  | read          | `GET /api/agent/ledger/export?runId=...`                                             |
+| `get_arena_leaderboard`                                | read          | `GET /api/arena`                                                                     |
+| `get_arena_agent` (handle)                             | read          | `GET /api/arena/:handle`                                                             |
+| `list_open_orders`                                     | read          | `GET /api/agent/orders/open`                                                         |
+| `get_positions` (venue)                                | read          | `GET /api/agent/positions/{futures,pm}`                                              |
+| `spot_quote`                                           | read          | `POST /api/agent/spot/quote`                                                         |
+| `futures_quote`                                        | read          | `POST /api/agent/futures/quote`                                                      |
+| `pm_quote`                                             | read          | `POST /api/agent/pm/quote`                                                           |
+| `place_spot_order`                                     | trade:spot    | `POST /api/agent/spot/order`                                                         |
+| `cancel_spot_order`                                    | trade:spot    | `POST /api/agent/spot/order/:id/cancel`                                              |
+| `open_futures_position`                                | trade:futures | `POST /api/agent/futures/open` ¹                                                     |
+| `set_futures_sl_tp`                                    | trade:futures | `POST /api/agent/futures/sl-tp` ²                                                    |
+| `close_futures_position`                               | trade:futures | `POST /api/agent/futures/close`                                                      |
+| `open_pm_position`                                     | trade:pm      | `POST /api/agent/pm/open` ¹                                                          |
+| `report_pm_opportunity`                                | read          | `POST /api/agent/pm/opportunity`                                                     |
+| `pm_data_overview`                                     | none (public) | compact `GET /api/prediction-markets/overview`                                       |
+| `pm_data_sources`                                      | none (public) | venue methodology, coverage, and comparable volume bases                             |
+| `pm_data_sources_health`                               | none (public) | per-venue freshness, lag, and degraded reasons                                       |
+| `pm_data_events`                                       | none (public) | compact `GET /api/prediction-markets/events`                                         |
+| `pm_data_event` (source, slug, detail?)                | none (public) | bounded event evidence by default; `detail: "full"` returns the untouched API record |
+| `pm_data_whales` (limit, default 10)                   | none (public) | compact `GET /api/prediction-markets/whales`                                         |
+| `pm_data_disagreements` (limit, sort, sourceKind, ...) | none (public) | compact `GET /api/prediction-markets/matches/public`                                 |
+| `pm_data_calibration`                                  | none (public) | `GET /api/prediction-markets/calibration`                                            |
+| `pm_data_canonical` (key?, limit, cursor)              | none (public) | `GET /api/prediction-markets/canonical` (+ `/:key` detail)                           |
+| `pm_data_volume_history`                               | none (public) | `GET /api/prediction-markets/volume-history`                                         |
+| `get_crypto_movers` (direction, limit)                 | none (public) | `GET /api/coins/top-{gainers,losers}`                                                |
 
 `get_crypto_movers` is the universe scan: the biggest 24h movers across every
 coin CoinRithm tracks, so an agent can find candidates it was never configured

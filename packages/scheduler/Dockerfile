@@ -7,13 +7,13 @@ WORKDIR /app
 # a ready dist (with .d.ts) and doesn't re-trigger its prepare step.
 COPY packages/mcp-trading ./packages/mcp-trading
 WORKDIR /app/packages/mcp-trading
-RUN npm install --no-audit --no-fund && npm run build
+RUN npm ci --no-audit --no-fund && npm run build
 
 WORKDIR /app
 COPY packages/scheduler ./packages/scheduler
 COPY examples ./examples
 WORKDIR /app/packages/scheduler
-RUN npm install --no-audit --no-fund && npm run build
+RUN npm ci --no-audit --no-fund && npm run build
 
 ENV NODE_ENV=production
 # Heartbeat-aware liveness: the endpoint returns 200 only while the poll loop is

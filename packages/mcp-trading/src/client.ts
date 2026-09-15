@@ -18,6 +18,8 @@
 // IMPORTANT: this module must NEVER write to stdout (stdout is the MCP JSON-RPC
 // channel). All diagnostics go to stderr via the logger below.
 
+import { retryAfterSeconds } from "./retryAfter.js";
+
 export const DEFAULT_BASE_URL = "https://api.coinrithm.com";
 
 export function log(...args: unknown[]): void {
@@ -223,12 +225,12 @@ export class CoinRithmClient {
     if (res.status === 429) {
       // Surface the back-off contract so an agent can pace itself instead of
       // hammering: 120 req/min per key baseline, 20 trade-writes/min.
-      const retryAfter = Number(res.headers.get("retry-after"));
+      const retryAfter = retryAfterSeconds(res.headers.get("retry-after"));
       data = {
         ...(typeof data === "object" && data !== null
           ? data
           : { error: String(data) }),
-        retryAfterSeconds: Number.isFinite(retryAfter) ? retryAfter : null,
+        retryAfterSeconds: retryAfter ?? null,
         hint: "Rate limited. Wait retryAfterSeconds (or the Retry-After header) before retrying; pace future calls using the RateLimit-Remaining response header.",
       };
     }

@@ -2,6 +2,10 @@
 
 ## 0.3.1
 
+- Adds offline HTTP contract tests and 90% coverage gates for every runtime
+  coverage metric. Runtime source remains a small wrapper around `openapi-fetch`;
+  generated type declarations have no executable coverage denominator.
+
 - Ships corrected generated documentation for candle `v`: a mean rolling
   24-hour USD quote-volume observation, not volume traded within the candle.
   Do not sum bars or difference successive values as interval turnover.

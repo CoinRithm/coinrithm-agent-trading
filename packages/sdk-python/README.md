@@ -18,6 +18,8 @@ Do not sum it across bars or difference bars as interval turnover. API contract
 1.7.0 and runtime behavior are unchanged. Prediction-market outcome names are
 display labels that may be enriched; retain source/event/outcome identifiers
 rather than treating matching names as identity.
+This release also adds offline serialization and HTTP contract tests covering
+the generated package, with branch coverage and a 90% CI gate.
 
 ## 1.8.0 release notes
 
@@ -74,7 +76,7 @@ with AuthenticatedClient(
     print(me)
 ```
 
-Every endpoint module offers four call styles:
+JSON endpoint modules with parsed responses offer four call styles:
 
 1. `sync` — blocking, returns the parsed model (or `None`)
 2. `sync_detailed` — blocking, returns a `Response` with `status_code`,
@@ -92,14 +94,14 @@ events = await search_public_prediction_market_events.asyncio(
 
 ## Endpoint groups
 
-| Module | What it covers |
-| --- | --- |
-| `api.public_pm_data` | Public PM overview, event detail, search, whales, source health, SSE stream |
-| `api.prediction_markets` | Paper PM trading: discover, quote, open/close mock positions |
-| `api.futures` | Paper futures: quote, open/close, stop-loss/take-profit |
-| `api.reads` | Portfolio, open orders, trade history (delta polling with `asOf`) |
-| `api.ledger` | Agent action ledger reads |
-| `api.identity` | `whoami` key introspection |
+| Module                   | What it covers                                                              |
+| ------------------------ | --------------------------------------------------------------------------- |
+| `api.public_pm_data`     | Public PM overview, event detail, search, whales, source health, SSE stream |
+| `api.prediction_markets` | Paper PM trading: discover, quote, open positions and report opportunities  |
+| `api.futures`            | Paper futures: quote, open/close, stop-loss/take-profit                     |
+| `api.reads`              | Portfolio, open orders, trade history (delta polling with `asOf`)           |
+| `api.ledger`             | Agent action ledger reads                                                   |
+| `api.identity`           | `whoami` key introspection                                                  |
 
 ## TLS / certificates
 
@@ -139,7 +141,7 @@ You can also swap in a fully custom `httpx.Client`/`httpx.AsyncClient` via
 
 ## Regenerating
 
-This package is generated from [`openapi.yaml`](../../openapi.yaml) with the
+This package is generated from [openapi.yaml](https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/openapi.yaml) with the
 version of `openapi-python-client` pinned in `uv.lock`:
 
 ```bash
@@ -157,3 +159,27 @@ touch coinrithm_sdk/py.typed
 CI runs the same command and fails if generated code drifts. Keep this
 README's examples pointing at real endpoint modules — never the generator
 placeholders (`api.example.com`, `MyDataModel`) the backbone audit flagged.
+
+## Tests and coverage
+
+Use Python 3.12 and the locked development environment:
+
+```bash
+uv sync --locked
+uv run pytest -q
+```
+
+Pytest measures all generated runtime modules, including branches, and fails
+below 90% combined coverage. Reports are written to `coverage/`; local results
+exceed 90% for both statements and branches. Tests cover optional/null values,
+wire serialization, unknown fields, and synchronous/asynchronous HTTP errors.
+They use offline fixtures; they do not place trades or measure backend coverage.
+[Coverage details](https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/docs/RELIABILITY.md).
+
+## Streaming responses
+
+The public SSE endpoint is long-lived. The generated buffered request methods
+are not an SSE consumer. Use `httpx.Client.stream` or `AsyncClient.stream` for
+`/api/prediction-markets/stream`, parse the named event frames, and reconnect
+after connection loss. See the [TypeScript streaming example](https://github.com/CoinRithm/coinrithm-agent-trading/tree/main/packages/sdk#streaming-server-sent-events)
+for the endpoint's event names and heartbeat behavior.

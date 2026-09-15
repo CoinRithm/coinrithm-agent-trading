@@ -32,6 +32,7 @@ Documentation = "https://coinrithm.github.io/coinrithm-agent-trading/"
 dev = [
     "openapi-python-client==0.29.0; python_version >= '3.11'",
     "pytest>=8.3,<9",
+    "pytest-cov>=6,<8",
 ]
 
 [tool.poetry]
@@ -46,6 +47,13 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.ruff]
 line-length = 120
+
+[tool.pytest.ini_options]
+addopts = "--cov=coinrithm_sdk --cov-branch --cov-report=term:skip-covered --cov-report=json:coverage/coverage.json --cov-report=html:coverage/html --cov-fail-under=90"
+
+[tool.coverage.run]
+source = ["coinrithm_sdk"]
+branch = true
 
 [tool.ruff.lint]
 select = ["F", "I", "UP"]

@@ -7,6 +7,7 @@
 
 import { AgentTrace, ApiResult } from "./types.js";
 import { sleep as realSleep } from "./util.js";
+import { retryAfterSeconds } from "../retryAfter.js";
 
 export const DEFAULT_BASE_URL = "https://api.coinrithm.com";
 
@@ -120,12 +121,10 @@ export class CoinRithmClient {
         };
       }
 
-      const retryAfter = Number(res.headers.get("retry-after"));
+      const retryAfter = retryAfterSeconds(res.headers.get("retry-after"));
       if (res.status === 429) this.rateLimitHits += 1;
       if (res.status === 429 && attempt < this.maxRetries) {
-        await this.sleepFn(
-          (Number.isFinite(retryAfter) ? retryAfter : 5) * 1000,
-        );
+        await this.sleepFn((retryAfter ?? 5) * 1000);
         continue;
       }
 
@@ -142,10 +141,7 @@ export class CoinRithmClient {
         ok: res.ok,
         status: res.status,
         data,
-        retryAfterSeconds:
-          res.status === 429 && Number.isFinite(retryAfter)
-            ? retryAfter
-            : undefined,
+        retryAfterSeconds: res.status === 429 ? retryAfter : undefined,
         rateLimitRemaining:
           Number(res.headers.get("ratelimit-remaining")) || undefined,
         ledgerEventId: res.headers.get("x-coinrithm-ledger-event-id"),

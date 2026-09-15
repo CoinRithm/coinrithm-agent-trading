@@ -3,7 +3,7 @@
 Author and **self-host** a CoinRithm paper-trading agent from a single folder.
 You write the agent's strategy and caps in plain markdown + YAML; the runner
 compiles it, then runs an `observe → decide → validate → act` loop that asks
-*your* model (bring-your-own key) for structured decisions and executes only the
+_your_ model (bring-your-own key) for structured decisions and executes only the
 ones that pass your hard caps — against the CoinRithm **paper** API.
 
 This ships **inside [`@coinrithm/mcp-trading`](https://www.npmjs.com/package/@coinrithm/mcp-trading)**
@@ -23,7 +23,27 @@ negative available cash remains invalid. The private numeric input projection
 also retains nested indicators and context movers. See the
 [package changelog](../packages/mcp-trading/CHANGELOG.md) for the release scope.
 
+The same release fixes missing-header retry delays and replaces state files
+atomically. `eject` now preserves explicit hourly-budget and capital-sizing
+policies. Periodic PM evaluation respects the hourly budget; existing
+position-management and explicit always-on exemptions still apply.
+
+```mermaid
+flowchart LR
+  Read[Observe and sync] --> Gate{Evaluation due and budget available?}
+  Gate -->|No| Skip[Record skip]
+  Gate -->|Yes| Model[Model proposes]
+  Model --> Validate[Validate caps and quotes]
+  Validate --> Act[Execute eligible paper actions]
+  Act --> Save[Persist state and outcome]
+```
+
+Hosted provider admission adds shared request, token, concurrency and cooldown
+checks before a model call. A local admission denial says why the call was
+deferred; it does not establish provider health.
+
 > ## 🧪 Paper trading only — not financial advice
+>
 > Every order this places moves **virtual funds** (50,000 mUSD). Nothing here
 > touches real money, a real exchange, or a brokerage. The runner trades
 > **spot, futures, and prediction markets** (see [Venues](#venues)). You are
@@ -69,25 +89,25 @@ COINRITHM_API_KEY=crk_live_… ANTHROPIC_API_KEY=sk-ant-… \
 
 ## Environment
 
-| Var | Required | What |
-| --- | --- | --- |
-| `COINRITHM_API_KEY` | yes (for `run`) | your `crk_live_…` paper key. Used for reads + paper writes. |
+| Var                                                     | Required        | What                                                                                                           |
+| ------------------------------------------------------- | --------------- | -------------------------------------------------------------------------------------------------------------- |
+| `COINRITHM_API_KEY`                                     | yes (for `run`) | your `crk_live_…` paper key. Used for reads + paper writes.                                                    |
 | `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GROQ_API_KEY` | yes (for `run`) | the model key for the provider named in the agent. **Keys come from the env only — never from an agent file.** |
-| `COINRITHM_API_URL` | no | override the API base URL (defaults to production). |
+| `COINRITHM_API_URL`                                     | no              | override the API base URL (defaults to production).                                                            |
 
 `new` / `validate` / `inspect` / `lock` / `eject` need **no keys** — they only
 touch local files.
 
 ## Commands
 
-| Command | Does |
-| --- | --- |
-| `new <dir> --template momentum-futures --preset conservative\|balanced\|bold` | scaffold a folder-of-one agent |
-| `validate <path> [--hosted\|--self-host]` | compile + check (hosted requires the policy blocks) |
-| `inspect <path> [--json]` | resolved config + provenance + content hashes + validation |
-| `eject <agent.md\|dir>` | explode a folder-of-one into the decomposed folder (same spec) |
-| `lock <path>` | write the frozen `meta/manifest.lock.json` |
-| `run <path> [--once] [--live] [--dry-run] [--state <file>]` | run the loop (dry-run by default) |
+| Command                                                                       | Does                                                           |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `new <dir> --template momentum-futures --preset conservative\|balanced\|bold` | scaffold a folder-of-one agent                                 |
+| `validate <path> [--hosted\|--self-host]`                                     | compile + check (hosted requires the policy blocks)            |
+| `inspect <path> [--json]`                                                     | resolved config + provenance + content hashes + validation     |
+| `eject <agent.md\|dir>`                                                       | explode a folder-of-one into the decomposed folder (same spec) |
+| `lock <path>`                                                                 | write the frozen `meta/manifest.lock.json`                     |
+| `run <path> [--once] [--live] [--dry-run] [--state <file>]`                   | run the loop (dry-run by default)                              |
 
 ## Examples
 
@@ -100,7 +120,7 @@ one to start.
 
 The smallest valid agent is a **single `agent.md`** (frontmatter config + a
 plain-language strategy body). When you want fine-grained control, `eject` it
-into a directory that resolves to the *same* spec:
+into a directory that resolves to the _same_ spec:
 
 ```text
 my-agent/

@@ -7,6 +7,54 @@ const baseEnv = (): NodeJS.ProcessEnv => ({
 });
 
 describe("provider capacity config", () => {
+  it.each([undefined, "", "  "])(
+    "rejects an absent database URL (%s)",
+    (value) => {
+      expect(() => loadConfig({ ...baseEnv(), DATABASE_URL: value })).toThrow(
+        "missing required env DATABASE_URL",
+      );
+    },
+  );
+
+  it("normalizes key pools, private endpoints, optional secrets and integer settings", () => {
+    const cfg = loadConfig({
+      ...baseEnv(),
+      NVIDIA_API_KEYS: " a, b,a, , ",
+      NVIDIA_API_KEY: "ignored",
+      COINRITHM_API_URL: " http://api:4000 ",
+      GROQ_API_KEY: " fixture-groq ",
+      COINRITHM_INTERNAL_WRITE_TOKEN: " fixture-internal ",
+      COINRITHM_OPENAI_BACKUP_KEY: " fixture-backup ",
+      HEALTH_PORT: "9000",
+      SCHEDULER_POLL_MS: "500.9",
+    });
+    expect(cfg.nvidiaApiKeys).toEqual(["a", "b"]);
+    expect(cfg.coinrithmApiUrl).toBe("http://api:4000");
+    expect(cfg.groqApiKey).toBe("fixture-groq");
+    expect(cfg.internalWriteToken).toBe("fixture-internal");
+    expect(cfg.openAiBackupKey).toBe("fixture-backup");
+    expect(cfg.openAiBackupEligible).toBe(false);
+    expect(cfg.healthPort).toBe(9000);
+    expect(cfg.pollIntervalMs).toBe(500);
+    expect(
+      loadConfig({ ...baseEnv(), NVIDIA_API_KEY: " single " }).nvidiaApiKeys,
+    ).toEqual(["single"]);
+  });
+
+  it.each(["NaN", "Infinity", "0", "249"])(
+    "falls back for invalid poll interval %s",
+    (value) => {
+      expect(
+        loadConfig({ ...baseEnv(), SCHEDULER_POLL_MS: value }).pollIntervalMs,
+      ).toBe(5000);
+    },
+  );
+
+  it("rejects a malformed explicit API URL", () => {
+    expect(() =>
+      loadConfig({ ...baseEnv(), COINRITHM_API_URL: "not a url" }),
+    ).toThrow("COINRITHM_API_URL is not a valid URL");
+  });
   it("enables durable routing with rollback flags and conservative shared limits", () => {
     const config = loadConfig(baseEnv());
     expect(config.capacityEnabled).toBe(true);

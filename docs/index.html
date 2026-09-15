@@ -3,25 +3,328 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>CoinRithm Agent Trading API — Reference</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2313654b'/%3E%3Ctext x='32' y='46' text-anchor='middle' font-family='system-ui' font-size='44' fill='white'%3EC%3C/text%3E%3C/svg%3E"
+    />
+    <title>CoinRithm Developers — Guides and API Reference</title>
     <meta
       name="description"
-      content="API reference for CoinRithm's agent paper-trading surface: crypto spot, leveraged mock futures, Kalshi/Polymarket prediction markets, private execution ledger, and reproducible evaluation on one 50,000 virtual-mUSD account. Paper trading only; not financial advice."
+      content="Build with CoinRithm: prediction-market data, typed SDKs, MCP tools and a paper-trading agent runner. Setup guides, reliability checks and interactive API reference."
     />
-    <link rel="canonical" href="https://coinrithm.github.io/coinrithm-agent-trading/" />
+    <link
+      rel="canonical"
+      href="https://coinrithm.github.io/coinrithm-agent-trading/"
+    />
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #142b28;
+        --muted: #4c6460;
+        --accent: #13654b;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        color: var(--ink);
+        background: #fff;
+        font-family:
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          sans-serif;
+      }
+      .intro {
+        background: #f3f7f4;
+        border-bottom: 1px solid #d5e2d9;
+      }
+      .wrap {
+        max-width: 1120px;
+        margin: auto;
+        padding: 28px 28px 40px;
+      }
+      .topbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+      }
+      .brand {
+        color: var(--ink);
+        font-weight: 750;
+        font-size: 21px;
+        letter-spacing: -0.5px;
+        text-decoration: none;
+      }
+      .brand span {
+        color: var(--muted);
+        font-weight: 400;
+        font-size: 15px;
+        letter-spacing: 0;
+        margin-left: 10px;
+      }
+      nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        font-size: 14px;
+      }
+      a {
+        color: var(--accent);
+        text-underline-offset: 3px;
+      }
+      a:hover {
+        text-decoration-thickness: 2px;
+      }
+      a:focus-visible {
+        outline: 3px solid #247553;
+        outline-offset: 5px;
+        border-radius: 2px;
+      }
+      .skip {
+        position: absolute;
+        top: -80px;
+        left: 16px;
+        padding: 12px;
+        background: white;
+        z-index: 10;
+      }
+      .skip:focus {
+        top: 12px;
+      }
+      .eyebrow {
+        margin: 42px 0 12px;
+        color: var(--accent);
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 1.8px;
+        text-transform: uppercase;
+      }
+      h1 {
+        max-width: 700px;
+        margin: 0;
+        font-size: clamp(30px, 4.5vw, 48px);
+        line-height: 1.12;
+        letter-spacing: -1.5px;
+      }
+      .lede {
+        max-width: 690px;
+        margin: 18px 0 28px;
+        color: var(--muted);
+        font-size: 17px;
+        line-height: 1.65;
+      }
+      .guides {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 14px;
+      }
+      .card {
+        display: flex;
+        flex-direction: column;
+        padding: 21px;
+        border: 1px solid #ceded4;
+        border-radius: 12px;
+        background: #fff;
+        text-decoration: none;
+      }
+      .card:hover {
+        border-color: var(--accent);
+        background: #fafdfa;
+      }
+      .card strong {
+        font-size: 17px;
+      }
+      .card p {
+        color: var(--muted);
+        margin: 10px 0 20px;
+        line-height: 1.5;
+        font-size: 14px;
+      }
+      .card span {
+        margin-top: auto;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .note {
+        margin: 24px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.6;
+      }
+      .reference-heading {
+        max-width: 1120px;
+        margin: auto;
+        padding: 26px 28px;
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .reference-heading h2 {
+        font-size: 20px;
+        margin: 0;
+      }
+      .reference-heading p {
+        color: var(--muted);
+        margin: 0;
+        font-size: 13px;
+      }
+      #app {
+        min-height: 300px;
+      }
+      .fallback {
+        margin: 32px;
+        line-height: 1.6;
+      }
+      @media (max-width: 850px) {
+        .guides {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+      @media (max-width: 480px) {
+        .wrap {
+          padding: 22px 20px 28px;
+        }
+        .guides {
+          grid-template-columns: 1fr;
+        }
+        .eyebrow {
+          margin-top: 30px;
+        }
+        .card p {
+          margin-bottom: 14px;
+        }
+      }
+    </style>
   </head>
   <body>
-    <div id="app"></div>
-    <!-- Scalar API Reference, rendered client-side from the repo's openapi.yaml
-         (always reflects main — no build step, no hosting beyond GitHub Pages). -->
-    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+    <a class="skip" href="#reference">Skip to API reference</a>
+    <header class="intro">
+      <div class="wrap">
+        <div class="topbar">
+          <a class="brand" href="https://www.coinrithm.com/en"
+            >CoinRithm <span>Developers</span></a
+          >
+          <nav aria-label="Developer navigation">
+            <a
+              href="https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/QUICKSTART.md"
+              >Quick start</a
+            >
+            <a
+              href="https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/docs/RELIABILITY.md"
+              >Reliability</a
+            >
+            <a href="https://github.com/CoinRithm/coinrithm-agent-trading"
+              >GitHub</a
+            >
+          </nav>
+        </div>
+        <p class="eyebrow">Data. Tools. Paper trading.</p>
+        <h1>Give your agent a market view<br />and a place to practice.</h1>
+        <p class="lede">
+          Explore prediction-market data, connect an MCP client, or build a
+          paper-trading agent with typed SDKs. Start with the integration that
+          fits your workflow.
+        </p>
+        <nav class="guides" aria-label="Integration guides">
+          <a
+            class="card"
+            href="https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/QUICKSTART.md"
+            ><strong>Explore market data</strong>
+            <p>
+              Start with public prediction-market reads. No API key required for
+              the public data tools.
+            </p>
+            <span>Read the quick start →</span></a
+          >
+          <a
+            class="card"
+            href="https://github.com/CoinRithm/coinrithm-agent-trading/tree/main/packages"
+            ><strong>Build with an SDK</strong>
+            <p>
+              Typed TypeScript and Python clients generated from the shared
+              OpenAPI contract.
+            </p>
+            <span>Choose your client →</span></a
+          >
+          <a
+            class="card"
+            href="https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/packages/mcp-trading/README.md"
+            ><strong>Connect MCP tools</strong>
+            <p>
+              Use the hosted HTTP endpoint or run locally with Claude, Cursor or
+              Codex.
+            </p>
+            <span>Configure MCP →</span></a
+          >
+          <a
+            class="card"
+            href="https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/docs/agent-runner.md"
+            ><strong>Run a paper agent</strong>
+            <p>
+              Define a strategy, choose a model and validate decisions against
+              your configured limits.
+            </p>
+            <span>Read the runner guide →</span></a
+          >
+        </nav>
+        <p class="note">
+          Trading uses virtual mUSD only. Market availability and freshness vary
+          by source. Paper results do not establish live execution performance.
+        </p>
+      </div>
+    </header>
+    <main id="reference" tabindex="-1">
+      <div class="reference-heading">
+        <h2>API reference</h2>
+        <p>
+          Current main-branch contract ·
+          <a
+            href="https://raw.githubusercontent.com/CoinRithm/coinrithm-agent-trading/main/openapi.yaml"
+            >OpenAPI YAML</a
+          >
+        </p>
+      </div>
+      <div id="app">
+        <p class="fallback">
+          Loading the interactive reference. You can also
+          <a
+            href="https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/openapi.yaml"
+            >read the contract on GitHub</a
+          >.
+        </p>
+      </div>
+      <noscript
+        ><p class="fallback">
+          JavaScript is required for the interactive reference. The guides and
+          OpenAPI contract remain available through the links above.
+        </p></noscript
+      >
+    </main>
+    <script
+      src="https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.68.0/dist/browser/standalone.js"
+      integrity="sha384-PhSzhE9ihf7z/cKeRSKAeP+oJMMzotyFv0EjvNYgL798a2ODBQVuJLTP4Klle6IB"
+      crossorigin="anonymous"
+    ></script>
     <script>
-      Scalar.createApiReference("#app", {
-        url: "https://raw.githubusercontent.com/CoinRithm/coinrithm-agent-trading/main/openapi.yaml",
-        metaData: {
-          title: "CoinRithm Agent Trading API — Reference",
-        },
-      });
+      if (typeof Scalar !== "undefined") {
+        document.querySelector("#app").replaceChildren();
+        Scalar.createApiReference("#app", {
+          url: "https://raw.githubusercontent.com/CoinRithm/coinrithm-agent-trading/main/openapi.yaml",
+          persistAuth: false,
+          showDeveloperTools: "never",
+          telemetry: false,
+          agent: { disabled: true },
+          showOperationId: true,
+          defaultHttpClient: { targetKey: "shell", clientKey: "curl" },
+          metaData: { title: "CoinRithm Developers — API Reference" },
+        });
+      }
     </script>
   </body>
 </html>

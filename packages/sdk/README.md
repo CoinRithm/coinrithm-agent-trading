@@ -35,17 +35,17 @@ npm install ./packages/sdk
 ## Use
 
 ```ts
-import { createClient } from '@coinrithm/sdk';
+import { createClient } from "@coinrithm/sdk";
 
 const client = createClient({ apiKey: process.env.COINRITHM_API_KEY });
 
 // Fully typed: paths, params and bodies come from the OpenAPI contract.
-const { data, error } = await client.GET('/api/agent/portfolio');
+const { data, error } = await client.GET("/api/agent/portfolio");
 
 // coinId is the UCID as a STRING ("1" = BTC), and spot quotes take a base-coin
 // `quantity`, not a mUSD amount. Both are enforced at compile time.
-const quote = await client.POST('/api/agent/spot/quote', {
-  body: { coinId: '1', side: 'buy', quantity: 0.01 },
+const quote = await client.POST("/api/agent/spot/quote", {
+  body: { coinId: "1", side: "buy", quantity: 0.01 },
 });
 ```
 
@@ -53,7 +53,7 @@ Keyless research surfaces need no key on the same client — e.g. the universe
 scan behind `get_crypto_movers`:
 
 ```ts
-const movers = await client.GET('/api/coins/top-gainers', {
+const movers = await client.GET("/api/coins/top-gainers", {
   params: { query: { limit: 20 } },
 });
 // Rows are a bare array; `ucid` is the coinId every other endpoint takes, and
@@ -76,15 +76,15 @@ instead:
 ```ts
 // Browser — EventSource (the endpoint is keyless):
 const es = new EventSource(
-  'https://api.coinrithm.com/api/prediction-markets/stream',
+  "https://api.coinrithm.com/api/prediction-markets/stream",
 );
-es.addEventListener('deltas', (e) => console.log(JSON.parse(e.data)));
-es.addEventListener('whale', (e) => console.log(JSON.parse(e.data)));
+es.addEventListener("deltas", (e) => console.log(JSON.parse(e.data)));
+es.addEventListener("whale", (e) => console.log(JSON.parse(e.data)));
 
 // Node / typed client — opt out of body buffering with parseAs: 'stream',
 // then read SSE frames off the ReadableStream yourself:
-const { data } = await client.GET('/api/prediction-markets/stream', {
-  parseAs: 'stream',
+const { data } = await client.GET("/api/prediction-markets/stream", {
+  parseAs: "stream",
 });
 // `data` is a ReadableStream<Uint8Array>; decode and split on `\n\n`.
 ```
@@ -102,3 +102,19 @@ npm run smoke      # live-contract check: unauthenticated /api/agent/me -> 401
 
 The API contract version lives in `openapi.yaml` `info.version` and is
 independent of this package's npm version.
+
+## Tests and coverage
+
+With Node.js 20.19+ (22.12+ or a newer supported LTS also works):
+
+```bash
+npm ci
+npm run typecheck
+npm run test:coverage
+```
+
+Offline tests cover authentication isolation, request bodies, idempotency and
+HTTP/transport failures. All runtime source is measured; generated TypeScript
+types have no executable lines. The wrapper currently measures 100% across all
+four metrics, with 90% CI gates. This does not measure the internals of
+`openapi-fetch` or prove production execution. [Full coverage record](https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/docs/RELIABILITY.md).

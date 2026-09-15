@@ -220,6 +220,8 @@ export function ejectFiles(
     sync: fm.sync,
   };
   if (fm.sizing) agentFm.sizing = fm.sizing;
+  if (fm.capitalSizing !== undefined) agentFm.capitalSizing = fm.capitalSizing;
+  if (fm.triggerPolicy !== undefined) agentFm.triggerPolicy = fm.triggerPolicy;
   if (fm.objective) agentFm.objective = fm.objective;
   if (fm.capabilities) agentFm.capabilities = fm.capabilities;
   if (fm.risk) agentFm.risk = { $ref: "character/risk.yaml" };

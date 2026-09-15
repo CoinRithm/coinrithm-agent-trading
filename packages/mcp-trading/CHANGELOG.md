@@ -19,6 +19,24 @@ no provider call and consume no call allowance. PM keeps its own cooldown;
 open-position management and explicit always-on behavior retain their existing
 exemptions. This runner gate is separate from hosted provider-capacity admission.
 
+**Retry-After parsing.** Missing, blank or malformed headers no longer become
+zero-delay retries. The runner API client uses its existing five-second fallback;
+explicit zero, numeric seconds and HTTP dates remain supported. Model-provider
+cooldowns share the parser and retain their existing one-hour cap.
+
+**State persistence.** Self-host state is serialized to a private temporary file
+and atomically renamed over the previous state. A failed serialization or rename
+leaves the prior state intact. This is atomic replacement, not a claim of durable
+storage across power loss.
+
+**Agent conversion.** `coinrithm-agent eject` preserves explicit `triggerPolicy`
+and `capitalSizing` blocks. Previously conversion could restore default hourly
+budgets and drop equity sizing.
+
+**Release verification.** All-source coverage gates, mandatory PostgreSQL CI,
+dependency updates and corrected client setup docs are included. See the
+[reliability record](https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/docs/RELIABILITY.md).
+
 **Confirmed-action journal.** Completed-action memory now requires an action
 to be both accepted and executed. Failed writes and uncertain transport results
 retain their attempt evidence without becoming completed moves in the next

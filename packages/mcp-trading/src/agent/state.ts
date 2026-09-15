@@ -1,7 +1,15 @@
 // Local run state: the cursor, dedupe set, daily counters, and the kill-switch
 // inputs. Persisted to a JSON file so a re-run resumes where it left off.
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import {
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  existsSync,
+  renameSync,
+  rmSync,
+} from "node:fs";
+import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
 import { RunState, AgentSpec } from "./types.js";
 import { dayKey } from "./util.js";
@@ -66,8 +74,21 @@ export function loadState(file: string | undefined, runId: string): RunState {
 
 export function saveState(file: string | undefined, state: RunState): void {
   if (!file) return;
+  const serialized = JSON.stringify(state, null, 2);
   mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, JSON.stringify(state, null, 2), "utf8");
+  // A sibling file keeps rename on the same filesystem. Readers see either
+  // the previous complete state or the new one, never a truncated JSON write.
+  const temporary = `${file}.${randomUUID()}.tmp`;
+  try {
+    writeFileSync(temporary, serialized, {
+      encoding: "utf8",
+      flag: "wx",
+      mode: 0o600,
+    });
+    renameSync(temporary, file);
+  } finally {
+    rmSync(temporary, { force: true });
+  }
 }
 
 export function rollDay(state: RunState): RunState {

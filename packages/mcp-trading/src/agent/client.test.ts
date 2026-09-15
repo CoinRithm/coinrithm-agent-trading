@@ -7,6 +7,80 @@ function responder(responses: Response[]) {
 }
 
 describe("CoinRithmClient", () => {
+  it.each([null, "", "nonsense", "-1"])(
+    "backs off five seconds for missing/invalid Retry-After: %s",
+    async (header) => {
+      const fetchFn = vi.fn(
+        async () =>
+          new Response("limited", {
+            status: 429,
+            headers: header == null ? {} : { "retry-after": header },
+          }),
+      );
+      const sleepFn = vi.fn(async () => {});
+      const c = new CoinRithmClient({
+        apiKey: "fixture",
+        fetchFn,
+        sleepFn,
+        maxRetries: 2,
+      });
+      const result = await c.me();
+      expect(fetchFn).toHaveBeenCalledTimes(3);
+      expect(sleepFn.mock.calls).toEqual([[5000], [5000]]);
+      expect(result).toMatchObject({
+        ok: false,
+        status: 429,
+        retryAfterSeconds: undefined,
+      });
+      expect(c.rateLimitHits).toBe(3);
+    },
+  );
+
+  it("honors an HTTP-date delay while preserving one write's idempotency key", async () => {
+    const now = Date.parse("Tue, 15 Sep 2026 00:00:00 GMT");
+    const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+    try {
+      const fetchFn = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(
+          new Response("limited", {
+            status: 429,
+            headers: { "retry-after": "Tue, 15 Sep 2026 00:00:10 GMT" },
+          }),
+        )
+        .mockResolvedValueOnce(new Response('{"position":{"id":1}}'));
+      const sleepFn = vi.fn(async () => {});
+      const c = new CoinRithmClient({ apiKey: "fixture", fetchFn, sleepFn });
+      await c.closeFutures({
+        positionId: 1,
+        fraction: 1,
+        idempotencyKey: "fixture-intent",
+      });
+      expect(sleepFn).toHaveBeenCalledWith(10_000);
+      expect(fetchFn.mock.calls[0][1]?.body).toBe(
+        fetchFn.mock.calls[1][1]?.body,
+      );
+      expect(
+        JSON.parse(String(fetchFn.mock.calls[1][1]?.body)).idempotencyKey,
+      ).toBe("fixture-intent");
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  it.each([new Error("fixture network error"), "fixture network error"])(
+    "does not retry an uncertain transport failure",
+    async (error) => {
+      const fetchFn = vi.fn<typeof fetch>().mockRejectedValue(error);
+      const c = new CoinRithmClient({ apiKey: "fixture", fetchFn });
+      expect(await c.me()).toMatchObject({
+        status: 0,
+        data: { error: "network_error", message: "fixture network error" },
+      });
+      expect(fetchFn).toHaveBeenCalledOnce();
+      expect(isFailClosed(200)).toBe(false);
+    },
+  );
   it("backs off on 429 (Retry-After) then succeeds", async () => {
     const fetchFn = responder([
       new Response("rate limited", {

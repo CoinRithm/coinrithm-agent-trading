@@ -30,11 +30,11 @@ the `Authorization` header. There is no shared default API key.
 
 ## Environment
 
-| Var | Value | Required | Notes |
-| --- | --- | --- | --- |
-| `PORT` | `8787` | no (default `8787`) | Port the HTTP server listens on; Coolify routes the domain here. |
+| Var                 | Value                                           | Required                                          | Notes                                                                                                                                        |
+| ------------------- | ----------------------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PORT`              | `8787`                                          | no (default `8787`)                               | Port the HTTP server listens on; Coolify routes the domain here.                                                                             |
 | `COINRITHM_API_URL` | `http://api:4000` on our shared Coolify network | no (external default `https://api.coinrithm.com`) | Our hosted service calls the API internally, without exiting through Cloudflare. External/self-hosted clients keep the public HTTPS default. |
-| `COINRITHM_API_KEY` | — | **no** | **Do NOT set.** Ignored by the HTTP entry; keys arrive per request. |
+| `COINRITHM_API_KEY` | —                                               | **no**                                            | **Do NOT set.** Ignored by the HTTP entry; keys arrive per request.                                                                          |
 
 ## Build the image
 
@@ -197,7 +197,8 @@ are four different states. Do not claim one merely because another succeeded.
 
 **Current release hold (rechecked 2026-09-15):** source-tree version 0.7.9 is prepared but
 unpublished; npm's latest verified release is 0.7.8. The existing npm login
-returns `E401` from `npm whoami`. Until publishing authority is restored, do
+returned `E401` at the previous authentication check. Publication is reserved
+for the release operator; authenticate in that operator's session. Until then, do
 not publish npm, push a release tag, or dispatch the registry workflow. Keep
 the README/changelog publication status explicit even if a hosted-only deploy
 is separately authorized.
@@ -210,11 +211,11 @@ is separately authorized.
 
 ```bash
 cd packages/mcp-trading
-npm run format
 npm run format:check
-npm run lint:fix
+npm run lint
 npm run typecheck
-npm test
+npm audit --audit-level=high
+npm run test:coverage
 npm run build
 npm pack --dry-run --json
 # Expect compiled dist/*.js + declarations (including dist/agent/*), both

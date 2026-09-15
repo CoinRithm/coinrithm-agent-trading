@@ -909,3 +909,144 @@ describe("validateAction", () => {
     ).toBe("below_min_confidence");
   });
 });
+
+describe("preflight rejection boundaries across venues", () => {
+  const pm: ProposedAction = {
+    type: "pm_open",
+    source: "kalshi",
+    slug: "fixture",
+    outcomeExternalMarketId: "yes",
+    stakeMusd: 20,
+    confidence: 0.8,
+  };
+  const spot: ProposedAction = {
+    type: "spot_order",
+    symbol: "BTC",
+    side: "buy",
+    orderType: "market",
+    quantity: 0.0001,
+    confidence: 0.8,
+  };
+  const observed = {
+    ...observation,
+    pmMarkets: [
+      { source: "kalshi", slug: "fixture", outcomeExternalMarketId: "yes" },
+    ],
+  };
+  const context = (over: Partial<DecisionContext> = {}) =>
+    ctx({
+      spec: allSpec,
+      observation: observed,
+      quote: { ...freshQuote, executionPrice: 67000 },
+      ...over,
+    });
+
+  for (const action of [
+    goodOpen,
+    { ...spot, side: "sell" } as ProposedAction,
+    pm,
+  ]) {
+    it.each([
+      [undefined, "missing_quote"],
+      [{ eligible: false }, "quote_ineligible"],
+      [{ eligible: false, blockReasons: ["fixture"] }, "quote_ineligible"],
+      [{ eligible: true }, "stale_quote"],
+      [{ eligible: true, freshness: { status: "stale" } }, "stale_quote"],
+    ] as const)(`${action.type} rejects quote %j`, (quote, code) => {
+      expect(validateAction(action, context()).valid).toBe(true);
+      expect(
+        validateAction(
+          action,
+          context({ quote: quote as QuoteEvidence | undefined }),
+        ).code,
+      ).toBe(code);
+    });
+  }
+  for (const action of [spot, pm]) {
+    it(`${action.type} blocks new risk after the realized-loss cap`, () => {
+      expect(
+        validateAction(
+          action,
+          context({ realizedLossTodayMusd: allSpec.limits.maxDailyLossMusd }),
+        ).code,
+      ).toBe("daily_loss_cap");
+    });
+    it.each([undefined, 0.1])(
+      `${action.type} fails low or absent confidence %s`,
+      (confidence) => {
+        expect(validateAction({ ...action, confidence }, context()).code).toBe(
+          "below_min_confidence",
+        );
+      },
+    );
+  }
+  it("rejects an unaffordable PM stake even when the per-ticket cap allows it", () => {
+    expect(validateAction(pm, context({ cashAvailableMusd: 10 })).code).toBe(
+      "insufficient_balance",
+    );
+  });
+  it.each([goodOpen, spot])("rejects unresolved %s symbols", (action) => {
+    expect(
+      validateAction(
+        action,
+        context({
+          observation: {
+            ...observed,
+            watch: [{ symbol: "BTC", coinId: null }],
+          },
+        }),
+      ).code,
+    ).toBe("unresolved_symbol");
+  });
+  it("rejects unknown spot symbols, unknown positions and duplicate cancellations", () => {
+    expect(validateAction({ ...spot, symbol: "UNKNOWN" }, context()).code).toBe(
+      "unknown_symbol",
+    );
+    expect(
+      validateAction({ type: "futures_close", positionId: 999 }, context())
+        .code,
+    ).toBe("unknown_position");
+    expect(
+      validateAction(
+        { type: "spot_cancel", orderId: 7 },
+        context({
+          observation: { ...observed, openOrders: [{ id: 7, status: "open" }] },
+          targetedOrderIds: [7],
+        }),
+      ).code,
+    ).toBe("order_already_targeted");
+  });
+  it("retains the server leverage ceiling even when persisted user caps are malformed", () => {
+    expect(
+      validateAction(
+        { ...goodOpen, leverage: 21 },
+        context({
+          spec: { ...allSpec, risk: { ...allSpec.risk, maxLeverage: 30 } },
+        }),
+      ).code,
+    ).toBe("leverage_exceeds_server");
+  });
+  it("rejects short stops below entry", () => {
+    expect(
+      validateAction(
+        { ...goodOpen, side: "short", stopLossPrice: 60000 },
+        context(),
+      ).code,
+    ).toBe("stop_loss_wrong_side");
+  });
+  it.each([undefined, 0])(
+    "requires a positive stop-order trigger %s",
+    (stopPrice) => {
+      expect(
+        validateAction({ ...spot, orderType: "stop", stopPrice }, context())
+          .code,
+      ).toBe("missing_stop_price");
+    },
+  );
+  it("requires a positive limit-order price", () => {
+    expect(
+      validateAction({ ...spot, orderType: "limit", limitPrice: 0 }, context())
+        .code,
+    ).toBe("missing_limit_price");
+  });
+});

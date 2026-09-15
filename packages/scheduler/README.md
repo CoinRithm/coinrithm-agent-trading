@@ -9,7 +9,8 @@ published.
 
 Postgres (`agent_runtime` schema) is the source of truth. House agents are just
 seeded rows; user agents are rows created by the deploy path. The scheduler holds
-**no local state**, so you can run multiple replicas.
+**no local agent state**. Multiple replicas require the PostgreSQL capacity
+backend so admission limits are shared across workers.
 
 - `agents` — compiled spec + prose + model + cadence + status + encrypted keys + `next_run_at`.
 - `agent_state` — the per-agent `RunState` (replaces the self-host `.agent.state.json`).
@@ -17,7 +18,8 @@ seeded rows; user agents are rows created by the deploy path. The scheduler hold
 
 The loop: claim due agents (`FOR UPDATE SKIP LOCKED`) → load spec+prose+state →
 run ONE cycle via `runCycle` → persist state + a cycle row → `next_run_at` is
-advanced at claim time (at-most-once per window). Per-agent failures are isolated;
+advanced at claim time to reserve the window and rescheduled after completion.
+This is not an exactly-once execution guarantee. Per-agent failures are isolated;
 a corrupt stored state fails closed (the agent is disabled, not reset).
 
 ## Secrets
@@ -28,19 +30,23 @@ free tier uses the shared `NVIDIA_API_KEY` (scheduler env), not a per-row key.
 
 ## Env
 
-| Var | Required | Notes |
-| --- | --- | --- |
-| `DATABASE_URL` | yes | the shared coinrithm-postgres |
-| `ENCRYPTION_KEY` | yes | 32 bytes — 64 hex chars or base64 of 32 bytes |
-| `NVIDIA_API_KEY` | for free-tier agents | shared brain key (nemotron-3-super-120b, nemotron-3-nano-omni-30b) |
-| `COINRITHM_API_URL` | no | default `https://api.coinrithm.com` |
-| `SCHEDULER_POLL_MS` / `SCHEDULER_MAX_CONCURRENT` / `SCHEDULER_CLAIM_BATCH` | no | defaults 5000 / 6 / 20 |
-| `HEALTH_PORT` | no | enables a `/healthz` liveness port |
+| Var                                                                        | Required             | Notes                                                              |
+| -------------------------------------------------------------------------- | -------------------- | ------------------------------------------------------------------ |
+| `DATABASE_URL`                                                             | yes                  | the shared coinrithm-postgres                                      |
+| `ENCRYPTION_KEY`                                                           | yes                  | 32 bytes — 64 hex chars or base64 of 32 bytes                      |
+| `NVIDIA_API_KEY`                                                           | for free-tier agents | shared brain key (nemotron-3-super-120b, nemotron-3-nano-omni-30b) |
+| `COINRITHM_API_URL`                                                        | no                   | default `https://api.coinrithm.com`                                |
+| `SCHEDULER_POLL_MS` / `SCHEDULER_MAX_CONCURRENT` / `SCHEDULER_CLAIM_BATCH` | no                   | defaults 5000 / 6 / 20                                             |
+| `HEALTH_PORT`                                                              | no                   | enables a `/healthz` liveness port                                 |
 
 ## Run
 
 ```bash
-npm install && npm run build
+# From the repository root, build the engine dependency first:
+npm --prefix packages/mcp-trading ci
+npm --prefix packages/scheduler ci
+npm --prefix packages/scheduler run build
+cd packages/scheduler
 DATABASE_URL=… ENCRYPTION_KEY=… NVIDIA_API_KEY=… npm start
 ```
 
@@ -65,12 +71,20 @@ Operational must-knows:
   each agent hits a setup error and disables itself, killing the whole fleet. A
   real rotation is a migration (decrypt-old → re-encrypt-new per row), not an
   env swap.
-- **`NVIDIA_API_KEY` is operationally required**, not optional: house agents
-  default to `provider=nvidia` (no BYO key), so without it they self-disable on
-  the first cycle.
+- **Configure the shared providers before starting the fleet.** House agents
+  without BYO credentials need an eligible shared route. Router mode can use
+  configured fallback providers; missing capacity is not proof of provider health.
 - **Deploy 1 replica first.** `migrate()` runs on every boot; idempotent, but two
   fresh replicas migrating the empty schema simultaneously can hit a
   `CREATE … IF NOT EXISTS` TOCTOU race that crashes one (it self-heals on
   restart). Scale out only after the first boot logs `agent_runtime schema ready`.
-- Leave `HEALTH_PORT` unset for a worker (no port = no unhealthy-kill; it
-  self-heals via `exit(1)` + auto-restart).
+- **Keep the Docker healthcheck enabled.** The image sets `HEALTH_PORT=8080`;
+  `/healthz` checks the scheduler heartbeat as well as process liveness.
+
+## Verification
+
+`npm run test:coverage` enforces 90% on statements, branches, functions and
+lines across runtime source. CI also starts a disposable PostgreSQL database
+and runs the capacity, concurrent-claim and state-isolation integration tests.
+Missing database configuration fails CI; skipped local database tests are not
+passing evidence. See [reliability and reproduction](../../docs/RELIABILITY.md).

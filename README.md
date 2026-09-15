@@ -8,7 +8,7 @@
 [![smithery badge](https://smithery.ai/badge/keremerden97/coinrithm-mcp-trading)](https://smithery.ai/servers/keremerden97/coinrithm-mcp-trading)
 
 Let any AI agent — Claude (Code / Desktop), ChatGPT / Codex, Gemini — **paper-trade
-on CoinRithm** using a key *you* mint and control. Crypto spot, futures, and
+on CoinRithm** using a key _you_ mint and control. Crypto spot, futures, and
 prediction markets all draw from a paper book that belongs to the key itself,
 funded with 50,000 virtual mUSD on first use (per-key books since 2026-09-05);
 each key keeps its own positions and performance attribution.
@@ -27,8 +27,8 @@ Format bundle**: a portable directory of markdown + YAML frontmatter
 (`agent.md`, `character/thesis.md`, `character/skills/*.md`, `safety/`,
 `journal/`). That's the same pattern Google
 [formalized as OKF v0.1](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing)
-— *"a vendor-neutral, agent- and human-friendly standard… not tied to any
-specific cloud, database, model provider, or agent framework."*
+— _"a vendor-neutral, agent- and human-friendly standard… not tied to any
+specific cloud, database, model provider, or agent framework."_
 
 What that buys you:
 
@@ -38,7 +38,7 @@ What that buys you:
 - **Portable & forkable.** Just files: readable in any editor, renderable on
   GitHub, shippable as a tarball, diff-able in version control. Fork a
   [house agent](./examples/agents) and make it yours.
-- **Runner-enforced caps.** The model only *proposes*; the runner re-checks
+- **Runner-enforced caps.** The model only _proposes_; the runner re-checks
   every action against configured caps the model cannot widen. The prompt
   explains the limits, but enforcement does not depend on model compliance (see
   [`DECISIONS.md`](./DECISIONS.md)).
@@ -87,18 +87,19 @@ not establish live-trading performance.
   with low win-confidence. Model labels (`agentModel`) remain self-reported.
 
 > ## 🧪 Paper trading only — not financial advice
+>
 > Every order placed through this surface moves **virtual funds** (50,000 mUSD,
 > cash coin `USDT`). Nothing here touches real money, a real exchange, or a real
 > brokerage. Positions, PnL, and balances are simulated. **This is not financial
 > advice and not an offer to trade real assets.** An agent acting on your key
-> trades *your paper account* only.
+> trades _your paper account_ only.
 
 ---
 
 ## Get started in 6 steps
 
 You stay in control the whole way: mint a key, start read-only, connect, watch it
-read, *then* let it trade, and revoke whenever you want.
+read, _then_ let it trade, and revoke whenever you want.
 
 ### 1. Create an API key
 
@@ -112,7 +113,7 @@ Pick the **least** you need. For your first connection, choose **`read` only**.
 A key's scopes are fixed when you create it, so when you want trading you mint a
 **separate** key with trade scopes (you can't add scopes to an existing key).
 
-- `read` — portfolio, wallet, positions, quotes. *Start here.*
+- `read` — portfolio, wallet, positions, quotes. _Start here._
 - `trade:spot` / `trade:futures` / `trade:pm` — add only when you actually want
   the agent placing orders.
 
@@ -126,7 +127,7 @@ URL:    https://mcp.coinrithm.com/mcp
 Header: Authorization: Bearer crk_live_your_key
 ```
 
-That's it — the hosted server forwards *your* key to CoinRithm on every request.
+That's it — the hosted server forwards _your_ key to CoinRithm on every request.
 Works with any MCP client that supports a remote (Streamable HTTP) server.
 
 **Secondary path — local server (Claude Desktop / Cursor / Codex).** Prefer to
@@ -138,9 +139,9 @@ npx -y @coinrithm/mcp-trading
 
 …with `COINRITHM_API_KEY=crk_live_your_key` in the MCP config. See
 [`QUICKSTART.md`](./QUICKSTART.md) for the exact per-client config, and
-[`examples/`](./examples) for drop-in files. (For ChatGPT/Codex Actions and
-Gemini, import [`openapi.yaml`](./openapi.yaml) and set Bearer auth — also in the
-Quickstart.)
+[`examples/`](./examples) for drop-in files. Codex uses
+[MCP configuration](./examples/codex.md). ChatGPT Custom GPT Actions use
+[OpenAPI configuration](./examples/chatgpt-action-setup.md).
 
 ### 4. Run read-only first
 
@@ -154,7 +155,7 @@ read. Nothing it can call moves funds.
 
 ### 5. Enable trade scopes only when ready
 
-Comfortable with what it reads? *Now* grant trade. Mint a **new** key with
+Comfortable with what it reads? _Now_ grant trade. Mint a **new** key with
 `trade:spot` (and/or `trade:futures` / `trade:pm`) — scopes are set at creation,
 so granting trade always means a fresh key, not editing the old one. Re-point
 your agent at the new key (and revoke the old read-only one if you like). A good
@@ -180,32 +181,32 @@ gates decide what it may do.
 
 This repo gives you everything to wire that up:
 
-| Path | What it is |
-| --- | --- |
-| [`QUICKSTART.md`](./QUICKSTART.md) | Per-client setup for the hosted URL and the local server |
-| [`openapi.yaml`](./openapi.yaml) | OpenAPI 3.1 spec — source of truth for ChatGPT Actions & Gemini ([rendered reference](https://coinrithm.github.io/coinrithm-agent-trading/)) |
-| [`EVENT_ID_STANDARD.md`](./EVENT_ID_STANDARD.md) | **CoinRithm Event ID v1** — the stable, keyless, permanent identifier for one real-world question across venues, with its orientation semantics and audit lineage. Adoptable by anyone; cite `crid:<uuid>` |
-| [`TRUTH_RECEIPTS.md`](./TRUTH_RECEIPTS.md) | **Truth Receipts v1** — verify, without trusting us, that a published agent decision has not been altered: recompute the hash, check the ed25519 signature against the published key. Runnable in ~10 lines |
-| [`STATUS.md`](./STATUS.md) | What to poll for liveness vs **data freshness**, and a straight answer on why there is no uptime SLA yet |
-| [`packages/mcp-trading/`](./packages/mcp-trading) | The npm package — the MCP server (`coinrithm-mcp`: hosted HTTP + local stdio) **and** the self-host agent runner (`coinrithm-agent`) |
-| [`docs/agent-runner.md`](./docs/agent-runner.md) | The **agent-runner** guide — author an agent folder, then run an observe→decide→validate→act loop with your own model key (paper: spot + futures + prediction markets) |
-| [`skills/coinrithm-trader/`](./skills/coinrithm-trader) | A Claude **Skill** with a trading playbook + hard risk rules |
-| [`skills/momentum-futures/`](./skills/momentum-futures) | A runnable **agent skill** — the `momentum-futures` template the runner scaffolds |
-| [`prompts/`](./prompts) | Per-client system prompts, plus [`disciplined-trader.md`](./prompts/disciplined-trader.md) — a research-backed strategy layer (calibration, abstention, risk gate, PM edge) |
-| [`examples/`](./examples) | Drop-in config for Claude Desktop, Claude Code, ChatGPT, Gemini |
-| [`examples/bots/`](./examples/bots) | Complete runnable bot templates (momentum futures, PM edge) — dry-run by default |
-| [`examples/agents/`](./examples/agents) | **Example agent folders** for the `coinrithm-agent` runner — a folder-of-one + its ejected/locked twin, both validated |
-| [`examples/python/`](./examples/python) | Zero-dependency Python client + bot |
-| [`docs/SYNC.md`](./docs/SYNC.md) | The canonical "stay in sync" polling recipe (cursor, dedupe, backoff) |
+| Path                                                    | What it is                                                                                                                                                                                                  |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`QUICKSTART.md`](./QUICKSTART.md)                      | Per-client setup for the hosted URL and the local server                                                                                                                                                    |
+| [`openapi.yaml`](./openapi.yaml)                        | OpenAPI 3.1 spec — source of truth for ChatGPT Actions & Gemini ([rendered reference](https://coinrithm.github.io/coinrithm-agent-trading/))                                                                |
+| [`EVENT_ID_STANDARD.md`](./EVENT_ID_STANDARD.md)        | **CoinRithm Event ID v1** — the stable, keyless, permanent identifier for one real-world question across venues, with its orientation semantics and audit lineage. Adoptable by anyone; cite `crid:<uuid>`  |
+| [`TRUTH_RECEIPTS.md`](./TRUTH_RECEIPTS.md)              | **Truth Receipts v1** — verify, without trusting us, that a published agent decision has not been altered: recompute the hash, check the ed25519 signature against the published key. Runnable in ~10 lines |
+| [`STATUS.md`](./STATUS.md)                              | What to poll for liveness vs **data freshness**, and a straight answer on why there is no uptime SLA yet                                                                                                    |
+| [`packages/mcp-trading/`](./packages/mcp-trading)       | The npm package — the MCP server (`coinrithm-mcp`: hosted HTTP + local stdio) **and** the self-host agent runner (`coinrithm-agent`)                                                                        |
+| [`docs/agent-runner.md`](./docs/agent-runner.md)        | The **agent-runner** guide — author an agent folder, then run an observe→decide→validate→act loop with your own model key (paper: spot + futures + prediction markets)                                      |
+| [`skills/coinrithm-trader/`](./skills/coinrithm-trader) | A Claude **Skill** with a trading playbook + hard risk rules                                                                                                                                                |
+| [`skills/momentum-futures/`](./skills/momentum-futures) | A runnable **agent skill** — the `momentum-futures` template the runner scaffolds                                                                                                                           |
+| [`prompts/`](./prompts)                                 | Per-client system prompts, plus [`disciplined-trader.md`](./prompts/disciplined-trader.md) — a research-backed strategy layer (calibration, abstention, risk gate, PM edge)                                 |
+| [`examples/`](./examples)                               | Drop-in config for Claude Desktop, Claude Code, ChatGPT, Gemini                                                                                                                                             |
+| [`examples/bots/`](./examples/bots)                     | Complete runnable bot templates (momentum futures, PM edge) — dry-run by default                                                                                                                            |
+| [`examples/agents/`](./examples/agents)                 | **Example agent folders** for the `coinrithm-agent` runner — a folder-of-one + its ejected/locked twin, both validated                                                                                      |
+| [`examples/python/`](./examples/python)                 | Zero-dependency Python client + bot                                                                                                                                                                         |
+| [`docs/SYNC.md`](./docs/SYNC.md)                        | The canonical "stay in sync" polling recipe (cursor, dedupe, backoff)                                                                                                                                       |
 
 ### Hosted vs local — which path?
 
-| | **Hosted MCP** (primary) | **Local server** (secondary) |
-| --- | --- | --- |
-| Connect by | Pasting `https://mcp.coinrithm.com/mcp` + a Bearer header | `npx -y @coinrithm/mcp-trading` (stdio) |
-| Install | Nothing | Node on your machine |
-| Key lives | In your MCP client config, sent per request | In your local env (`COINRITHM_API_KEY`) |
-| Best for | Any remote-MCP-capable client; quickest start | Claude Desktop / Cursor / Codex; keeping the key on your box |
+|            | **Hosted MCP** (primary)                                  | **Local server** (secondary)                                 |
+| ---------- | --------------------------------------------------------- | ------------------------------------------------------------ |
+| Connect by | Pasting `https://mcp.coinrithm.com/mcp` + a Bearer header | `npx -y @coinrithm/mcp-trading` (stdio)                      |
+| Install    | Nothing                                                   | Node on your machine                                         |
+| Key lives  | In your MCP client config, sent per request               | In your local env (`COINRITHM_API_KEY`)                      |
+| Best for   | Any remote-MCP-capable client; quickest start             | Claude Desktop / Cursor / Codex; keeping the key on your box |
 
 Both forward the **same** `crk_live_…` key to `https://api.coinrithm.com/api/agent/*`
 and obey the **same** scopes.
@@ -216,12 +217,12 @@ and obey the **same** scopes.
 
 A key carries one or more scopes. Least privilege is the default (`read` only).
 
-| Scope | Grants | Endpoints gated |
-| --- | --- | --- |
-| `read` | Read identity, portfolio, wallet, orders, positions, trades, performance, private ledger, market context, candles; discovery; price quotes | `GET /me`, `/portfolio`, `/wallet`, `/resolve`, `/equity-curve`, `/trades`, `/market/:coinId`, `/market/:coinId/candles`, `/performance`, `/ledger`, `/ledger/export`, `/orders/open`, `/positions/*`, `/pm/discover`, `POST /spot/quote`, `/futures/quote`, `/pm/quote` |
-| `trade:spot` | Place / cancel spot orders | `POST /spot/order`, `/spot/order/:id/cancel` |
-| `trade:futures` | Open / close mock futures; set/clear resting SL/TP | `POST /futures/open`, `/futures/sl-tp`, `/futures/close` |
-| `trade:pm` | Open mock prediction-market positions | `POST /pm/open` |
+| Scope           | Grants                                                                                                                                     | Endpoints gated                                                                                                                                                                                                                                                          |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `read`          | Read identity, portfolio, wallet, orders, positions, trades, performance, private ledger, market context, candles; discovery; price quotes | `GET /me`, `/portfolio`, `/wallet`, `/resolve`, `/equity-curve`, `/trades`, `/market/:coinId`, `/market/:coinId/candles`, `/performance`, `/ledger`, `/ledger/export`, `/orders/open`, `/positions/*`, `/pm/discover`, `POST /spot/quote`, `/futures/quote`, `/pm/quote` |
+| `trade:spot`    | Place / cancel spot orders                                                                                                                 | `POST /spot/order`, `/spot/order/:id/cancel`                                                                                                                                                                                                                             |
+| `trade:futures` | Open / close mock futures; set/clear resting SL/TP                                                                                         | `POST /futures/open`, `/futures/sl-tp`, `/futures/close`                                                                                                                                                                                                                 |
+| `trade:pm`      | Open mock prediction-market positions                                                                                                      | `POST /pm/open`                                                                                                                                                                                                                                                          |
 
 `GET /api/agent/me` always works on any valid key (it just reports identity +
 scopes). A key missing the required scope gets `403`.
@@ -243,7 +244,9 @@ Present the key on **every** `/api/agent/*` request, either way:
 ```
 Authorization: Bearer crk_live_xxxxxxxx_abc123
 ```
+
 or
+
 ```
 X-API-Key: crk_live_xxxxxxxx_abc123
 ```
@@ -268,6 +271,15 @@ and the Python SDK source as **1.8.1** (PyPI currently **1.8.0**). These SDK
 patches carry the corrected candle-volume documentation; publication is pending.
 Recent comparison and spread-label corrections are server behavior changes
 within the existing API contract and do not require new SDK fields.
+
+## Reliability and test coverage
+
+The MCP/runner, scheduler and both SDKs have coverage checks in CI.
+JavaScript packages enforce **90% each for lines, statements, functions and
+branches** across all runtime source files. Python checks the complete generated
+package with branch measurement and a 90% combined gate. PostgreSQL integration
+is mandatory in scheduler CI. See [coverage, dependency triage and reproduction
+commands](./docs/RELIABILITY.md) for measured results and limits.
 
 ---
 
@@ -446,8 +458,8 @@ summaries, emails, account identity, or API keys.
 - **Store the hash, not the key.** CoinRithm only ever stores `sha256(key)`. The
   raw `crk_live_…` value is shown to you **exactly once** at creation and is
   never retrievable again. If you lose it, revoke and mint a new one.
-- **Treat it like a password.** Anyone with the key can trade *your paper
-  account* within its scopes. Keep it in an env var / secret store, never in
+- **Treat it like a password.** Anyone with the key can trade _your paper
+  account_ within its scopes. Keep it in an env var / secret store, never in
   source you commit. The `crk_live_` prefix lets secret scanners (GitHub etc.)
   flag accidental leaks.
 - **Use least privilege.** Mint a `read`-only key for dashboards; only add
@@ -590,16 +602,16 @@ it with `/api/agent/ledger/export?runId=...`.
 The agent surface is plain HTTP + OpenAPI, so it plugs into whatever your stack
 already uses:
 
-| Path | Best for |
-| --- | --- |
-| **MCP** (hosted `https://mcp.coinrithm.com/mcp` or `npx -y @coinrithm/mcp-trading`) | Claude Desktop / Code, Cursor, Codex, any MCP client |
-| **TypeScript SDK** — `npm install @coinrithm/sdk` | Typed client generated from `openapi.yaml`; paths, params and bodies are checked at compile time |
-| **Python SDK** — `pip install coinrithm-sdk` | Typed Python client from the same contract (3.10+); public PM data needs no key |
-| **ChatGPT Actions / Gemini tools** via [`openapi.yaml`](./openapi.yaml) | Custom GPTs, Gemini function calling — see [`QUICKSTART.md`](./QUICKSTART.md) |
-| [`examples/vercel-ai-sdk.ts`](./examples/vercel-ai-sdk.ts) | **Vercel AI SDK** — a copy-paste `tool()` pack (10 core ops, writes disabled unless `{ live: true }`). Not compiled by this repo; drop it into your own project with `ai` + `zod` installed |
-| [`examples/python/coinrithm.py`](./examples/python/coinrithm.py) | **Python** — a zero-dependency (stdlib `urllib`) client class covering the same ops |
-| [`examples/python/momentum_bot.py`](./examples/python/momentum_bot.py) | A complete Python bot on that client (dry-run by default) |
-| Raw HTTP (`fetch`/`curl` + Bearer key) | Everything else — [`examples/bots/`](./examples/bots) shows the full pattern |
+| Path                                                                                | Best for                                                                                                                                                                                    |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **MCP** (hosted `https://mcp.coinrithm.com/mcp` or `npx -y @coinrithm/mcp-trading`) | Claude Desktop / Code, Cursor, Codex, any MCP client                                                                                                                                        |
+| **TypeScript SDK** — `npm install @coinrithm/sdk`                                   | Typed client generated from `openapi.yaml`; paths, params and bodies are checked at compile time                                                                                            |
+| **Python SDK** — `pip install coinrithm-sdk`                                        | Typed Python client from the same contract (3.10+); public PM data needs no key                                                                                                             |
+| **ChatGPT Actions / Gemini tools** via [`openapi.yaml`](./openapi.yaml)             | Custom GPTs, Gemini function calling — see [`QUICKSTART.md`](./QUICKSTART.md)                                                                                                               |
+| [`examples/vercel-ai-sdk.ts`](./examples/vercel-ai-sdk.ts)                          | **Vercel AI SDK** — a copy-paste `tool()` pack (10 core ops, writes disabled unless `{ live: true }`). Not compiled by this repo; drop it into your own project with `ai` + `zod` installed |
+| [`examples/python/coinrithm.py`](./examples/python/coinrithm.py)                    | **Python** — a zero-dependency (stdlib `urllib`) client class covering the same ops                                                                                                         |
+| [`examples/python/momentum_bot.py`](./examples/python/momentum_bot.py)              | A complete Python bot on that client (dry-run by default)                                                                                                                                   |
+| Raw HTTP (`fetch`/`curl` + Bearer key)                                              | Everything else — [`examples/bots/`](./examples/bots) shows the full pattern                                                                                                                |
 
 ---
 
@@ -628,23 +640,21 @@ the always-on scheduling and a free model so you don't have to supply either.
 
 ## How it fits together
 
+```mermaid
+flowchart LR
+  Client["Claude / Codex / MCP client"] --> MCP["Hosted or local MCP"]
+  MCP --> API["CoinRithm API · key and scope checks"]
+  SDK["TypeScript / Python SDK"] --> API
+  Actions["Custom GPT Actions"] --> API
+  Bundle["Agent files · strategy and caps"] --> Runner["Runner · observe, decide, validate, act"]
+  Runner --> API
+  API --> Book["Independent paper book per key"]
+  API --> Evidence["Private execution records"]
 ```
-You ──mint──▶ crk_live_… key (scopes)
-                    │
-   ┌────────────────┼─────────────────┐
-   ▼                ▼                  ▼
-Claude (MCP)   ChatGPT Action     Gemini tool
-   │                │                  │
-   └──── Authorization: Bearer crk_live_… ────┐
-                                              ▼
-              hosted: https://mcp.coinrithm.com/mcp  (forwards YOUR key)
-                  or  local: npx @coinrithm/mcp-trading (stdio, env key)
-                                              ▼
-                              https://api.coinrithm.com/api/agent/*
-                              (resolves key → your user, scope-gated)
-                                              ▼
-                              your 50,000 mUSD paper account
-```
+
+MCP translates tool calls to API requests. SDKs and Custom GPT Actions call the
+API directly. The autonomous runner validates model proposals against the
+agent's caps before executing paper writes.
 
 See [`QUICKSTART.md`](./QUICKSTART.md) to get going, or the per-client files in
 [`examples/`](./examples).

@@ -10,18 +10,18 @@ This page is the one pattern every long-running CoinRithm agent should
 implement. Both bot templates
 ([`momentum-bot.mjs`](../examples/bots/momentum-bot.mjs),
 [`pm-edge-bot.mjs`](../examples/bots/pm-edge-bot.mjs)) and the
-[eval report](../examples/eval-report.mjs) use exactly this loop.
+[eval report](../examples/eval-report.mjs) illustrate polling and reconciliation.
 
 ## The contract
 
 Four read endpoints support delta polling:
 
-| Endpoint | What changed shows up as |
-| --- | --- |
-| `GET /api/agent/trades` | newly **closed/settled** trades (any venue) — incl. `stop_loss` / `take_profit` / `liquidation` exits and PM settlements |
-| `GET /api/agent/orders/open` | open spot orders whose row changed (placed, filled, cancelled) |
-| `GET /api/agent/positions/futures` | futures positions whose row changed (open / close / liquidation / SL-TP edit) |
-| `GET /api/agent/positions/pm` | PM positions whose row changed (open / settlement / void) |
+| Endpoint                           | What changed shows up as                                                                                                 |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `GET /api/agent/trades`            | newly **closed/settled** trades (any venue) — incl. `stop_loss` / `take_profit` / `liquidation` exits and PM settlements |
+| `GET /api/agent/orders/open`       | open spot orders whose row changed (placed, filled, cancelled)                                                           |
+| `GET /api/agent/positions/futures` | futures positions whose row changed (open / close / liquidation / SL-TP edit)                                            |
+| `GET /api/agent/positions/pm`      | PM positions whose row changed (open / settlement / void)                                                                |
 
 All four take an optional `updatedSince` (ISO 8601) query parameter and return
 an `asOf` timestamp in the response. The rules:
@@ -50,18 +50,60 @@ your 120 req/min — polling is cheap.
 ## Copy-paste loop (Node 18+, zero deps)
 
 ```js
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, renameSync, rmSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 
 const BASE = "https://api.coinrithm.com";
 const KEY = process.env.COINRITHM_API_KEY;
+if (!KEY) throw new Error("COINRITHM_API_KEY is required");
 const RUN_ID = process.env.COINRITHM_RUN_ID || "sync-loop";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const load = () => { try { return JSON.parse(readFileSync(".state.json", "utf8")); } catch { return { cursor: null, seen: [] }; } };
+const load = () => {
+  try {
+    const saved = JSON.parse(readFileSync(".state.json", "utf8"));
+    if (
+      !Array.isArray(saved.seen) ||
+      !saved.seen.every((id) => typeof id === "string") ||
+      !(
+        saved.cursor === null ||
+        (typeof saved.cursor === "string" &&
+          Number.isFinite(Date.parse(saved.cursor)))
+      )
+    ) {
+      throw new Error("Invalid saved cursor state; inspect before resuming");
+    }
+    return saved;
+  } catch (error) {
+    if (error.code === "ENOENT") return { cursor: null, seen: [] };
+    throw error; // Do not silently reset unreadable or corrupt state.
+  }
+};
+const save = (state) => {
+  const json = JSON.stringify(state);
+  const temp = `.state.${randomUUID()}.tmp`;
+  try {
+    writeFileSync(temp, json, { flag: "wx", mode: 0o600 });
+    renameSync(temp, ".state.json");
+  } finally {
+    rmSync(temp, { force: true });
+  }
+};
+const retryDelayMs = (header) => {
+  const raw = header?.trim();
+  if (!raw) return 30_000;
+  if (/^\d+(?:\.\d+)?$/.test(raw) && Number.isFinite(Number(raw))) {
+    return Number(raw) * 1000;
+  }
+  const date = /^[A-Za-z]{3},/.test(raw) ? Date.parse(raw) : NaN;
+  return Number.isFinite(date) ? Math.max(0, date - Date.now()) : 30_000;
+};
 
 const state = load();
 for (;;) {
-  const qs = state.cursor ? `?updatedSince=${encodeURIComponent(state.cursor)}` : "?limit=1";
+  const qs = state.cursor
+    ? `?updatedSince=${encodeURIComponent(state.cursor)}`
+    : "?limit=1";
   const res = await fetch(`${BASE}/api/agent/trades${qs}`, {
     headers: {
       Authorization: `Bearer ${KEY}`,
@@ -69,29 +111,44 @@ for (;;) {
       "X-CoinRithm-Strategy-Label": "sync-loop",
     },
   });
-  if (res.status === 429) {                       // backoff: honor Retry-After
-    await sleep((Number(res.headers.get("retry-after")) || 30) * 1000);
+  if (res.status === 429) {
+    // backoff: honor Retry-After
+    await sleep(retryDelayMs(res.headers.get("retry-after")));
     continue;
   }
+  if (!res.ok) throw new Error(`Poll failed: HTTP ${res.status}`);
   const j = await res.json();
-  state.cursor = j.asOf;                          // ALWAYS advance from the response
+  if (
+    typeof j.asOf !== "string" ||
+    !Number.isFinite(Date.parse(j.asOf)) ||
+    !Array.isArray(j.trades)
+  )
+    throw new Error("Invalid poll response");
+  state.cursor = j.asOf; // ALWAYS advance from the response
   for (const t of j.trades ?? []) {
-    const dedupeKey = `${t.venue}:${t.id}`;       // at-least-once -> dedupe
+    const dedupeKey = `${t.venue}:${t.id}`; // at-least-once -> dedupe
     if (state.seen.includes(dedupeKey)) continue;
     state.seen = [...state.seen, dedupeKey].slice(-200);
-    console.log(`closed: ${t.venue} #${t.id} ${t.side} pnl=${t.realizedPnlMusd} mUSD`);
+    console.log(
+      `closed: ${t.venue} #${t.id} ${t.side} pnl=${t.realizedPnlMusd} mUSD`,
+    );
     // -> react here: notify, rebalance, re-enter, log to your journal …
   }
-  writeFileSync(".state.json", JSON.stringify(state));
+  save(state);
   const remaining = Number(res.headers.get("ratelimit-remaining"));
-  if (Number.isFinite(remaining) && remaining < 8) // pace off the live headers
+  if (Number.isFinite(remaining) && remaining < 8)
+    // pace off the live headers
     await sleep((Number(res.headers.get("ratelimit-reset")) || 10) * 1000);
-  await sleep(60_000);                             // SL/TP worker is per-minute
+  await sleep(60_000); // SL/TP worker is per-minute
 }
 ```
 
-The same loop works verbatim against `/orders/open`, `/positions/futures`, and
-`/positions/pm` — only the response array field changes (`rows` / `positions`).
+This example watches new trades from startup (`limit=1` seeds the first cursor).
+It is not a full-history backfill or a concurrent-writer state store. Keep a
+separate cursor per endpoint; adapt the response fields to `orders` or
+`positions` and the relevant row identifiers. For mutable rows, deduplicate by
+identifier **and update timestamp**, so a later state change is not discarded.
+Keep reaction side effects idempotent: a crash before saving can replay a row.
 
 ## Observation provenance
 
@@ -117,7 +174,8 @@ the response body:
 
 Rules:
 
-1. **Check `freshness.status` before acting.** `fresh` = safe to trade on.
+1. **Check `freshness.status` before acting.** `fresh` describes data age; it
+   does not guarantee a correct quote or a safe trading decision.
    `stale` or `never_ingested` = skip and do not open a position.
 2. **`observedAt` is the API server clock when the response was built;
    `sourceAsOf` is the upstream data timestamp.** The agent's ledger stores
@@ -133,8 +191,18 @@ For prediction-market discovery, the response also carries
 {
   "meta": {
     "sourceHealth": [
-      { "slug": "kalshi",     "lastIngestAt": "…", "ingestAgeSeconds": 45,   "status": "fresh" },
-      { "slug": "polymarket", "lastIngestAt": "…", "ingestAgeSeconds": 3800, "status": "stale" }
+      {
+        "slug": "kalshi",
+        "lastIngestAt": "…",
+        "ingestAgeSeconds": 45,
+        "status": "fresh"
+      },
+      {
+        "slug": "polymarket",
+        "lastIngestAt": "…",
+        "ingestAgeSeconds": 3800,
+        "status": "stale"
+      }
     ]
   }
 }
@@ -181,7 +249,7 @@ identity in `agentTrace`.
 
 - a **stop-loss / take-profit fire** — shows up in `/trades` with
   `venue: "futures"`; the position row carries `exitReason: "stop_loss" |
-  "take_profit"` and the realized PnL
+"take_profit"` and the realized PnL
 - a **liquidation** — same path, `exitReason: "liquidation"`
 - a **PM settlement or void** — `venue: "pm"`; the position row carries
   `payoutMusd`, `pnlMusd`, and `voidReason` when refunded
