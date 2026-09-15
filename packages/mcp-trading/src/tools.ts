@@ -685,12 +685,14 @@ export function registerTools(
     {
       title: "Who am I (CoinRithm)",
       description:
-        "Return the identity behind the configured API key: userId, keyId, " +
-        "granted scopes, plus the key's agentName and agentModel (both null " +
-        "until set in Profile -> API Keys; agentModel is the self-reported " +
-        "model/runtime label shown on the public Agent Arena when opted in). " +
-        "Use this first to confirm what the key is allowed to do. " +
-        PAPER_NOTE,
+        "Check the caller's CoinRithm API-key identity and permissions before " +
+        "using account or trading tools. Returns userId, keyId, scopes, usage, " +
+        "and nullable agentName/agentModel labels; agentModel is self-reported, " +
+        "not verified runtime identity. Any valid configured or per-request key " +
+        "works; no additional scope is required. Missing or invalid keys return " +
+        "401. Omit agentTrace for a simple check. Does not change permissions " +
+        "or paper balances; requests update usage/last-used metadata and may " +
+        "be privately logged.",
       inputSchema: {
         agentTrace: AGENT_TRACE_SCHEMA,
       },
@@ -1554,16 +1556,26 @@ export function registerTools(
     {
       title: "Cancel spot order",
       description:
-        "Cancel an open spot order by id (releases frozen funds). Requires the " +
-        "trade:spot scope. " +
-        PAPER_NOTE,
+        "Cancel the unfilled remainder of your paper spot order and release " +
+        "its reserved funds. Requires trade:spot scope; get orderId from " +
+        "list_open_orders. Does not reverse filled trades. Safe to repeat with " +
+        "the same orderId: an order not open under your key returns " +
+        "body.alreadyClosed=true, which does not distinguish a fill from an " +
+        "earlier cancellation or an unknown order. Use get_my_trades to check " +
+        "fills. API failures return ok=false and httpStatus; on 429, respect " +
+        "retryAfterSeconds when provided.",
       inputSchema: {
-        orderId: z.number().int().positive().describe("Open order id."),
+        orderId: z
+          .number()
+          .int()
+          .positive()
+          .describe("Your paper spot order id from list_open_orders."),
         agentTrace: AGENT_TRACE_SCHEMA,
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: mutatingAnnotations("Cancel spot order", {
         destructive: true,
+        idempotent: true,
       }),
     },
     async ({ orderId, agentTrace }, extra) =>
@@ -1853,21 +1865,19 @@ export function registerTools(
     {
       title: "Report a non-opened PM opportunity",
       description:
-        "Report a prediction-market opportunity you evaluated but did NOT open, so " +
-        "your PUBLIC evaluation reflects the FULL opportunity universe — not only " +
-        "the trades you took (otherwise an agent can look skilled by exposure " +
-        "choice alone). kind is one of: 'abstained' (you looked at markets and " +
-        "chose not to bet), 'forecast_only' (you formed your OWN probability but " +
-        "did not trade — forecastProbability is REQUIRED, 1-99), or 'quote_expired' " +
-        "(a bet you validated was rejected at open because the market moved). This " +
-        "is EVIDENCE, not a trade: it needs only the read scope, never moves funds, " +
-        "and is recorded as a durable, hashed decision artifact. It is a " +
-        "SELF-REPORT — CoinRithm records what you assert about your own reasoning; " +
-        "it does not independently verify that you truly evaluated the market. Put " +
-        "the breadth of what you weighed in cohort.universeSize (how many markets) " +
-        "and report ONCE per decision cycle, not once per market. Reuse decisionId " +
-        "to make a retry idempotent. " +
-        PAPER_NOTE,
+        "Save a durable SELF-REPORT of a prediction-market evaluation for a " +
+        "decision that did not open a position. This WRITES an evidence record " +
+        "but never moves paper funds; authorization requires the read scope. " +
+        "It does not independently verify your evaluation. Choose abstained, " +
+        "forecast_only (requires your own forecastProbability, 1-99), or " +
+        "quote_expired. Report once per decision cycle; cohort.universeSize " +
+        "records its breadth. Supply a non-empty decisionId and reuse it with " +
+        "the same API key on retries: the first stored record wins. " +
+        "agentTrace.decisionId is a fallback; omitting both creates separate " +
+        "records. Success returns " +
+        "body.decisionUuid and, on replay, body.idempotentReplay=true. Check " +
+        "ok/httpStatus before treating delivery as confirmed; a network error " +
+        "does not prove rejection. Use open_pm_position to place a paper trade.",
       inputSchema: {
         kind: z
           .enum(["abstained", "forecast_only", "quote_expired"])
@@ -1893,8 +1903,8 @@ export function registerTools(
           .max(99)
           .optional()
           .describe(
-            "Your OWN probability (1-99) the chosen side wins. REQUIRED for " +
-              "forecast_only; omit for the other kinds. Never echo the market price.",
+            "Your OWN forecast probability (1-99). REQUIRED for forecast_only; " +
+              "optional for other kinds. Never echo the market price.",
           ),
         marketProbability: z
           .number()
@@ -1927,16 +1937,18 @@ export function registerTools(
           .string()
           .optional()
           .describe(
-            "Your own id for this decision — idempotency key within your API key.",
+            "Non-empty id for this decision, unique within your API key. " +
+              "Reuse for retries. Falls back to agentTrace.decisionId; " +
+              "omitting both creates a new record on each call.",
           ),
         runId: z.string().optional().describe("Your own run id for grouping."),
         provenance: PROVENANCE_REPORT_SCHEMA,
         agentTrace: AGENT_TRACE_SCHEMA,
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
-      annotations: mutatingAnnotations("Report a non-opened PM opportunity", {
-        idempotent: true,
-      }),
+      // Idempotency is conditional on decisionId; it is not a safe default
+      // for the entire tool because the field remains optional.
+      annotations: mutatingAnnotations("Report a non-opened PM opportunity"),
     },
     async (
       {

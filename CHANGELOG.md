@@ -8,6 +8,23 @@ Each package has its own version; the API contract is versioned separately.
 [TypeScript history](packages/sdk/CHANGELOG.md) ·
 [Python release notes](packages/sdk-python/README.md)
 
+## 0.7.12 — 2026-09-15 (source; publication pending)
+
+Clarify three MCP tool definitions after reviewing Glama's expanded feedback:
+
+- `whoami`: explain authentication, returned identity/permission fields and
+  usage metadata; remove unrelated execution-cost prose.
+- `cancel_spot_order`: explain cancellation of the unfilled remainder and
+  `alreadyClosed` semantics; mark repeated cancellation as idempotent.
+- `report_pm_opportunity`: explicitly describe its durable evidence write,
+  self-reported status and conditional deduplication. Remove the unconditional
+  idempotency hint because callers may omit the decision ID.
+
+All 38 tool names, accepted inputs and execution behavior remain unchanged.
+The SDKs, runner and scheduler logic are unchanged. Glama's release number and
+evaluation score are separate from package versions; this entry claims neither
+a new Glama score nor publication or deployment.
+
 ## 0.7.11 — 2026-09-15
 
 Opportunity-report status correction following 0.7.10:

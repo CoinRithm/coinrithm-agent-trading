@@ -42,16 +42,15 @@ This package ships two binaries:
 
 > **Paper trading only** — virtual funds (50,000 mUSD). Not financial advice.
 
-## Version 0.7.11
+## Version 0.7.12
 
-This patch corrects opportunity-report status: only a successful API result
-confirms submission. HTTP errors remain unconfirmed, and transport failures
-have an unknown outcome. Attempt evidence is available in
-`CycleResult.opportunityReport`; `opportunity` contains confirmed reports only.
-Trading behavior and the one-report-method-call-per-cycle limit are preserved. See
-[CHANGELOG.md](./CHANGELOG.md). Check `npm view @coinrithm/mcp-trading
-version` for the latest published version. Hosted deployments and npm releases
-are separate.
+This patch clarifies `whoami`, `cancel_spot_order` and `report_pm_opportunity`
+for MCP clients. Cancellation is marked safe to repeat; opportunity reporting
+is a write whose duplicate protection requires a decision ID. Tool names,
+accepted inputs and execution behavior are unchanged. See [CHANGELOG.md](./CHANGELOG.md).
+This source entry does not establish publication. Check
+`npm view @coinrithm/mcp-trading version` for the latest published version;
+hosted deployments and npm releases are separate.
 
 Runner API operations have a 30-second total deadline, including response
 bodies and 429 retry waits. Timeout and cancellation results remain unconfirmed;

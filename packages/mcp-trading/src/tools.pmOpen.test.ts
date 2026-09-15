@@ -3,13 +3,18 @@ import type { z } from "zod";
 import { registerTools } from "./tools.js";
 import type { CoinRithmClient } from "./client.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 
 // Capture every tool registered by registerTools without a live server/client.
 // registerTools only references the client inside handler closures (not at
 // registration time), so a bare stub is enough to inspect the input schemas.
 type Registered = {
   name: string;
-  config: { inputSchema: Record<string, z.ZodTypeAny>; description?: string };
+  config: {
+    inputSchema: Record<string, z.ZodTypeAny>;
+    description?: string;
+    annotations?: ToolAnnotations;
+  };
 };
 
 const capture = (): Registered[] => {
@@ -22,6 +27,24 @@ const capture = (): Registered[] => {
   registerTools(server, {} as unknown as CoinRithmClient);
   return tools;
 };
+
+describe("tool side-effect and retry hints", () => {
+  it.each([
+    ["whoami", true, false, undefined],
+    ["cancel_spot_order", false, true, true],
+    ["report_pm_opportunity", false, false, false],
+  ])(
+    "%s declares its actual mutation and repeatability contract",
+    (name, readOnlyHint, destructiveHint, idempotentHint) => {
+      const tool = capture().find((entry) => entry.name === name);
+      expect(tool?.config.annotations).toMatchObject({
+        readOnlyHint,
+        destructiveHint,
+      });
+      expect(tool?.config.annotations?.idempotentHint).toBe(idempotentHint);
+    },
+  );
+});
 
 describe("open_pm_position forecastProbability input schema", () => {
   const tool = capture().find((t) => t.name === "open_pm_position");
