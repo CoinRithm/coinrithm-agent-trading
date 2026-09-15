@@ -8,6 +8,23 @@ Each package has its own version; the API contract is versioned separately.
 [TypeScript history](packages/sdk/CHANGELOG.md) ·
 [Python release notes](packages/sdk-python/README.md)
 
+## 0.7.11 — 2026-09-15
+
+Opportunity-report status correction following 0.7.10:
+
+- Confirm an opportunity only when the API returns `ok: true`. HTTP errors
+  remain unconfirmed; timeout, cancellation, network failure and exceptions
+  have an unknown delivery outcome.
+- Keep attempted evidence in `CycleResult.opportunityReport` with its outcome
+  and status. `CycleResult.opportunity` now contains confirmed submissions only.
+- Preserve one report-method invocation per cycle and best-effort isolation
+  from trading. Error bodies and exception details are omitted from report logs.
+- Add regressions for resolved 503/422 errors, transport failures and thrown
+  exceptions, including unchanged trading results and state in skip/act cycles.
+
+The SDK versions remain 0.3.1 (TypeScript) and 1.8.1 (Python). Publication and
+hosted deployment are tracked separately from this source entry.
+
 ## 0.7.10 — 2026-09-15
 
 Published follow-up to the 0.7.9 release. The TypeScript SDK remains

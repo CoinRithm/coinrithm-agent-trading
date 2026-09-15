@@ -889,8 +889,18 @@ export interface CycleResult {
   // forecast_only (it forecast but did not trade), or quote_expired (a validated
   // pm_open the server rejected at act time). At most ONE per cycle (the cohort/
   // universe field carries the breadth). Present only when an opportunity was
-  // POSTED (live + capture flag on); undefined otherwise.
+  // confirmed by a successful API result (live + capture flag on).
   opportunity?: PostedOpportunity;
+  // Outcome of the single report-method invocation, including unconfirmed
+  // attempts. An HTTP error or transport-unknown result is not proof of storage.
+  opportunityReport?: OpportunityReport;
+}
+
+export interface OpportunityReport {
+  opportunity: PostedOpportunity;
+  outcome: "confirmed" | "http_error" | "unknown";
+  // Zero means no usable HTTP response; never infer rejection from it.
+  status: number;
 }
 
 // The compact record of a reported opportunity, surfaced on CycleResult for

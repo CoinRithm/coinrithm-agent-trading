@@ -180,6 +180,28 @@ decisions. Model-reported confidence is not independent evidence of correctness.
   CLI lock prevents two runners racing one file. Deduplication also depends on
   the execution service honoring the key. This is not an exactly-once guarantee.
 
+## Opportunity-report outcomes
+
+Opportunity capture records abstentions, forecasts without a trade and expired
+PM quotes. Reporting is best effort and does not change trading decisions. The
+reporter invokes the report method at most once per cycle, latching before it
+waits for the response. The API client's existing retry policy is unchanged.
+
+For engine consumers, `CycleResult.opportunity` is present only after a successful
+API result. `CycleResult.opportunityReport` also preserves unconfirmed attempts:
+
+| Outcome | Meaning |
+| --- | --- |
+| `confirmed` | The API returned `ok: true`. |
+| `http_error` | The API returned an unsuccessful HTTP response; `status` contains its code. Delivery is unconfirmed. |
+| `unknown` | A transport failure or exception left delivery unknown; `status` is `0`. This does not prove rejection. |
+
+The report contains the attempted `opportunity` payload, outcome and status.
+Neither API error bodies nor exception details enter these diagnostics. Dry-run
+cycles, disabled capture and cycles without a reportable opportunity omit both
+fields. The runner does not add reporting retries or mark a failed report as a
+confirmed submission.
+
 ## Capabilities and the event-driven gate
 
 `capabilities:` in `agent.md` controls what each cycle's observation carries —
