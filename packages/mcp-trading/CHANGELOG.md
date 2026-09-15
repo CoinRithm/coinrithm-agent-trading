@@ -5,6 +5,22 @@ ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (t
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
 versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
+## 0.7.11 — 2026-09-15
+
+Fix opportunity reporting that previously treated resolved API failures as
+successful submissions. Only `ok: true` confirms a report. HTTP errors remain
+unconfirmed; transport failures and exceptions have an unknown delivery outcome.
+
+`CycleResult.opportunity` now contains confirmed reports only. The additive
+`opportunityReport` field preserves the attempted payload, outcome and status,
+without API error bodies or exception details. Existing consumers should use
+this field when they need attempted rather than confirmed evidence.
+
+The reporter retains its one-invocation-per-cycle latch and adds no retries.
+Focused regressions compare successful and failed reporting in skip/act cycles
+and verify unchanged trading results and runner state. SDK versions are unchanged.
+This source entry does not establish registry publication or hosted deployment.
+
 ## 0.7.10 — 2026-09-15
 
 Source changes following the published 0.7.9 release. The TypeScript SDK remains
@@ -26,8 +42,9 @@ Source changes following the published 0.7.9 release. The TypeScript SDK remains
 - Pin workflow actions and verify release-tool checksums. Add installed-package
   compatibility and restart smoke checks across operating systems and runtimes.
 
-Source/CI checks, registry publication and production deployment are separate.
-This entry does not claim that 0.7.10 is published or deployed.
+0.7.10 was published and deployed on 2026-09-15. Registry and GitHub downloads
+matched the CI-tested archive; hosted MCP and scheduler deployments finished.
+See the [release record](https://github.com/CoinRithm/coinrithm-agent-trading/releases/tag/mcp-trading-v0.7.10).
 
 ## 0.7.9 - 2026-09-15
 

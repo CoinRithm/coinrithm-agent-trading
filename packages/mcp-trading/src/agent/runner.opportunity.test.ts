@@ -120,6 +120,7 @@ afterEach(() => {
   delete process.env.AGENT_OPPORTUNITY_CAPTURE_ENABLED;
   delete process.env.COINRITHM_RUNTIME_KIND;
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 /* ------------------------- runner provenance ------------------------- */
@@ -279,6 +280,11 @@ describe("runCycle opportunity emission", () => {
     expect(body.provenance?.modelProvider).toBe("anthropic");
     expect((body.provenance?.packageVersion ?? "").length).toBeGreaterThan(0);
     expect(r.opportunity?.kind).toBe("abstained");
+    expect(r.opportunityReport).toEqual({
+      opportunity: r.opportunity,
+      outcome: "confirmed",
+      status: 200,
+    });
   });
 
   it("never posts on a dry-run (dry-run never writes)", async () => {
@@ -286,6 +292,7 @@ describe("runCycle opportunity emission", () => {
     const r = await runCycle(deps({ live: false }, client));
     expect(client.reportPmOpportunity).not.toHaveBeenCalled();
     expect(r.opportunity).toBeUndefined();
+    expect(r.opportunityReport).toBeUndefined();
   });
 
   it("never posts when the capture kill-switch is off", async () => {
@@ -294,6 +301,7 @@ describe("runCycle opportunity emission", () => {
     const r = await runCycle(deps({ live: true }, client));
     expect(client.reportPmOpportunity).not.toHaveBeenCalled();
     expect(r.opportunity).toBeUndefined();
+    expect(r.opportunityReport).toBeUndefined();
   });
 
   it("does not post when there were no PM markets to weigh", async () => {
@@ -303,6 +311,7 @@ describe("runCycle opportunity emission", () => {
     const r = await runCycle(deps({ live: true }, client));
     expect(client.reportPmOpportunity).not.toHaveBeenCalled();
     expect(r.opportunity).toBeUndefined();
+    expect(r.opportunityReport).toBeUndefined();
   });
 
   it("posts a quote_expired opportunity when a validated pm_open is rejected 422 at act time", async () => {
@@ -409,5 +418,95 @@ describe("runCycle opportunity emission", () => {
     const r = await runCycle(deps({ live: true }, client));
     expect(r.decision).toBe("skip"); // cycle still completes
     expect(client.reportPmOpportunity).toHaveBeenCalledTimes(1);
+    expect(r.opportunity).toBeUndefined();
+    expect(r.opportunityReport).toMatchObject({
+      outcome: "unknown",
+      status: 0,
+    });
   });
+
+  it.each([503, 422, 0, "throw"])(
+    "keeps skip and act decisions, execution and state identical when reporting returns %s",
+    async (status) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-09-15T00:00:00Z"));
+      for (const decision of [
+        { decision: "skip", reason: "no edge" },
+        {
+          decision: "act",
+          confidence: 0.9,
+          actions: [
+            {
+              type: "pm_open",
+              source: "kalshi",
+              slug: "btc-up",
+              outcomeExternalMarketId: "yes-1",
+              stakeMusd: 15,
+              confidence: 0.9,
+            },
+            {
+              type: "pm_open",
+              source: "polymarket",
+              slug: "eth-up",
+              outcomeExternalMarketId: "yes-2",
+              stakeMusd: 15,
+              confidence: 0.9,
+            },
+          ],
+        },
+      ]) {
+        const exercise = async (failed: boolean) => {
+          const client = pmClient({
+            openPmPosition: vi.fn(async () =>
+              failData(422, {
+                error: "mock_entry_blocked",
+                blockReasons: ["quote_dead"],
+              }),
+            ),
+            ...(failed
+              ? {
+                  reportPmOpportunity: vi.fn(async () => {
+                    if (status === "throw")
+                      throw new Error("private request details");
+                    return failData(status, {
+                      error: "private response details",
+                    });
+                  }),
+                }
+              : {}),
+          });
+          const input = deps({ live: true }, client, provider(decision));
+          const result = await runCycle(input);
+          return { result, state: input.state, client };
+        };
+        const control = await exercise(false);
+        const failed = await exercise(true);
+        const {
+          opportunity: confirmed,
+          opportunityReport: controlReport,
+          ...controlResult
+        } = control.result;
+        const {
+          opportunity: unconfirmed,
+          opportunityReport: failedReport,
+          ...failedResult
+        } = failed.result;
+        expect(confirmed).toBeDefined();
+        expect(controlReport?.outcome).toBe("confirmed");
+        expect(unconfirmed).toBeUndefined();
+        expect(failedReport).toEqual({
+          opportunity: confirmed,
+          outcome:
+            status === 0 || status === "throw" ? "unknown" : "http_error",
+          status: status === "throw" ? 0 : status,
+        });
+        expect(failedResult).toEqual(controlResult);
+        expect(failed.state).toEqual(control.state);
+        expect(failed.client.reportPmOpportunity).toHaveBeenCalledTimes(1);
+        expect(failed.client.openPmPosition).toHaveBeenCalledTimes(
+          decision.decision === "act" ? 2 : 0,
+        );
+      }
+    },
+  );
 });

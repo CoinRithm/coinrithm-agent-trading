@@ -57,6 +57,8 @@ export type {
   AgentSpec,
   RunState,
   CycleResult,
+  OpportunityReport,
+  PostedOpportunity,
   PlannedAction,
   Venue,
   ProviderName,

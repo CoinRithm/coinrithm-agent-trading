@@ -42,11 +42,13 @@ This package ships two binaries:
 
 > **Paper trading only** — virtual funds (50,000 mUSD). Not financial advice.
 
-## Version 0.7.10
+## Version 0.7.11
 
-This source version adds restart identity persistence, a supported engine
-import, opt-in entry predicates and configuration warnings. It also fixes
-runner startup on Node 18 by importing the Node crypto API explicitly. See
+This patch corrects opportunity-report status: only a successful API result
+confirms submission. HTTP errors remain unconfirmed, and transport failures
+have an unknown outcome. Attempt evidence is available in
+`CycleResult.opportunityReport`; `opportunity` contains confirmed reports only.
+Trading behavior and the one-report-method-call-per-cycle limit are preserved. See
 [CHANGELOG.md](./CHANGELOG.md). Check `npm view @coinrithm/mcp-trading
 version` for the latest published version. Hosted deployments and npm releases
 are separate.

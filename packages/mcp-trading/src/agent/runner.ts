@@ -1029,6 +1029,9 @@ async function runCycleCore(
       writeAttempted: decision.actions.length,
       writeAccepted: 0,
       ...(opportunities.posted ? { opportunity: opportunities.posted } : {}),
+      ...(opportunities.report
+        ? { opportunityReport: opportunities.report }
+        : {}),
       ...observationReceipt,
     };
   }
@@ -1501,6 +1504,9 @@ async function runCycleCore(
     writeAttempted: decision.actions.length,
     writeAccepted: planned.filter((p) => p.accepted).length,
     ...(opportunities.posted ? { opportunity: opportunities.posted } : {}),
+    ...(opportunities.report
+      ? { opportunityReport: opportunities.report }
+      : {}),
     ...observationReceipt,
   };
 }

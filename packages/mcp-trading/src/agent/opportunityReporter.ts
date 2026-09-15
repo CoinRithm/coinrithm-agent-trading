@@ -1,7 +1,12 @@
 // Owns the per-cycle opportunity latch. A failed post is still one attempt;
 // reporting must never retry within a cycle or alter its execution outcome.
 import type { CoinRithmClient, ProvenanceReport } from "./client.js";
-import type { AgentSpec, AgentTrace, PostedOpportunity } from "./types.js";
+import type {
+  AgentSpec,
+  AgentTrace,
+  OpportunityReport,
+  PostedOpportunity,
+} from "./types.js";
 
 export function createOpportunityReporter({
   client,
@@ -24,14 +29,13 @@ export function createOpportunityReporter({
   baseTrace: AgentTrace;
   log: (line: string) => void;
 }) {
-  let opportunityPosted = false;
-  let postedOpportunity: PostedOpportunity | undefined;
+  let attempted = false;
+  let report: OpportunityReport | undefined;
   const post = async (o: PostedOpportunity): Promise<void> => {
-    if (!enabled || !live || opportunityPosted) return;
-    opportunityPosted = true;
-    postedOpportunity = o;
+    if (!enabled || !live || attempted) return;
+    attempted = true;
     try {
-      await client.reportPmOpportunity(
+      const result = await client.reportPmOpportunity(
         {
           kind: o.kind,
           source: o.source,
@@ -50,18 +54,40 @@ export function createOpportunityReporter({
         },
         baseTrace,
       );
-      log(`reported ${o.kind} opportunity (universe ${o.universeSize ?? "?"})`);
-    } catch (err) {
-      log(
-        `opportunity post failed: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      report = {
+        opportunity: o,
+        outcome: result.ok
+          ? "confirmed"
+          : result.status === 0
+            ? "unknown"
+            : "http_error",
+        status: result.status,
+      };
+      if (result.ok) {
+        log(
+          `reported ${o.kind} opportunity (universe ${o.universeSize ?? "?"})`,
+        );
+      } else if (result.status === 0) {
+        log("opportunity report outcome unknown (transport failure)");
+      } else {
+        log(
+          `opportunity report received HTTP ${result.status}; delivery unconfirmed`,
+        );
+      }
+    } catch {
+      report = { opportunity: o, outcome: "unknown", status: 0 };
+      // Exceptions and API error bodies may contain private request details.
+      log("opportunity report outcome unknown (exception)");
     }
   };
 
   return {
     post,
     get posted() {
-      return postedOpportunity;
+      return report?.outcome === "confirmed" ? report.opportunity : undefined;
+    },
+    get report() {
+      return report;
     },
   };
 }
