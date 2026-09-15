@@ -13,6 +13,12 @@ a source version or hosted deployment does not confirm npm delivery.
 Public market-data fidelity and runner reliability release. No MCP tool was
 renamed or removed, and the API **contract stays 1.7.0**.
 
+**PM evaluation budget.** Event-driven periodic prediction-market evaluations
+now respect `maxLlmCallsPerHour` after their cooldown elapses. Budget skips make
+no provider call and consume no call allowance. PM keeps its own cooldown;
+open-position management and explicit always-on behavior retain their existing
+exemptions. This runner gate is separate from hosted provider-capacity admission.
+
 **Confirmed-action journal.** Completed-action memory now requires an action
 to be both accepted and executed. Failed writes and uncertain transport results
 retain their attempt evidence without becoming completed moves in the next

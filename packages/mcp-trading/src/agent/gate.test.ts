@@ -108,6 +108,52 @@ describe("evaluateGate", () => {
     expect(g.fire).toBe(false);
   });
 
+  it.each([
+    { ageMinutes: 11, budget: 1, fire: false },
+    { ageMinutes: 60, budget: 1, fire: true },
+    { ageMinutes: 11, budget: 2, fire: true },
+    { ageMinutes: 11, budget: 0, fire: true },
+  ])(
+    "PM periodic evaluation respects budget $budget after $ageMinutes minutes (fire=$fire)",
+    ({ ageMinutes, budget, fire }) => {
+      const now = 100_000_000;
+      const lastCall = now - ageMinutes * 60_000;
+      const g = evaluateGate(
+        obs(
+          [],
+          [],
+          [
+            {
+              source: "polymarket",
+              slug: "x",
+              outcomeExternalMarketId: "1",
+              probability: 0.4,
+            },
+          ],
+        ),
+        state({
+          lastLlmCallAt: lastCall,
+          llmCallTimestamps: [lastCall],
+          lastTriggerFingerprint: "PM_PERIODIC",
+        }),
+        pol({
+          maxLlmCallsPerHour: budget,
+          pmEvalCooldownMinutes: 10,
+          // PM uses its own cooldown, not the crypto-entry debounce.
+          debounceMinutes: 30,
+        }),
+        now,
+      );
+      expect(g).toEqual({
+        fire,
+        codes: ["PM_PERIODIC"],
+        reason: fire
+          ? "PM periodic eval (quiet price tape)"
+          : "hourly LLM budget 1 reached",
+      });
+    },
+  );
+
   it("fires on a fresh (not-held) entry setup", () => {
     const g = evaluateGate(obs([setup("breakdown")]), state(), pol(), 1000);
     expect(g.fire).toBe(true);

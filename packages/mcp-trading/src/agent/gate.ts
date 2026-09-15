@@ -78,6 +78,7 @@ export function evaluateGate(
   // evaluate PREDICTION MARKETS — they carry edge even when crypto prices are flat,
   // so an agent on a quiet tape shouldn't go dark on PM. At most once per cooldown
   // (gated on the last LLM call, which any fire resets), so it's not every cycle.
+  let pmPeriodic = false;
   if (codeList.length === 0) {
     const pmAvailable = observation.pmMarkets.length > 0;
     const sinceLastCall =
@@ -87,22 +88,20 @@ export function evaluateGate(
       policy.pmEvalCooldownMinutes > 0 &&
       sinceLastCall >= policy.pmEvalCooldownMinutes * 60_000
     ) {
+      pmPeriodic = true;
+      codeList.push("PM_PERIODIC");
+    } else {
       return {
-        fire: true,
-        codes: ["PM_PERIODIC"],
-        reason: "PM periodic eval (quiet price tape)",
+        fire: false,
+        codes: [],
+        reason: "no trigger (flat tape, no open position)",
       };
     }
-    return {
-      fire: false,
-      codes: [],
-      reason: "no trigger (flat tape, no open position)",
-    };
   }
 
   // A real trigger exists. Open positions are NEVER starved by budget/debounce
   // (managing a live position is always allowed); the caps below only throttle
-  // fresh entry-only cycles so a chop-storm of entry setups can't burn the budget.
+  // fresh entry-only cycles, including periodic PM evaluations.
   if (!hasPosition) {
     if (policy.maxLlmCallsPerHour > 0) {
       const recent = (state.llmCallTimestamps ?? []).filter(
@@ -116,7 +115,8 @@ export function evaluateGate(
         };
       }
     }
-    if (policy.debounceMinutes > 0) {
+    // PM already passed its own cooldown; debounce only crypto-entry triggers.
+    if (!pmPeriodic && policy.debounceMinutes > 0) {
       const fp = [...codeList].sort().join(",");
       if (
         state.lastTriggerFingerprint === fp &&
@@ -135,7 +135,9 @@ export function evaluateGate(
   return {
     fire: true,
     codes: codeList,
-    reason: `triggers: ${codeList.join(",")}`,
+    reason: pmPeriodic
+      ? "PM periodic eval (quiet price tape)"
+      : `triggers: ${codeList.join(",")}`,
   };
 }
 

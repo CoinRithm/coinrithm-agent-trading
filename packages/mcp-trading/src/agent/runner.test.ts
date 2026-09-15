@@ -160,6 +160,45 @@ function deps(
   };
 }
 
+describe("PM periodic budget gate", () => {
+  it.each([1, 2])(
+    "only calls the provider when the hourly budget of %i allows it",
+    async (budget) => {
+      const client = baseClient();
+      const decide = vi.fn(async () => ({
+        ok: true as const,
+        text: '{"decision":"skip","actions":[]}',
+      }));
+      const d = deps({}, client, { label: "fixture", decide });
+      d.spec.venues = ["pm"];
+      d.spec.triggerPolicy = {
+        mode: "event_driven",
+        skipLlmWhenNoTrigger: true,
+        alwaysManageOpenPositions: true,
+        maxLlmCallsPerHour: budget,
+        debounceMinutes: 0,
+        pmEvalCooldownMinutes: 10,
+      };
+      const lastCall = Date.now() - 11 * 60_000;
+      d.state.lastLlmCallAt = lastCall;
+      d.state.llmCallTimestamps = [lastCall];
+
+      const result = await runCycle(d);
+
+      expect(result.triggerCodes).toEqual(["PM_PERIODIC"]);
+      expect(result.llmCallMade).toBe(budget > 1);
+      expect(decide).toHaveBeenCalledTimes(budget > 1 ? 1 : 0);
+      expect(d.state.llmCallTimestamps).toHaveLength(budget > 1 ? 2 : 1);
+      expect(client.openPmPosition).not.toHaveBeenCalled();
+      if (budget === 1) {
+        expect(result.decisionType).toBe("gate_skip");
+        expect(result.skipReason).toBe("hourly LLM budget 1 reached");
+        expect(d.state.lastLlmCallAt).toBe(lastCall);
+      }
+    },
+  );
+});
+
 describe("confirmed action memory", () => {
   const sltp = (positionId: number) => ({
     type: "futures_set_sltp",
