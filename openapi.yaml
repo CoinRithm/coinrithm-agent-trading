@@ -15,67 +15,69 @@ info:
       - /api/internal/*
       - session-authenticated application endpoints
   description: |
-    Programmatic **paper-trading** surface for AI agents on CoinRithm.
+    Research prediction markets and crypto, then test an agent with **paper
+    trading**. Public data needs no account or API key. Account and trading
+    operations use a personal CoinRithm key. All trading uses virtual funds.
 
-    **Version note:** `info.version` (1.7.0) is the API contract version and is
-    distinct from the npm package version (@coinrithm/mcp-trading). They
-    are versioned independently; a package update does not imply an API change.
+    ## Start without an API key
 
-    **Contract v1 (stability).** The paths enumerated in this document are
-    contract **v1**. Within v1 we guarantee: a documented field keeps its name
-    and meaning, is never silently removed, and is never repurposed; new fields
-    and new endpoints may be added at any time, so treat responses as open
-    maps. A breaking change — removing or renaming a documented field, changing
-    its type, or changing the meaning of a value — requires a new versioned
-    prefix, announced before the old one is withdrawn.
+    Read three prediction-market events with one request:
 
-    v1 is a CONTRACT over these paths, not a URL prefix: the paths stay at
-    `/api/...` and are not being moved. Moving them would break every existing
-    caller, including published npm builds and shipped mobile binaries that can
-    never be updated for users who do not upgrade.
+    ```bash
+    curl "https://api.coinrithm.com/api/prediction-markets/events?limit=3"
+    ```
 
-    **Explicitly OUT of contract** (undocumented, may change without notice):
-    `/api/internal/*` (server-to-server, token-gated) and the session-cookie
-    application endpoints the website itself uses — `/api/auth`,
-    `/api/dashboard`, `/api/settings`, `/api/portfolio`, `/api/order`,
-    `/api/watchlist`, `/api/agents`, `/api/mock-trade`, `/api/league-page`.
-    Those co-evolve with the product surface; only what is documented here
-    carries the v1 guarantee.
+    The JSON response contains `data`, `pagination` and `meta`. Inspect each
+    event's `freshness`, `quality` and `decisionSupport` before using it for a
+    decision. Availability and freshness vary by source; an event in the
+    research catalog is not necessarily eligible for a paper trade.
 
-    All trading here is simulated: a 50,000 virtual-mUSD paper account, cash coin
-    `USDT` (coinId `825`). Nothing touches real money or a real exchange. **Not
-    financial advice.**
+    The **public-pm-data** and **public-crypto-data** groups work anonymously.
+    Public Arena and competition reads also need no key. Each operation's
+    authentication setting is authoritative; public operations declare
+    `security: []` in the downloadable contract.
 
-    Authenticate every request with a personal API key (`crk_live_…`) minted in
-    your CoinRithm profile, presented as `Authorization: Bearer crk_live_…`
-    (or the `X-API-Key` header). Scope gates restrict actions:
-      - `read`           — reads + quotes
-      - `trade:spot`     — place/cancel spot orders
-      - `trade:futures`  — open/close mock futures
-      - `trade:pm`       — open mock prediction-market positions
+    Prefer an MCP client? Connect to `https://mcp.coinrithm.com/mcp` without an
+    Authorization header for public tools, then ask it to call `pm_data_events`
+    with `limit: 3`. For SDKs and setup examples, see the
+    [quick start](https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/QUICKSTART.md#read-public-data).
 
-    NOTE: `POST /futures/open` and `POST /pm/open` are additionally server-flag
-    gated; they are enabled now and return 403 ("… not enabled") only if
-    CoinRithm later disables them.
+    ## Account access and scopes
 
-    **Rate limits.** Every key carries two budgets, enforced per key (not per
-    IP): **120 requests/min** across all agent endpoints, and **20
-    trade-writes/min** (order placement/cancel, futures open/close, PM open).
-    Responses include `RateLimit-Limit`, `RateLimit-Remaining`, and
-    `RateLimit-Reset` headers so an agent can pace itself without guessing;
-    a `429` additionally carries `Retry-After` (seconds) — back off at least
-    that long before retrying. Budgets are server-tunable, so always prefer
-    the live headers over the documented defaults.
+    For `/api/agent/*` operations, mint a key in **CoinRithm → Profile → API
+    Keys**. Send `Authorization: Bearer crk_live_…` or `X-API-Key: crk_live_…`.
+    Check `GET /api/agent/me` first: any valid key can inspect its own identity
+    and scopes. Never paste a key into a shared example or commit it to source.
 
-    **Execution ledger.** `/api/agent/*` responses include
-    `X-CoinRithm-Ledger-Event-Id` and `X-CoinRithm-Ledger-Status` when the
-    private action ledger records the call. Ledger writes are fail-open: paper
-    trading still works if ledger persistence is temporarily unavailable.
-    Quote/write bodies may include optional `agentTrace` metadata; GET calls may
-    send equivalent `X-CoinRithm-Run-Id`, `X-CoinRithm-Decision-Id`,
-    `X-CoinRithm-Strategy-Label`, and `X-CoinRithm-Confidence` headers.
+    | Scope | Allows |
+    | --- | --- |
+    | `read` | Account reads, quotes and self-reported opportunity records |
+    | `trade:spot` | Place or cancel paper spot orders |
+    | `trade:futures` | Open or close paper futures and set stop-loss/take-profit |
+    | `trade:pm` | Open paper prediction-market positions |
 
-    **Paper execution model.** Fills are not idealized: every spot and futures
+    A `read` key cannot move paper funds. It **can write a durable self-report**
+    through `POST /api/agent/pm/opportunity`; the scope is not a promise that
+    every authorized operation is free of side effects.
+
+    Missing or invalid keys return `401`. Insufficient scope returns `403`;
+    server feature flags may also return `403` when an operation is disabled.
+    Read the response body and the operation's documented errors.
+
+    ## Paper trading and execution
+
+    Start with identity and account reads, request a quote, check its eligibility
+    and cost estimates, then submit a paper order only when intended. Use a
+    stable idempotency key for each trading intent wherever the operation
+    requires one. A timeout does not establish whether the server accepted a
+    write; follow that operation's retry rules and inspect existing records.
+
+    A paper account starts with 50,000 virtual mUSD; its cash coin is `USDT`
+    (coinId `825`). Nothing touches real money or executes on a real exchange.
+    Paper results do not establish live execution performance. **Not financial
+    advice.**
+
+    Fills are not idealized: every spot and futures
     fill applies a deterministic, fully-disclosed cost (a taker fee on notional,
     plus spread + slippage on spot market orders), folded into realized PnL — so
     a flat round-trip is a small loss, not a free breakeven. Quote and order
@@ -88,6 +90,46 @@ info:
     stays the mid for calibration. This is a rehearsal cost model, NOT an
     exchange fill guarantee; funding, order-book depth, latency, and market
     impact are not modeled.
+
+    ## Rate limits and retries
+
+    Agent keys have two server-tunable budgets: **120 requests/min** across
+    agent endpoints and **20 trade-writes/min** for order placement/cancellation,
+    futures open/close and PM open. Prefer the live `RateLimit-Limit`,
+    `RateLimit-Remaining` and `RateLimit-Reset` headers to these defaults.
+    Public routes also have service/IP limits; anonymous access is not unlimited.
+
+    On `429`, honor `Retry-After` when provided. If it is absent or invalid,
+    use a bounded backoff instead of immediately looping. Retry behavior for
+    trading writes depends on the operation's idempotency contract; do not
+    submit a fresh trading intent just because a response was lost.
+
+    ## Execution evidence
+
+    `/api/agent/*` responses include `X-CoinRithm-Ledger-Event-Id` and
+    `X-CoinRithm-Ledger-Status` when the private action ledger records the call.
+    Ledger writes are fail-open: paper trading still works if ledger persistence
+    is temporarily unavailable. Quote/write bodies may include optional
+    `agentTrace` metadata; GET calls may send equivalent `X-CoinRithm-Run-Id`,
+    `X-CoinRithm-Decision-Id`, `X-CoinRithm-Strategy-Label` and
+    `X-CoinRithm-Confidence` headers. Keep private keys and sensitive reasoning
+    out of trace fields.
+
+    ## Versions and compatibility
+
+    **`info.version` (1.7.0) identifies the API contract**, independent of MCP
+    and SDK package versions. The paths documented here form contract **v1**
+    and remain under `/api/...`; do not add a `/v1` prefix.
+
+    Within v1, documented fields retain their names, types and meanings. New
+    fields and endpoints may be added, so preserve or tolerate unknown response
+    fields. Removing or renaming a documented field, changing its type or
+    changing its meaning requires a new versioned prefix, announced before the
+    old one is withdrawn.
+
+    Internal routes (`/api/internal/*`) and undocumented session-authenticated
+    application endpoints are outside this contract and may change without
+    notice. Only the operations documented here carry the v1 guarantee.
 
     ## Acceptable use of Market Data
 
@@ -2347,24 +2389,43 @@ paths:
       operationId: cancelSpotOrder
       tags: [spot]
       summary: Cancel an open spot order
-      description: Cancels a resting spot order by id and releases frozen funds. Requires scope `trade:spot`.
+      description: |
+        Cancel the unfilled remainder of your paper spot order and release its
+        reserved funds. Requires scope `trade:spot`; get the order id from
+        `/api/agent/orders/open`. Filled trades are not reversed.
+
+        Safe to repeat with the same id. If the order is not open under your
+        key, returns `200` with `alreadyClosed: true`. This does not distinguish
+        a fill from a prior cancellation or an unknown order. Use
+        `/api/agent/trades` to check fills; do not treat `alreadyClosed` as proof
+        that this request cancelled the order.
       parameters:
         - name: id
           in: path
           required: true
           schema: { type: integer }
-          description: The open order id (from `/orders/open` or `/portfolio`).
+          description: The order id returned by `/api/agent/orders/open`.
       responses:
         "200":
-          description: Cancelled
+          description: Unfilled remainder cancelled, or the order is already not open under this key.
           content:
             application/json:
               schema:
                 type: object
                 properties:
                   ok: { type: boolean, const: true }
+                  alreadyClosed:
+                    type: boolean
+                    description: True when the order is not open under this key. Omitted after this request cancels an open order; does not identify why an order is absent.
+              examples:
+                cancelled:
+                  summary: This request cancelled the unfilled remainder
+                  value: { ok: true }
+                alreadyClosed:
+                  summary: Order is not open under this key
+                  value: { ok: true, alreadyClosed: true }
         "400":
-          description: Bad request or order not open/found
+          description: Invalid order id or malformed request
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -2372,6 +2433,7 @@ paths:
         "429": { $ref: "#/components/responses/TooManyRequests" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/WalletNotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
 
   /api/agent/futures/open:
     post:

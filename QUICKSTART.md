@@ -1,11 +1,58 @@
 # Quickstart
 
-Get an AI agent paper-trading on CoinRithm — safely, in the order that keeps you
-in control: key → scopes → connect → read → trade → revoke. The fastest path is
-the **hosted MCP**: paste one URL and a header, nothing to install.
+Start with public market data, then add account access when you need it.
+The **hosted MCP** needs no local installation; the REST API also works directly
+with curl or a typed SDK.
 
-> **Paper trading only.** Everything below moves virtual funds (50,000 mUSD).
+| Your goal                               | Start here                                                    |
+| --------------------------------------- | ------------------------------------------------------------- |
+| Research prediction markets or crypto   | [Read public data](#read-public-data) — no account or API key |
+| Connect a model to public MCP tools     | [Connect MCP without a key](#connect-mcp-without-a-key)       |
+| Read your account or place paper trades | [Create an API key](#1-create-an-api-key), then choose scopes |
+
+> **Paper trading only.** Reads do not move funds. Trading uses a virtual
+> 50,000 mUSD starting balance. Paper results do not establish live performance.
 > Not financial advice. See the [README banner](./README.md).
+
+## Read public data
+
+No sign-in or authorization header is needed for this request:
+
+```bash
+curl "https://api.coinrithm.com/api/prediction-markets/events?limit=3"
+```
+
+The response contains `data` (up to three events), `pagination` and `meta`.
+Inspect each event's `freshness`, `quality` and `decisionSupport`. Public
+research can include events that are not eligible for paper trading.
+
+For source availability, use
+`GET https://api.coinrithm.com/api/prediction-markets/sources/health`.
+Keyless access remains subject to rate limits and
+[Market Data terms](./API_TERMS.md).
+
+### Connect MCP without a key
+
+In a client that supports Streamable HTTP, add this remote server **without
+an Authorization header**:
+
+```text
+https://mcp.coinrithm.com/mcp
+```
+
+Ask: **“Call `pm_data_events` with `limit: 3`, then summarize the returned
+freshness and quality information.”** The ten `pm_data_*` tools and
+`get_crypto_movers` are available anonymously on the hosted endpoint. Account
+and trading tools require your own API key. The local stdio process requires
+`COINRITHM_API_KEY` at startup; use the hosted endpoint for a keyless start.
+
+### Use a typed SDK
+
+- **TypeScript:** [install and examples](./packages/sdk/README.md). Use
+  `createClient()` without an `apiKey` for public endpoints.
+- **Python:** [install and examples](./packages/sdk-python/README.md). Use
+  `Client` for public endpoints and `AuthenticatedClient` for account access.
+- **REST:** [browse the API reference](https://coinrithm.github.io/coinrithm-agent-trading/).
 
 ---
 
@@ -26,13 +73,16 @@ the **hosted MCP**: paste one URL and a header, nothing to install.
 
 When you generate the key, pick the **least** you need:
 
-- `read` — required for everything (portfolio, quotes, positions). **Start with
-  this alone.**
+- `read` — account reads, quotes and self-reported opportunity records.
+  **Start with this alone** for account access. Public data needs no scope,
+  and `whoami` works with any valid key.
 - `trade:spot` — place/cancel spot orders.
-- `trade:futures` — open/close mock futures.
+- `trade:futures` — open/close mock futures and set stop-loss/take-profit.
 - `trade:pm` — open mock prediction-market positions.
 
-A read-only key can't move funds no matter what an agent asks. When you want
+A key with only `read` cannot move paper funds. It can write durable
+self-reported evaluation records through `report_pm_opportunity`; those are
+evidence records, not trades. When you want
 trading, mint a **separate** key with trade scopes (step 5) — scopes are set at
 creation and can't be added to an existing key.
 
@@ -49,7 +99,7 @@ URL:    https://mcp.coinrithm.com/mcp
 Header: Authorization: Bearer crk_live_your_key
 ```
 
-The hosted server forwards _your_ key to CoinRithm on every request. Use this
+For authenticated tools, the hosted server forwards _your_ key to CoinRithm. Use this
 with any MCP client that supports a remote (Streamable HTTP) server.
 
 ### Secondary — local server (Claude Desktop / Cursor / Codex)
@@ -80,8 +130,7 @@ Prove the connection before trading. Ask, in plain language:
 > "Call **whoami** on CoinRithm, then **get my portfolio**."
 
 You should get back your `userId`, `keyId`, and the `scopes` on the key — confirm
-they're only what you granted. A read-only key stops here by design: it can read,
-not trade.
+they're only what you granted. A key with only `read` cannot place trades.
 
 If you get `401 Missing or malformed API key`, the key is wrong or truncated. If
 `403`, the key lacks the scope for what you tried.
@@ -112,9 +161,11 @@ A well-configured agent will:
    `set_futures_sl_tp`) and afterwards poll `get_my_trades` with `updatedSince`
    to notice when a stop, liquidation, or settlement fires server-side.
 
-**Rate limits:** every key has per-key budgets of 120 requests/min and 20
-trade-writes/min, surfaced via `RateLimit-*` headers; a `429` carries
-`Retry-After` (seconds) — a good agent backs off at least that long.
+**Rate limits:** agent keys default to 120 requests/min and 20 trade-writes/min.
+Prefer the live `RateLimit-*` headers. On `429`, honor `Retry-After` when present;
+otherwise use bounded backoff. A timeout does not prove a write failed. Reuse
+the same idempotency key for the same intent where supported, rather than
+creating a new trade to replace a response you did not receive.
 
 ---
 

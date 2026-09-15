@@ -8,6 +8,18 @@ Each package has its own version; the API contract is versioned separately.
 [TypeScript history](packages/sdk/CHANGELOG.md) ·
 [Python release notes](packages/sdk-python/README.md)
 
+## Unreleased — API reference corrections
+
+- Start the developer reference and quick start with a working anonymous data
+  request, then explain account access and scopes. Add direct SDK guides and
+  a copyable request with keyboard and screen-reader feedback.
+- Correct the existing spot-cancellation contract: an absent order returns
+  `200` with `alreadyClosed: true`, and server failures return `500`.
+- Regenerate SDK source types/models and test cancellation responses offline.
+  These source updates are not a new npm/PyPI publication. MCP **0.7.12**,
+  TypeScript SDK **0.3.1** and Python SDK **1.8.1** remain the published versions;
+  API contract **1.7.0** and trading-service behavior are unchanged.
+
 ## 0.7.12 — 2026-09-15
 
 Clarify three MCP tool definitions after reviewing Glama's expanded feedback:

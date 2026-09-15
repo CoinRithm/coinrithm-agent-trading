@@ -4,14 +4,54 @@ import { createClient, PRODUCTION_BASE_URL } from "../src/index.js";
 afterEach(() => vi.unstubAllGlobals());
 
 describe("TypeScript SDK request contract", () => {
-  it("uses the public base URL without inventing authentication", async () => {
-    const fetch = vi
-      .fn<typeof globalThis.fetch>()
-      .mockResolvedValue(
-        new Response('{"status":"ok"}', {
+  it.each([
+    { status: 200, payload: { ok: true }, alreadyClosed: undefined },
+    {
+      status: 200,
+      payload: { ok: true, alreadyClosed: true },
+      alreadyClosed: true,
+    },
+    {
+      status: 500,
+      payload: { error: "cancel_failed" },
+      alreadyClosed: undefined,
+    },
+  ])(
+    "preserves the cancellation response: $payload",
+    async ({ status, payload, alreadyClosed }) => {
+      const transport = vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(JSON.stringify(payload), {
+          status,
           headers: { "content-type": "application/json" },
         }),
       );
+      const result = await createClient({
+        apiKey: "fixture",
+        fetch: transport,
+      }).POST("/api/agent/spot/order/{id}/cancel", {
+        params: { path: { id: 42 } },
+      });
+      expect(result.response.status).toBe(status);
+      if (status === 200) {
+        const closed: boolean | undefined = result.data?.alreadyClosed;
+        expect(closed).toBe(alreadyClosed);
+        expect(result.data).toEqual(payload);
+      } else {
+        expect(result.error).toEqual(payload);
+      }
+      expect((transport.mock.calls[0][0] as Request).url).toBe(
+        `${PRODUCTION_BASE_URL}/api/agent/spot/order/42/cancel`,
+      );
+      expect(transport).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("uses the public base URL without inventing authentication", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(
+      new Response('{"status":"ok"}', {
+        headers: { "content-type": "application/json" },
+      }),
+    );
     vi.stubGlobal("fetch", fetch);
     const result = await createClient().GET(
       "/api/prediction-markets/sources/health",
@@ -56,14 +96,12 @@ describe("TypeScript SDK request contract", () => {
   });
 
   it("serializes a paper-order body including its idempotency key exactly once", async () => {
-    const transport = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(
-        new Response('{"position":{"id":7}}', {
-          status: 201,
-          headers: { "content-type": "application/json" },
-        }),
-      );
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response('{"position":{"id":7}}', {
+        status: 201,
+        headers: { "content-type": "application/json" },
+      }),
+    );
     const client = createClient({ apiKey: "fixture", fetch: transport });
     const body = {
       coinId: "1",

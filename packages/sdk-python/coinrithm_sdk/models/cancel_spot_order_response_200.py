@@ -16,19 +16,26 @@ class CancelSpotOrderResponse200:
     """
     Attributes:
         ok (bool | Unset):
+        already_closed (bool | Unset): True when the order is not open under this key. Omitted after this request
+            cancels an open order; does not identify why an order is absent.
     """
 
     ok: bool | Unset = UNSET
+    already_closed: bool | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         ok = self.ok
+
+        already_closed = self.already_closed
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update({})
         if ok is not UNSET:
             field_dict["ok"] = ok
+        if already_closed is not UNSET:
+            field_dict["alreadyClosed"] = already_closed
 
         return field_dict
 
@@ -37,8 +44,11 @@ class CancelSpotOrderResponse200:
         d = dict(src_dict)
         ok = d.pop("ok", UNSET)
 
+        already_closed = d.pop("alreadyClosed", UNSET)
+
         cancel_spot_order_response_200 = cls(
             ok=ok,
+            already_closed=already_closed,
         )
 
         cancel_spot_order_response_200.additional_properties = d

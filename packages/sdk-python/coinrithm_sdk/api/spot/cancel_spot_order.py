@@ -58,6 +58,11 @@ def _parse_response(
 
         return response_429
 
+    if response.status_code == 500:
+        response_500 = Error.from_dict(response.json())
+
+        return response_500
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -82,7 +87,15 @@ def sync_detailed(
 ) -> Response[CancelSpotOrderResponse200 | Error]:
     """Cancel an open spot order
 
-     Cancels a resting spot order by id and releases frozen funds. Requires scope `trade:spot`.
+     Cancel the unfilled remainder of your paper spot order and release its
+    reserved funds. Requires scope `trade:spot`; get the order id from
+    `/api/agent/orders/open`. Filled trades are not reversed.
+
+    Safe to repeat with the same id. If the order is not open under your
+    key, returns `200` with `alreadyClosed: true`. This does not distinguish
+    a fill from a prior cancellation or an unknown order. Use
+    `/api/agent/trades` to check fills; do not treat `alreadyClosed` as proof
+    that this request cancelled the order.
 
     Args:
         id (int):
@@ -113,7 +126,15 @@ def sync(
 ) -> CancelSpotOrderResponse200 | Error | None:
     """Cancel an open spot order
 
-     Cancels a resting spot order by id and releases frozen funds. Requires scope `trade:spot`.
+     Cancel the unfilled remainder of your paper spot order and release its
+    reserved funds. Requires scope `trade:spot`; get the order id from
+    `/api/agent/orders/open`. Filled trades are not reversed.
+
+    Safe to repeat with the same id. If the order is not open under your
+    key, returns `200` with `alreadyClosed: true`. This does not distinguish
+    a fill from a prior cancellation or an unknown order. Use
+    `/api/agent/trades` to check fills; do not treat `alreadyClosed` as proof
+    that this request cancelled the order.
 
     Args:
         id (int):
@@ -139,7 +160,15 @@ async def asyncio_detailed(
 ) -> Response[CancelSpotOrderResponse200 | Error]:
     """Cancel an open spot order
 
-     Cancels a resting spot order by id and releases frozen funds. Requires scope `trade:spot`.
+     Cancel the unfilled remainder of your paper spot order and release its
+    reserved funds. Requires scope `trade:spot`; get the order id from
+    `/api/agent/orders/open`. Filled trades are not reversed.
+
+    Safe to repeat with the same id. If the order is not open under your
+    key, returns `200` with `alreadyClosed: true`. This does not distinguish
+    a fill from a prior cancellation or an unknown order. Use
+    `/api/agent/trades` to check fills; do not treat `alreadyClosed` as proof
+    that this request cancelled the order.
 
     Args:
         id (int):
@@ -168,7 +197,15 @@ async def asyncio(
 ) -> CancelSpotOrderResponse200 | Error | None:
     """Cancel an open spot order
 
-     Cancels a resting spot order by id and releases frozen funds. Requires scope `trade:spot`.
+     Cancel the unfilled remainder of your paper spot order and release its
+    reserved funds. Requires scope `trade:spot`; get the order id from
+    `/api/agent/orders/open`. Filled trades are not reversed.
+
+    Safe to repeat with the same id. If the order is not open under your
+    key, returns `200` with `alreadyClosed: true`. This does not distinguish
+    a fill from a prior cancellation or an unknown order. Use
+    `/api/agent/trades` to check fills; do not treat `alreadyClosed` as proof
+    that this request cancelled the order.
 
     Args:
         id (int):
