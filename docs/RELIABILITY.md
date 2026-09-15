@@ -137,6 +137,14 @@ format, type, generation-drift, build and secret-scanning checks.
 Source tests, a successful CI run, a healthy deployed image, a naturally
 observed agent cycle and a registry publication are different evidence.
 None establishes the others. See the [release sequence](../packages/mcp-trading/DEPLOY.md#release-sequencing-source-hosted-npm-and-registry).
-Prepared package versions are MCP **0.7.9**, TypeScript **0.3.1**, and Python
-**1.8.1**. Check npm/PyPI for publication; a version in this repository alone
-does not mean users can install it yet.
+On **15 September 2026**, registry downloads of [MCP **0.7.9**](https://www.npmjs.com/package/@coinrithm/mcp-trading/v/0.7.9),
+[TypeScript **0.3.1**](https://www.npmjs.com/package/@coinrithm/sdk/v/0.3.1), and
+[Python **1.8.1**](https://pypi.org/project/coinrithm-sdk/1.8.1/) matched all four
+prepared archives byte for byte. Clean installs from npm/PyPI passed MCP
+initialization, 38-tool discovery, runner deadline/retry/budget checks and
+offline SDK requests. These checks made no provider calls or trades.
+
+The release source is [`d052a7b`](https://github.com/CoinRithm/coinrithm-agent-trading/commit/d052a7bb7ce791623f4e80e72748b75d50ea6b83),
+with [all five CI jobs passing](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/34956757119).
+Hosted MCP and scheduler were separately verified on that exact source, with
+their compiled API clients identical to the prepared npm package.

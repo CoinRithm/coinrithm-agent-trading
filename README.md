@@ -259,16 +259,17 @@ Base URL: `https://api.coinrithm.com` (live). Hosted MCP: `https://mcp.coinrithm
 
 `info.version` in `openapi.yaml` (currently **1.7.0**) is the **API contract
 version**. It is distinct from the source-tree package version
-(`@coinrithm/mcp-trading`, currently **0.7.9**), which is prepared but not yet
-published. The latest published npm release verified on **2026-09-15** is
-**0.7.8**; an unpinned `npx` installation still uses that published release.
+(`@coinrithm/mcp-trading`, **0.7.9**), published on npm and verified on
+**2026-09-15**. The downloaded archive matches the reviewed release artifact;
+a clean registry install passes MCP initialization and runner regressions.
 The API and package are versioned independently — a package patch does not
 imply an API change and vice versa. Check `npm view @coinrithm/mcp-trading
 version` before choosing a published version.
 
-The TypeScript SDK source is prepared as **0.3.1** (npm currently **0.3.0**),
-and the Python SDK source as **1.8.1** (PyPI currently **1.8.0**). These SDK
-patches carry the corrected candle-volume documentation; publication is pending.
+The [TypeScript SDK **0.3.1**](https://www.npmjs.com/package/@coinrithm/sdk/v/0.3.1)
+and [Python SDK **1.8.1**](https://pypi.org/project/coinrithm-sdk/1.8.1/) are also
+published. Both passed clean registry installs and offline client checks.
+These SDK patches carry the corrected candle-volume documentation.
 Recent comparison and spread-label corrections are server behavior changes
 within the existing API contract and do not require new SDK fields.
 

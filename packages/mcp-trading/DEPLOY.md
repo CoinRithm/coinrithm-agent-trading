@@ -123,7 +123,7 @@ for **initialize and tools/list only**. Point `COINRITHM_API_URL` at a local
 request-counting stub and assert zero upstream requests; this tests the package
 without accessing a real account. It does not prove key validity or trading.
 
-## HTTP completion diagnostics (hosted verified; npm pending)
+## HTTP completion diagnostics
 
 The HTTP-only completion observer was verified on the hosted MCP on
 **2026-09-13**, at source/image commit
@@ -131,7 +131,8 @@ The HTTP-only completion observer was verified on the hosted MCP on
 health, initialization, listing, missing-key `whoami` 401, public search/detail
 200 and missing-detail 404. Reverify the exact image and a bounded smoke before
 a new measurement window. Stdio, tools and authentication are unchanged.
-**npm 0.7.9 remains unpublished**; hosted verification is not npm publication.
+**npm 0.7.9 was separately published and verified on 2026-09-15**, including
+downloaded archive integrity and a clean registry-install smoke.
 
 Each accepted MCP RPC produces one bounded scalar JSON record on HTTP finish or
 abort; batches share the HTTP request's duration and delivery outcome. The observer
@@ -195,13 +196,16 @@ The stdio path (`npx -y @coinrithm/mcp-trading`) is served from npm. A source
 version bump, a hosted deployment, an npm publication and an MCP Registry entry
 are four different states. Do not claim one merely because another succeeded.
 
-**Current release hold (rechecked 2026-09-15):** source-tree version 0.7.9 is prepared but
-unpublished; npm's latest verified release is 0.7.8. The existing npm login
-returned `E401` at the previous authentication check. Publication is reserved
-for the release operator; authenticate in that operator's session. Until then, do
-not publish npm, push a release tag, or dispatch the registry workflow. Keep
-the README/changelog publication status explicit even if a hosted-only deploy
-is separately authorized.
+**Published release (verified 2026-09-15):** the operator published MCP **0.7.9**,
+TypeScript SDK **0.3.1** and Python SDK **1.8.1**. All four registry downloads
+match the prepared artifacts, and fresh npm/PyPI installations passed offline
+smokes. Source `d052a7bb7ce791623f4e80e72748b75d50ea6b83` passed all five CI jobs;
+hosted MCP deployment **2496** and scheduler deployment **2497** separately
+finished on that exact source. Both prior images remain available for rollback.
+The official MCP Registry also lists **0.7.9**, verified after the matching
+[release workflow](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/34965036681)
+published `server.json` from that same source. Registry metadata and npm delivery
+were checked separately.
 
 1. Update package.json, its lockfile's root versions, both server.json version
    fields, the changelog and the README's source/publication wording. Keep

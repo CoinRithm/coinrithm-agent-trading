@@ -11,10 +11,10 @@ as the `coinrithm-agent` binary (alongside the `coinrithm-mcp` server) — it is
 not a separate package. The CoinRithm **hosted scheduler** runs this same engine
 for you (managed); you can also self-host it.
 
-### Prepared 0.7.9 reliability fixes
+### 0.7.9 reliability fixes
 
-npm still serves 0.7.8 as of September 15, 2026; these changes are prepared in
-source for 0.7.9. Completed-action memory requires `accepted` and `executed`;
+npm **0.7.9** was published and verified on September 15, 2026. Its downloaded
+archive matches the reviewed release. Completed-action memory requires `accepted` and `executed`;
 failed or uncertain writes remain attempts. A complete direct NVIDIA
 500/502/503/504 response can be retried once on the same route within the
 original deadline, without retrying a trading write. Frozen settlement residue
