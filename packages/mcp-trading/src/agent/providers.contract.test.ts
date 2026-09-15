@@ -91,14 +91,12 @@ describe("provider configuration and response contracts", () => {
   ] as const)(
     "uses %s credentials from %s and the correct endpoint",
     async (provider, variable, url) => {
-      const fetchFn = vi
-        .fn<typeof fetch>()
-        .mockResolvedValue(
-          Response.json({
-            choices: [{ message: { content: text } }],
-            usage: {},
-          }),
-        );
+      const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json({
+          choices: [{ message: { content: text } }],
+          usage: {},
+        }),
+      );
       const configured = selectProvider(
         {
           ...spec,
