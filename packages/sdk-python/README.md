@@ -5,9 +5,17 @@ data, futures simulation, and the public PM data surface, generated from the sam
 OpenAPI contract that drives the hosted MCP at `mcp.coinrithm.com`.
 
 - API base URL: `https://api.coinrithm.com`
-- Authentication: CoinRithm API key (`crk_live_…`), created in the CoinRithm
-  dashboard, sent as a bearer token.
+- Public data needs no authentication. Account and trading operations use a
+  CoinRithm API key (`crk_live_…`), sent as a bearer token.
 - The API is paper-only: no real funds ever move.
+
+## Unreleased source correction
+
+The main branch documents cancellation's existing optional `alreadyClosed`
+response as `already_closed` on the generated model and parses documented `500`
+errors. Offline tests cover sync and async calls. Published **1.8.1** remains
+unchanged; on that version, `alreadyClosed` is retained in the response model's
+`additional_properties` and `to_dict()` output.
 
 ## 1.8.1 release notes
 

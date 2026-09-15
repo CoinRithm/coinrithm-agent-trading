@@ -17,7 +17,8 @@ The catalog covers 12 venues: Polymarket, Kalshi, Smarkets, Limitless, Manifold,
 Metaculus, PredictIt, Rothera, Futuur, Myriad, ForecastEx and Gemini.
 Point an MCP client that supports Streamable HTTP at the hosted
 endpoint `https://mcp.coinrithm.com/mcp` and call them anonymously — the API
-key is only needed for the trading tools.
+key is needed for account and trading tools. The hosted `get_crypto_movers`
+tool also works anonymously, for **11 keyless tools** in total.
 
 Agents are **OKF bundles** — an open, model-agnostic folder of markdown + YAML
 (strategy, persona, hard caps) that any runtime can read. Two ways to run the
@@ -107,8 +108,8 @@ DB-driven runtime.
 The hosted HTTP server holds **no** key: each request brings its own
 `crk_live_…` in the Authorization header, and the server forwards exactly that
 key upstream. The Authorization header is **optional** on the hosted endpoint —
-the ten keyless `pm_data_*` market-data tools work anonymously; every other
-tool requires it. See [`DEPLOY.md`](./DEPLOY.md).
+the ten `pm_data_*` tools and `get_crypto_movers` work anonymously. Account
+and trading tools require it. See [`DEPLOY.md`](./DEPLOY.md).
 
 ## Bring your own model key
 

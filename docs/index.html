@@ -22,6 +22,10 @@
         --ink: #142b28;
         --muted: #4c6460;
         --accent: #13654b;
+        --canvas: #fff;
+        --tint: #f3f7f4;
+        --surface: #fff;
+        --line: #ceded4;
       }
       * {
         box-sizing: border-box;
@@ -29,16 +33,26 @@
       body {
         margin: 0;
         color: var(--ink);
-        background: #fff;
+        background: var(--canvas);
         font-family:
           system-ui,
           -apple-system,
           "Segoe UI",
           sans-serif;
       }
+      body.dark-mode {
+        color-scheme: dark;
+        --ink: #e6eee9;
+        --muted: #b3c4b9;
+        --accent: #8bd9ac;
+        --canvas: #0f1210;
+        --tint: #151d18;
+        --surface: #1b2620;
+        --line: #394c40;
+      }
       .intro {
-        background: #f3f7f4;
-        border-bottom: 1px solid #d5e2d9;
+        background: var(--tint);
+        border-bottom: 1px solid var(--line);
       }
       .wrap {
         max-width: 1120px;
@@ -79,8 +93,9 @@
       a:hover {
         text-decoration-thickness: 2px;
       }
-      a:focus-visible {
-        outline: 3px solid #247553;
+      a:focus-visible,
+      .copy-example:focus-visible {
+        outline: 3px solid var(--accent);
         outline-offset: 5px;
         border-radius: 2px;
       }
@@ -89,7 +104,7 @@
         top: -80px;
         left: 16px;
         padding: 12px;
-        background: white;
+        background: var(--surface);
         z-index: 10;
       }
       .skip:focus {
@@ -122,18 +137,106 @@
         grid-template-columns: repeat(4, 1fr);
         gap: 14px;
       }
+      .start {
+        display: grid;
+        grid-template-columns: 1fr 1.2fr;
+        gap: 28px;
+        align-items: center;
+        margin: 30px 0;
+      }
+      .start > * {
+        min-width: 0;
+      }
+      .start h2,
+      .clients h2 {
+        margin: 0 0 10px;
+        font-size: 22px;
+        letter-spacing: -0.4px;
+      }
+      .start p,
+      .clients p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 1.6;
+      }
+      .request-example {
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--surface);
+      }
+      .example-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--line);
+        font-size: 13px;
+      }
+      .copy-example {
+        color: var(--accent);
+        background: transparent;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        min-height: 36px;
+        padding: 6px 12px;
+        cursor: pointer;
+        font: inherit;
+      }
+      .request-example pre {
+        margin: 0;
+        padding: 20px 16px;
+        overflow-x: auto;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        font-size: 13px;
+        line-height: 1.7;
+      }
+      .request-example .example-note {
+        padding: 0 16px 16px;
+        font-size: 12px;
+      }
+      .clients {
+        margin-top: 30px;
+        padding-top: 26px;
+        border-top: 1px solid var(--line);
+      }
+      .client-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 16px;
+      }
+      .client-links a {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface);
+        padding: 12px 16px;
+        font-weight: 600;
+      }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
       .card {
         display: flex;
         flex-direction: column;
         padding: 21px;
-        border: 1px solid #ceded4;
+        border: 1px solid var(--line);
         border-radius: 12px;
-        background: #fff;
+        background: var(--surface);
         text-decoration: none;
       }
       .card:hover {
         border-color: var(--accent);
-        background: #fafdfa;
+        background: var(--canvas);
       }
       .card strong {
         font-size: 17px;
@@ -182,11 +285,15 @@
         line-height: 1.6;
       }
       @media (max-width: 850px) {
+        .start {
+          grid-template-columns: 1fr;
+          gap: 16px;
+        }
         .guides {
           grid-template-columns: repeat(2, 1fr);
         }
       }
-      @media (max-width: 480px) {
+      @media (max-width: 600px) {
         .wrap {
           padding: 22px 20px 28px;
         }
@@ -211,10 +318,8 @@
             >CoinRithm <span>Developers</span></a
           >
           <nav aria-label="Developer navigation">
-            <a
-              href="https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/QUICKSTART.md"
-              >Quick start</a
-            >
+            <a href="#start">Quick start</a>
+            <a href="#reference">API reference</a>
             <a
               href="https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/docs/RELIABILITY.md"
               >Reliability</a
@@ -228,13 +333,43 @@
         <h1>Give your agent a market view<br />and a place to practice.</h1>
         <p class="lede">
           Explore prediction-market data, connect an MCP client, or build a
-          paper-trading agent with typed SDKs. Start with the integration that
-          fits your workflow.
+          paper-trading agent with typed SDKs. Read public data immediately; add
+          a key when you need account access or paper trading.
         </p>
+        <section class="start" id="start" aria-labelledby="start-title">
+          <div>
+            <h2 id="start-title">Your first request. No key needed.</h2>
+            <p>
+              Read three prediction-market events. The response includes data,
+              pagination and source metadata. Check each event's freshness,
+              quality and decision support before using it in a decision.
+            </p>
+          </div>
+          <div class="request-example">
+            <div class="example-toolbar">
+              <span>Public REST API · curl</span>
+              <button class="copy-example" type="button" hidden>
+                Copy request
+              </button>
+            </div>
+            <pre
+              tabindex="0"
+              aria-label="Public event request"
+            ><code id="public-request">curl "https://api.coinrithm.com/api/prediction-markets/events?limit=3"</code></pre>
+            <p class="example-note">
+              No sign-in or Authorization header. Public access is subject to
+              rate limits and
+              <a href="https://www.coinrithm.com/en/terms-of-use"
+                >Market Data terms</a
+              >.
+            </p>
+            <span class="sr-only" id="copy-status" role="status"></span>
+          </div>
+        </section>
         <nav class="guides" aria-label="Integration guides">
           <a
             class="card"
-            href="https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/QUICKSTART.md"
+            href="https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/QUICKSTART.md#read-public-data"
             ><strong>Explore market data</strong>
             <p>
               Start with public prediction-market reads. No API key required for
@@ -242,9 +377,7 @@
             </p>
             <span>Read the quick start →</span></a
           >
-          <a
-            class="card"
-            href="https://github.com/CoinRithm/coinrithm-agent-trading/tree/main/packages"
+          <a class="card" href="#clients"
             ><strong>Build with an SDK</strong>
             <p>
               Typed TypeScript and Python clients generated from the shared
@@ -254,7 +387,7 @@
           >
           <a
             class="card"
-            href="https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/packages/mcp-trading/README.md"
+            href="https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/QUICKSTART.md#connect-mcp-without-a-key"
             ><strong>Connect MCP tools</strong>
             <p>
               Use the hosted HTTP endpoint or run locally with Claude, Cursor or
@@ -273,6 +406,23 @@
             <span>Read the runner guide →</span></a
           >
         </nav>
+        <section class="clients" id="clients" aria-labelledby="clients-title">
+          <h2 id="clients-title">Choose your SDK</h2>
+          <p>
+            Use a public client without a key, or supply your CoinRithm key for
+            account operations. Both clients follow the shared OpenAPI contract.
+          </p>
+          <div class="client-links">
+            <a
+              href="https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/packages/sdk/README.md"
+              >TypeScript · @coinrithm/sdk →</a
+            >
+            <a
+              href="https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/packages/sdk-python/README.md"
+              >Python · coinrithm-sdk →</a
+            >
+          </div>
+        </section>
         <p class="note">
           Trading uses virtual mUSD only. Market availability and freshness vary
           by source. Paper results do not establish live execution performance.
@@ -287,6 +437,11 @@
           <a
             href="https://raw.githubusercontent.com/CoinRithm/coinrithm-agent-trading/main/openapi.yaml"
             >OpenAPI YAML</a
+          >
+          ·
+          <a
+            href="https://github.com/CoinRithm/coinrithm-agent-trading/releases"
+            >Package releases</a
           >
         </p>
       </div>
@@ -306,6 +461,27 @@
         </p></noscript
       >
     </main>
+    <script>
+      const copyButton = document.querySelector(".copy-example");
+      if (navigator.clipboard && window.isSecureContext) {
+        copyButton.hidden = false;
+        copyButton.addEventListener("click", async () => {
+          const status = document.querySelector("#copy-status");
+          try {
+            await navigator.clipboard.writeText(
+              document.querySelector("#public-request").textContent,
+            );
+            status.textContent = "Request copied.";
+            copyButton.textContent = "Copied";
+          } catch {
+            status.textContent =
+              "Select the request above and copy it manually.";
+            copyButton.textContent = "Select request to copy";
+            document.querySelector(".request-example pre").focus();
+          }
+        });
+      }
+    </script>
     <script
       src="https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.68.0/dist/browser/standalone.js"
       integrity="sha384-PhSzhE9ihf7z/cKeRSKAeP+oJMMzotyFv0EjvNYgL798a2ODBQVuJLTP4Klle6IB"

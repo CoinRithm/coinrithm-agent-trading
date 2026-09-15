@@ -9,6 +9,8 @@ import pytest
 from coinrithm_sdk import AuthenticatedClient
 from coinrithm_sdk.api.futures import open_futures_position
 from coinrithm_sdk.api.prediction_markets import open_pm_position
+from coinrithm_sdk.api.spot import cancel_spot_order
+from coinrithm_sdk.models.cancel_spot_order_response_200 import CancelSpotOrderResponse200
 from coinrithm_sdk.models.error import Error
 from coinrithm_sdk.models.futures_open_request import FuturesOpenRequest
 from coinrithm_sdk.models.futures_position_envelope import FuturesPositionEnvelope
@@ -16,6 +18,54 @@ from coinrithm_sdk.models.open_futures_position_response_422 import OpenFuturesP
 from coinrithm_sdk.models.open_pm_position_response_422 import OpenPmPositionResponse422
 from coinrithm_sdk.models.pm_open_request import PmOpenRequest
 from coinrithm_sdk.models.pm_position_envelope import PmPositionEnvelope
+from coinrithm_sdk.types import UNSET
+
+
+@pytest.mark.parametrize(
+    "status,payload,already_closed",
+    [
+        (200, {"ok": True}, UNSET),
+        (200, {"ok": True, "alreadyClosed": True}, True),
+        (500, {"error": "cancel_failed"}, None),
+    ],
+)
+def test_cancellation_preserves_absent_orders_and_server_failures(status, payload, already_closed):
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        assert request.method == "POST"
+        assert request.url.path == "/api/agent/spot/order/42/cancel"
+        return httpx.Response(status, json=payload)
+
+    options = {
+        "base_url": "https://fixture.invalid",
+        "token": "fixture",
+        "raise_on_unexpected_status": True,
+        "httpx_args": {"transport": httpx.MockTransport(handle)},
+    }
+
+    def check(result):
+        assert isinstance(result, CancelSpotOrderResponse200 if status == 200 else Error)
+        assert result.to_dict() == payload
+        if status == 200:
+            assert result.already_closed is already_closed
+
+    with AuthenticatedClient(**options) as client:
+        detailed = cancel_spot_order.sync_detailed(42, client=client)
+        assert detailed.status_code == status
+        check(detailed.parsed)
+        check(cancel_spot_order.sync(42, client=client))
+
+    async def run():
+        async with AuthenticatedClient(**options) as client:
+            detailed = await cancel_spot_order.asyncio_detailed(42, client=client)
+            assert detailed.status_code == status
+            check(detailed.parsed)
+            check(await cancel_spot_order.asyncio(42, client=client))
+
+    asyncio.run(run())
+    assert len(requests) == 4  # One call per entrypoint, including server errors.
 
 
 @pytest.mark.parametrize(

@@ -1346,7 +1346,15 @@ export interface paths {
         put?: never;
         /**
          * Cancel an open spot order
-         * @description Cancels a resting spot order by id and releases frozen funds. Requires scope `trade:spot`.
+         * @description Cancel the unfilled remainder of your paper spot order and release its
+         *     reserved funds. Requires scope `trade:spot`; get the order id from
+         *     `/api/agent/orders/open`. Filled trades are not reversed.
+         *
+         *     Safe to repeat with the same id. If the order is not open under your
+         *     key, returns `200` with `alreadyClosed: true`. This does not distinguish
+         *     a fill from a prior cancellation or an unknown order. Use
+         *     `/api/agent/trades` to check fills; do not treat `alreadyClosed` as proof
+         *     that this request cancelled the order.
          */
         post: operations["cancelSpotOrder"];
         delete?: never;
@@ -5655,14 +5663,14 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                /** @description The open order id (from `/orders/open` or `/portfolio`). */
+                /** @description The order id returned by `/api/agent/orders/open`. */
                 id: number;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Cancelled */
+            /** @description Unfilled remainder cancelled, or the order is already not open under this key. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -5671,10 +5679,12 @@ export interface operations {
                     "application/json": {
                         /** @constant */
                         ok?: true;
+                        /** @description True when the order is not open under this key. Omitted after this request cancels an open order; does not identify why an order is absent. */
+                        alreadyClosed?: boolean;
                     };
                 };
             };
-            /** @description Bad request or order not open/found */
+            /** @description Invalid order id or malformed request */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -5687,6 +5697,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["WalletNotFound"];
             429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["ServerError"];
         };
     };
     openFuturesPosition: {

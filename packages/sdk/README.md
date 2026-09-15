@@ -20,6 +20,10 @@ This package version is **0.3.1**. Check `npm view @coinrithm/sdk version` for
 the latest published version. The package version is independent of the
 OpenAPI contract version, which remains **1.7.0**.
 
+The main branch also includes an unreleased cancellation type correction for
+optional `alreadyClosed` and `500` errors; see the [changelog](./CHANGELOG.md).
+The published 0.3.1 package still exposes the original wire response at runtime.
+
 This patch corrects the generated candle documentation: `v` is a mean
 rolling 24-hour quote-volume observation in USD, not per-candle traded volume.
 Do not sum it across bars or difference bars as interval turnover. Prediction
