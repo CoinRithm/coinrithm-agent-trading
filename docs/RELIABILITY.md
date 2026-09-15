@@ -4,13 +4,14 @@
 
 ## What is measured
 
-Published 0.7.9 release measurements on 15 September 2026, using Vitest 4.1.11 with V8 coverage
-and pytest-cov with branch measurement enabled:
+Release 0.7.10 source measurements on 15 September 2026, using Vitest 4.1.11
+with V8 coverage and pytest-cov with branch measurement enabled.
+[All 25 CI jobs passed for `9dc6e6e`](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/34972402819).
 
 | Package               | Statements | Branches | Functions |  Lines |
 | --------------------- | ---------: | -------: | --------: | -----: |
-| MCP server and runner |     96.00% |   91.79% |    94.24% | 96.63% |
-| Hosted scheduler      |     97.10% |   91.56% |    94.89% | 97.89% |
+| MCP server and runner |     96.08% |   92.19% |    94.32% | 96.67% |
+| Hosted scheduler      |     97.27% |   91.71% |    95.10% | 98.02% |
 | TypeScript SDK        |       100% |     100% |      100% |   100% |
 | Python SDK            |     96.58% |   94.84% |         — | 96.58% |
 
@@ -29,12 +30,16 @@ this is not a claim that every file exceeds 90%.
 | Runtime file                                        | Statements | Branches | Functions |  Lines |
 | --------------------------------------------------- | ---------: | -------: | --------: | -----: |
 | MCP `src/agent/client.ts`                           |       100% |   98.73% |    97.05% |   100% |
-| MCP `src/agent/runner.ts`                           |     99.00% |   90.76% |    97.87% | 98.94% |
+| MCP `src/agent/runner.ts`                           |     98.96% |   90.94% |    97.82% | 98.89% |
 | MCP `src/http.ts`                                   |       100% |     100% |      100% |   100% |
-| Scheduler `src/capacity.ts`                         |       100% |   95.00% |      100% |   100% |
+| Scheduler `src/capacity.ts`                         |       100% |     100% |      100% |   100% |
 | Python `client.py`                                  |       100% |     100% |         — |   100% |
 | Python `api/futures/open_futures_position.py`       |       100% |     100% |         — |   100% |
 | Python `api/prediction_markets/open_pm_position.py` |       100% |     100% |         — |   100% |
+
+Additional 90% per-file gates cover the entry-predicate, observation-reconciliation
+and opportunity-reporting modules, plus scheduler maintenance and credential
+rotation. Each currently measures 100% on all four metrics in CI.
 
 Coverage includes all runtime source, including unimported modules. Test files
 and TypeScript declarations are excluded. The TypeScript SDK is a small
@@ -79,10 +84,12 @@ CI uploads complete HTML/JSON reports for each package, including failures.
 
 ## PostgreSQL tests are mandatory in CI
 
-The scheduler job starts PostgreSQL 17 and runs **11 integration tests** against
+The scheduler job starts PostgreSQL 17 and runs **13 integration tests** against
 a disposable `capacity_admission_test` database. They cover shared reservations,
 concurrent worker claims, owner isolation and protected stopped-agent states.
-The test setup applies the existing numbered migrations to that test database.
+They also rehearse concurrent migration startup and interrupted credential
+rotation/recovery. The test setup applies the existing numbered migrations to
+that test database. All 222 scheduler tests and 1,201 MCP/runner tests passed.
 
 CI fails if `CAPACITY_TEST_DATABASE_URL` is missing. Local runs may omit the
 database and skip these tests, but that does not satisfy the release gate.
@@ -112,7 +119,7 @@ uv run python scripts/check_coverage.py
 In PowerShell, set the database variable with `$env:CAPACITY_TEST_DATABASE_URL`
 instead of `export`. Never use a production database for the integration suite.
 
-## Follow-up assurance checks (0.7.10 candidate)
+## Follow-up assurance checks (0.7.10)
 
 The CI compatibility lane installs the built archives into a clean directory
 whose path contains spaces. It checks CLI startup, MCP initialization and
@@ -152,7 +159,7 @@ sequenceDiagram
 Assertions separate uncertain transport results from confirmed writes, retain
 the run identity, keep one entry in the fixture ledger and prevent a third
 write after position reconciliation. The published 0.7.9 archive reproduced
-the missing first-run state file when killed after acceptance; the candidate
+the missing first-run state file when killed after acceptance; 0.7.10
 persists identity before execution. This is synthetic service-contract evidence,
 not proof of every production failure mode or an exactly-once guarantee.
 The execution service must honor idempotency keys, and embedded database hosts
@@ -196,7 +203,22 @@ prepared archives byte for byte. Clean installs from npm/PyPI passed MCP
 initialization, 38-tool discovery, runner deadline/retry/budget checks and
 offline SDK requests. These checks made no provider calls or trades.
 
-The release source is [`d052a7b`](https://github.com/CoinRithm/coinrithm-agent-trading/commit/d052a7bb7ce791623f4e80e72748b75d50ea6b83),
+The 0.7.9 release source is [`d052a7b`](https://github.com/CoinRithm/coinrithm-agent-trading/commit/d052a7bb7ce791623f4e80e72748b75d50ea6b83),
 with [all five CI jobs passing](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/34956757119).
 Hosted MCP and scheduler were separately verified on that exact source, with
 their compiled API clients identical to the prepared npm package.
+
+**0.7.10 delivery was verified separately on 15 September 2026.** The npm and
+[GitHub release](https://github.com/CoinRithm/coinrithm-agent-trading/releases/tag/mcp-trading-v0.7.10)
+downloads matched the exact archive tested by compatibility CI. A clean npm
+installation on Windows/Node 24.11.0 passed startup, engine imports, locking,
+persistence, 38-tool discovery, both restart scenarios and compiled
+deadline/retry/budget checks. These checks used offline or loopback fixtures.
+
+Hosted MCP deployment **2499** and scheduler deployment **2501** finished in
+sequence on `9dc6e6ed470b47222d97e370fc04427fc83e0a92`. All 52 compiled MCP/runner
+JavaScript files in each image match the archive; health and public MCP reads
+passed. Both prior images are retained for rollback. Production credentials
+were not rotated. The official MCP Registry lists the same version, verified
+after [its release workflow](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/34977695186).
+SDK runtime versions remain TypeScript 0.3.1 and Python 1.8.1.

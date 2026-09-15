@@ -261,10 +261,13 @@ Base URL: `https://api.coinrithm.com` (live). Hosted MCP: `https://mcp.coinrithm
 
 `info.version` in `openapi.yaml` (currently **1.7.0**) is the **API contract
 version**. It is distinct from the source-tree package version
-(`@coinrithm/mcp-trading`, currently **0.7.10**), an **unpublished candidate**.
-The latest verified published package is **0.7.9**, checked on **2026-09-15**.
-Its downloaded archive matches the reviewed artifact and passed clean-install
-checks. See the [changelog](./CHANGELOG.md) for the candidate's additional changes.
+(`@coinrithm/mcp-trading`, currently **0.7.10**).
+The latest verified published package is **0.7.10**, checked on **2026-09-15**.
+Its npm and GitHub release downloads match the CI-tested archive. A clean
+registry install passed startup, persistence and crash/restart checks. Hosted
+MCP and scheduler are separately verified on the same implementation. See the
+[release notes](https://github.com/CoinRithm/coinrithm-agent-trading/releases/tag/mcp-trading-v0.7.10)
+and [changelog](./CHANGELOG.md).
 The API and package are versioned independently — a package patch does not
 imply an API change and vice versa. Check `npm view @coinrithm/mcp-trading
 version` before choosing a published version.

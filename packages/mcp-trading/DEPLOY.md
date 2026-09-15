@@ -196,16 +196,21 @@ The stdio path (`npx -y @coinrithm/mcp-trading`) is served from npm. A source
 version bump, a hosted deployment, an npm publication and an MCP Registry entry
 are four different states. Do not claim one merely because another succeeded.
 
-**Published release (verified 2026-09-15):** the operator published MCP **0.7.9**,
-TypeScript SDK **0.3.1** and Python SDK **1.8.1**. All four registry downloads
-match the prepared artifacts, and fresh npm/PyPI installations passed offline
-smokes. Source `d052a7bb7ce791623f4e80e72748b75d50ea6b83` passed all five CI jobs;
-hosted MCP deployment **2496** and scheduler deployment **2497** separately
-finished on that exact source. Both prior images remain available for rollback.
-The official MCP Registry also lists **0.7.9**, verified after the matching
-[release workflow](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/34965036681)
-published `server.json` from that same source. Registry metadata and npm delivery
-were checked separately.
+**Current release (verified 2026-09-15):** MCP **0.7.10** is published. Its npm
+and [GitHub release](https://github.com/CoinRithm/coinrithm-agent-trading/releases/tag/mcp-trading-v0.7.10)
+downloads match the CI-tested archive, and a clean registry install passed
+startup, persistence, crash/restart and compiled reliability checks.
+Source `9dc6e6ed470b47222d97e370fc04427fc83e0a92` passed all 25 CI jobs.
+Hosted MCP deployment **2499** and scheduler deployment **2501** finished
+serially on that exact source. Each image's 52 compiled MCP/runner JavaScript
+files match the archive. Health and public MCP checks passed; prior images
+remain available for rollback.
+
+The official MCP Registry also lists **0.7.10** as latest, verified after the
+[release workflow](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/34977695186)
+published `server.json` from the same source. Registry metadata and npm delivery
+were checked separately. TypeScript SDK **0.3.1** and Python SDK **1.8.1** remain
+unchanged from their verified registry releases earlier on September 15.
 
 1. Update package.json, its lockfile's root versions, both server.json version
    fields, the changelog and the README's source/publication wording. Keep
@@ -247,9 +252,9 @@ npm pack --dry-run --json
    reviewed source, deploy that exact SHA only after app4 finishes and is
    healthy. A compactor/documentation-only change does not itself require a
    scheduler restart. Never cancel another operator's build to make room.
-5. Only with working npm publishing authorization, publish the reviewed 0.7.9
-   package as public. `prepare` rebuilds during packaging/publishing. Inspect
-   `npm view @coinrithm/mcp-trading@0.7.9 version gitHead dist.integrity` and
+5. Only with working npm publishing authorization, publish the exact reviewed
+   `.tgz` archive as public, without repacking from the checkout. Inspect
+   `npm view @coinrithm/mcp-trading@0.7.10 version gitHead dist.integrity` and
    smoke the published stdio binary before marking npm delivered. Preserve the
    prior immutable release; do not try to overwrite its version.
 6. Once npm and hosted evidence are confirmed, publish the matching registry
