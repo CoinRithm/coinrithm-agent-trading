@@ -10,6 +10,7 @@ import { PassThrough } from "node:stream";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
@@ -124,6 +125,43 @@ const waitRecords = async (
 };
 
 describe("HTTP completion metrics through the real localhost MCP SDK", () => {
+  it("returns a structured 500 and closes resources when the MCP connection fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const server = new McpServer({ name: "fixture", version: "0" });
+    vi.spyOn(server, "connect").mockRejectedValue(
+      new Error("fixture connection failure"),
+    );
+    const close = vi.spyOn(server, "close");
+    const f = await fixture({ createServer: () => server });
+    const result = await post(f.base, call());
+    expect(result.response.status).toBe(500);
+    expect(result.messages).toEqual([
+      {
+        jsonrpc: "2.0",
+        error: { code: -32603, message: "Internal server error" },
+        id: null,
+      },
+    ]);
+    await vi.waitFor(() => expect(close).toHaveBeenCalled());
+    expect(f.upstreamCalls).toEqual([]);
+  });
+
+  it("does not overwrite a response when transport handling fails after headers", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(
+      StreamableHTTPServerTransport.prototype,
+      "handleRequest",
+    ).mockImplementation(async (_req, res) => {
+      res.writeHead(202, { "Content-Type": "application/json" });
+      res.end('{"accepted":true}');
+      throw new Error("fixture failure after headers");
+    });
+    const f = await fixture();
+    const result = await post(f.base, call());
+    expect(result.response.status).toBe(202);
+    expect(result.messages).toEqual([{ accepted: true }]);
+    expect(f.upstreamCalls).toEqual([]);
+  });
   it("separates initialize/list/notification/call and matches the real registered allowlist", async () => {
     const f = await fixture();
     const client = new Client({

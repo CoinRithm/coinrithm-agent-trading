@@ -24,6 +24,13 @@ zero-delay retries. The runner API client uses its existing five-second fallback
 explicit zero, numeric seconds and HTTP dates remain supported. Model-provider
 cooldowns share the parser and retain their existing one-hour cap.
 
+**API request deadlines.** Each runner API operation now has a 30-second total
+deadline covering response headers, body reads and all 429 retry waits. The
+same client serves the hosted scheduler. Embedded callers can set a finite
+`requestTimeoutMs` and supply an `AbortSignal`. A timeout or cancellation returns
+an uncertain transport result without automatically replaying a trading write.
+Timers and listeners are removed when the operation finishes.
+
 **State persistence.** Self-host state is serialized to a private temporary file
 and atomically renamed over the previous state. A failed serialization or rename
 leaves the prior state intact. This is atomic replacement, not a claim of durable

@@ -28,6 +28,19 @@ atomically. `eject` now preserves explicit hourly-budget and capital-sizing
 policies. Periodic PM evaluation respects the hourly budget; existing
 position-management and explicit always-on exemptions still apply.
 
+Each runner API operation has a **30-second total deadline** covering response
+headers, body reads and all 429 backoff waits. The hosted scheduler uses the
+same client. An expired deadline returns `status: 0` with `request_timeout`;
+caller cancellation returns `request_aborted`. These results do not confirm
+whether a submitted write reached the server, and the client does not replay
+them automatically. This is a per-operation deadline, not a whole-cycle limit
+or a change to model-provider timeouts.
+
+Code embedding `CoinRithmClient` can set `requestTimeoutMs` (a positive integer
+up to 2,147,483,647) and pass a caller `signal`. The CLI uses the default.
+A long `Retry-After` is never shortened to fit: the operation expires before
+another attempt when the wait exceeds the remaining time.
+
 ```mermaid
 flowchart LR
   Read[Observe and sync] --> Gate{Evaluation due and budget available?}

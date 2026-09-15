@@ -49,6 +49,10 @@ listed in [CHANGELOG.md](./CHANGELOG.md). Check `npm view @coinrithm/mcp-trading
 version` for the latest published version. Hosted deployments and npm releases
 are separate.
 
+Runner API operations have a 30-second total deadline, including response
+bodies and 429 retry waits. Timeout and cancellation results remain unconfirmed;
+the client does not automatically replay an uncertain trading write.
+
 ## Quick start
 
 ```bash

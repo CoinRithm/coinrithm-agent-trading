@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   runCycle,
+  runLoop,
   RunnerDeps,
   repairFuturesTakeProfit,
   rationaleForAction,
@@ -159,6 +160,309 @@ function deps(
     ...over,
   };
 }
+
+describe("runner lifecycle and failure boundaries", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+  const held = (unrealizedPnlMusd = 10) => ({
+    id: 7,
+    status: "open",
+    side: "long",
+    marginMusd: 50,
+    leverage: 2,
+    coin: { symbol: "BTC", ucid: "1" },
+    entryPrice: 66000,
+    markPrice: 67000,
+    stopLossPrice: 65000,
+    unrealizedPnlMusd,
+  });
+  it.each(["futures", "pm"])(
+    "stops on observed %s drawdown before calling a model",
+    async (venue) => {
+      const decide = vi.fn();
+      const client = baseClient({
+        futuresPositions: async () =>
+          okData({ positions: venue === "futures" ? [held(-101)] : [] }),
+        pmPositions: async () =>
+          okData({
+            positions:
+              venue === "pm"
+                ? [
+                    {
+                      id: 1,
+                      status: "open",
+                      source: "kalshi",
+                      slug: "fixture",
+                      stakeMusd: 200,
+                      unrealizedPnl: -101,
+                    },
+                  ]
+                : [],
+          }),
+      });
+      const d = deps({ live: true }, client, { label: "fixture", decide });
+      d.spec.venues = ["futures", "pm"];
+      d.spec.killSwitch.maxDrawdownMusd = 100;
+      expect(await runCycle(d)).toMatchObject({
+        disabled: true,
+        disabledReason: "equity drawdown >= 100",
+        planned: [],
+      });
+      expect(d.state.disabled).toBe(true);
+      expect(decide).not.toHaveBeenCalled();
+      expect(client.openFutures).not.toHaveBeenCalled();
+      expect(client.openPmPosition).not.toHaveBeenCalled();
+    },
+  );
+  it("disables repeated invalid credentials and retains the failure streak", async () => {
+    const decide = vi.fn();
+    const d = deps(
+      { live: true },
+      baseClient({ me: async () => ({ ok: false, status: 401, data: {} }) }),
+      { label: "fixture", decide },
+    );
+    d.state.consecutiveAuthFailures = 9;
+    expect(await runCycle(d)).toMatchObject({
+      disabled: true,
+      disabledReason: expect.stringContaining("key_invalid:"),
+    });
+    expect(d.state.consecutiveAuthFailures).toBe(10);
+    expect(decide).not.toHaveBeenCalled();
+  });
+  it("skips a first authentication failure without disabling or calling a model", async () => {
+    const decide = vi.fn();
+    const client = baseClient({
+      me: async () => ({ ok: false, status: 401, data: {} }),
+    });
+    const d = deps({ live: true }, client, { label: "fixture", decide });
+    delete d.state.consecutiveAuthFailures;
+    expect(await runCycle(d)).toMatchObject({ decision: "skip", planned: [] });
+    expect(d.state.consecutiveAuthFailures).toBe(1);
+    expect(d.state.disabled).toBe(false);
+    expect(decide).not.toHaveBeenCalled();
+    expect(client.openFutures).not.toHaveBeenCalled();
+  });
+  it("does not invent a position identity from an incomplete successful open response", async () => {
+    const client = baseClient({
+      openFutures: vi.fn(async () => okData({ position: {} })),
+    });
+    const d = deps({ live: true }, client);
+    const result = await runCycle(d);
+    expect(result.planned[0]).toMatchObject({ accepted: true, executed: true });
+    expect(client.openFutures).toHaveBeenCalledOnce();
+    expect(Object.keys(d.state.theses ?? {})).toHaveLength(0);
+  });
+  it("clears a transient authentication streak after a complete observation", async () => {
+    const d = deps({}, baseClient(), provider({ decision: "skip" }));
+    d.state.consecutiveAuthFailures = 9;
+    await runCycle(d);
+    expect(d.state.consecutiveAuthFailures).toBe(0);
+    expect(d.state.disabled).toBe(false);
+  });
+  it("journals legacy trade outcomes without inventing missing identities or PnL", async () => {
+    const trades = [
+      { id: "legacy-id", coinSymbol: "SOL", pnlMusd: -7 },
+      { id: 2, venue: "spot", coinId: "ETH", realizedPnl: 3 },
+      { id: 3, venue: "pm", pnl: 0 },
+      { id: 4, venue: "futures", symbol: "BTC", side: "long" },
+      { id: 5, venue: "pm" },
+    ];
+    const d = deps(
+      {},
+      baseClient({ trades: async () => okData({ asOf: "T2", trades }) }),
+      provider({ decision: "skip" }),
+    );
+    await runCycle(d);
+    const journal = d.state.journal!.map((row) => row.did).join("\n");
+    expect(journal).toContain("SOL: -7mUSD LOSS");
+    expect(journal).toContain("ETH: +3mUSD WIN");
+    expect(journal).toContain("position: +0mUSD WIN");
+    expect(journal).toContain("closed long BTC");
+    expect(d.state.journal).toHaveLength(4);
+    expect(d.state.seen).toContain("futures:legacy-id");
+    expect(d.state.cursor).toBe("T2");
+  });
+  it("executes a full close and records only the confirmed action", async () => {
+    const client = baseClient({
+      futuresPositions: async () => okData({ positions: [held()] }),
+    });
+    const d = deps(
+      { live: true },
+      client,
+      provider({
+        decision: "act",
+        confidence: 0.8,
+        actions: [{ type: "futures_close", positionId: 7 }],
+      }),
+    );
+    const result = await runCycle(d);
+    expect(result.planned[0]).toMatchObject({ accepted: true, executed: true });
+    expect(client.closeFutures).toHaveBeenCalledOnce();
+    expect(d.state.journal!.at(-1)!.did).toContain("closed pos#7");
+    expect(d.state.writesToday).toBe(1);
+  });
+  it("cancels one open spot order and rejects a duplicate target in the same decision", async () => {
+    const client = baseClient({
+      openOrders: async () =>
+        okData({
+          orders: [
+            {
+              id: 9,
+              status: "open",
+              side: "buy",
+              coin: { symbol: "BTC", ucid: "1" },
+            },
+          ],
+        }),
+    });
+    const action = { type: "spot_cancel", orderId: 9 };
+    const d = deps(
+      { live: true },
+      client,
+      provider({ decision: "act", confidence: 0.8, actions: [action, action] }),
+    );
+    d.spec.venues = ["spot"];
+    const result = await runCycle(d);
+    expect(result.planned[0]).toMatchObject({ accepted: true, executed: true });
+    expect(result.planned[1].accepted).toBe(false);
+    expect(client.cancelSpotOrder).toHaveBeenCalledOnce();
+    expect(d.state.journal!.at(-1)!.did).toContain("cancelled order#9");
+  });
+  it("rejects an invented PM reference before quoting or writing", async () => {
+    const client = baseClient();
+    const d = deps(
+      { live: true },
+      client,
+      provider({
+        decision: "act",
+        actions: [{ type: "pm_open", ref: "pm99", stakeMusd: 20 }],
+      }),
+    );
+    d.spec.venues = ["pm"];
+    expect((await runCycle(d)).planned[0]).toMatchObject({
+      accepted: false,
+      code: "pm_ref_unknown",
+    });
+    expect(client.pmQuote).not.toHaveBeenCalled();
+    expect(client.openPmPosition).not.toHaveBeenCalled();
+  });
+  it("keeps a PM quality block effective when the server supplies no reason list", async () => {
+    const client = baseClient({
+      pmQuote: vi.fn(async () => okData({ eligible: true, openBlocked: true })),
+    });
+    const d = deps(
+      { live: true },
+      client,
+      provider({
+        decision: "act",
+        actions: [{ type: "pm_open", ref: "pm1", stakeMusd: 20 }],
+      }),
+    );
+    d.spec.venues = ["pm"];
+    expect((await runCycle(d)).planned[0]).toMatchObject({
+      accepted: false,
+      code: "pm_open_blocked",
+    });
+    expect(client.openPmPosition).not.toHaveBeenCalled();
+  });
+  it("refuses to add to a winning position when no margin room remains", async () => {
+    const client = baseClient({
+      futuresPositions: async () => okData({ positions: [held()] }),
+    });
+    const d = deps({ live: true }, client);
+    d.spec.limits.maxOpenMarginMusd = 50;
+    expect((await runCycle(d)).planned[0]).toMatchObject({
+      accepted: false,
+      code: "duplicate_intent",
+      reason: expect.stringContaining("no margin room"),
+    });
+    expect(client.futuresQuote).not.toHaveBeenCalled();
+  });
+  it.each([
+    ["1s", 1000],
+    ["invalid", 3600000],
+  ])(
+    "stops a bounded loop after two cycles using cadence %s",
+    async (cadence, delay) => {
+      vi.useFakeTimers();
+      const decide = vi.fn(async () => ({
+        ok: true as const,
+        text: '{"decision":"skip"}',
+      }));
+      const log = vi.fn();
+      const d = deps({ log }, baseClient(), { label: "fixture", decide });
+      d.spec.trigger.cadence = String(cadence);
+      const loop = runLoop(d, { maxCycles: 2 });
+      await vi.advanceTimersByTimeAsync(Number(delay));
+      expect(await loop).toHaveLength(2);
+      expect(decide).toHaveBeenCalledTimes(2);
+      expect(log).toHaveBeenCalledWith(
+        `sleeping ${Number(delay) / 1000}s until next cycle`,
+      );
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
+  it("runs only once when requested", async () => {
+    const d = deps({}, baseClient(), provider({ decision: "skip" }));
+    expect(await runLoop(d, { once: true })).toHaveLength(1);
+    expect(d.state.cyclesRun).toBe(1);
+  });
+  it("stops an otherwise unbounded loop at a kill-switch without observing", async () => {
+    const me = vi.fn();
+    const d = deps({}, baseClient({ me }));
+    d.state.consecutiveRejectCycles = 10;
+    d.spec.killSwitch.maxConsecutiveRejects = 5;
+    expect(await runLoop(d)).toMatchObject([{ disabled: true }]);
+    expect(me).not.toHaveBeenCalled();
+  });
+});
+
+describe("take-profit repair boundaries", () => {
+  const action: ProposedAction = {
+    type: "futures_open",
+    symbol: "BTC",
+    side: "long",
+    leverage: 2,
+    marginMusd: 50,
+    stopLossPrice: 60,
+  };
+  it.each([undefined, 0, NaN, Infinity])(
+    "does not fabricate a target without a usable entry: %s",
+    (entryPrice) => {
+      expect(repairFuturesTakeProfit(action, { entryPrice })).toEqual({
+        action,
+        repaired: false,
+      });
+    },
+  );
+  it.each([undefined, 0, NaN, Infinity, 80])(
+    "does not repair an absent/invalid or wrong-side stop: %s",
+    (stopLossPrice) => {
+      const a = { ...action, stopLossPrice } as ProposedAction;
+      expect(repairFuturesTakeProfit(a, { entryPrice: 70 })).toEqual({
+        action: a,
+        repaired: false,
+      });
+    },
+  );
+  it("requires cost evidence before enforcing a capital reward/risk target", () => {
+    expect(repairFuturesTakeProfit(action, { entryPrice: 70 }, 2)).toEqual({
+      action,
+      repaired: false,
+    });
+  });
+  it("rejects a short reward/risk repair whose target would be nonpositive", () => {
+    const a = { ...action, side: "short", stopLossPrice: 80 } as ProposedAction;
+    expect(
+      repairFuturesTakeProfit(
+        a,
+        { entryPrice: 70, futuresFeeBps: 5, estimatedEntryFeeMusd: 0.05 },
+        100,
+      ),
+    ).toEqual({ action: a, repaired: false });
+  });
+});
 
 describe("PM periodic budget gate", () => {
   it.each([1, 2])(

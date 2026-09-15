@@ -167,11 +167,14 @@ Use Python 3.12 and the locked development environment:
 ```bash
 uv sync --locked
 uv run pytest -q
+uv run python scripts/check_coverage.py
 ```
 
 Pytest measures all generated runtime modules, including branches, and fails
-below 90% combined coverage. Reports are written to `coverage/`; local results
-exceed 90% for both statements and branches. Tests cover optional/null values,
+below 90% combined coverage. The second command also enforces 90% separately
+for lines and branches, both for the package and for `client.py`,
+`open_futures_position.py` and `open_pm_position.py`. CI runs both commands.
+Reports are written to `coverage/`. Tests cover optional/null values,
 wire serialization, unknown fields, and synchronous/asynchronous HTTP errors.
 They use offline fixtures; they do not place trades or measure backend coverage.
 [Coverage details](https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/docs/RELIABILITY.md).

@@ -40,6 +40,58 @@ const limit = {
 };
 
 describe("shared provider capacity", () => {
+  it.each(["routeKey", "provider", "model"])(
+    "rejects an empty %s before acquiring a database connection",
+    async (field) => {
+      const db = mockPool();
+      await expect(
+        reserveProviderCapacity(db.pool, { ...limit, [field]: "  " }),
+      ).rejects.toThrow("required");
+      expect(db.pool.connect).not.toHaveBeenCalled();
+    },
+  );
+
+  it("rolls back a missing admission row without creating a lease", async () => {
+    const db = mockPool([]);
+    await expect(reserveProviderCapacity(db.pool, limit)).rejects.toThrow(
+      "bucket missing",
+    );
+    expect(db.query.mock.calls.at(-1)?.[0]).toBe("ROLLBACK");
+    expect(
+      db.query.mock.calls.some((call) =>
+        String(call[0]).includes(
+          "INSERT INTO agent_runtime.provider_capacity_leases",
+        ),
+      ),
+    ).toBe(false);
+    expect(db.release).toHaveBeenCalledOnce();
+  });
+
+  it.each([false, true])(
+    "preserves a release error and releases the connection (rollback fails: %s)",
+    async (rollbackFails) => {
+      const failure = new Error("fixture delete failed");
+      const query = vi.fn(async (sql: string) => {
+        if (sql.startsWith("DELETE")) throw failure;
+        if (sql === "ROLLBACK" && rollbackFails)
+          throw new Error("fixture rollback failed");
+        return { rows: [] };
+      });
+      const release = vi.fn();
+      const pool = {
+        connect: vi.fn().mockResolvedValue({ query, release }),
+      } as unknown as Pool;
+      await expect(
+        releaseProviderCapacity(pool, {
+          leaseId: "fixture",
+          routeKey: "fixture",
+          reservedTokens: 7,
+        }),
+      ).rejects.toBe(failure);
+      expect(query).toHaveBeenLastCalledWith("ROLLBACK");
+      expect(release).toHaveBeenCalledOnce();
+    },
+  );
   it("atomically reserves RPM, TPM and concurrency without holding DB during the call", async () => {
     const db = mockPool();
     const reservation = await reserveProviderCapacity(db.pool, limit);
@@ -131,6 +183,17 @@ describe("shared provider capacity", () => {
       "fixture database unavailable",
     );
     expect(db.query.mock.calls.at(-1)?.[0]).toBe("ROLLBACK");
+    expect(db.release).toHaveBeenCalledOnce();
+  });
+
+  it("preserves the admission failure when rollback also fails", async () => {
+    const db = mockPool();
+    const failure = new Error("fixture admission failed");
+    db.query
+      .mockRejectedValueOnce(failure)
+      .mockRejectedValueOnce(new Error("fixture rollback failed"));
+    await expect(reserveProviderCapacity(db.pool, limit)).rejects.toBe(failure);
+    expect(db.query).toHaveBeenLastCalledWith("ROLLBACK");
     expect(db.release).toHaveBeenCalledOnce();
   });
 

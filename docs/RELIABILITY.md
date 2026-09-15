@@ -9,15 +9,32 @@ and pytest-cov with branch measurement enabled:
 
 | Package               | Statements | Branches | Functions |  Lines |
 | --------------------- | ---------: | -------: | --------: | -----: |
-| MCP server and runner |     94.31% |   90.33% |    93.27% | 95.03% |
-| Hosted scheduler      |     96.45% |   91.02% |    93.43% | 97.36% |
+| MCP server and runner |     96.00% |   91.79% |    94.24% | 96.63% |
+| Hosted scheduler      |     97.10% |   91.56% |    94.89% | 97.89% |
 | TypeScript SDK        |       100% |     100% |      100% |   100% |
-| Python SDK            |     96.18% |   94.11% |         — | 96.18% |
+| Python SDK            |     96.58% |   94.84% |         — | 96.58% |
 
 The three JavaScript packages enforce **90% on each of the four metrics**.
 Python enforces **90% combined statement and branch coverage** (measured
-95.71%); both individual measures also exceed 90%. Python does not report
-a separate function metric.
+96.19%), plus separate 90% line and branch floors. Python does not report
+a separate function metric. Local scheduler tests used disposable PostgreSQL
+16.1; CI uses PostgreSQL 17.
+
+### Targeted file gates
+
+The reviewed files also enforce their own 90% floors, so package averages
+cannot hide a regression in these paths. Other files still use package gates;
+this is not a claim that every file exceeds 90%.
+
+| Runtime file                                        | Statements | Branches | Functions |  Lines |
+| --------------------------------------------------- | ---------: | -------: | --------: | -----: |
+| MCP `src/agent/client.ts`                           |       100% |   98.73% |    97.05% |   100% |
+| MCP `src/agent/runner.ts`                           |     99.00% |   90.76% |    97.87% | 98.94% |
+| MCP `src/http.ts`                                   |       100% |     100% |      100% |   100% |
+| Scheduler `src/capacity.ts`                         |       100% |   95.00% |      100% |   100% |
+| Python `client.py`                                  |       100% |     100% |         — |   100% |
+| Python `api/futures/open_futures_position.py`       |       100% |     100% |         — |   100% |
+| Python `api/prediction_markets/open_pm_position.py` |       100% |     100% |         — |   100% |
 
 Coverage includes all runtime source, including unimported modules. Test files
 and TypeScript declarations are excluded. The TypeScript SDK is a small
@@ -42,6 +59,10 @@ CI uploads complete HTML/JSON reports for each package, including failures.
 - Missing, blank or malformed `Retry-After` uses the existing retry fallback.
   Valid seconds, an explicit zero, and HTTP dates are handled deliberately.
   Retries retain the original idempotency key and request body.
+- Runner API operations have a 30-second total deadline, including response
+  bodies and retry waits, with optional caller cancellation. Tests cover
+  stalled headers and bodies, retry exhaustion, listener cleanup and a real
+  loopback socket abort. Uncertain writes are not automatically replayed.
 - A self-host state save writes a temporary file and atomically replaces the
   prior file. Failed serialization/replacement preserves the old state. This
   is not an fsync or power-loss durability guarantee.
@@ -49,6 +70,12 @@ CI uploads complete HTML/JSON reports for each package, including failures.
   the hourly cap, PM cooldown and equity-based sizing.
 - Client keys remain isolated. Failed optional observations, stale quotes,
   invalid decisions and provider failures have targeted regressions.
+- Drawdown and authentication failures stop model calls at their existing
+  thresholds. HTTP startup and request failures clean up resources. PostgreSQL
+  connection release preserves the original error even when rollback fails.
+- Python client lifecycle and both trade-open wrappers are exercised through
+  sync/async calls and every documented status, preserving authentication,
+  idempotency keys and error details without live requests.
 
 ## PostgreSQL tests are mandatory in CI
 
@@ -79,6 +106,7 @@ npm --prefix packages/scheduler run test:coverage
 cd packages/sdk-python
 uv sync --locked
 uv run pytest -q
+uv run python scripts/check_coverage.py
 ```
 
 In PowerShell, set the database variable with `$env:CAPACITY_TEST_DATABASE_URL`

@@ -70,6 +70,7 @@ jobs:
           touch coinrithm_sdk/py.typed
           git diff --exit-code -- coinrithm_sdk
           uv run pytest -q
+          uv run python scripts/check_coverage.py
           uv run python -m compileall -q coinrithm_sdk
           uv build
           uv run --isolated --no-project --with ./dist/coinrithm_sdk-*.whl \

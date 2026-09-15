@@ -6,10 +6,11 @@
 // injectable so tests run with no network and no real waits.
 
 import { AgentTrace, ApiResult } from "./types.js";
-import { sleep as realSleep } from "./util.js";
+import { setTimeout as sleep } from "node:timers/promises";
 import { retryAfterSeconds } from "../retryAfter.js";
 
 export const DEFAULT_BASE_URL = "https://api.coinrithm.com";
+export const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 
 // SELF-REPORTED provenance the runner attaches to a pm/open or pm/opportunity so the
 // durable artifact records WHAT RAN. Carries NO trust: the server stamps the policy
@@ -36,6 +37,10 @@ export interface ClientConfig {
   fetchFn?: typeof fetch;
   sleepFn?: (ms: number) => Promise<void>;
   maxRetries?: number;
+  /** Total deadline, including response bodies and all 429 retry waits. */
+  requestTimeoutMs?: number;
+  /** Optional caller cancellation, applied to each request from this client. */
+  signal?: AbortSignal;
   // Extra headers attached to EVERY request. CoinRithm's hosted scheduler uses
   // this to present its internal attestation channel so the backend
   // server-signs scheduler-run decisions (G5c). Self-host runs leave it unset —
@@ -65,8 +70,10 @@ export class CoinRithmClient {
   private readonly apiKey: string;
   private readonly baseUrl: string;
   private readonly fetchFn: typeof fetch;
-  private readonly sleepFn: (ms: number) => Promise<void>;
+  private readonly sleepFn?: (ms: number) => Promise<void>;
   private readonly maxRetries: number;
+  private readonly requestTimeoutMs: number;
+  private readonly signal?: AbortSignal;
   private readonly extraHeaders?: Record<string, string>;
   // Every 429 seen this session (read or write, retried or not) — feeds the
   // rate-limit-pressure kill-switch, which a write-only counter would miss.
@@ -76,8 +83,19 @@ export class CoinRithmClient {
     this.apiKey = cfg.apiKey;
     this.baseUrl = (cfg.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
     this.fetchFn = cfg.fetchFn ?? fetch;
-    this.sleepFn = cfg.sleepFn ?? realSleep;
+    this.sleepFn = cfg.sleepFn;
     this.maxRetries = cfg.maxRetries ?? 3;
+    this.requestTimeoutMs = cfg.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+    if (
+      !Number.isSafeInteger(this.requestTimeoutMs) ||
+      this.requestTimeoutMs < 1 ||
+      this.requestTimeoutMs > 2_147_483_647
+    ) {
+      throw new Error(
+        "requestTimeoutMs must be an integer between 1 and 2147483647",
+      );
+    }
+    this.signal = cfg.signal;
     this.extraHeaders = cfg.extraHeaders;
   }
 
@@ -102,50 +120,95 @@ export class CoinRithmClient {
     };
     if (opts.body !== undefined) headers["Content-Type"] = "application/json";
 
-    for (let attempt = 0; ; attempt++) {
-      let res: Response;
-      try {
-        res = await this.fetchFn(url.toString(), {
+    const controller = new AbortController();
+    let timedOut = false;
+    const cancel = () => controller.abort(new Error("API request cancelled"));
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort(new Error("API request deadline exceeded"));
+    }, this.requestTimeoutMs);
+    this.signal?.addEventListener("abort", cancel, { once: true });
+    if (this.signal?.aborted) cancel();
+
+    let rejectAborted!: () => void;
+    const aborted = new Promise<never>((_, reject) => {
+      rejectAborted = () => reject(controller.signal.reason);
+      controller.signal.addEventListener("abort", rejectAborted, {
+        once: true,
+      });
+      if (controller.signal.aborted) rejectAborted();
+    });
+    const perform = async (): Promise<ApiResult> => {
+      for (let attempt = 0; ; attempt++) {
+        controller.signal.throwIfAborted();
+        const res = await this.fetchFn(url.toString(), {
           method,
           headers,
           body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+          signal: controller.signal,
         });
-      } catch (err) {
+        controller.signal.throwIfAborted();
+
+        const retryAfter = retryAfterSeconds(res.headers.get("retry-after"));
+        if (res.status === 429) this.rateLimitHits += 1;
+        if (res.status === 429 && attempt < this.maxRetries) {
+          // Release this response before waiting so retries do not retain sockets.
+          void res.body?.cancel().catch(() => {});
+          const delayMs = (retryAfter ?? 5) * 1000;
+          // Never shorten a provider's Retry-After or overflow a Node timer.
+          if (delayMs >= this.requestTimeoutMs) await aborted;
+          else if (this.sleepFn) await this.sleepFn(delayMs);
+          else await sleep(delayMs, undefined, { signal: controller.signal });
+          continue;
+        }
+
+        const text = await res.text();
+        controller.signal.throwIfAborted();
+        let data: unknown = text;
+        if (text) {
+          try {
+            data = JSON.parse(text);
+          } catch {
+            /* leave as text */
+          }
+        }
         return {
-          ok: false,
-          status: 0,
-          data: {
-            error: "network_error",
-            message: err instanceof Error ? err.message : String(err),
-          },
+          ok: res.ok,
+          status: res.status,
+          data,
+          retryAfterSeconds: res.status === 429 ? retryAfter : undefined,
+          rateLimitRemaining:
+            Number(res.headers.get("ratelimit-remaining")) || undefined,
+          ledgerEventId: res.headers.get("x-coinrithm-ledger-event-id"),
         };
       }
-
-      const retryAfter = retryAfterSeconds(res.headers.get("retry-after"));
-      if (res.status === 429) this.rateLimitHits += 1;
-      if (res.status === 429 && attempt < this.maxRetries) {
-        await this.sleepFn((retryAfter ?? 5) * 1000);
-        continue;
-      }
-
-      const text = await res.text();
-      let data: unknown = text;
-      if (text) {
-        try {
-          data = JSON.parse(text);
-        } catch {
-          /* leave as text */
-        }
-      }
+    };
+    try {
+      // The race also bounds injected transports that do not honor AbortSignal.
+      return await Promise.race([perform(), aborted]);
+    } catch (err) {
       return {
-        ok: res.ok,
-        status: res.status,
-        data,
-        retryAfterSeconds: res.status === 429 ? retryAfter : undefined,
-        rateLimitRemaining:
-          Number(res.headers.get("ratelimit-remaining")) || undefined,
-        ledgerEventId: res.headers.get("x-coinrithm-ledger-event-id"),
+        ok: false,
+        status: 0,
+        data: {
+          error: timedOut
+            ? "request_timeout"
+            : controller.signal.aborted
+              ? "request_aborted"
+              : "network_error",
+          message: timedOut
+            ? `API request exceeded ${this.requestTimeoutMs}ms deadline`
+            : controller.signal.aborted
+              ? "API request cancelled"
+              : err instanceof Error
+                ? err.message
+                : String(err),
+        },
       };
+    } finally {
+      clearTimeout(timer);
+      this.signal?.removeEventListener("abort", cancel);
+      controller.signal.removeEventListener("abort", rejectAborted);
     }
   }
 
