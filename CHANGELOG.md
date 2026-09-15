@@ -8,7 +8,7 @@ Each package has its own version; the API contract is versioned separately.
 [TypeScript history](packages/sdk/CHANGELOG.md) ·
 [Python release notes](packages/sdk-python/README.md)
 
-## 0.7.12 — 2026-09-15 (source; publication pending)
+## 0.7.12 — 2026-09-15
 
 Clarify three MCP tool definitions after reviewing Glama's expanded feedback:
 
@@ -21,9 +21,14 @@ Clarify three MCP tool definitions after reviewing Glama's expanded feedback:
   idempotency hint because callers may omit the decision ID.
 
 All 38 tool names, accepted inputs and execution behavior remain unchanged.
-The SDKs, runner and scheduler logic are unchanged. Glama's release number and
-evaluation score are separate from package versions; this entry claims neither
-a new Glama score nor publication or deployment.
+The SDKs, runner and scheduler logic are unchanged. npm and GitHub downloads
+match the CI-tested archive; a clean registry install passed startup and tool
+metadata checks. Hosted MCP deployment 2505 finished on
+`394b3b39cd13e31256504ad3704817808c7e97ad`, with all 52 compiled JavaScript
+files matching the archive and rollback retained. The official MCP Registry
+lists 0.7.12 as latest. Glama's release number and evaluation score are separate
+from package versions. See the
+[release and checksum](https://github.com/CoinRithm/coinrithm-agent-trading/releases/tag/mcp-trading-v0.7.12).
 
 ## 0.7.11 — 2026-09-15
 
