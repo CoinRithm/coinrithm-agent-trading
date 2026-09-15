@@ -11,7 +11,10 @@ OpenAPI contract that drives the hosted MCP at `mcp.coinrithm.com`.
 
 ## 1.8.1 release notes
 
-This package version is 1.8.1; check PyPI for publication status.
+Version 1.8.1 was published on PyPI and verified on 2026-09-15. Both the wheel
+and source distribution match the reviewed artifacts; a fresh registry
+installation passed offline sync/async client checks. See the
+[combined release notes](https://github.com/CoinRithm/coinrithm-agent-trading/releases/tag/mcp-trading-v0.7.9).
 This patch ships corrected generated candle documentation: `v` is a mean
 rolling 24-hour USD quote-volume observation, not per-candle traded volume.
 Do not sum it across bars or difference bars as interval turnover. API contract

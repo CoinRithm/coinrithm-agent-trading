@@ -15,6 +15,7 @@ each key keeps its own positions and performance attribution.
 
 **API reference:** [coinrithm.github.io/coinrithm-agent-trading](https://coinrithm.github.io/coinrithm-agent-trading/)
 (rendered from [`openapi.yaml`](./openapi.yaml)).
+**Releases:** [Changelog](./CHANGELOG.md) · [Downloads and release notes](https://github.com/CoinRithm/coinrithm-agent-trading/releases).
 **Listed on:** the official [MCP Registry](https://registry.modelcontextprotocol.io)
 (`io.github.CoinRithm/mcp-trading`),
 [Smithery](https://smithery.ai/servers/keremerden97/coinrithm-mcp-trading),
@@ -660,3 +661,15 @@ agent's caps before executing paper writes.
 
 See [`QUICKSTART.md`](./QUICKSTART.md) to get going, or the per-client files in
 [`examples/`](./examples).
+
+## Contributing
+
+Bug reports, reproducible examples, documentation improvements and pull requests
+are welcome. [Open an issue](https://github.com/CoinRithm/coinrithm-agent-trading/issues/new)
+with the affected package version, expected behavior and a small reproduction.
+Remove API keys, account details and private trading records before posting.
+For a fix, keep the change focused and include the relevant regression check;
+[the reliability guide](./docs/RELIABILITY.md) lists test commands and their scope.
+
+Community feedback and code contributions are acknowledged in the
+[changelog](./CHANGELOG.md#community-thanks).

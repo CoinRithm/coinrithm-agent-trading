@@ -5,10 +5,12 @@ ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (t
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
 versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
-## 0.7.9
+## 0.7.9 - 2026-09-15
 
-This entry describes the package contents. Check npm for publication status;
-a source version or hosted deployment does not confirm npm delivery.
+Published on npm and verified on 2026-09-15: the registry archive matches the
+reviewed artifact and passes fresh-install checks. See the
+[combined release notes](https://github.com/CoinRithm/coinrithm-agent-trading/releases/tag/mcp-trading-v0.7.9)
+for source provenance, verification and community acknowledgments.
 
 Public market-data fidelity and runner reliability release. No MCP tool was
 renamed or removed, and the API **contract stays 1.7.0**.

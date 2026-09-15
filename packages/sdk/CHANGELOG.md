@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.3.1
+## 0.3.1 - 2026-09-15
+
+Published on npm; the registry archive and fresh installation were verified on
+2026-09-15. See the
+[combined release notes](https://github.com/CoinRithm/coinrithm-agent-trading/releases/tag/mcp-trading-v0.7.9).
 
 - Adds offline HTTP contract tests and 90% coverage gates for every runtime
   coverage metric. Runtime source remains a small wrapper around `openapi-fetch`;
