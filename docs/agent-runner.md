@@ -11,6 +11,18 @@ as the `coinrithm-agent` binary (alongside the `coinrithm-mcp` server) — it is
 not a separate package. The CoinRithm **hosted scheduler** runs this same engine
 for you (managed); you can also self-host it.
 
+### Prepared 0.7.9 reliability fixes
+
+npm still serves 0.7.8 as of September 15, 2026; these changes are prepared in
+source for 0.7.9. Completed-action memory requires `accepted` and `executed`;
+failed or uncertain writes remain attempts. A complete direct NVIDIA
+500/502/503/504 response can be retried once on the same route within the
+original deadline, without retrying a trading write. Frozen settlement residue
+down to -1e-8 is normalized for sizing only after independent reads agree;
+negative available cash remains invalid. The private numeric input projection
+also retains nested indicators and context movers. See the
+[package changelog](../packages/mcp-trading/CHANGELOG.md) for the release scope.
+
 > ## 🧪 Paper trading only — not financial advice
 > Every order this places moves **virtual funds** (50,000 mUSD). Nothing here
 > touches real money, a real exchange, or a brokerage. The runner trades

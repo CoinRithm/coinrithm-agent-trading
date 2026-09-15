@@ -16,8 +16,15 @@ npm install @coinrithm/sdk
 ```
 
 Published on npm as [`@coinrithm/sdk`](https://www.npmjs.com/package/@coinrithm/sdk).
-Current package release: **0.3.0**. The package version is independent of the
+This package version is **0.3.1**. Check `npm view @coinrithm/sdk version` for
+the latest published version. The package version is independent of the
 OpenAPI contract version, which remains **1.7.0**.
+
+This patch corrects the generated candle documentation: `v` is a mean
+rolling 24-hour quote-volume observation in USD, not per-candle traded volume.
+Do not sum it across bars or difference bars as interval turnover. Prediction
+market outcome names are display labels that may be enriched; retain source,
+event and outcome identifiers instead of treating matching names as identity.
 
 Installing from a clone still works if you want to track `main`:
 

@@ -195,7 +195,7 @@ The stdio path (`npx -y @coinrithm/mcp-trading`) is served from npm. A source
 version bump, a hosted deployment, an npm publication and an MCP Registry entry
 are four different states. Do not claim one merely because another succeeded.
 
-**Current release hold (2026-09-12):** source-tree version 0.7.9 is prepared but
+**Current release hold (rechecked 2026-09-15):** source-tree version 0.7.9 is prepared but
 unpublished; npm's latest verified release is 0.7.8. The existing npm login
 returns `E401` from `npm whoami`. Until publishing authority is restored, do
 not publish npm, push a release tag, or dispatch the registry workflow. Keep

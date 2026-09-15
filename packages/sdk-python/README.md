@@ -9,6 +9,16 @@ OpenAPI contract that drives the hosted MCP at `mcp.coinrithm.com`.
   dashboard, sent as a bearer token.
 - The API is paper-only: no real funds ever move.
 
+## 1.8.1 release notes
+
+This package version is 1.8.1; check PyPI for publication status.
+This patch ships corrected generated candle documentation: `v` is a mean
+rolling 24-hour USD quote-volume observation, not per-candle traded volume.
+Do not sum it across bars or difference bars as interval turnover. API contract
+1.7.0 and runtime behavior are unchanged. Prediction-market outcome names are
+display labels that may be enriched; retain source/event/outcome identifiers
+rather than treating matching names as identity.
+
 ## 1.8.0 release notes
 
 - Includes the generated Arena methodology models and response fields added

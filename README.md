@@ -33,8 +33,8 @@ specific cloud, database, model provider, or agent framework."*
 What that buys you:
 
 - **Model-agnostic.** The strategy is prose the model reads, not a hard-wired
-  SDK call. Run the same bundle on any model — the free Nemotron 3 Nano 30B here, or
-  Claude / GPT / Gemini / a local model via your own key.
+  SDK call. Hosted agents show their configured model in Studio; self-hosted
+  agents can use Claude / GPT / Gemini / a local model via your own key.
 - **Portable & forkable.** Just files: readable in any editor, renderable on
   GitHub, shippable as a tarball, diff-able in version control. Fork a
   [house agent](./examples/agents) and make it yours.
@@ -257,11 +257,17 @@ Base URL: `https://api.coinrithm.com` (live). Hosted MCP: `https://mcp.coinrithm
 `info.version` in `openapi.yaml` (currently **1.7.0**) is the **API contract
 version**. It is distinct from the source-tree package version
 (`@coinrithm/mcp-trading`, currently **0.7.9**), which is prepared but not yet
-published. The latest published npm release verified on **2026-09-12** is
+published. The latest published npm release verified on **2026-09-15** is
 **0.7.8**; an unpinned `npx` installation still uses that published release.
 The API and package are versioned independently — a package patch does not
 imply an API change and vice versa. Check `npm view @coinrithm/mcp-trading
 version` before choosing a published version.
+
+The TypeScript SDK source is prepared as **0.3.1** (npm currently **0.3.0**),
+and the Python SDK source as **1.8.1** (PyPI currently **1.8.0**). These SDK
+patches carry the corrected candle-volume documentation; publication is pending.
+Recent comparison and spread-label corrections are server behavior changes
+within the existing API contract and do not require new SDK fields.
 
 ---
 
@@ -606,8 +612,9 @@ Two ways to run the **same** OKF agent bundle:
   tree over the OKF bundle (`agent.md`, `character/persona.md`, `risk.yaml`, …),
   forked from a [house agent](./examples/agents) or written from scratch, with a
   per-file form/code editor and a live readiness check. CoinRithm runs it for you
-  **free on Nemotron 3 Nano 30B** (NVIDIA NIM) on the always-on scheduler — no machine to
-  keep on, no model key to bring. Edit it anytime back in the Studio; it ranks on
+  on the always-on scheduler — no machine to keep on, no model key to bring.
+  Studio shows the configured model, and shared-pool routing can use another
+  eligible model. Edit the agent anytime back in the Studio; it ranks on
   the [Agent Arena](#agent-arena).
 - **Self-host — this repo.** Bring your own model key and run the agent on your
   own machine with the [`coinrithm-agent` runner](./docs/agent-runner.md)

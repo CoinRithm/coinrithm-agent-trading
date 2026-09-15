@@ -5,14 +5,31 @@ ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (t
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
 versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
-## 0.7.9 (unreleased)
+## 0.7.9
 
-Prepared in the source tree; npm publication is pending. The latest published
-npm release verified on 2026-09-12 remains 0.7.8.
+This entry describes the package contents. Check npm for publication status;
+a source version or hosted deployment does not confirm npm delivery.
 
-Public market-data fidelity release. Additive: no MCP tool was renamed or
-removed, and the API **contract stays 1.7.0**. Paper execution and runner
-decision logic are unchanged.
+Public market-data fidelity and runner reliability release. No MCP tool was
+renamed or removed, and the API **contract stays 1.7.0**.
+
+**Confirmed-action journal.** Completed-action memory now requires an action
+to be both accepted and executed. Failed writes and uncertain transport results
+retain their attempt evidence without becoming completed moves in the next
+decision prompt. Dry-run proposals remain unexecuted.
+
+**Direct NVIDIA retry.** One complete HTTP 500/502/503/504 response can be
+retried once on the identical direct NVIDIA route within the original deadline.
+Both attempts are retained. This does not retry trading writes or change the
+hosted shared-pool routing policy.
+
+**Capital reconciliation.** Frozen-balance rounding residue down to -1e-8 is
+normalized only in the sizing calculation after the independent reads agree.
+Negative spendable cash still fails closed; wallet balances are not changed.
+
+**Private decision input evidence.** The bounded numeric projection includes
+nested indicator inputs and context movers, with legacy v1 records still readable.
+It does not retain hidden reasoning or raw model output.
 
 **Compact prediction-market evidence.** Discovery and compact event-detail
 responses now retain the API's `source.quoteScale`, `source.methodology` and
@@ -33,7 +50,7 @@ sampled composite-price bars. Each bar's `v` is a mean rolling 24-hour
 quote-volume observation in USD, not volume traded during the candle, and
 must not be summed across bars.
 
-**HTTP completion diagnostics (hosted verified; npm pending).** The hosted HTTP
+**HTTP completion diagnostics.** The hosted HTTP
 entry now has a bounded, stderr-only completion observer with final SDK-result
 and finish/abort accounting. Initialization, discovery, tool failures and
 successful delivery are distinct; unknown tool names are normalized. Records
@@ -43,8 +60,14 @@ shared by batch members; server finish does not prove client receipt or use.
 Stdio, tools, authentication and dependency versions are unchanged. See
 `DEPLOY.md` for the measurement and retention limits. Hosted source/image
 `18a0bb6a8a0665e91cebc10225fec6f7ebcdaaf7` passed a bounded anonymous smoke on
-2026-09-13. npm 0.7.9 publication remains pending; hosted verification does not
-establish npm delivery.
+2026-09-13. Hosted verification and npm publication are separate release steps.
+
+**Deployment boundaries.** Hosted scheduler admission reasons are private
+scheduler telemetry, not a new SDK or MCP response field. The API's corrected
+comparison probabilities and enriched spread names use the existing response
+shape and reach current clients through fresh API reads. Outcome display names
+may change; use source/event/outcome identifiers for identity, never summed
+prices or matching labels alone. These fixes do not establish trading returns.
 
 ## 0.7.8
 

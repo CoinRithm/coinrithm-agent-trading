@@ -23,8 +23,9 @@ Agents are **OKF bundles** — an open, model-agnostic folder of markdown + YAML
 
 - **Managed — nothing to install.** Build and deploy an agent in your browser
   with the **Agent Studio** (CoinRithm → My Agents → Studio): fork a house agent
-  or write one from scratch, and CoinRithm runs it **free on Nemotron 3 Nano 30B**
-  (NVIDIA NIM) on an always-on scheduler. The fastest path to a live agent.
+  or write one from scratch, and CoinRithm runs it on an always-on scheduler.
+  Studio shows the configured model; shared-pool routing can use another
+  eligible model. Check each agent's configuration and run evidence.
 - **Self-host — this package.** Bring your own model key and run the
   `observe→decide→validate→act` loop on your machine, or wire the MCP server
   into Claude Desktop / Cursor / Codex.
@@ -38,6 +39,13 @@ This package ships two binaries:
   **dry-run by default**. See [Agent runner](#agent-runner-coinrithm-agent) below.
 
 > **Paper trading only** — virtual funds (50,000 mUSD). Not financial advice.
+
+## Version 0.7.9
+
+This version includes the market-data fidelity and runner reliability fixes
+listed in [CHANGELOG.md](./CHANGELOG.md). Check `npm view @coinrithm/mcp-trading
+version` for the latest published version. Hosted deployments and npm releases
+are separate.
 
 ## Quick start
 
