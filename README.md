@@ -17,6 +17,7 @@ each key keeps its own positions and performance attribution.
 (rendered from [`openapi.yaml`](./openapi.yaml)).
 **Listed on:** the official [MCP Registry](https://registry.modelcontextprotocol.io)
 (`io.github.CoinRithm/mcp-trading`),
+[Smithery](https://smithery.ai/servers/keremerden97/coinrithm-mcp-trading),
 [LightNow](https://lightnow.ai/servers/io.github.CoinRithm/mcp-trading), and
 [Glama](https://glama.ai).
 
