@@ -226,12 +226,20 @@ npm pack --dry-run --json
 # binaries, package.json, README.md and CHANGELOG.md; no .env/.npmrc/tests.
 ```
 
-3. Coordinate with other operators before a main push. To prevent Coolify from
-   starting both apps, **every new commit in the push** must contain
+3. Open a pull request from a topic branch. The active
+   [main ruleset](../../.github/main-ruleset.json) requires the branch to be up to
+   date and all five GitHub Actions checks (`typescript-sdk`, `python-sdk`,
+   `contract`, `scheduler`, `mcp-trading`) before merging. It has no bypass
+   actors; approving reviews are optional. The JSON records the applied GitHub
+   setting, not an automatic configuration deployment: check the live repository
+   rules when changing it or renaming a CI job.
+   Coordinate with other operators before merging. To prevent Coolify from
+   starting both apps, **every new commit introduced to main** must contain
    `[skip cd]`. The installed handler skips only when all commit messages carry
-   that marker; placing it solely on the last commit is insufficient. Do not
-   use `[skip ci]`: GitHub CI must still run. Verify the pushed SHA, green CI
-   and that no unwanted Coolify deployment was queued.
+   that marker; placing it solely on the last commit is insufficient. Include
+   the marker in the final squash/merge commit too. Do not use `[skip ci]`:
+   GitHub CI must still run. Verify the merged SHA, green CI and that no
+   unwanted Coolify deployment was queued.
 4. With separate deployment authorization and no other active build, queue the
    exact reviewed SHA for hosted MCP app4. Verify the resulting image commit,
    health, anonymous initialize version, tools/list and a bounded public-data
