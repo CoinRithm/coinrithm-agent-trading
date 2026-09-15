@@ -671,5 +671,11 @@ Remove API keys, account details and private trading records before posting.
 For a fix, keep the change focused and include the relevant regression check;
 [the reliability guide](./docs/RELIABILITY.md) lists test commands and their scope.
 
+Changes to `main` go through a pull request with the branch up to date and all
+five required GitHub Actions checks passing: `typescript-sdk`, `python-sdk`,
+`contract`, `scheduler` and `mcp-trading`. No approving review is required for
+routine maintainer work. The [main ruleset](./.github/main-ruleset.json) has no
+bypass actors and blocks force pushes and deletion of `main`.
+
 Community feedback and code contributions are acknowledged in the
 [changelog](./CHANGELOG.md#community-thanks).
