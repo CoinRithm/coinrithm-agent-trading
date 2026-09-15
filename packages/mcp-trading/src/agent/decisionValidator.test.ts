@@ -79,6 +79,45 @@ const obsWithPos: Observation = {
 };
 
 describe("validateAction", () => {
+  it("rejects an otherwise valid entry until its observed return predicate passes", () => {
+    const configured = {
+      ...spec,
+      risk: {
+        ...spec.risk,
+        entryPredicates: [
+          {
+            side: "long" as const,
+            metric: "change1h" as const,
+            operator: "gte" as const,
+            threshold: 2,
+            maxAgeSeconds: 60,
+          },
+        ],
+      },
+    };
+    const current = {
+      ...observation,
+      asOf: new Date().toISOString(),
+      watch: [
+        {
+          symbol: "BTC",
+          coinId: "1",
+          change1h: 1,
+          freshness: { status: "fresh", ageSeconds: 0 },
+        },
+      ],
+    };
+    expect(validateAction(goodOpen, ctx()).valid).toBe(true);
+    expect(
+      validateAction(goodOpen, ctx({ spec: configured, observation: current }))
+        .code,
+    ).toBe("entry_predicate_false");
+    current.watch[0].change1h = 2;
+    expect(
+      validateAction(goodOpen, ctx({ spec: configured, observation: current }))
+        .valid,
+    ).toBe(true);
+  });
   it("accepts a compliant futures_open", () => {
     expect(validateAction(goodOpen, ctx()).valid).toBe(true);
   });

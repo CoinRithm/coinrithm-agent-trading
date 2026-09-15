@@ -2,7 +2,8 @@ import { Pool } from "pg";
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { sanitizeDecisionInputRecord } from "@coinrithm/mcp-trading/dist/agent/engine.js";
+import { sanitizeDecisionInputRecord } from "@coinrithm/mcp-trading/engine";
+import { maintenanceTransaction } from "./maintenance.js";
 
 export interface AgentRow {
   id: number;
@@ -152,9 +153,11 @@ export async function migrate(pool: Pool): Promise<void> {
   const files = readdirSync(sqlDir)
     .filter((f) => /^\d+_.*\.sql$/.test(f))
     .sort();
-  for (const f of files) {
-    await pool.query(readFileSync(join(sqlDir, f), "utf8"));
-  }
+  await maintenanceTransaction(pool, async (client) => {
+    for (const f of files) {
+      await client.query(readFileSync(join(sqlDir, f), "utf8"));
+    }
+  });
 }
 
 // Idempotent safety migration: move any HOUSE agent off Groq onto NVIDIA. Groq's

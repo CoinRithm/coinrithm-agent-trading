@@ -40,7 +40,7 @@ export { CoinRithmClient } from "./client.js";
 export { loadAgent, buildSpec, type LoadedAgent } from "./skill.js";
 export { resolveAgent } from "./resolve.js";
 export { validateSkill, type SkillValidationMode } from "./skillValidator.js";
-export { newState, rollDay } from "./state.js";
+export { newState, rollDay, loadState, saveState } from "./state.js";
 export { makeRunId } from "./runEvidence.js";
 export { parseCadenceMs } from "./util.js";
 // Mechanical BENCHMARK baseline agents (sol #7): the deterministic, non-LLM

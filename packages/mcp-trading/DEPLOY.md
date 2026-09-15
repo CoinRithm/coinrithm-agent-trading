@@ -228,8 +228,8 @@ npm pack --dry-run --json
 
 3. Open a pull request from a topic branch. The active
    [main ruleset](../../.github/main-ruleset.json) requires the branch to be up to
-   date and all five GitHub Actions checks (`typescript-sdk`, `python-sdk`,
-   `contract`, `scheduler`, `mcp-trading`) before merging. It has no bypass
+   date and all six GitHub Actions checks (`typescript-sdk`, `python-sdk`,
+   `contract`, `scheduler`, `mcp-trading`, `compatibility`) before merging. It has no bypass
    actors; approving reviews are optional. The JSON records the applied GitHub
    setting, not an automatic configuration deployment: check the live repository
    rules when changing it or renaming a CI job.

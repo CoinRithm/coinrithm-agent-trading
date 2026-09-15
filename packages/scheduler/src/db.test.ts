@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import type { Pool, PoolClient } from "pg";
-import type { DecisionInputRecord } from "@coinrithm/mcp-trading/dist/agent/engine.js";
+import type { DecisionInputRecord } from "@coinrithm/mcp-trading/engine";
 import {
   recordCycle,
   persistCycleResult,

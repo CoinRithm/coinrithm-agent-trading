@@ -10,6 +10,7 @@ import {
   ALLOWED_CAPABILITIES,
 } from "./types.js";
 import { parseCadenceMs, scanForSecrets } from "./util.js";
+import { entryPredicateIssues } from "./entryPredicates.js";
 
 // Fail-closed skill validator. Unlike the per-decision gate (first-failure),
 // this collects ALL issues so the author can fix the skill in one pass.
@@ -163,6 +164,8 @@ export function validateSkill(
     add("skill_risk", "risk block is required (the caps the agent runs under)");
   } else {
     const r = raw.risk;
+    if (r.entryPredicates !== undefined)
+      issues.push(...entryPredicateIssues(r.entryPredicates));
     if (!isPosNum(r.maxLeverage))
       add("skill_risk_leverage", "risk.maxLeverage must be a positive number");
     else if ((r.maxLeverage as number) > 20)

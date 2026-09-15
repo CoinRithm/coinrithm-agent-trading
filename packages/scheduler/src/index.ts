@@ -12,7 +12,7 @@ import {
   retryDatabaseStartup,
 } from "./db.js";
 import { runScheduler, type Control } from "./scheduler.js";
-import { probeDecisionContract } from "@coinrithm/mcp-trading/dist/agent/engine.js";
+import { probeDecisionContract } from "@coinrithm/mcp-trading/engine";
 import { OPENAI_BACKUP_MODEL } from "./route.js";
 
 async function main(): Promise<void> {

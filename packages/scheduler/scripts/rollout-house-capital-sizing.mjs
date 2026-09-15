@@ -98,7 +98,7 @@ async function main() {
   }
   const commit = args.includes("--commit");
   const { loadAgent, validateSkill } =
-    await import("@coinrithm/mcp-trading/dist/agent/engine.js");
+    await import("@coinrithm/mcp-trading/engine");
   const here = dirname(fileURLToPath(import.meta.url));
   const policies = {};
   for (const house of HOUSE_CAPITAL_ROSTER) {

@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   # The published npm SDK must be reproducible from the canonical contract.
   # Regeneration drift means consumers are missing declared fields even when
@@ -15,8 +18,8 @@ jobs:
       run:
         working-directory: packages/sdk
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: npm
@@ -31,13 +34,19 @@ jobs:
           npm run typecheck
           npm run test:coverage
           npm run build
-          npm pack --dry-run
+          npm pack --ignore-scripts
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: typescript-sdk-coverage
           path: packages/sdk/coverage
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: typescript-sdk-package
+          path: packages/sdk/*.tgz
           if-no-files-found: error
 
   # The published PyPI SDK: deterministic Python 3.12 environment, generated
@@ -48,7 +57,7 @@ jobs:
       run:
         working-directory: packages/sdk-python
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install uv and Python 3.12
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
@@ -76,18 +85,24 @@ jobs:
           uv run --isolated --no-project --with ./dist/coinrithm_sdk-*.whl \
             python -c "from coinrithm_sdk import Client; assert Client(base_url='https://api.coinrithm.com')"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: python-sdk-coverage
           path: packages/sdk-python/coverage
           if-no-files-found: error
 
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: python-sdk-package
+          path: packages/sdk-python/dist/*.whl
+          if-no-files-found: error
+
   # The published npm package: MCP server + agent runner (both live here).
   mcp-trading:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       # Secret scan (audit reliability lane, 2026-08-11). A STEP inside the
       # main job, not a parallel job, and the plain binary rather than the
@@ -101,12 +116,9 @@ jobs:
       # to an allowlisted line still fails the scan.
       - name: Secret scan
         run: |
-          set -euo pipefail
-          VERSION=8.28.0
-          URL="https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz"
-          curl -sSfL "$URL" | tar -xz gitleaks
+          bash .github/scripts/install-release-tool.sh gitleaks
           ./gitleaks dir . --no-banner --redact --exit-code 1
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: npm
@@ -122,12 +134,19 @@ jobs:
           npm run typecheck
           npm run test:coverage
           npm run build
+          npm pack --ignore-scripts
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: mcp-trading-coverage
           path: packages/mcp-trading/coverage
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mcp-trading-package
+          path: packages/mcp-trading/*.tgz
           if-no-files-found: error
 
   # The hosted agent scheduler. Depends on @coinrithm/mcp-trading's built dist,
@@ -151,8 +170,8 @@ jobs:
     env:
       CAPACITY_TEST_DATABASE_URL: postgresql://postgres:local-ci-only@127.0.0.1:5432/capacity_admission_test
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: npm
@@ -175,7 +194,7 @@ jobs:
           npm run test:coverage
           npm run build
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: scheduler-coverage
@@ -187,10 +206,15 @@ jobs:
   contract:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
+
+      - name: Verify the pinned registry publisher without publishing
+        run: |
+          bash .github/scripts/install-release-tool.sh mcp-publisher
+          ./mcp-publisher --help
 
       - name: OpenAPI lint — ZERO errors required
         # redocly exits non-zero on any error-severity problem; warnings do not
@@ -206,3 +230,73 @@ jobs:
 
       - name: Syntax-check examples (.py)
         run: python3 -m py_compile examples/python/*.py
+
+  node-compatibility:
+    needs: [mcp-trading, typescript-sdk]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node: [18, 20, 22, 24]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: "*-package"
+          merge-multiple: true
+          path: artifacts
+      - name: Install archives and exercise startup and persistence
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/coinrithm install smoke"
+          cp .github/scripts/package-smoke.mjs "$RUNNER_TEMP/coinrithm install smoke/"
+          cp .github/scripts/lifecycle-smoke.mjs "$RUNNER_TEMP/coinrithm install smoke/"
+          cd "$RUNNER_TEMP/coinrithm install smoke"
+          printf '{"name":"coinrithm-compatibility","private":true,"type":"module"}' > package.json
+          npm install --ignore-scripts "$GITHUB_WORKSPACE"/artifacts/*.tgz
+          node package-smoke.mjs
+          node lifecycle-smoke.mjs
+
+  python-compatibility:
+    needs: python-sdk
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, python: "3.10" }
+          - { os: ubuntu-latest, python: "3.11" }
+          - { os: ubuntu-latest, python: "3.12" }
+          - { os: ubuntu-latest, python: "3.13" }
+          - { os: ubuntu-latest, python: "3.14" }
+          - { os: windows-latest, python: "3.12" }
+          - { os: macos-latest, python: "3.12" }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: "0.12.0"
+          python-version: ${{ matrix.python }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: python-sdk-package
+          path: artifacts
+      - name: Exercise installed wheel outside the source directory
+        shell: bash
+        run: |
+          uv run --isolated --no-project --with ./artifacts/coinrithm_sdk-*.whl python .github/scripts/python-package-smoke.py
+
+  compatibility:
+    if: always()
+    needs: [node-compatibility, python-compatibility]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every compatibility scenario to pass
+        env:
+          NODE_RESULT: ${{ needs.node-compatibility.result }}
+          PYTHON_RESULT: ${{ needs.python-compatibility.result }}
+        run: test "$NODE_RESULT" = success && test "$PYTHON_RESULT" = success

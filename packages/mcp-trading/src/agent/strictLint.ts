@@ -57,6 +57,7 @@ const ALLOWED_KEYS: Record<string, string[] | null> = {
     "watchlist",
     "blocklist",
     "direction",
+    "entryPredicates",
   ],
   sizing: null,
   capitalSizing: [

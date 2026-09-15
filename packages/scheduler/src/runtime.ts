@@ -14,7 +14,7 @@ import {
   type ProviderName,
   type DecideInput,
   type DecisionInputRecord,
-} from "@coinrithm/mcp-trading/dist/agent/engine.js";
+} from "@coinrithm/mcp-trading/engine";
 import { decrypt } from "./crypto.js";
 import {
   type AgentRow,

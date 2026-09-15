@@ -14,6 +14,18 @@ export default defineConfig({
         statements: 90,
         functions: 90,
         branches: 90,
+        "src/maintenance.ts": {
+          lines: 90,
+          statements: 90,
+          functions: 90,
+          branches: 90,
+        },
+        "src/rotateCredentials.ts": {
+          lines: 90,
+          statements: 90,
+          functions: 90,
+          branches: 90,
+        },
         "src/capacity.ts": {
           lines: 90,
           statements: 90,

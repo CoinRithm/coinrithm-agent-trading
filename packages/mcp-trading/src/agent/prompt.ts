@@ -151,6 +151,11 @@ export function buildSystemPrompt(
             : '- DIRECTION: LONG ONLY — every futures_open MUST be side:"long". A short is REJECTED by the runner no matter how strong the setup looks.',
         ]
       : []),
+    ...(r.entryPredicates
+      ? [
+          `- Binding crypto entry conditions (all conditions matching the entry side must pass on fresh observed data): ${JSON.stringify(r.entryPredicates)}. Missing evidence is a rejection. These conditions never authorize exceeding another cap.`,
+        ]
+      : []),
     // With universe_scan, the validator's gate is WATCH-membership (manual
     // watchlist ∪ this cycle's discovered entries) — saying "ONLY these" here
     // while the universe-scan section below calls discovered movers tradable

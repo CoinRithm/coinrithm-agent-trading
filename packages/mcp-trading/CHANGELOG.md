@@ -5,6 +5,30 @@ ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (t
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
 versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
+## 0.7.10 — 2026-09-15
+
+Source changes following the published 0.7.9 release. The TypeScript SDK remains
+0.3.1 and Python remains 1.8.1; their runtime source is unchanged.
+
+- Persist file-backed run identity before execution so a first-cycle process
+  crash cannot discard the idempotency identity. Transport uncertainty is still
+  not automatically replayed or recorded as a completed trade.
+- Fix runner startup on Node 18: use the imported Node crypto API instead of
+  depending on a global crypto object. The installed-package matrix reproduced
+  this failure on Linux, Windows and macOS.
+- Add the supported `@coinrithm/mcp-trading/engine` entry point, preserving
+  existing deep imports, and separate observation accounting and opportunity
+  reporting from cycle ordering.
+- Add opt-in, machine-checked crypto return predicates and visible warnings for
+  inactive/reserved configuration. Existing agents are not automatically opted in.
+- Serialize scheduler migrations in a bounded transaction; add an offline
+  credential-rotation helper and interruption/recovery rehearsal.
+- Pin workflow actions and verify release-tool checksums. Add installed-package
+  compatibility and restart smoke checks across operating systems and runtimes.
+
+Source/CI checks, registry publication and production deployment are separate.
+This entry does not claim that 0.7.10 is published or deployed.
+
 ## 0.7.9 - 2026-09-15
 
 Published on npm and verified on 2026-09-15: the registry archive matches the

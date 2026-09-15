@@ -1,6 +1,6 @@
 {
   "name": "@coinrithm/mcp-trading",
-  "version": "0.7.9",
+  "version": "0.7.10",
   "mcpName": "io.github.CoinRithm/mcp-trading",
   "description": "CoinRithm paper-trading toolkit: an MCP server (coinrithm-mcp) AND a self-host agent runner (coinrithm-agent) for spot, futures, and prediction markets with a user-minted API key.",
   "type": "module",
@@ -84,5 +84,14 @@
     "typescript": "^5.5.0",
     "typescript-eslint": "^8.11.0",
     "vitest": "4.1.11"
+  },
+  "exports": {
+    ".": "./dist/index.js",
+    "./engine": {
+      "types": "./dist/agent/engine.d.ts",
+      "import": "./dist/agent/engine.js"
+    },
+    "./package.json": "./package.json",
+    "./dist/*": "./dist/*"
   }
 }

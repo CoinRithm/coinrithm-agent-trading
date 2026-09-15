@@ -23,7 +23,7 @@ import {
   loadAgent,
   newState,
   makeRunId,
-} from "@coinrithm/mcp-trading/dist/agent/engine.js";
+} from "@coinrithm/mcp-trading/engine";
 import { encrypt, loadMasterKey } from "../dist/crypto.js";
 
 // Each house agent runs on a DIFFERENT free brain so the public Arena showcases
