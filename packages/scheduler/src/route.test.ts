@@ -315,6 +315,7 @@ describe("RoutedProvider", () => {
       scope: "key" as const,
       retryAfterMs: 4_000,
       error: "local budget exhausted",
+      admissionReasons: ["token_budget", "concurrency"],
     }));
     const provider = new RoutedProvider(
       routes.profile,
@@ -328,6 +329,11 @@ describe("RoutedProvider", () => {
     if (result.ok) return;
     expect(result.deferred).toBe(true);
     expect(h.buildProvider).not.toHaveBeenCalled();
+    expect(result.route.attempts[0]).toMatchObject({
+      outcome: "deferred",
+      latencyMs: 0,
+      admissionReasons: ["token_budget", "concurrency"],
+    });
   });
 
   it("a failure followed by a successful alternate is a success", async () => {

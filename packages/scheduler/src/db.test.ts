@@ -244,6 +244,56 @@ describe("private cycle transaction failure", () => {
 });
 
 describe("recordCycle — no-CoT DB write boundary", () => {
+  it.each([false, true])(
+    "allowlists admission reasons for local deferrals (atomic=%s)",
+    async (atomic) => {
+      const query = vi.fn().mockResolvedValue({ rows: [] });
+      const pool = {
+        query,
+        connect: vi.fn().mockResolvedValue({ query, release: vi.fn() }),
+      } as unknown as Pool;
+      const cycle: CycleRecord = {
+        decision: "skip",
+        routeAttempts: [
+          {
+            provider: "nvidia",
+            model: "fixture",
+            outcome: "deferred",
+            latencyMs: 0,
+            admissionReasons: [
+              "token_budget",
+              "PRIVATE_SECRET",
+              { prompt: "PRIVATE_SECRET" },
+              "token_budget",
+              "model_cooldown",
+              "concurrency",
+            ],
+          },
+          {
+            provider: "nvidia",
+            model: "fixture",
+            outcome: "failed",
+            status: 429,
+            admissionReasons: ["token_budget"],
+          },
+        ],
+      };
+      if (atomic) await persistCycleResult(pool, 42, { state: {}, cycle });
+      else await recordCycle(pool, 42, cycle);
+      const insert = query.mock.calls.find(([sql]) =>
+        String(sql).includes("INSERT INTO agent_runtime.agent_cycles"),
+      )!;
+      const audit = JSON.parse(String(insert[1][24]));
+      expect(audit[0].admissionReasons).toEqual([
+        "token_budget",
+        "concurrency",
+        "model_cooldown",
+      ]);
+      expect(audit[1]).not.toHaveProperty("admissionReasons");
+      expect(JSON.stringify(audit)).not.toContain("PRIVATE_SECRET");
+    },
+  );
+
   it("persists at most two allowlisted route attempts with secrets removed", async () => {
     const query = vi.fn().mockResolvedValue({ rows: [] });
     const pool = { query } as unknown as Pool;

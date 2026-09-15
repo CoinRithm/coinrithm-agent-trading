@@ -57,11 +57,23 @@ function fixtureClient() {
 }
 
 function database(
-  options: { loadFailure?: boolean; cycleFailure?: boolean } = {},
+  options: {
+    loadFailure?: boolean;
+    cycleFailure?: boolean;
+    admissionReasons?: string[];
+    modelCooldown?: boolean;
+  } = {},
 ) {
   const state = engine.newState("run-fixture");
   state.riskIncreasesToday = 2;
   const query = vi.fn(async (sql: string) => {
+    if (sql.includes("SELECT a.route_key, d.denial_reasons")) {
+      return {
+        rows: [{ route_key: null, denial_reasons: options.admissionReasons }],
+      };
+    }
+    if (sql.includes("AS cooling"))
+      return { rows: [{ cooling: options.modelCooldown === true }] };
     if (sql.startsWith("SELECT state")) {
       if (options.loadFailure) throw new Error("load fixture failure");
       return { rows: [{ state }] };
@@ -122,6 +134,54 @@ describe("hosted private input evidence integration", () => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
+
+  it.each([
+    ["request_budget"],
+    ["token_budget"],
+    ["concurrency"],
+    ["shared_key_cooldown"],
+    ["token_budget", "concurrency"],
+    ["model_cooldown"],
+  ])(
+    "retains local admission reasons through the real runner and DB boundary: %j",
+    async (...reasons) => {
+      const db = database({
+        admissionReasons: reasons,
+        modelCooldown: reasons[0] === "model_cooldown",
+      });
+      await runAgentOnce(db.pool, fixtureAgent(), {
+        ...config,
+        routerEnabled: true,
+        capacityEnabled: true,
+        nvidiaRpm: 24,
+        nvidiaTpm: 100_000,
+        nvidiaMaxConcurrent: 4,
+        capacityLeaseTtlSeconds: 360,
+      });
+      expect(db.inserts()).toHaveLength(1);
+      const params = db.inserts()[0]![1] as unknown[];
+      expect(JSON.parse(String(params[24]))).toMatchObject([
+        {
+          outcome: "deferred",
+          failureClass: "capacity",
+          latencyMs: 0,
+          admissionReasons: reasons,
+        },
+      ]);
+      expect(params[6]).toBe(false); // No model failure.
+      expect(params[7]).toBe(false); // No disable.
+      expect(params[12]).toBe(false); // No provider call.
+      expect(params[13]).toBe(0); // No input token charge.
+      expect(decide).not.toHaveBeenCalled();
+      expect(fetch).not.toHaveBeenCalled();
+      expect(JSON.stringify(params)).not.toContain("fake-provider-key");
+      expect(
+        db.query.mock.calls.some(([sql]) =>
+          sql.includes("INSERT INTO agent_runtime.provider_circuits"),
+        ),
+      ).toBe(false);
+    },
+  );
 
   it("persists the real runner's non-enumerable receipt with state in one normal transaction", async () => {
     const db = database();

@@ -7,9 +7,14 @@ import {
   reserveProviderCapacity,
 } from "./capacity.js";
 
-function mockPool(updateRows: unknown[] = [{ route_key: "nvidia:shared:0" }]) {
+function mockPool(
+  updateRows: unknown[] = [
+    { route_key: "nvidia:shared:0", denial_reasons: [] },
+  ],
+) {
   const query = vi.fn(async (sql: string) => {
-    if (sql.includes("RETURNING b.route_key")) return { rows: updateRows };
+    if (sql.includes("SELECT a.route_key, d.denial_reasons"))
+      return { rows: updateRows };
     if (sql.includes("RETURNING reserved_tokens")) {
       return { rows: [{ reserved_tokens: 12_000 }] };
     }
@@ -37,10 +42,13 @@ const limit = {
 describe("shared provider capacity", () => {
   it("atomically reserves RPM, TPM and concurrency without holding DB during the call", async () => {
     const db = mockPool();
-    const lease = await reserveProviderCapacity(db.pool, limit);
-    expect(lease).toMatchObject({
-      routeKey: limit.routeKey,
-      reservedTokens: 12_000,
+    const reservation = await reserveProviderCapacity(db.pool, limit);
+    expect(reservation).toMatchObject({
+      ok: true,
+      lease: {
+        routeKey: limit.routeKey,
+        reservedTokens: 12_000,
+      },
     });
     const sql = db.query.mock.calls.map((c) => String(c[0])).join("\n");
     expect(sql).toContain("request_tokens");
@@ -96,12 +104,34 @@ describe("shared provider capacity", () => {
     expect(query.mock.calls[0]?.[1]).toEqual([limit.routeKey, limit.model]);
   });
 
-  it("returns null when any shared budget is exhausted", async () => {
-    const db = mockPool([]);
-    await expect(reserveProviderCapacity(db.pool, limit)).resolves.toBeNull();
-    const sql = db.query.mock.calls.map((c) => String(c[0])).join("\n");
-    expect(sql).not.toContain("VALUES ($1::uuid, $2, $3");
-    expect(db.query.mock.calls.at(-1)?.[0]).toBe("COMMIT");
+  it.each([
+    ["request_budget"],
+    ["token_budget"],
+    ["concurrency"],
+    ["shared_key_cooldown"],
+    ["request_budget", "token_budget", "concurrency", "shared_key_cooldown"],
+  ])(
+    "returns blocking conditions without consuming a lease: %j",
+    async (...reasons) => {
+      const db = mockPool([{ route_key: null, denial_reasons: reasons }]);
+      await expect(reserveProviderCapacity(db.pool, limit)).resolves.toEqual({
+        ok: false,
+        reasons,
+      });
+      const sql = db.query.mock.calls.map((c) => String(c[0])).join("\n");
+      expect(sql).not.toContain("VALUES ($1::uuid, $2, $3");
+      expect(db.query.mock.calls.at(-1)?.[0]).toBe("COMMIT");
+    },
+  );
+
+  it("rolls back and releases the client if the admission query fails", async () => {
+    const db = mockPool();
+    db.query.mockRejectedValueOnce(new Error("fixture database unavailable"));
+    await expect(reserveProviderCapacity(db.pool, limit)).rejects.toThrow(
+      "fixture database unavailable",
+    );
+    expect(db.query.mock.calls.at(-1)?.[0]).toBe("ROLLBACK");
+    expect(db.release).toHaveBeenCalledOnce();
   });
 
   it("releases concurrency and reconciles reserved tokens to actual usage", async () => {

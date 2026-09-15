@@ -222,18 +222,20 @@ function routedProviderFor(
             ok: false,
             scope: "route",
             error: "provider model cooldown active",
+            admissionReasons: ["model_cooldown"],
           };
         }
-        const lease = await reserveProviderCapacity(
+        const reservation = await reserveProviderCapacity(
           pool,
           limitForRoute(route, input, config),
         );
-        return lease
-          ? { ok: true, lease }
+        return reservation.ok
+          ? { ok: true, lease: reservation.lease }
           : {
               ok: false,
               scope: "key",
               error: "shared provider capacity unavailable",
+              admissionReasons: reservation.reasons,
             };
       },
       release: async (_route, lease, result) => {

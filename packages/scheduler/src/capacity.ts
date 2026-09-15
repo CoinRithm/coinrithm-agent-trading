@@ -21,6 +21,13 @@ export interface ProviderCapacityLease {
   reservedTokens: number;
 }
 
+export type ProviderCapacityDenialReason =
+  "request_budget" | "token_budget" | "concurrency" | "shared_key_cooldown";
+
+export type ProviderCapacityReservation =
+  | { ok: true; lease: ProviderCapacityLease }
+  | { ok: false; reasons: ProviderCapacityDenialReason[] };
+
 function positiveInt(value: number, name: string): number {
   if (!Number.isFinite(value) || value < 1) {
     throw new Error(`${name} must be a positive number`);
@@ -37,7 +44,7 @@ function positiveInt(value: number, name: string): number {
 export async function reserveProviderCapacity(
   pool: Pool,
   raw: ProviderCapacityLimit,
-): Promise<ProviderCapacityLease | null> {
+): Promise<ProviderCapacityReservation> {
   const limit = {
     ...raw,
     requestsPerMinute: positiveInt(raw.requestsPerMinute, "requestsPerMinute"),
@@ -92,43 +99,61 @@ export async function reserveProviderCapacity(
     // Refill and reserve in ONE locked statement. The active-lease predicate is
     // evaluated while the bucket row is locked, so two replicas cannot both
     // claim the last concurrency slot.
-    const reserved = await client.query<{ route_key: string }>(
-      `UPDATE agent_runtime.provider_capacity_buckets b
-          SET request_tokens = LEAST(
+    // Diagnose from the SAME snapshot that decides admission, while the upsert
+    // above holds the bucket lock. A later SELECT could miss a refill, expired
+    // lease or cooldown boundary and falsely explain why this call was denied.
+    const reserved = await client.query<{
+      route_key: string | null;
+      denial_reasons: ProviderCapacityDenialReason[];
+    }>(
+      `WITH checked AS MATERIALIZED (
+         SELECT clock_timestamp() AS at
+       ), budget AS MATERIALIZED (
+         SELECT b.route_key, checked.at,
+                LEAST(
                 b.request_rate_per_min::double precision,
                 b.request_tokens + b.request_rate_per_min *
-                  GREATEST(0, EXTRACT(EPOCH FROM (clock_timestamp() - b.last_refill_at))) / 60.0
-              ) - 1,
-              model_tokens = LEAST(
+                  GREATEST(0, EXTRACT(EPOCH FROM (checked.at - b.last_refill_at))) / 60.0
+                ) AS available_requests,
+                LEAST(
                 b.model_rate_per_min::double precision,
                 b.model_tokens + b.model_rate_per_min *
-                  GREATEST(0, EXTRACT(EPOCH FROM (clock_timestamp() - b.last_refill_at))) / 60.0
-              ) - $2,
-              last_refill_at = clock_timestamp(),
-              updated_at = clock_timestamp()
-        WHERE b.route_key = $1
-          AND LEAST(
-                b.request_rate_per_min::double precision,
-                b.request_tokens + b.request_rate_per_min *
-                  GREATEST(0, EXTRACT(EPOCH FROM (clock_timestamp() - b.last_refill_at))) / 60.0
-              ) >= 1
-          AND LEAST(
-                b.model_rate_per_min::double precision,
-                b.model_tokens + b.model_rate_per_min *
-                  GREATEST(0, EXTRACT(EPOCH FROM (clock_timestamp() - b.last_refill_at))) / 60.0
-              ) >= $2
-          AND (b.blocked_until IS NULL OR b.blocked_until <= clock_timestamp())
-          AND (SELECT count(*)
+                  GREATEST(0, EXTRACT(EPOCH FROM (checked.at - b.last_refill_at))) / 60.0
+                ) AS available_tokens,
+                b.blocked_until > checked.at AS cooling,
+                (SELECT count(*)
                  FROM agent_runtime.provider_capacity_leases l
                 WHERE l.route_key = b.route_key
-                  AND l.expires_at > clock_timestamp()) < b.max_concurrent
-      RETURNING b.route_key`,
+                  AND l.expires_at > checked.at) >= b.max_concurrent AS slots_full
+           FROM agent_runtime.provider_capacity_buckets b CROSS JOIN checked
+          WHERE b.route_key = $1
+       ), decision AS MATERIALIZED (
+         SELECT *, array_remove(ARRAY[
+           CASE WHEN available_requests < 1 THEN 'request_budget' END,
+           CASE WHEN available_tokens < $2 THEN 'token_budget' END,
+           CASE WHEN slots_full THEN 'concurrency' END,
+           CASE WHEN cooling THEN 'shared_key_cooldown' END
+         ], NULL) AS denial_reasons FROM budget
+       ), admitted AS (
+         UPDATE agent_runtime.provider_capacity_buckets b
+            SET request_tokens = d.available_requests - 1,
+                model_tokens = d.available_tokens - $2,
+                last_refill_at = d.at,
+                updated_at = d.at
+           FROM decision d
+          WHERE b.route_key = d.route_key AND cardinality(d.denial_reasons) = 0
+         RETURNING b.route_key
+       )
+       SELECT a.route_key, d.denial_reasons
+         FROM decision d LEFT JOIN admitted a ON a.route_key = d.route_key`,
       [limit.routeKey, limit.reserveTokens],
     );
 
-    if (reserved.rows.length === 0) {
+    const admission = reserved.rows[0];
+    if (!admission) throw new Error("provider capacity bucket missing");
+    if (admission.route_key === null) {
       await client.query("COMMIT");
-      return null;
+      return { ok: false, reasons: admission.denial_reasons };
     }
 
     await client.query(
@@ -140,9 +165,12 @@ export async function reserveProviderCapacity(
     );
     await client.query("COMMIT");
     return {
-      leaseId,
-      routeKey: limit.routeKey,
-      reservedTokens: limit.reserveTokens,
+      ok: true,
+      lease: {
+        leaseId,
+        routeKey: limit.routeKey,
+        reservedTokens: limit.reserveTokens,
+      },
     };
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});

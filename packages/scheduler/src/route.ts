@@ -5,6 +5,9 @@ import {
   type Provider,
   type ProviderName,
 } from "@coinrithm/mcp-trading/dist/agent/engine.js";
+import type { ProviderCapacityDenialReason } from "./capacity.js";
+
+type AdmissionReason = ProviderCapacityDenialReason | "model_cooldown";
 
 export const ROUTE_POLICY_VERSION = "2026-08-27.2";
 // nemotron-3-nano-30b-a3b went 410 (end of life) on 2026-09-01; the omni
@@ -42,6 +45,8 @@ export interface RouteAttempt {
   retryAfterMs?: number;
   latencyMs: number;
   error?: string;
+  /** Local admission only; all blocking conditions, never provider health. */
+  admissionReasons?: AdmissionReason[];
 }
 
 export interface RouteMetadata {
@@ -67,6 +72,7 @@ export type CapacityDecision<Lease> =
       scope?: "key" | "route";
       retryAfterMs?: number;
       error?: string;
+      admissionReasons?: AdmissionReason[];
     };
 
 export interface RouteHooks<Lease = unknown> {
@@ -295,6 +301,7 @@ export class RoutedProvider<Lease = unknown> implements Provider {
           retryAfterMs: acquired.retryAfterMs,
           latencyMs: 0,
           error: this.clean(acquired.error ?? "provider capacity unavailable"),
+          admissionReasons: acquired.admissionReasons,
         };
         attempts.push(attempt);
         if (acquired.scope === "route") blockedRoutes.add(routeKey(route));

@@ -509,6 +509,13 @@ function sanitizeRouteAttempts(value: unknown): unknown[] {
   if (!Array.isArray(value)) return [];
   const outcomes = new Set(["success", "failed", "deferred"]);
   const classes = new Set(["capacity", "permanent", "transient", "malformed"]);
+  const admissionReasons = [
+    "request_budget",
+    "token_budget",
+    "concurrency",
+    "shared_key_cooldown",
+    "model_cooldown",
+  ];
   return value.slice(0, 2).flatMap((item) => {
     if (!item || typeof item !== "object" || Array.isArray(item)) return [];
     const raw = item as Record<string, unknown>;
@@ -537,6 +544,11 @@ function sanitizeRouteAttempts(value: unknown): unknown[] {
             .replace(/Bearer\s+[A-Za-z0-9._-]{8,}/gi, "Bearer ***")
             .slice(0, 200)
         : undefined;
+    const rawReasons = raw.admissionReasons;
+    const reasons =
+      outcome === "deferred" && Array.isArray(rawReasons)
+        ? admissionReasons.filter((reason) => rawReasons.includes(reason))
+        : [];
     return [
       {
         provider,
@@ -551,6 +563,7 @@ function sanitizeRouteAttempts(value: unknown): unknown[] {
           : {}),
         latencyMs: boundedNumber(raw.latencyMs, 3_600_000) ?? 0,
         ...(error ? { error } : {}),
+        ...(reasons.length ? { admissionReasons: reasons } : {}),
       },
     ];
   });
