@@ -59,5 +59,7 @@ it("reports an opportunity with an unknown universe without inventing a count", 
     log,
   });
   await reporter.post({ kind: "abstained", reasonCode: "fixture" });
-  expect(log).toHaveBeenCalledWith("reported abstained opportunity (universe ?)");
+  expect(log).toHaveBeenCalledWith(
+    "reported abstained opportunity (universe ?)",
+  );
 });

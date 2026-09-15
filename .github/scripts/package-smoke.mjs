@@ -26,6 +26,39 @@ assert.equal(cli.status, 0, cli.stderr);
 assert.match(cli.stdout, /coinrithm-agent/);
 
 const stateFile = join(process.cwd(), "persisted state.json");
+// Verify the CLI's cooperative lock across real processes on each OS.
+const { acquireLock } =
+  await import("@coinrithm/mcp-trading/dist/agent/cli.js");
+writeFileSync(
+  "lock-probe.mjs",
+  `
+  import assert from 'node:assert/strict';
+  import { acquireLock } from '@coinrithm/mcp-trading/dist/agent/cli.js';
+  const release = acquireLock(process.argv[2]);
+  assert.equal(Boolean(release), process.argv[3] === 'free');
+  release?.();
+`,
+);
+const release = acquireLock(stateFile);
+assert.equal(typeof release, "function");
+const probe = (expected) => {
+  const result = spawnSync(
+    process.execPath,
+    ["lock-probe.mjs", stateFile, expected],
+    {
+      encoding: "utf8",
+      timeout: 15_000,
+      windowsHide: true,
+    },
+  );
+  assert.equal(result.status, 0, result.stderr);
+};
+try {
+  probe("held");
+} finally {
+  release();
+}
+probe("free");
 const state = engine.newState("compatibility");
 state.disabled = true;
 state.riskIncreasesToday = 3;
