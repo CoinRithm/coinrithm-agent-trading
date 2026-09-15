@@ -152,10 +152,11 @@ The machine-read config (YAML/frontmatter) and the prose the model reads
 (markdown bodies) never cross: the runner reads only the config, the model reads
 only the prose. Secrets are never permitted in any file (scanned, fail-closed).
 
-## Fail-closed guarantees
+## Enforced execution controls
 
-The runner is designed so an error, a bad model, or a prompt-injection can never
-cause an unintended or oversized trade:
+The runner enforces configured execution limits on proposed actions. These
+controls bound exposure; they cannot guarantee strategy adherence or profitable
+decisions. Model-reported confidence is not independent evidence of correctness.
 
 - **Caps live in the runner, not the model.** Every proposed action is
   re-validated against the spec's caps (leverage, per-trade + aggregate open
@@ -164,16 +165,20 @@ cause an unintended or oversized trade:
   available cash). A model that proposes over a cap is rejected.
 - **Quote-gated.** No open executes without a runner-fetched, eligible, **fresh**
   quote (missing freshness is treated as not-fresh).
-- **Fail-closed everywhere.** Any failed read, network error, model error, bad
-  JSON, stale data, or `401/403/409/422` results in **skip**, never a write.
+- **Required evidence fails closed.** Failed required reads, invalid decisions
+  and missing eligible quotes block the affected action. Optional enrichment
+  can be absent. A failed write response may mean the server accepted the
+  action but the response was lost; transport failures are not automatically replayed.
 - **Kill-switch.** Drawdown (realized + unrealized), consecutive model failures,
   consecutive reject cycles, or rate-limit pressure disable the agent. The
   model-failure threshold is floored at **10** (free models are flaky; the floor
   prevents hair-trigger disables), so a `maxConsecutiveModelFailures` below 10 is
   silently raised to 10.
-- **No double-trade.** Idempotency keys are deterministic per intent and advance
-  only on confirmed success; a corrupt state file refuses to run; a per-agent
-  lock prevents two runners racing one state file.
+- **Retry and restart protection.** Idempotency keys are deterministic per intent
+  and advance only on confirmed success. File-backed live runs save their run
+  identity before execution; a corrupt state file refuses to run, and a per-agent
+  CLI lock prevents two runners racing one file. Deduplication also depends on
+  the execution service honoring the key. This is not an exactly-once guarantee.
 
 ## Capabilities and the event-driven gate
 
@@ -191,21 +196,50 @@ promoted into tradable candidates under the same risk caps and blocklist) and
 included). `websearch` is reserved — accepted by the validator but not yet
 implemented; declaring it does nothing today.
 
-Also reserved: the four `abstention` booleans (`onStaleData`, `onWeakSignal`,
+Also inactive: the four `abstention` booleans (`onStaleData`, `onWeakSignal`,
 `onMissingQuote`, `onInsufficientBalance`) parse and default to `true`, but no
-code path branches on them — the behaviors they describe are unconditionally
-enforced elsewhere (quote-gating rejects stale/missing quotes; the server
-rejects insufficient balance). Only `abstention.minConfidence` is a live knob.
+code path branches on them. Freshness, quote and balance checks still apply;
+`onWeakSignal` does not define a measurable signal threshold. `validate` and
+`inspect` warn when these fields or `websearch` are explicitly declared.
+`inspect --json` exposes the same `warnings` array. Existing bundles remain
+loadable. Only `abstention.minConfidence` is an active abstention setting.
 `triggerPolicy:` in `agent.md` IS load-bearing: it tunes the event-driven gate
 (`mode`, `skipLlmWhenNoTrigger`, `alwaysManageOpenPositions`,
 `maxLlmCallsPerHour`, `debounceMinutes`, `pmEvalCooldownMinutes`).
 
-## Hard behavioral guards (`character/guards.md`)
+## Binding entry conditions and strategy prose
 
-Machine caps (leverage, margin, stops, watchlist/blocklist) bound WHAT an
-agent may do; guards bound WHEN. A border like "never open a short unless a
-qualifying upward pump preceded it" cannot be expressed as a cap — it is
-strategy-conditional — so it lives as prose in `character/guards.md`. The
+Opt in to `risk.entryPredicates` to make a crypto return condition executable:
+
+```yaml
+risk:
+  # Keep the rest of your required risk settings.
+  entryPredicates:
+    - side: short
+      metric: change1h
+      operator: gte
+      threshold: 2
+      maxAgeSeconds: 60
+```
+
+This example rejects a futures short unless its observed one-hour price change
+is at least **2 percentage points**. It uses the API observation, not the model's
+claim. Metrics are `change1h` and `change24h`; operators are inclusive `gte` and
+`lte`. All conditions matching the side must pass. `long` also applies to spot
+buys; PM entries and risk-reducing actions are outside this crypto policy.
+Missing, non-finite or stale evidence rejects the entry. Age includes time spent
+waiting for inference. Invalid explicit policies fail validation and runtime checks.
+Put this policy in your agent's risk configuration, not a tactic patch.
+
+This is a return threshold, not proof that a pump occurred and subsequently
+reversed. More complex temporal rules still need their own implementation.
+No template or existing agent is opted in automatically.
+
+### Strategy prose (`character/guards.md`)
+
+Machine caps and explicit entry predicates are enforced by code. Preferences
+and conditions in `character/guards.md` are instructions to the model; the
+filename and prompt label do not turn arbitrary prose into executable checks. The
 resolver loads this file LAST, wraps it in a `HARD BEHAVIORAL GUARDS — never
 violate these` header plus an explicit guards-win-conflicts rule, and places
 it at the end of the strategy prose, immediately adjacent to the system
@@ -213,6 +247,18 @@ prompt's hard-caps section. Frontmatter is optional; only the body is
 doctrine. Every character bundle ships one — fork it and REPLACE the content
 with your own borders (see `pia-pump-fader` for the guard-sentence pattern
 and an adherence scorecard that grades violations).
+
+## Embedding the engine
+
+```ts
+import { runCycle, loadState, saveState, type RunnerDeps } from "@coinrithm/mcp-trading/engine";
+```
+
+This is the supported engine entry point. The previous
+`@coinrithm/mcp-trading/dist/agent/engine.js` import remains compatible.
+The scheduler uses the same engine. Database hosts must persist state themselves
+when they omit `stateFile`; the file-backed restart check does not establish
+durability for an arbitrary external host.
 
 ## Venues
 

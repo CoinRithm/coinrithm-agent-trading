@@ -1,3 +1,4 @@
+import { configurationWarnings } from "./configurationWarnings.js";
 // coinrithm-agent — the public scaffolder/inspector CLI.
 //
 // Authors, validates, ejects, locks, and inspects agent DEFINITIONS. It does
@@ -147,6 +148,7 @@ export function cmdValidate(
   const spec = buildSpec(raw);
   const lint = [...strictLint(raw), ...checkCapabilityDrift(resolved, spec)];
   const v = validateSkill({ spec, body: resolved.mergedProse, raw }, mode);
+  const warnings = configurationWarnings(raw);
 
   // Hosted-only: the managed deploy/edit API caps the merged strategy prose at
   // HOSTED_PROSE_MAX_CHARS and REVERTS the save when it is exceeded, so a
@@ -179,11 +181,17 @@ export function cmdValidate(
     );
   }
   for (const i of v.issues) lines.push(`✗ ${i.code}: ${i.reason}`);
+  lines.push(...warnings.map((warning) => `⚠ ${warning}`));
   lines.push(...pinWarnings(path));
 
   const ok = v.valid && (!lintFatal || lint.length === 0);
   lines.unshift(ok ? `✓ valid (${mode})` : `✗ invalid (${mode})`);
-  return { ok, code: ok ? 0 : 1, lines, data: { lint, validation: v } };
+  return {
+    ok,
+    code: ok ? 0 : 1,
+    lines,
+    data: { lint, validation: v, warnings },
+  };
 }
 
 export function cmdLock(path: string): CmdResult {
@@ -277,6 +285,7 @@ export function cmdInspect(path: string, json = false): CmdResult {
     "self-host",
   );
   const output = {
+    warnings: configurationWarnings(resolved.rawFrontmatter),
     resolvedConfig: resolved.rawFrontmatter,
     provenance: resolved.provenance,
     contentHashes: resolved.contentHashes,
@@ -298,6 +307,7 @@ export function cmdInspect(path: string, json = false): CmdResult {
     `risk:        maxLeverage=${spec.risk.maxLeverage} perTradeMargin=${spec.risk.perTradeMarginMusd} requireStopLoss=${spec.risk.requireStopLoss}`,
     `sources:     ${Object.keys(resolved.contentHashes).length} file(s)`,
     `validation:  ${v.valid ? "valid" : "INVALID"}${lint.length ? ` (+${lint.length} lint note(s))` : ""}`,
+    ...output.warnings.map((warning) => `⚠ ${warning}`),
   ];
   return { ok: v.valid, code: 0, lines, data: output };
 }

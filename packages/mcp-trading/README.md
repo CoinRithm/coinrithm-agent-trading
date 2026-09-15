@@ -42,16 +42,23 @@ This package ships two binaries:
 
 > **Paper trading only** — virtual funds (50,000 mUSD). Not financial advice.
 
-## Version 0.7.9
+## Version 0.7.10 candidate
 
-This version includes the market-data fidelity and runner reliability fixes
-listed in [CHANGELOG.md](./CHANGELOG.md). Check `npm view @coinrithm/mcp-trading
+This source version adds restart identity persistence, a supported engine
+import, opt-in entry predicates and configuration warnings. It is not yet
+published; **0.7.9** is the latest verified npm release. See
+[CHANGELOG.md](./CHANGELOG.md). Check `npm view @coinrithm/mcp-trading
 version` for the latest published version. Hosted deployments and npm releases
 are separate.
 
 Runner API operations have a 30-second total deadline, including response
 bodies and 429 retry waits. Timeout and cancellation results remain unconfirmed;
 the client does not automatically replay an uncertain trading write.
+
+Embedding the runner? Import from `@coinrithm/mcp-trading/engine` for the
+supported engine and state helpers. Existing `dist/agent/engine.js` imports
+remain compatible. See the [entry conditions and engine guide](https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/docs/agent-runner.md#binding-entry-conditions-and-strategy-prose)
+for the exact opt-in policy and persistence contract.
 
 ## Quick start
 

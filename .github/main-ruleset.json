@@ -32,11 +32,30 @@
         "strict_required_status_checks_policy": true,
         "do_not_enforce_on_create": false,
         "required_status_checks": [
-          { "context": "typescript-sdk", "integration_id": 15368 },
-          { "context": "python-sdk", "integration_id": 15368 },
-          { "context": "contract", "integration_id": 15368 },
-          { "context": "scheduler", "integration_id": 15368 },
-          { "context": "mcp-trading", "integration_id": 15368 }
+          {
+            "context": "typescript-sdk",
+            "integration_id": 15368
+          },
+          {
+            "context": "python-sdk",
+            "integration_id": 15368
+          },
+          {
+            "context": "contract",
+            "integration_id": 15368
+          },
+          {
+            "context": "scheduler",
+            "integration_id": 15368
+          },
+          {
+            "context": "mcp-trading",
+            "integration_id": 15368
+          },
+          {
+            "context": "compatibility",
+            "integration_id": 15368
+          }
         ]
       }
     }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { hydrateState } from "./runtime.js";
-import { newState } from "@coinrithm/mcp-trading/dist/agent/engine.js";
+import { newState } from "@coinrithm/mcp-trading/engine";
 
 // Slice 2 (2026-09-02): the thesis each open position was opened on rides in
 // the same agent_runtime.agent_state JSON the scheduler already persists. The

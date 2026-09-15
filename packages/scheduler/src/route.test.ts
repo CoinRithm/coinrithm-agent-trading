@@ -1,8 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type {
-  DecideResult,
-  Provider,
-} from "@coinrithm/mcp-trading/dist/agent/engine.js";
+import type { DecideResult, Provider } from "@coinrithm/mcp-trading/engine";
 import {
   NEMOTRON_NANO,
   NEMOTRON_SUPER,

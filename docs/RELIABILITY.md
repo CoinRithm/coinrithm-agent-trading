@@ -4,7 +4,7 @@
 
 ## What is measured
 
-Local measurements on 15 September 2026, using Vitest 4.1.11 with V8 coverage
+Published 0.7.9 release measurements on 15 September 2026, using Vitest 4.1.11 with V8 coverage
 and pytest-cov with branch measurement enabled:
 
 | Package               | Statements | Branches | Functions |  Lines |
@@ -111,6 +111,58 @@ uv run python scripts/check_coverage.py
 
 In PowerShell, set the database variable with `$env:CAPACITY_TEST_DATABASE_URL`
 instead of `export`. Never use a production database for the integration suite.
+
+## Follow-up assurance checks (0.7.10 candidate)
+
+The CI compatibility lane installs the built archives into a clean directory
+whose path contains spaces. It checks CLI startup, MCP initialization and
+38-tool discovery, supported/legacy engine imports, state replacement and
+failure on corrupt state. SDK calls use offline transports.
+
+| Lane | Environments | Scope |
+| --- | --- | --- |
+| Node | Linux, Windows, macOS × Node 18, 20, 22, 24 | Installed MCP/runner and TypeScript SDK |
+| Python | Linux 3.10–3.14; Windows/macOS 3.12 | Installed wheel imports and sync/async requests |
+| PostgreSQL | Disposable PostgreSQL 17 in CI | Capacity, concurrent migration replay, interrupted transactions, credential rotation/recovery |
+
+These are focused compatibility smokes; the complete suites still run on
+Ubuntu/Node 20 and Python 3.12. Future runtime releases are not implicitly
+verified by an open-ended package engine declaration.
+
+The installed runner lifecycle fixture combines a real loopback HTTP service
+and separate processes:
+
+```mermaid
+sequenceDiagram
+  participant A as First runner process
+  participant S as Fixture execution service
+  participant B as Restarted runner
+  A->>A: Save run identity before execution
+  A->>S: Open with stable intent key
+  S->>S: Record one fixture position
+  S--xA: Lose response or kill process
+  B->>B: Reload saved state
+  B->>S: Observe a deliberately lagged position read
+  B->>S: Repeated intent uses the same key
+  S-->>B: Return original result, no second opening
+  B->>S: Observe current position
+  B->>B: Reject duplicate intent
+```
+
+Assertions separate uncertain transport results from confirmed writes, retain
+the run identity, keep one entry in the fixture ledger and prevent a third
+write after position reconciliation. The published 0.7.9 archive reproduced
+the missing first-run state file when killed after acceptance; the candidate
+persists identity before execution. This is synthetic service-contract evidence,
+not proof of every production failure mode or an exactly-once guarantee.
+The execution service must honor idempotency keys, and embedded database hosts
+remain responsible for their own persistence contract.
+
+Main requires pull requests and named CI checks. Action references use full
+commit SHAs; gitleaks and the MCP registry publisher are downloaded at pinned
+versions and checksum-verified before execution. Rotation is an explicitly
+offline operator procedure, rehearsed with fixture keys only; see the
+[scheduler runbook](../packages/scheduler/README.md#offline-credential-rotation-and-recovery).
 
 ## Dependency review
 

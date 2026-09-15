@@ -15,6 +15,24 @@ export default defineConfig({
         statements: 90,
         functions: 90,
         branches: 90,
+        "src/agent/reconcileObservation.ts": {
+          lines: 90,
+          statements: 90,
+          functions: 90,
+          branches: 90,
+        },
+        "src/agent/opportunityReporter.ts": {
+          lines: 90,
+          statements: 90,
+          functions: 90,
+          branches: 90,
+        },
+        "src/agent/entryPredicates.ts": {
+          lines: 90,
+          statements: 90,
+          functions: 90,
+          branches: 90,
+        },
         "src/agent/client.ts": {
           lines: 90,
           statements: 90,

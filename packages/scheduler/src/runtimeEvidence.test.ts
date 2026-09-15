@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Pool } from "pg";
-import * as engine from "@coinrithm/mcp-trading/dist/agent/engine.js";
+import * as engine from "@coinrithm/mcp-trading/engine";
 import { parseSkill } from "@coinrithm/mcp-trading/dist/agent/skill.js";
 import { renderFolderOfOne } from "@coinrithm/mcp-trading/dist/agent/templates.js";
 import { runAgentOnce } from "./runtime.js";

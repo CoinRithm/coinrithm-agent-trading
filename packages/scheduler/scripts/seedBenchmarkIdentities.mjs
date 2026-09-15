@@ -18,7 +18,7 @@
 // accounts cannot be logged into.
 import crypto from "node:crypto";
 import pg from "pg";
-import { BENCHMARK_AGENTS } from "@coinrithm/mcp-trading/dist/agent/engine.js";
+import { BENCHMARK_AGENTS } from "@coinrithm/mcp-trading/engine";
 import { seedBenchmarkAgents } from "../dist/benchmarkSeed.js";
 import { loadMasterKey } from "../dist/crypto.js";
 

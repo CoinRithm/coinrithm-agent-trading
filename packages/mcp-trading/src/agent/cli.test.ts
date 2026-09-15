@@ -28,6 +28,47 @@ afterEach(() => {
 });
 
 describe("cli", () => {
+  it("retains explicit entry predicates through eject and lock", () => {
+    const dir = join(tmp, "predicates");
+    expect(cmdNew(dir, { preset: "conservative" }).ok).toBe(true);
+    const file = join(dir, "agent.md");
+    writeFileSync(
+      file,
+      readFileSync(file, "utf8").replace(
+        "risk:",
+        "risk:\n  entryPredicates:\n    - {side: short, metric: change1h, operator: gte, threshold: 2, maxAgeSeconds: 60}",
+      ),
+    );
+    expect(cmdValidate(dir).ok).toBe(true);
+    expect(cmdEject(dir).ok).toBe(true);
+    expect(cmdLock(dir).ok).toBe(true);
+    const locked = JSON.parse(
+      readFileSync(join(dir, "meta/manifest.lock.json"), "utf8"),
+    );
+    expect(locked.resolvedSpec.risk.entryPredicates).toEqual([
+      {
+        side: "short",
+        metric: "change1h",
+        operator: "gte",
+        threshold: 2,
+        maxAgeSeconds: 60,
+      },
+    ]);
+  });
+  it("surfaces inactive configuration in validate and inspect without invalidating old bundles", () => {
+    const dir = join(tmp, "warnings");
+    expect(cmdNew(dir, { preset: "conservative" }).ok).toBe(true);
+    const validation = cmdValidate(dir);
+    expect(validation.ok).toBe(true);
+    expect(validation.lines.join("\n")).toContain(
+      "abstention.onWeakSignal is inactive",
+    );
+    const inspected = cmdInspect(dir, true);
+    expect(JSON.parse(inspected.lines[0]).warnings).toHaveLength(4);
+    expect(cmdInspect(dir).lines.join("\n")).toContain(
+      "abstention.onWeakSignal is inactive",
+    );
+  });
   it("new creates a valid folder-of-one; validate passes self-host AND hosted", () => {
     const dir = join(tmp, "my-agent");
     expect(cmdNew(dir, { preset: "conservative" }).ok).toBe(true);

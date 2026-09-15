@@ -162,6 +162,31 @@ function deps(
 }
 
 describe("runner lifecycle and failure boundaries", () => {
+  it("does not send an otherwise valid opening when the explicit entry predicate fails", async () => {
+    const client = baseClient({
+      trades: async () =>
+        okData({ asOf: new Date().toISOString(), trades: [] }),
+      market: async () =>
+        okData({
+          price: { usd: 67000, change1h: 1 },
+          observation: { freshness: { status: "fresh", ageSeconds: 0 } },
+        }),
+    });
+    const d = deps({ live: true }, client);
+    d.spec.risk.entryPredicates = [
+      {
+        side: "long",
+        metric: "change1h",
+        operator: "gte",
+        threshold: 2,
+        maxAgeSeconds: 60,
+      },
+    ];
+    const result = await runCycle(d);
+    expect(result.planned[0].code).toBe("entry_predicate_false");
+    expect(client.openFutures).not.toHaveBeenCalled();
+    expect(d.state.writesToday).toBe(0);
+  });
   afterEach(() => {
     vi.useRealTimers();
   });

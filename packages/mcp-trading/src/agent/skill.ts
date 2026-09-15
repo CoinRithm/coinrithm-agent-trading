@@ -137,6 +137,13 @@ export function buildSpec(raw: Record<string, unknown>): AgentSpec {
       ? { capitalSizing: buildCapitalSizing(raw.capitalSizing) }
       : {}),
     risk: {
+      // Preserve malformed explicit policies for fail-closed validation.
+      ...(risk.entryPredicates !== undefined
+        ? {
+            entryPredicates:
+              risk.entryPredicates as AgentSpec["risk"]["entryPredicates"],
+          }
+        : {}),
       maxLeverage: num(risk.maxLeverage, 1),
       perTradeMarginMusd: num(risk.perTradeMarginMusd, 0),
       maxConcurrentPositions: num(risk.maxConcurrentPositions, 0),

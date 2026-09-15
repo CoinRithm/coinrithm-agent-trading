@@ -23,7 +23,7 @@
 // Optional per-agent owner id: BENCH_OWNER_BENCH_RANDOM=123 (else NULL).
 
 import pg from "pg";
-import { BENCHMARK_AGENTS } from "@coinrithm/mcp-trading/dist/agent/engine.js";
+import { BENCHMARK_AGENTS } from "@coinrithm/mcp-trading/engine";
 import {
   planBenchmarkSeed,
   seedBenchmarkAgents,

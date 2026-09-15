@@ -1,4 +1,7 @@
 import { Pool } from "pg";
+import { maintenanceTransaction, MAINTENANCE_LOCK } from "./maintenance.js";
+import { rotateCredentials } from "./rotateCredentials.js";
+import { encrypt, decrypt } from "./crypto.js";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   reserveProviderCapacity,
@@ -47,7 +50,8 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
       );
     }
     pool = new Pool({ connectionString: databaseUrl });
-    await migrate(pool);
+    // Simultaneous cold starts exercise the actual numbered migration files.
+    await Promise.all([migrate(pool), migrate(pool), migrate(pool)]);
   });
   afterAll(async () => {
     await pool?.end();
@@ -64,6 +68,97 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
       VALUES ($1, $2, 24, 100000, 24, 100000, 4, now() + interval '1 hour')`,
       [limit.routeKey, limit.provider],
     );
+  });
+
+  it("rolls back interrupted DDL and releases the migration lock", async () => {
+    await expect(
+      maintenanceTransaction(pool, async (client) => {
+        await client.query(
+          "CREATE TABLE agent_runtime.interrupted_fixture (id int)",
+        );
+        throw new Error("simulated interruption before commit");
+      }),
+    ).rejects.toThrow("simulated interruption");
+    expect(
+      (
+        await pool.query(
+          "SELECT to_regclass('agent_runtime.interrupted_fixture') AS name",
+        )
+      ).rows[0].name,
+    ).toBeNull();
+    await migrate(pool);
+    await maintenanceTransaction(pool, async (client) => {
+      expect(
+        (
+          await client.query(
+            "SELECT pg_try_advisory_xact_lock($1, $2) AS acquired",
+            [...MAINTENANCE_LOCK],
+          )
+        ).rows[0].acquired,
+      ).toBe(true);
+    });
+  });
+
+  it("rehearses credential rotation, interrupted rollback, rerun and reverse recovery", async () => {
+    const oldKey = Buffer.alloc(32, 11);
+    const newKey = Buffer.alloc(32, 12);
+    for (let i = 0; i < 2; i++) {
+      await pool.query(
+        `INSERT INTO agent_runtime.agents
+        (handle, display_name, cadence_seconds, model_provider, model_name, spec, prose, coinrithm_key_enc, brain_key_enc)
+        VALUES ($1, 'Rotation fixture', 60, 'fixture', 'fixture', '{}', '', $2, $3)`,
+        [
+          `rotation-${i}`,
+          encrypt(`coin-${i}`, oldKey),
+          i === 0 ? encrypt("brain-0", oldKey) : null,
+        ],
+      );
+    }
+    const read = async () =>
+      (
+        await pool.query(
+          "SELECT coinrithm_key_enc, brain_key_enc FROM agent_runtime.agents ORDER BY handle",
+        )
+      ).rows;
+    const before = await read();
+    expect(await rotateCredentials(pool, oldKey, newKey)).toMatchObject({
+      applied: false,
+      values: 3,
+    });
+    expect(await read()).toEqual(before);
+    // Real first UPDATE, then a lost process/connection result before COMMIT.
+    const client = await pool.connect();
+    const interrupted = {
+      connect: async () => ({
+        query: async (sql: string, values?: unknown[]) => {
+          const result = await client.query(sql, values);
+          if (sql.startsWith("UPDATE"))
+            throw new Error("interrupted after first write");
+          return result;
+        },
+        release: (discard: boolean) => client.release(discard),
+      }),
+    } as unknown as Pool;
+    await expect(
+      rotateCredentials(interrupted, oldKey, newKey, true),
+    ).rejects.toThrow("interrupted");
+    expect(await read()).toEqual(before);
+    await rotateCredentials(pool, oldKey, newKey, true);
+    const after = await read();
+    expect(after.map((row) => decrypt(row.coinrithm_key_enc, newKey))).toEqual([
+      "coin-0",
+      "coin-1",
+    ]);
+    expect(decrypt(after[0].brain_key_enc, newKey)).toBe("brain-0");
+    expect(() => decrypt(after[0].coinrithm_key_enc, oldKey)).toThrow();
+    expect(await rotateCredentials(pool, oldKey, newKey, true)).toMatchObject({
+      alreadyRotated: 3,
+    });
+    expect(await read()).toEqual(after);
+    await rotateCredentials(pool, newKey, oldKey, true);
+    expect(
+      (await read()).map((row) => decrypt(row.coinrithm_key_enc, oldKey)),
+    ).toEqual(["coin-0", "coin-1"]);
   });
 
   it.each([

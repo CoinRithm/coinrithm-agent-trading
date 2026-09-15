@@ -93,6 +93,7 @@ export const DEFAULT_TRIGGER_POLICY: TriggerPolicy = {
 };
 
 export interface RiskConfig {
+  entryPredicates?: import("./entryPredicates.js").EntryPredicate[];
   maxLeverage: number;
   perTradeMarginMusd: number;
   maxConcurrentPositions: number;

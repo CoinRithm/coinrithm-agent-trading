@@ -4,7 +4,7 @@ import {
   type DecideResult,
   type Provider,
   type ProviderName,
-} from "@coinrithm/mcp-trading/dist/agent/engine.js";
+} from "@coinrithm/mcp-trading/engine";
 import type { ProviderCapacityDenialReason } from "./capacity.js";
 
 type AdmissionReason = ProviderCapacityDenialReason | "model_cooldown";

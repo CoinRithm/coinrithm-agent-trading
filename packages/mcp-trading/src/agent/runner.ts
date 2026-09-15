@@ -30,6 +30,8 @@ import {
 import { decideMechanical } from "./mechanical.js";
 import { evaluateGate, noteLlmCall, estimateCostUsd } from "./gate.js";
 import { baseSymbol, scanSetups } from "./setups.js";
+import { reconcileObservation } from "./reconcileObservation.js";
+import { createOpportunityReporter } from "./opportunityReporter.js";
 import { observe } from "./observe.js";
 import {
   buildDailyRiskBudget,
@@ -48,7 +50,6 @@ import { makeDecisionId, makeTrace, exportRunEvidence } from "./runEvidence.js";
 import {
   rollDay,
   checkKillSwitch,
-  accrueRealized,
   saveState,
   isPermanentModelError,
   isAuthFailureSkip,
@@ -551,47 +552,22 @@ async function runCycleCore(
     };
   }
 
+  // Establish durable run identity before the first possible write. A process
+  // killed before its first response must not restart with a new idempotency key.
+  if (live) saveState(stateFile, state);
   const baseTrace = makeTrace(runId, decisionId, spec);
 
-  // Opportunity capture (kills evaluation selection bias). Post at most ONE
-  // non-opened opportunity per cycle, LIVE only (dry-run never writes), best-effort
-  // — a failed post never affects the cycle result. The latch is set BEFORE the
-  // await so a failure never retries within the cycle (respects the write budget);
-  // the cohort/universe field carries the breadth, so we never post per-market.
-  const captureOpportunity = agentOpportunityCaptureEnabled();
-  let opportunityPosted = false;
-  let postedOpportunity: PostedOpportunity | undefined;
-  const postOpportunity = async (o: PostedOpportunity): Promise<void> => {
-    if (!captureOpportunity || !live || opportunityPosted) return;
-    opportunityPosted = true;
-    postedOpportunity = o;
-    try {
-      await client.reportPmOpportunity(
-        {
-          kind: o.kind,
-          source: o.source,
-          slug: o.slug,
-          outcomeExternalMarketId: o.outcomeExternalMarketId,
-          forecastProbability: o.forecastProbability,
-          marketProbability: o.marketProbability,
-          reasonCode: o.reasonCode,
-          cohort: {
-            universeSize: o.universeSize,
-            horizon: spec.objective?.horizon,
-          },
-          decisionId,
-          runId,
-          provenance,
-        },
-        baseTrace,
-      );
-      log(`reported ${o.kind} opportunity (universe ${o.universeSize ?? "?"})`);
-    } catch (err) {
-      log(
-        `opportunity post failed: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-  };
+  const opportunities = createOpportunityReporter({
+    client,
+    spec,
+    live,
+    enabled: agentOpportunityCaptureEnabled(),
+    runId,
+    decisionId,
+    provenance,
+    baseTrace,
+    log,
+  });
 
   // OBSERVE
   const obs = await observe(client, spec, state, baseTrace);
@@ -611,40 +587,7 @@ async function runCycleCore(
   // Reads build the observation, so its hash cannot exist before they finish.
   // From this point every durable write carries the exact decision-input receipt.
   Object.assign(baseTrace, observationReceipt);
-  accrueRealized(state, observation.newClosedTrades);
-  state.cursor = observation.syncCursor;
-  for (const t of observation.newClosedTrades) {
-    state.seen.push(
-      `${asStr(asObj(t).venue) ?? "futures"}:${asNum(asObj(t).id) ?? String(asObj(t).id)}`,
-    );
-  }
-  state.seen = state.seen.slice(-500);
-
-  // Slice-3 reflection: journal closed-trade OUTCOMES (not just opens) so the agent
-  // remembers how its theses RESOLVED — a stop-out it should not revenge-trade, a
-  // winner its style works on. Defensive field reads (the /trades shape varies);
-  // a partial entry is harmless, a missing one is skipped.
-  for (const t of observation.newClosedTrades.slice(-5)) {
-    const o = asObj(t);
-    const sym = asStr(o.symbol) ?? asStr(o.coinSymbol) ?? asStr(o.coinId);
-    const pnl =
-      asNum(o.realizedPnlMusd) ??
-      asNum(o.pnlMusd) ??
-      asNum(o.realizedPnl) ??
-      asNum(o.pnl);
-    const side = asStr(o.side);
-    if (sym || pnl != null) {
-      const did =
-        `closed ${side ?? ""} ${sym ?? "position"}`.trim() +
-        (pnl != null
-          ? `: ${pnl >= 0 ? "+" : ""}${Math.round(pnl)}mUSD ${pnl >= 0 ? "WIN" : "LOSS"}`
-          : "");
-      state.journal = [
-        ...(state.journal ?? []),
-        { at: observation.asOf, did },
-      ].slice(-12);
-    }
-  }
+  reconcileObservation(state, observation);
 
   capture({
     ...captureBase,
@@ -1070,7 +1013,7 @@ async function runCycleCore(
       observation.pmMarkets,
       forecastEnabled,
     );
-    if (skipOpp) await postOpportunity(skipOpp);
+    if (skipOpp) await opportunities.post(skipOpp);
     saveState(stateFile, state);
     log(`model chose skip${decision.reason ? `: ${decision.reason}` : ""}`);
     return {
@@ -1085,7 +1028,7 @@ async function runCycleCore(
       decisionType: "skip",
       writeAttempted: decision.actions.length,
       writeAccepted: 0,
-      ...(postedOpportunity ? { opportunity: postedOpportunity } : {}),
+      ...(opportunities.posted ? { opportunity: opportunities.posted } : {}),
       ...observationReceipt,
     };
   }
@@ -1497,7 +1440,7 @@ async function runCycleCore(
       // (once-per-cycle; carries the universe breadth in the cohort field).
       if (action.type === "pm_open" && isQuoteExpiredResult(r.status, r.data)) {
         const pm = action;
-        await postOpportunity({
+        await opportunities.post({
           kind: "quote_expired",
           source: pm.source,
           slug: pm.slug,
@@ -1557,7 +1500,7 @@ async function runCycleCore(
     decisionType: "act",
     writeAttempted: decision.actions.length,
     writeAccepted: planned.filter((p) => p.accepted).length,
-    ...(postedOpportunity ? { opportunity: postedOpportunity } : {}),
+    ...(opportunities.posted ? { opportunity: opportunities.posted } : {}),
     ...observationReceipt,
   };
 }

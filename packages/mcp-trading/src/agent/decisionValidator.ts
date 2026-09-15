@@ -14,6 +14,7 @@ import {
   actionVenue,
   spotBuyCost,
 } from "./types.js";
+import { checkEntryPredicates } from "./entryPredicates.js";
 
 export interface DecisionContext {
   /**
@@ -110,6 +111,8 @@ export function validateAction(
     );
   }
   const increasesRisk = isRiskIncreasingAction(action);
+  const entryCondition = checkEntryPredicates(action, spec, observation);
+  if (!entryCondition.valid) return entryCondition;
   if (
     increasesRisk &&
     ctx.riskIncreasesThisCycle >= spec.limits.maxWritesPerCycle

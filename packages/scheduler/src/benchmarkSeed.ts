@@ -19,7 +19,7 @@ import {
   BENCHMARK_AGENTS,
   newState,
   makeRunId,
-} from "@coinrithm/mcp-trading/dist/agent/engine.js";
+} from "@coinrithm/mcp-trading/engine";
 import { encrypt } from "./crypto.js";
 
 // Env var carrying a benchmark's crk_live_ paper key, derived from its handle:

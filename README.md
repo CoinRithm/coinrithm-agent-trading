@@ -261,9 +261,10 @@ Base URL: `https://api.coinrithm.com` (live). Hosted MCP: `https://mcp.coinrithm
 
 `info.version` in `openapi.yaml` (currently **1.7.0**) is the **API contract
 version**. It is distinct from the source-tree package version
-(`@coinrithm/mcp-trading`, currently **0.7.9**), published on npm and verified on
-**2026-09-15**. The downloaded archive matches the reviewed release artifact;
-a clean registry install passes MCP initialization and runner regressions.
+(`@coinrithm/mcp-trading`, currently **0.7.10**), an **unpublished candidate**.
+The latest verified published package is **0.7.9**, checked on **2026-09-15**.
+Its downloaded archive matches the reviewed artifact and passed clean-install
+checks. See the [changelog](./CHANGELOG.md) for the candidate's additional changes.
 The API and package are versioned independently — a package patch does not
 imply an API change and vice versa. Check `npm view @coinrithm/mcp-trading
 version` before choosing a published version.
@@ -672,8 +673,8 @@ For a fix, keep the change focused and include the relevant regression check;
 [the reliability guide](./docs/RELIABILITY.md) lists test commands and their scope.
 
 Changes to `main` go through a pull request with the branch up to date and all
-five required GitHub Actions checks passing: `typescript-sdk`, `python-sdk`,
-`contract`, `scheduler` and `mcp-trading`. No approving review is required for
+six required GitHub Actions checks passing: `typescript-sdk`, `python-sdk`,
+`contract`, `scheduler`, `mcp-trading` and `compatibility`. No approving review is required for
 routine maintainer work. The [main ruleset](./.github/main-ruleset.json) has no
 bypass actors and blocks force pushes and deletion of `main`.
 

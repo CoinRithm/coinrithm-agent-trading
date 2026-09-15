@@ -64,22 +64,77 @@ Env: `DATABASE_URL`, `ENCRYPTION_KEY`, `NVIDIA_API_KEY` (secrets). **No volume.*
 
 Operational must-knows:
 
-- **`ENCRYPTION_KEY` is immutable.** It is the only input that decrypts every
-  stored `crk_live_` / BYO key. Generate it once (`openssl rand -hex 32`), set it
-  as a permanent secret, and reuse the **exact same value** in the seed job.
-  Rotating it after agents are seeded makes every encrypted key undecryptable —
-  each agent hits a setup error and disables itself, killing the whole fleet. A
-  real rotation is a migration (decrypt-old → re-encrypt-new per row), not an
-  env swap.
+- **Do not swap `ENCRYPTION_KEY` by itself.** Stored credentials must be
+  re-encrypted before readers use a new key. Follow the offline rotation and
+  recovery procedure below; the seed job and every credential reader/writer
+  must use the same active key.
 - **Configure the shared providers before starting the fleet.** House agents
   without BYO credentials need an eligible shared route. Router mode can use
   configured fallback providers; missing capacity is not proof of provider health.
-- **Deploy 1 replica first.** `migrate()` runs on every boot; idempotent, but two
-  fresh replicas migrating the empty schema simultaneously can hit a
-  `CREATE … IF NOT EXISTS` TOCTOU race that crashes one (it self-heals on
-  restart). Scale out only after the first boot logs `agent_runtime schema ready`.
+- **Migration startup is serialized.** Numbered SQL files replay in lexical
+  order on one connection, inside one transaction holding a database advisory
+  lock. Concurrent replicas wait; interruption rolls back the transaction and
+  releases the lock. Lock waits are bounded at 30 seconds and statements at
+  120 seconds; a timeout fails startup rather than serving a partially migrated
+  schema. New migrations must remain transactional (no `CONCURRENTLY` or
+  embedded transaction control). This does not replace the shared capacity
+  backend required for multiple replicas.
 - **Keep the Docker healthcheck enabled.** The image sets `HEALTH_PORT=8080`;
   `/healthz` checks the scheduler heartbeat as well as process liveness.
+
+## Offline credential rotation and recovery
+
+This rotates the encryption envelope, **not** the CoinRithm or model-provider
+credentials themselves. The helper is never called during normal startup.
+
+1. Record the current application revision and expected agent count. Securely
+   back up the database and current master key. Confirm the database target
+   without printing connection credentials. Keep both keys out of files,
+   command history and CI logs.
+2. Stop **every** scheduler and credential writer, including API deploy/edit
+   paths and seed jobs. Keep them stopped until verification finishes. The
+   database lock serializes maintenance; it cannot stop a running worker from
+   holding a plaintext credential or using an outdated master key in memory.
+3. Build the scheduler. Supply `DATABASE_URL`, `ROTATION_OLD_KEY` and
+   `ROTATION_NEW_KEY` through the secret manager/process environment. Both keys
+   must be distinct 32-byte values. Run from `packages/scheduler`:
+
+   ```bash
+   node scripts/rotate-credentials.mjs --maintenance-confirmed
+   ```
+
+   This preflights every stored value with no updates. Verify the reported
+   agent/value counts. A corrupt or unknown ciphertext aborts the entire operation.
+4. Apply the same preflighted rotation:
+
+   ```bash
+   node scripts/rotate-credentials.mjs --maintenance-confirmed --apply
+   ```
+
+   Both credential columns change inside one transaction under the maintenance
+   lock and an exclusive table lock. No plaintext or key values are logged.
+5. Re-run the preflight using the **same** old/new pair. `alreadyRotated` must
+   equal `values`. Set `ENCRYPTION_KEY` to the new key in every reader, writer
+   and seed environment, remove rotation variables, then restart one scheduler.
+   Verify startup, credential reads and health before restoring other writers.
+   Keep the encrypted backup and old key under the normal retention policy.
+
+**Interruption:** if the process stops before commit, PostgreSQL rolls back.
+If the commit response is lost, its outcome is uncertain. Keep services stopped
+and re-run preflight with the same pair. Already converted values are recognized;
+re-running `--apply` finishes without encrypting ciphertext as plaintext.
+Do not infer the database key from a CLI exit code alone.
+
+**Reverse recovery:** while all writers are still stopped, swap the old/new
+rotation variables, preflight and apply, then verify every value is under the
+original key before restoring the original `ENCRYPTION_KEY`. Restore a backup
+only when its data/key pair is known and its data-loss implications are accepted.
+If neither key decrypts a value, stop and investigate; never reset an agent or
+replace an API key to hide a failed rotation.
+
+The PostgreSQL integration suite rehearses preflight, interrupted rollback,
+forward rotation, idempotent rerun and reverse recovery using synthetic keys.
+No production credentials were rotated as part of this release.
 
 ## Verification
 
