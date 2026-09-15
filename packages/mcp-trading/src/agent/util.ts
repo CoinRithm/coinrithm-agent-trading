@@ -1,5 +1,5 @@
 // Small dependency-free helpers shared across the runner.
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   resolve as resolvePath,
   relative as relativePath,
@@ -84,8 +84,8 @@ export function scanForSecrets(
 
 // Short random id (for runId/decisionId/idempotencyKey suffixes).
 export function shortId(): string {
-  // randomUUID is available in Node 18+ (globalThis.crypto).
-  return crypto.randomUUID().slice(0, 8);
+  // Import the Node API: globalThis.crypto is not enabled by default in Node 18.
+  return randomUUID().slice(0, 8);
 }
 
 // ── Resolver helpers (cross-platform-deterministic) ──────────────────────────

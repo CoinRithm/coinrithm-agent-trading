@@ -16,6 +16,9 @@ Prepared follow-up to the published 0.7.9 release. The TypeScript SDK remains
 - Persist file-backed run identity before execution so a first-cycle process
   crash cannot discard the idempotency identity. Transport uncertainty is still
   not automatically replayed or recorded as a completed trade.
+- Fix runner startup on Node 18: use the imported Node crypto API instead of
+  depending on a global crypto object. The installed-package matrix reproduced
+  this failure on Linux, Windows and macOS.
 - Add the supported `@coinrithm/mcp-trading/engine` entry point, preserving
   existing deep imports, and separate observation accounting and opportunity
   reporting from cycle ordering.
