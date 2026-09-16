@@ -9,6 +9,9 @@ permissions:
   contents: read
 
 jobs:
+  docs-examples:
+    uses: ./.github/workflows/docs-build.yml
+
   # The published npm SDK must be reproducible from the canonical contract.
   # Regeneration drift means consumers are missing declared fields even when
   # the OpenAPI document itself is correct.

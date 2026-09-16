@@ -1,0 +1,26 @@
+[
+  {
+    "operationId": "searchPublicPredictionMarketEvents",
+    "method": "get",
+    "path": "/api/prediction-markets/events",
+    "name": "events"
+  },
+  {
+    "operationId": "whoami",
+    "method": "get",
+    "path": "/api/agent/me",
+    "name": "identity"
+  },
+  {
+    "operationId": "spotQuote",
+    "method": "post",
+    "path": "/api/agent/spot/quote",
+    "name": "quote"
+  },
+  {
+    "operationId": "getMyTrades",
+    "method": "get",
+    "path": "/api/agent/trades",
+    "name": "trades"
+  }
+]

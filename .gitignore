@@ -10,6 +10,8 @@ coverage/
 examples/**/.*.state.json
 __pycache__/
 *.pyc
+_site/
+examples/clients/.venv/
 tools/mcp-publisher/
 
 # Local deploy worktrees (created by the deploy script, never committed)
