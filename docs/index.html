@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- docs-revision -->
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2313654b'/%3E%3Ctext x='32' y='46' text-anchor='middle' font-family='system-ui' font-size='44' fill='white'%3EC%3C/text%3E%3C/svg%3E"
@@ -421,7 +422,21 @@
               href="https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/packages/sdk-python/README.md"
               >Python · coinrithm-sdk →</a
             >
+            <a
+              href="https://github.com/CoinRithm/coinrithm-agent-trading/tree/main/examples/clients"
+              >Run SDK and HTTP examples →</a
+            >
           </div>
+          <p class="note">
+            In the reference, choose an endpoint to see request code. CoinRithm
+            maintains the TypeScript and Python SDKs; Scalar's other client
+            options generate HTTP snippets. Direct API calls use API-side
+            controls. To apply your agent strategy's additional limits, use the
+            <a
+              href="https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/docs/agent-runner.md"
+              >Node.js runner</a
+            >.
+          </p>
         </section>
         <p class="note">
           Trading uses virtual mUSD only. Market availability and freshness vary
@@ -433,11 +448,9 @@
       <div class="reference-heading">
         <h2>API reference</h2>
         <p>
-          Current main-branch contract ·
-          <a
-            href="https://raw.githubusercontent.com/CoinRithm/coinrithm-agent-trading/main/openapi.yaml"
-            >OpenAPI YAML</a
-          >
+          Contract and examples built together ·
+          <a href="./openapi.yaml">OpenAPI YAML</a>
+          · <a href="./contract.json">OpenAPI JSON</a>
           ·
           <a
             href="https://github.com/CoinRithm/coinrithm-agent-trading/releases"
@@ -491,7 +504,7 @@
       if (typeof Scalar !== "undefined") {
         document.querySelector("#app").replaceChildren();
         Scalar.createApiReference("#app", {
-          url: "https://raw.githubusercontent.com/CoinRithm/coinrithm-agent-trading/main/openapi.yaml",
+          url: "./openapi.json",
           persistAuth: false,
           showDeveloperTools: "never",
           telemetry: false,

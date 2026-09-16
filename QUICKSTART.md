@@ -54,6 +54,11 @@ and trading tools require your own API key. The local stdio process requires
   `Client` for public endpoints and `AuthenticatedClient` for account access.
 - **REST:** [browse the API reference](https://coinrithm.github.io/coinrithm-agent-trading/).
 
+[Run the tested SDK and HTTP examples](./examples/clients/README.md) for public
+discovery, account identity, quotes and realized paper results. The reference's
+other HTTP client options generate endpoint snippets. They do not supply the
+CoinRithm runner or automatically apply a local strategy's limits.
+
 ---
 
 ## 1. Create an API key
