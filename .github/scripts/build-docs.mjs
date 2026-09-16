@@ -63,7 +63,7 @@ if (!spec.info.description.includes("## Start without an API key")) {
 }
 spec.info.description = spec.info.description.replace(
   "## Start without an API key",
-  `## Start without an API key\n\nLeave the Authentication panel empty for public requests. It configures the key for protected account and trading operations; each operation shows its own requirement.\n\n[Open the public event request](#tag/public-pm-data/GET/api/prediction-markets/events) and use its client menu to choose a CoinRithm SDK or HTTP example. The installation tabs here are for the maintained SDKs. [Run the examples locally](${guide}).`,
+  `## Start without an API key\n\nLeave the Authentication panel empty for public requests. It configures the key for protected account and trading operations; each operation shows its own requirement.\n\n[Open the public event request](#tag/public-pm-data/GET/api/prediction-markets/events) and use its client menu to choose a CoinRithm SDK or HTTP example. The installation tabs here are for the maintained SDKs. [Run the examples locally](${guide}).\n\n**Go (Golang):** [open the runnable Go HTTP example](https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/examples/clients/http/events.go). It uses the standard library and needs no API key. From \`examples/clients\`, run \`go run http/events.go\`.`,
 );
 spec.components.securitySchemes.bearerAuth.description =
   "For protected account and trading operations. Leave empty for public data. Personal CoinRithm API key, format crk_live_….";
