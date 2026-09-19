@@ -43,15 +43,14 @@ This package ships two binaries:
 
 > **Paper trading only** — virtual funds (50,000 mUSD). Not financial advice.
 
-## Version 0.7.12
+## Version 0.7.13 — publication pending
 
-This patch clarifies `whoami`, `cancel_spot_order` and `report_pm_opportunity`
-for MCP clients. Cancellation is marked safe to repeat; opportunity reporting
-is a write whose duplicate protection requires a decision ID. Tool names,
-accepted inputs and execution behavior are unchanged. See [CHANGELOG.md](./CHANGELOG.md).
-Published on npm and verified on 2026-09-15: the registry archive matches the
-CI-tested artifact, and a clean install passed startup and tool metadata checks.
-See the [release record](https://github.com/CoinRithm/coinrithm-agent-trading/releases/tag/mcp-trading-v0.7.12). Check
+This patch corrects provider-capacity classification and exports
+`classifyProviderFailure` from the supported engine entry point. Retry counts
+and trading behavior are unchanged. See [CHANGELOG.md](./CHANGELOG.md).
+The runtime fixes are already hosted at source `1748b2d`; npm publication of
+0.7.13 is pending. The latest verified npm release is 0.7.12.
+See its [release record](https://github.com/CoinRithm/coinrithm-agent-trading/releases/tag/mcp-trading-v0.7.12). Check
 `npm view @coinrithm/mcp-trading version` for the latest published version;
 hosted deployments and npm releases are separate.
 

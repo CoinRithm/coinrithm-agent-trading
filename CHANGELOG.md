@@ -8,7 +8,12 @@ Each package has its own version; the API contract is versioned separately.
 [TypeScript history](packages/sdk/CHANGELOG.md) ·
 [Python release notes](packages/sdk-python/README.md)
 
-## Unreleased — API reference corrections
+## Prepared — MCP 0.7.13, TypeScript 0.3.2, Python 1.8.2
+
+- Prepare package delivery of the hosted provider-capacity classification fixes
+  and the engine's `classifyProviderFailure` export. The scheduler's shared
+  routing deadline remains a separate hosted-service change.
+- npm/PyPI publication is pending; the source version is not a registry receipt.
 
 - Start the developer reference and quick start with a working anonymous data
   request, then explain account access and scopes. Add direct SDK guides and

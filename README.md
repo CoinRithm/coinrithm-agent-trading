@@ -261,12 +261,12 @@ Base URL: `https://api.coinrithm.com` (live). Hosted MCP: `https://mcp.coinrithm
 
 `info.version` in `openapi.yaml` (currently **1.7.0**) is the **API contract
 version**. It is distinct from the source-tree package version
-(`@coinrithm/mcp-trading`, currently **0.7.12** in source).
-The latest verified published package is **0.7.12**, checked on **2026-09-15**.
+(`@coinrithm/mcp-trading`, currently **0.7.13** in source, publication pending).
+The latest verified published package is **0.7.12**, checked on **2026-09-20**.
 Its npm and GitHub release downloads match the CI-tested archive. A clean
 registry install passed startup and 38-tool discovery with the corrected tool
-metadata. Hosted MCP serves 0.7.12; the unchanged scheduler remains on the
-verified 0.7.11 engine. See the
+metadata. Hosted MCP and scheduler run source `1748b2d`, including the newer
+runtime fixes; package publication is separate. See the
 [release notes](https://github.com/CoinRithm/coinrithm-agent-trading/releases/tag/mcp-trading-v0.7.12)
 and [changelog](./CHANGELOG.md).
 The API and package are versioned independently — a package patch does not
@@ -277,6 +277,8 @@ The [TypeScript SDK **0.3.1**](https://www.npmjs.com/package/@coinrithm/sdk/v/0.
 and [Python SDK **1.8.1**](https://pypi.org/project/coinrithm-sdk/1.8.1/) are also
 published. Both passed clean registry installs and offline client checks.
 These SDK patches carry the corrected candle-volume documentation.
+Source versions **0.3.2** (TypeScript) and **1.8.2** (Python) add the corrected
+cancellation response types and Python error parsing; publication is pending.
 Recent comparison and spread-label corrections are server behavior changes
 within the existing API contract and do not require new SDK fields.
 
