@@ -64,6 +64,15 @@ Env: `DATABASE_URL`, `ENCRYPTION_KEY`, `NVIDIA_API_KEY` (secrets). **No volume.*
 
 Operational must-knows:
 
+- **Routing deadline (policy `2026-09-19.1`).** The shared fallback chain has
+  one 300-second maximum budget, below the 360-second run lock and heartbeat.
+  An alternate receives only the remaining time. Older `2026-08-27.2` runs
+  allowed 300 seconds per attempt; retain the source revision when replaying
+  historical evidence. Prompts, model pins and configured strategies are unchanged.
+  Direct NVIDIA retries still share their original deadline. Their v2 evidence
+  classifies explicit `ResourceExhausted` 503 responses as capacity pressure;
+  ordinary 500/503 errors remain failures. A zero `Retry-After` now gets the
+  minimum one-second model cooldown instead of failing cooldown validation.
 - **Do not swap `ENCRYPTION_KEY` by itself.** Stored credentials must be
   re-encrypted before readers use a new key. Follow the offline rotation and
   recovery procedure below; the seed job and every credential reader/writer

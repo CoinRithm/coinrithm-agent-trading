@@ -15,6 +15,7 @@ export {
 export {
   selectProvider,
   providerForRoute,
+  classifyProviderFailure,
   type ProviderEnv,
   type Provider,
   type DecideInput,

@@ -172,6 +172,31 @@ describe("direct NVIDIA same-model retry", () => {
       fetchFn,
     );
 
+  it("retains capacity classification for both same-model ResourceExhausted attempts", async () => {
+    vi.useFakeTimers();
+    const fetchFn = vi
+      .fn<typeof fetch>()
+      .mockImplementation(
+        async () =>
+          new Response(
+            "ResourceExhausted: Worker local total request limit reached",
+            { status: 503 },
+          ),
+      );
+    const pending = direct(fetchFn).decide({
+      system: "STRATEGY",
+      user: "OBSERVATION",
+    });
+    await vi.advanceTimersByTimeAsync(1000);
+    const result = await pending;
+    expect(result.ok).toBe(false);
+    expect(result.route?.attempts.map((a) => a.failureClass)).toEqual([
+      "capacity",
+      "capacity",
+    ]);
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+
   it.each([500, 502, 503, 504])(
     "retries HTTP %i once with byte-identical body/key/route and retains both attempts",
     async (status) => {

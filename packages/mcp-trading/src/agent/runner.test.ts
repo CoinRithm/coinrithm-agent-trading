@@ -1421,61 +1421,72 @@ describe("runCycle", () => {
     expect(d.state.disabled).toBe(false);
   });
 
-  it("keeps real direct BYO 429s out of failure streaks while recording the attempted model", async () => {
-    const fetchFn = vi.fn<typeof fetch>().mockImplementation(
-      async () =>
-        new Response(JSON.stringify({ error: "quota exceeded" }), {
-          status: 429,
-          headers: { "Retry-After": "60" },
-        }),
-    );
-    const client = baseClient();
-    const d = deps({ live: true }, client);
-    d.spec.model = {
-      provider: "nvidia",
-      name: "nvidia/nemotron-3-super-120b-a12b",
-    };
-    // This is the actual direct OpenAiCompatProvider created for hosted BYO
-    // agents, NOT a routed fixture that already adds capacity classification.
-    d.provider = selectProvider(
-      d.spec,
-      { NVIDIA_API_KEY: "test-only" },
-      fetchFn,
-    );
-    d.spec.killSwitch.maxConsecutiveModelFailures = 15;
-    d.state.consecutiveModelFailures = 14;
-    d.state.consecutivePermanentModelErrors = 2;
+  it.each([429, 503])(
+    "keeps direct BYO capacity HTTP %i out of failure streaks while recording the attempted model",
+    async (status) => {
+      const fetchFn = vi.fn<typeof fetch>().mockImplementation(
+        async () =>
+          new Response(
+            JSON.stringify({
+              error:
+                "ResourceExhausted: Worker local total request limit reached",
+            }),
+            {
+              status,
+              headers: { "Retry-After": "60" },
+            },
+          ),
+      );
+      const client = baseClient();
+      const d = deps({ live: true }, client);
+      d.spec.model = {
+        provider: "nvidia",
+        name: "nvidia/nemotron-3-super-120b-a12b",
+      };
+      // This is the actual direct OpenAiCompatProvider created for hosted BYO
+      // agents, NOT a routed fixture that already adds capacity classification.
+      d.provider = selectProvider(
+        d.spec,
+        { NVIDIA_API_KEY: "test-only" },
+        fetchFn,
+      );
+      d.spec.killSwitch.maxConsecutiveModelFailures = 15;
+      d.state.consecutiveModelFailures = 14;
+      d.state.consecutivePermanentModelErrors = 2;
 
-    for (let cycle = 0; cycle < 2; cycle++) {
-      const result = await runCycle(d);
-      expect(result).toMatchObject({
-        decision: "skip",
-        decisionType: "gate_skip",
-        skipReason: "provider rate-limited; retry next cycle",
-        modelFailed: false,
-        llmCallMade: true,
-        effectiveProvider: "nvidia",
-        effectiveModel: d.spec.model.name,
-        routeReason: "configured_direct",
-        planned: [],
-        writeAttempted: 0,
-        writeAccepted: 0,
-      });
-      expect(result.routeAttempts).toBeUndefined();
-      expect(result.providerHold).toBeUndefined();
-      expect(d.state.consecutiveModelFailures).toBe(14);
-      expect(d.state.consecutivePermanentModelErrors).toBe(2);
-      expect(d.state.disabled).toBe(false);
-    }
-    expect(fetchFn).toHaveBeenCalledTimes(2);
-    for (const [url, init] of fetchFn.mock.calls) {
-      expect(url).toBe("https://integrate.api.nvidia.com/v1/chat/completions");
-      expect(JSON.parse(String(init?.body)).model).toBe(d.spec.model.name);
-    }
-    expect(d.state.lastLlmCallAt).toBeDefined();
-    expect(d.state.llmCallTimestamps).toHaveLength(2);
-    expect(client.openFutures).not.toHaveBeenCalled();
-  });
+      for (let cycle = 0; cycle < 2; cycle++) {
+        const result = await runCycle(d);
+        expect(result).toMatchObject({
+          decision: "skip",
+          decisionType: "gate_skip",
+          skipReason: "provider rate-limited; retry next cycle",
+          modelFailed: false,
+          llmCallMade: true,
+          effectiveProvider: "nvidia",
+          effectiveModel: d.spec.model.name,
+          routeReason: "configured_direct",
+          planned: [],
+          writeAttempted: 0,
+          writeAccepted: 0,
+        });
+        expect(result.routeAttempts).toBeUndefined();
+        expect(result.providerHold).toBeUndefined();
+        expect(d.state.consecutiveModelFailures).toBe(14);
+        expect(d.state.consecutivePermanentModelErrors).toBe(2);
+        expect(d.state.disabled).toBe(false);
+      }
+      expect(fetchFn).toHaveBeenCalledTimes(2);
+      for (const [url, init] of fetchFn.mock.calls) {
+        expect(url).toBe(
+          "https://integrate.api.nvidia.com/v1/chat/completions",
+        );
+        expect(JSON.parse(String(init?.body)).model).toBe(d.spec.model.name);
+      }
+      expect(d.state.lastLlmCallAt).toBeDefined();
+      expect(d.state.llmCallTimestamps).toHaveLength(2);
+      expect(client.openFutures).not.toHaveBeenCalled();
+    },
+  );
 
   it("does not invent a provider call for a direct local capacity deferral", async () => {
     const d = deps({}, baseClient(), {
