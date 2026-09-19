@@ -1,11 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.3.2 — prepared, publication pending
 
 - Correct generated cancellation types and documentation for the existing
   `200` / optional `alreadyClosed` response and `500` server failures.
-  Covered by offline HTTP contract tests. This correction is in source;
-  published npm version **0.3.1** is unchanged.
+  Covered by offline HTTP contract tests. This version prepares npm delivery;
+  published npm version **0.3.1** remains unchanged until publication is verified.
 
 ## 0.3.1 - 2026-09-15
 

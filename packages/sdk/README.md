@@ -16,11 +16,12 @@ npm install @coinrithm/sdk
 ```
 
 Published on npm as [`@coinrithm/sdk`](https://www.npmjs.com/package/@coinrithm/sdk).
-This package version is **0.3.1**. Check `npm view @coinrithm/sdk version` for
+This source package version is **0.3.2**, with publication pending.
+Check `npm view @coinrithm/sdk version` for
 the latest published version. The package version is independent of the
 OpenAPI contract version, which remains **1.7.0**.
 
-The main branch also includes an unreleased cancellation type correction for
+This version includes the cancellation type correction for
 optional `alreadyClosed` and `500` errors; see the [changelog](./CHANGELOG.md).
 The published 0.3.1 package still exposes the original wire response at runtime.
 

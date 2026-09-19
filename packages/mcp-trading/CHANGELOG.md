@@ -5,6 +5,18 @@ ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (t
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
 versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
+## 0.7.13 — prepared, publication pending
+
+- Classify provider capacity failures consistently, including HTTP 503
+  resource exhaustion, in runner results and configured same-model retries.
+- Export `classifyProviderFailure` from the supported engine entry point.
+  Retry counts and trading behavior are unchanged.
+
+These runtime fixes are already deployed to hosted MCP and scheduler at
+`1748b2d2850e16fffceb64a44d85318166c6b0b6`. The scheduler's shared routing deadline
+is a separate hosted-service change, not part of this npm package.
+This version prepares npm delivery; publication requires separate verification.
+
 ## 0.7.12 — 2026-09-15
 
 Clarify `whoami`, `cancel_spot_order` and `report_pm_opportunity` descriptions,

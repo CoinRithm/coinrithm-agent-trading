@@ -9,9 +9,9 @@ OpenAPI contract that drives the hosted MCP at `mcp.coinrithm.com`.
   CoinRithm API key (`crk_live_…`), sent as a bearer token.
 - The API is paper-only: no real funds ever move.
 
-## Unreleased source correction
+## 1.8.2 — prepared, publication pending
 
-The main branch documents cancellation's existing optional `alreadyClosed`
+This version documents cancellation's existing optional `alreadyClosed`
 response as `already_closed` on the generated model and parses documented `500`
 errors. Offline tests cover sync and async calls. Published **1.8.1** remains
 unchanged; on that version, `alreadyClosed` is retained in the response model's
