@@ -473,3 +473,71 @@ describe("pinned model: one route, no failover", () => {
     expect(normal.routes.map((r) => r.model)).toContain(NEMOTRON_SUPER);
   });
 });
+
+describe("shared route deadline", () => {
+  it("gives the fallback only the remaining deadline without rebuilding the request", async () => {
+    let clock = 0;
+    const chain = resolveRouteChain({
+      configured: { provider: "nvidia", model: NEMOTRON_NANO },
+      byo: false,
+      openAiBackup: false,
+    });
+    const h = harness([]);
+    const inputs: Array<Record<string, unknown>> = [];
+    const provider = new RoutedProvider(
+      chain.profile,
+      chain.routes,
+      false,
+      () => ({
+        label: "deadline-test",
+        decide: async (request) => {
+          inputs.push({ ...request });
+          if (inputs.length === 1) {
+            clock += 240_000;
+            return { ok: false, error: "connection reset" };
+          }
+          return ok();
+        },
+      }),
+      h.hooks,
+      () => clock,
+    );
+    const result = await provider.decide(input);
+    expect(result.ok).toBe(true);
+    expect(inputs).toEqual([
+      { ...input, timeoutMs: 300_000 },
+      { ...input, timeoutMs: 60_000 },
+    ]);
+  });
+
+  it("does not start a fallback after the deadline or hide the primary failure", async () => {
+    let clock = 0;
+    const chain = resolveRouteChain({
+      configured: { provider: "nvidia", model: NEMOTRON_NANO },
+      byo: false,
+      openAiBackup: false,
+    });
+    const h = harness([]);
+    const decide = vi.fn(async (): Promise<DecideResult> => {
+      clock += 300_000;
+      return { ok: false, error: "model call timed out after 300000ms" };
+    });
+    const provider = new RoutedProvider(
+      chain.profile,
+      chain.routes,
+      false,
+      () => ({ label: "test", decide }),
+      h.hooks,
+      () => clock,
+    );
+    const result = await provider.decide(input);
+    expect(decide).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({
+      ok: false,
+      deferred: false,
+      error: "model call timed out after 300000ms",
+    });
+    expect(result.route.attempts).toHaveLength(1);
+    expect(h.release).toHaveBeenCalledTimes(1);
+  });
+});

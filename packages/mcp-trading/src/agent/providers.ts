@@ -120,6 +120,22 @@ const GEMINI_BASE_URL =
 const DEFAULT_TIMEOUT_MS = 300_000;
 const RETRYABLE_SERVER_STATUSES = new Set([500, 502, 503, 504]);
 
+/** Keep direct and routed cycle evidence consistent about NVIDIA backpressure. */
+export function classifyProviderFailure(
+  result: Extract<DecideResult, { ok: false }>,
+): "capacity" | "permanent" | "transient" {
+  if (
+    result.status === 429 ||
+    (result.status === 503 &&
+      /resourceexhausted|worker local total request limit/i.test(
+        result.error ?? "",
+      ))
+  )
+    return "capacity";
+  if (result.status === 404 || result.status === 410) return "permanent";
+  return "transient";
+}
+
 // Per-route request quirks (reasoning toggles, token param, temperature) live
 // in the capability table — providerCapabilities.ts is the single source; this
 // module only assembles and sends.
@@ -474,16 +490,12 @@ class SameModelRetryProvider implements Provider {
             error: res.error,
             status: res.status,
             retryAfterMs: res.retryAfterMs,
-            ...(res.status !== undefined
-              ? {
-                  failureClass:
-                    res.status === 429
-                      ? ("capacity" as const)
-                      : res.status >= 500
-                        ? ("transient" as const)
-                        : ("permanent" as const),
-                }
-              : {}),
+            failureClass:
+              classifyProviderFailure(res) === "capacity"
+                ? ("capacity" as const)
+                : res.status !== undefined && res.status < 500
+                  ? ("permanent" as const)
+                  : ("transient" as const),
           }
         : {}),
     });
@@ -493,7 +505,7 @@ class SameModelRetryProvider implements Provider {
       // or a certificate that returned text passed the trading-decision parser.
       ...result,
       route: {
-        policyVersion: "coinrithm.configured-same-model-retry.v1",
+        policyVersion: "coinrithm.configured-same-model-retry.v2",
         profile: "configured",
         effectiveProvider: this.provider,
         effectiveModel: this.model,

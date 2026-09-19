@@ -1,5 +1,6 @@
 import {
   parseDecision,
+  classifyProviderFailure,
   type DecideInput,
   type DecideResult,
   type Provider,
@@ -9,7 +10,7 @@ import type { ProviderCapacityDenialReason } from "./capacity.js";
 
 type AdmissionReason = ProviderCapacityDenialReason | "model_cooldown";
 
-export const ROUTE_POLICY_VERSION = "2026-08-27.2";
+export const ROUTE_POLICY_VERSION = "2026-09-19.1";
 // nemotron-3-nano-30b-a3b went 410 (end of life) on 2026-09-01; the omni
 // variant is the live-probe-verified fast tier (200 + strict JSON, ~2.6s,
 // probe 2026-09-02 06:5xZ from the scheduler key).
@@ -119,16 +120,10 @@ function cleanError(value: string | undefined): string | undefined {
  * failures (84%) carried exactly this body, with nano-omni at 23.3% failed
  * calls against super-120b's 4.7%.
  */
-const CAPACITY_503_BODY = /resourceexhausted|worker local total request limit/i;
-
 export function classifyFailure(
   result: Extract<DecideResult, { ok: false }>,
 ): RouteFailureClass {
-  if (result.status === 429) return "capacity";
-  if (result.status === 503 && CAPACITY_503_BODY.test(result.error ?? ""))
-    return "capacity";
-  if (result.status === 404 || result.status === 410) return "permanent";
-  return "transient";
+  return classifyProviderFailure(result);
 }
 
 export function routeProfileFor(model: string): RouteProfile {
@@ -251,6 +246,9 @@ export class RoutedProvider<Lease = unknown> implements Provider {
   }
 
   async decide(input: DecideInput): Promise<RoutedDecideResult> {
+    // The entire chain must fit the scheduler's 360s run lock/heartbeat.
+    // A fallback receives the remaining budget, never a second five minutes.
+    const deadline = this.now() + Math.min(input.timeoutMs ?? 300_000, 300_000);
     const attempts: RouteAttempt[] = [];
     const blockedKeyRefs = new Set<string>();
     const blockedRoutes = new Set<string>();
@@ -274,6 +272,7 @@ export class RoutedProvider<Lease = unknown> implements Provider {
 
     for (const route of this.routes) {
       if (attempts.length >= MAX_ROUTE_ATTEMPTS) break;
+      if (this.now() >= deadline) break;
       // Local budget exhaustion is credential-key scoped; an upstream 429 is
       // route/model scoped (live NIM evidence). Track both without conflating
       // them so a healthy alternate can absorb a model-specific limit.
@@ -317,10 +316,21 @@ export class RoutedProvider<Lease = unknown> implements Provider {
       }
 
       const started = this.now();
+      const remainingMs = deadline - started;
+      if (remainingMs <= 0) {
+        await this.hooks.release(route, acquired.lease, {
+          ok: false,
+          error: "model route deadline exhausted",
+        });
+        break;
+      }
       lastAttemptedRoute = route;
       let result: DecideResult;
       try {
-        result = await this.buildProvider(route).decide(input);
+        result = await this.buildProvider(route).decide({
+          ...input,
+          timeoutMs: remainingMs,
+        });
       } catch (error) {
         result = {
           ok: false,

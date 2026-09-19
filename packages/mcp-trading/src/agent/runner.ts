@@ -4,7 +4,7 @@
 // are injected so the loop is fully unit-testable with no network/model calls.
 
 import { CoinRithmClient, ProvenanceReport } from "./client.js";
-import { Provider } from "./providers.js";
+import { Provider, classifyProviderFailure } from "./providers.js";
 import { COINRITHM_API } from "./version.js";
 import {
   AgentSpec,
@@ -880,7 +880,7 @@ async function runCycleCore(
       // no action, no fallback invented here, and no model-failure streak that
       // could stop an otherwise healthy agent after repeated quota pressure.
       const capacityOnlyFailure =
-        (!route && res.status === 429) ||
+        (!route && classifyProviderFailure(res) === "capacity") ||
         (!!route?.attempts?.length &&
           route.attempts.every(
             (attempt) => attempt.failureClass === "capacity",

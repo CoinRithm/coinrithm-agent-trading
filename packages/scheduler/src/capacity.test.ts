@@ -145,6 +145,16 @@ describe("shared provider capacity", () => {
       "429",
     );
     expect(query.mock.calls[0]?.[1]?.[3]).toBe(3_600_000);
+
+    query.mockClear();
+    await coolDownProviderCapacity(
+      pool,
+      limit.routeKey,
+      limit.provider,
+      limit.model,
+      0,
+    );
+    expect(query.mock.calls[0]?.[1]?.[3]).toBe(1000);
   });
 
   it("reads cooldown by credential route and model", async () => {

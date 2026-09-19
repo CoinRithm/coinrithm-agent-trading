@@ -193,9 +193,12 @@ export async function coolDownProviderCapacity(
   durationMs: number,
   failureClass = "rate_limit",
 ): Promise<void> {
+  if (!Number.isFinite(durationMs) || durationMs < 0) {
+    throw new Error("durationMs must be a finite non-negative number");
+  }
   const boundedMs = Math.min(
     3_600_000,
-    Math.max(1_000, positiveInt(durationMs, "durationMs")),
+    Math.max(1_000, Math.floor(durationMs)),
   );
   await pool.query(
     `INSERT INTO agent_runtime.provider_route_cooldowns
