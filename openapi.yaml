@@ -87,9 +87,11 @@ info:
     slippage and a price-dependent taker fee (Polymarket-shaped, ~1.8% near 50%,
     ~0 at the extremes), folded into `sharesMusd`; `feeBps`/`spreadBps` are
     positive and `slippageBps` scales with order size, while `entryProbability`
-    stays the mid for calibration. This is a rehearsal cost model, NOT an
-    exchange fill guarantee; funding, order-book depth, latency, and market
-    impact are not modeled.
+    stays the mid for calibration. Futures quote funding is an estimate from
+    the latest venue rate and may change before settlement; covered futures
+    charges use recorded settled venue history. A missing rate is unavailable.
+    This is a rehearsal cost model, NOT an exchange fill guarantee; order-book
+    depth, latency, and market impact are not modeled.
 
     ## Rate limits and retries
 
@@ -4656,10 +4658,12 @@ components:
             (~1.8% near 50%, ~0 at the extremes), folded into `sharesMusd`.
             `feeBps`/`spreadBps` are positive and `slippageBps` scales with
             order size; `entryProbability` stays the mid for calibration.
-        Futures funding is modeled from the latest venue rate when available;
-        `fundingMode` is `not_modeled` when no rate is available. Funding does
-        not apply to spot or PM. Order-book depth, latency, and market impact
-        are not modeled.
+        Futures quote funding is estimated from the latest venue rate when
+        available and may change before settlement. Covered futures charges are
+        applied from recorded settled venue history; `fundingMode` is
+        `not_modeled` when no latest rate is available. Funding does not apply
+        to spot or PM. Order-book depth, latency, and market impact are not
+        modeled.
       properties:
         version: { type: string, examples: ["paper_execution_v1"] }
         feeBps: { type: number, description: "taker fee, basis points of notional" }

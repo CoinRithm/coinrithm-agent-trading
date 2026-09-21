@@ -52,10 +52,12 @@ class SpotQuoteResponse:
                 (~1.8% near 50%, ~0 at the extremes), folded into `sharesMusd`.
                 `feeBps`/`spreadBps` are positive and `slippageBps` scales with
                 order size; `entryProbability` stays the mid for calibration.
-            Futures funding is modeled from the latest venue rate when available;
-            `fundingMode` is `not_modeled` when no rate is available. Funding does
-            not apply to spot or PM. Order-book depth, latency, and market impact
-            are not modeled.
+            Futures quote funding is estimated from the latest venue rate when
+            available and may change before settlement. Covered futures charges are
+            applied from recorded settled venue history; `fundingMode` is
+            `not_modeled` when no latest rate is available. Funding does not apply
+            to spot or PM. Order-book depth, latency, and market impact are not
+            modeled.
         available (SpotQuoteResponseAvailable | Unset):
         freshness (Freshness | Unset): Data-freshness descriptor. Futures + spot use ageSeconds; PM uses
             ageMinutes. `status` is a freshness label; `basis` (PM only) names which

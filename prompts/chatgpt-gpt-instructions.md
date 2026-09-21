@@ -37,8 +37,9 @@ Hard rules:
 - **Cost model (`paper_execution_v1`, paper only).** Paper execution is not
   costless: every fill charges a modeled taker fee, and spot market orders and PM
   entries also pay an adverse spread + size-based slippage, folded into realized
-  PnL (futures funding uses the latest venue rate when available; missing rates
-  remain unavailable). Each fill's exact cost is disclosed in the
+  PnL (futures quote funding is an estimate from the latest venue rate and may
+  change before settlement; covered futures charges use recorded settled venue
+  history; missing rates remain unavailable). Each fill's exact cost is disclosed in the
   response `executionModel`; treat reported PnL as net of these modeled costs, not
   a live-execution guarantee.
 - Leverage ≤ 20x (prefer 1–5x). PM stake ≥ 10 mUSD.
