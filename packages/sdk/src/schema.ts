@@ -4277,6 +4277,8 @@ export interface operations {
                             c?: number;
                             /** @description Mean rolling 24-HOUR quote volume observed at this bar, in USD regardless of `fiat`. This is NOT the volume traded during the candle. Every bar in a range carries its own ~24h figure, so summing `v` across bars adds the same window repeatedly, and differencing consecutive bars is not a volume delta. Read a single bar's `v` as a rolling daily quote-volume observation, not order-book depth or executable liquidity. Do not sum it as interval turnover. Missing venue contributions can change this observation without representing a change in activity at the missing venues. */
                             v?: number;
+                            /** @description Number of expected venues whose volume contribution was missing because that venue fetch failed at this observation. 0 means no known missing venue, a positive value means partial coverage, and null means coverage is unknown. */
+                            vm?: number | null;
                         }[];
                         observation?: components["schemas"]["AgentObservation"];
                     };

@@ -11,6 +11,10 @@ OpenAPI contract that drives the hosted MCP at `mcp.coinrithm.com`.
 
 ## 1.8.2 — prepared, publication pending
 
+The candle model also exposes optional `vm` volume coverage: `None` means unknown,
+zero means no known missing expected venue, and a positive count identifies
+partial volume. Older responses without the field remain supported.
+
 This version documents cancellation's existing optional `alreadyClosed`
 response as `already_closed` on the generated model and parses documented `500`
 errors. Offline tests cover sync and async calls. Published **1.8.1** remains

@@ -211,6 +211,135 @@ describe("observe: coin fundamentals", () => {
     expect(btc.indicators).toBeDefined(); // the same fetch still feeds the TA
   });
 
+  it("carries valid latest volume coverage without changing partial volume", async () => {
+    const spec = baseSpec();
+    spec.capabilities = ["indicators"];
+    const client = fakeClient({
+      candles: vi.fn(async () =>
+        okData({
+          candles: [
+            { t: 1, o: 1, h: 2, l: 1, c: 2, v: 40, vm: 1 },
+            { t: 2, o: 2, h: 3, l: 2, c: 3, v: 60, vm: 2 },
+          ],
+        }),
+      ),
+    });
+
+    const { observation } = await observe(client, spec, newState("coverage"));
+    const btc = observation.watch[0];
+
+    expect(btc.fundamentals?.volume24hUsd).toBe(60);
+    expect(btc.fundamentals?.volumeMissingVenues).toBe(2);
+  });
+
+  it.each([
+    ["zero", 0],
+    ["null", null],
+    ["absent", undefined],
+    ["negative", -1],
+    ["fractional", 1.5],
+    ["string", "1"],
+  ])("handles %s vm without inventing coverage", async (_label, vm) => {
+    const spec = baseSpec();
+    spec.capabilities = ["indicators"];
+    const client = fakeClient({
+      candles: vi.fn(async () =>
+        okData({
+          candles: [
+            {
+              t: 1,
+              o: 1,
+              h: 2,
+              l: 1,
+              c: 2,
+              v: 60,
+              ...(vm === undefined ? {} : { vm }),
+            },
+          ],
+        }),
+      ),
+    });
+
+    const { observation } = await observe(client, spec, newState("unknown"));
+    const btc = observation.watch[0];
+
+    expect(btc.fundamentals?.volume24hUsd).toBe(60);
+    expect(btc.fundamentals?.volumeMissingVenues).toBe(
+      vm === 0 ? 0 : undefined,
+    );
+  });
+
+  it("uses the latest known coverage and clears it when the latest valid candle is unknown", async () => {
+    const spec = baseSpec();
+    spec.capabilities = ["indicators"];
+    const client = fakeClient({
+      candles: vi.fn(async () =>
+        okData({
+          candles: [
+            { t: 1, o: 1, h: 2, l: 1, c: 2, v: 40, vm: 1 },
+            { t: 2, o: 2, h: 3, l: 2, c: 3, v: 60, vm: null },
+            { t: 3, o: 3, h: 4, l: 3, c: "invalid", v: 70, vm: 9 },
+          ],
+        }),
+      ),
+    });
+
+    const { observation } = await observe(
+      client,
+      spec,
+      newState("unknown-latest"),
+    );
+    const btc = observation.watch[0];
+
+    expect(btc.fundamentals?.volume24hUsd).toBe(60);
+    expect(btc.fundamentals?.volumeMissingVenues).toBeUndefined();
+  });
+
+  it("keeps volume and coverage aligned when volume is zero or invalid", async () => {
+    const spec = baseSpec();
+    spec.capabilities = ["indicators"];
+    const cases = [
+      { v: 0, vm: 0, expectedVolume: 0, expectedCoverage: 0 },
+      { v: 0, vm: 2, expectedVolume: 0, expectedCoverage: 2 },
+      { v: -1, vm: 2, expectedVolume: undefined, expectedCoverage: undefined },
+      {
+        v: null,
+        vm: 2,
+        expectedVolume: undefined,
+        expectedCoverage: undefined,
+      },
+      {
+        v: undefined,
+        vm: 2,
+        expectedVolume: undefined,
+        expectedCoverage: undefined,
+      },
+    ] as const;
+
+    for (const [index, testCase] of cases.entries()) {
+      const client = fakeClient({
+        candles: vi.fn(async () =>
+          okData({
+            candles: [
+              { t: 1, o: 1, h: 2, l: 1, c: 2, v: 100, vm: 0 },
+              { t: 2, o: 1, h: 2, l: 1, c: 2, v: testCase.v, vm: testCase.vm },
+            ],
+          }),
+        ),
+      });
+      const { observation } = await observe(
+        client,
+        spec,
+        newState(`volume-${index}`),
+      );
+      const btc = observation.watch[0];
+      expect(btc.fundamentals?.volume24hUsd).toBe(testCase.expectedVolume);
+      expect(btc.fundamentals?.volumeMissingVenues).toBe(
+        testCase.expectedCoverage,
+      );
+    }
+  });
+
   it("attaches up to 3 headlines per coin by the curated slug link, with timestamps", async () => {
     const spec = baseSpec();
     spec.capabilities = ["news"];
