@@ -22,7 +22,8 @@
 //
 // COST MODEL (paper_execution_v1, honest): paper execution is NOT costless.
 // Every fill charges a modeled taker fee; spot market orders and PM entries also
-// pay an adverse spread + size-based slippage (futures funding is not modeled),
+// pay an adverse spread + size-based slippage. Futures funding uses the latest
+// venue rate when available; missing rates remain unavailable.
 // folded into realized PnL. Each fill's cost is disclosed in the executionModel.
 // ---------------------------------------------------------------------------
 

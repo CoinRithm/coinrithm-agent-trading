@@ -745,6 +745,12 @@ export interface QuoteEvidence {
   futuresFeeBps?: number;
   estimatedEntryFeeMusd?: number;
   cashRequiredMusd?: number;
+  // Futures funding quote returned by /futures/quote. The nested object is
+  // retained for planned-action evidence; omitted means an older/malformed
+  // response did not carry it, while null means the API explicitly reported
+  // that no funding rate was available. `estimatedPerIntervalMusd` keeps its
+  // own null-versus-zero distinction.
+  funding?: FuturesFundingQuoteEvidence | null;
   freshness?: Freshness;
   // PM open-time quality-gate PREVIEW (distinct from eligible/blockReasons, which
   // describe the mock-entry SHAPE gate). openBlocked=true means a pm/open right now
@@ -753,6 +759,17 @@ export interface QuoteEvidence {
   // early instead of burning the open attempt on a guaranteed 422.
   openBlocked?: boolean;
   openBlockReasons?: unknown;
+}
+
+export interface FuturesFundingQuoteEvidence {
+  venue?: string;
+  symbol?: string;
+  rate?: number;
+  intervalHours?: number;
+  nextFundingTime?: string;
+  asOf?: string;
+  estimatedPerIntervalMusd?: number | null;
+  annualizedRate?: number;
 }
 
 // ───────────────────────── Per-session run state ────────────────────────────

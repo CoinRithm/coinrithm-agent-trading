@@ -319,8 +319,9 @@ Paper execution is **not costless**. Fills run under the versioned
 taker fee via the same policy. Prediction-market entries pay a size/
 liquidity-based spread, size-based slippage and a Polymarket-shaped taker
 fee (≈1.8% near 50% probability, tapering toward 0 at the extremes). All
-reported PnL is **net of these modeled costs**. Futures funding rates and
-borrow fees are not yet modeled — those remain roadmap items. Do not treat
+reported PnL is **net of these modeled costs**. Futures funding uses the latest
+venue rate when available; missing rates remain unavailable. Borrow fees are
+not modeled. Do not treat
 paper PnL as a direct predictor of live-trading results.
 
 ---
@@ -427,7 +428,8 @@ did:
 - **`executionAssumptions`** — the versioned `paper_execution_v1` cost model, in
   writing: paper account only, latest stored market/probability snapshots, the
   modeled taker fee + spread + slippage each fill is charged (paper execution is
-  **not costless**; futures funding is not modeled), and worker-driven
+  **not costless**; futures funding is modeled when a venue rate is available,
+  while missing rates remain unavailable), and worker-driven
   resting-order / SL / TP / settlement timing.
 - **`evidenceChecklist`** — a derived pass/warn/fail checklist over trace
   completeness, decision ids, quote-before-trade coverage, rejected calls, export

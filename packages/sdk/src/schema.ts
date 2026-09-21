@@ -3117,8 +3117,10 @@ export interface components {
          *         (~1.8% near 50%, ~0 at the extremes), folded into `sharesMusd`.
          *         `feeBps`/`spreadBps` are positive and `slippageBps` scales with
          *         order size; `entryProbability` stays the mid for calibration.
-         *     Funding rates, order-book depth, latency, and market impact are not
-         *     modeled.
+         *     Futures funding is modeled from the latest venue rate when available;
+         *     `fundingMode` is `not_modeled` when no rate is available. Funding does
+         *     not apply to spot or PM. Order-book depth, latency, and market impact
+         *     are not modeled.
          */
         ExecutionModel: {
             /** @example paper_execution_v1 */
@@ -3133,7 +3135,10 @@ export interface components {
             estimatedFeeMusd?: number;
             /** @description estimated slippage cost for this trade (mUSD) */
             estimatedSlippageMusd?: number;
-            /** @example not_modeled */
+            /**
+             * @example binance_perp_rate_v1
+             * @example not_modeled
+             */
             fundingMode?: string;
             /** @description human-readable list of what is and isn't modeled */
             assumptions?: string[];
@@ -3337,8 +3342,43 @@ export interface components {
             sizeCoin?: number | null;
             liquidationPrice?: number | null;
             maintenanceMarginRate?: number | null;
+            /** @description Latest venue funding quote; null when no funding rate is available for this coin. */
+            funding?: components["schemas"]["FuturesFundingQuote"] | null;
             freshness?: components["schemas"]["Freshness"];
             observation?: components["schemas"]["AgentObservation"];
+        };
+        /**
+         * @description Latest funding rate used by the futures quote. The rate is signed as
+         *     provided by the venue: for a long, a positive rate produces a positive
+         *     estimated payment; a negative rate produces a receipt. The estimate is
+         *     for the quoted position at the next settlement and is signed the same
+         *     way (positive = paid, negative = received). `estimatedPerIntervalMusd`
+         *     is null when the quote cannot price a position; zero remains a real
+         *     estimate.
+         */
+        FuturesFundingQuote: {
+            /** @description Funding-rate venue identifier. */
+            venue: string;
+            /** @description Venue perpetual symbol. */
+            symbol: string;
+            /** @description Signed venue funding rate for the next settlement. */
+            rate: number;
+            /** @description Funding settlement interval in hours. */
+            intervalHours: number;
+            /**
+             * Format: date-time
+             * @description Next expected funding settlement.
+             */
+            nextFundingTime: string;
+            /**
+             * Format: date-time
+             * @description When this venue rate was fetched.
+             */
+            asOf: string;
+            /** @description Signed estimated payment for the quoted position in mUSD (positive = paid, negative = received); null when unavailable. Zero is meaningful. */
+            estimatedPerIntervalMusd: number | null;
+            /** @description Signed simple annualized rate (rate multiplied by intervals per year; not compounded). */
+            annualizedRate: number;
         };
         FuturesOpenRequest: {
             coinId: string;
