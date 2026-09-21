@@ -7,12 +7,15 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
 ## 0.7.13 — prepared, publication pending
 
+- Include candle volume coverage in agent fundamentals: positive counts identify
+  missing expected venues; unknown coverage stays unknown. Preserve measured zero
+  volume and keep each volume paired with its own coverage.
 - Classify provider capacity failures consistently, including HTTP 503
   resource exhaustion, in runner results and configured same-model retries.
 - Export `classifyProviderFailure` from the supported engine entry point.
   Retry counts and trading behavior are unchanged.
 
-These runtime fixes are already deployed to hosted MCP and scheduler at
+The provider-capacity fixes are already deployed to hosted MCP and scheduler at
 `1748b2d2850e16fffceb64a44d85318166c6b0b6`. The scheduler's shared routing deadline
 is a separate hosted-service change, not part of this npm package.
 This version prepares npm delivery; publication requires separate verification.

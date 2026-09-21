@@ -662,6 +662,16 @@ paths:
                             turnover. Missing venue contributions can change
                             this observation without representing a change in
                             activity at the missing venues.
+                        vm:
+                          type: integer
+                          minimum: 0
+                          nullable: true
+                          description: >
+                            Number of expected venues whose volume contribution
+                            was missing because that venue fetch failed at this
+                            observation. 0 means no known missing venue, a
+                            positive value means partial coverage, and null
+                            means coverage is unknown.
                   observation: { $ref: "#/components/schemas/AgentObservation" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }

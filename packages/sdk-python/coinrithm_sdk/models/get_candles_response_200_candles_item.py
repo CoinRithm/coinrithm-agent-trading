@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
@@ -26,6 +26,9 @@ class GetCandlesResponse200CandlesItem:
             bar's `v` as a rolling daily quote-volume observation, not order-book depth or executable liquidity. Do not sum
             it as interval turnover. Missing venue contributions can change this observation without representing a change
             in activity at the missing venues.
+        vm (int | None | Unset): Number of expected venues whose volume contribution was missing because that venue
+            fetch failed at this observation. 0 means no known missing venue, a positive value means partial coverage, and
+            null means coverage is unknown.
     """
 
     t: int | Unset = UNSET
@@ -34,6 +37,7 @@ class GetCandlesResponse200CandlesItem:
     l: float | Unset = UNSET
     c: float | Unset = UNSET
     v: float | Unset = UNSET
+    vm: int | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -48,6 +52,12 @@ class GetCandlesResponse200CandlesItem:
         c = self.c
 
         v = self.v
+
+        vm: int | None | Unset
+        if isinstance(self.vm, Unset):
+            vm = UNSET
+        else:
+            vm = self.vm
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -64,6 +74,8 @@ class GetCandlesResponse200CandlesItem:
             field_dict["c"] = c
         if v is not UNSET:
             field_dict["v"] = v
+        if vm is not UNSET:
+            field_dict["vm"] = vm
 
         return field_dict
 
@@ -82,6 +94,15 @@ class GetCandlesResponse200CandlesItem:
 
         v = d.pop("v", UNSET)
 
+        def _parse_vm(data: object) -> int | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(int | None | Unset, data)
+
+        vm = _parse_vm(d.pop("vm", UNSET))
+
         get_candles_response_200_candles_item = cls(
             t=t,
             o=o,
@@ -89,6 +110,7 @@ class GetCandlesResponse200CandlesItem:
             l=l,
             c=c,
             v=v,
+            vm=vm,
         )
 
         get_candles_response_200_candles_item.additional_properties = d

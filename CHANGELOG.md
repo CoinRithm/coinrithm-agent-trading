@@ -10,6 +10,9 @@ Each package has its own version; the API contract is versioned separately.
 
 ## Prepared — MCP 0.7.13, TypeScript 0.3.2, Python 1.8.2
 
+- Carry candle volume coverage through both SDKs and agent fundamentals, keeping
+  unknown coverage distinct from zero known missing venues. Preserve measured
+  zero volume without treating missing volume as an older observation.
 - Prepare package delivery of the hosted provider-capacity classification fixes
   and the engine's `classifyProviderFailure` export. The scheduler's shared
   routing deadline remains a separate hosted-service change.

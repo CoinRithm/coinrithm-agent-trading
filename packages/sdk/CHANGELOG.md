@@ -2,6 +2,8 @@
 
 ## 0.3.2 — prepared, publication pending
 
+- Type optional candle `vm`: null means unknown coverage, zero means no known
+  missing expected venue, and a positive count identifies partial volume.
 - Correct generated cancellation types and documentation for the existing
   `200` / optional `alreadyClosed` response and `500` server failures.
   Covered by offline HTTP contract tests. This version prepares npm delivery;

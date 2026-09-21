@@ -115,6 +115,7 @@ export function isCalibrationChurnMarket(market: {
 interface CandleContext {
   indicators: IndicatorSet | null;
   volume24hUsd?: number;
+  volumeMissingVenues?: number;
 }
 
 // Fetch candles for one coin and reduce them to a compact indicator bundle plus
@@ -136,8 +137,10 @@ async function fetchCandleContext(
     return { indicators: null };
   }
   if (!cr.ok) return { indicators: null };
-  // Endpoint shape: { candles: [{ t, o, h, l, c, v }] } ascending (oldest first).
+  // Endpoint shape: { candles: [{ t, o, h, l, c, v, vm }] } ascending (oldest first).
   const candles: Candle[] = [];
+  let latestVolume: number | undefined;
+  let latestVolumeMissingVenues: number | undefined;
   for (const raw of asArr(asObj(cr.data).candles)) {
     const c = asObj(raw);
     const open = asNum(c.o);
@@ -145,14 +148,22 @@ async function fetchCandleContext(
     const low = asNum(c.l);
     const close = asNum(c.c);
     if (open == null || high == null || low == null || close == null) continue;
-    candles.push({ open, high, low, close, volume: asNum(c.v) ?? undefined });
+    const volume = asNum(c.v);
+    candles.push({ open, high, low, close, volume: volume ?? undefined });
+    latestVolume = volume != null && volume >= 0 ? volume : undefined;
+    const coverage = asNum(c.vm);
+    latestVolumeMissingVenues =
+      latestVolume != null &&
+      coverage != null &&
+      Number.isInteger(coverage) &&
+      coverage >= 0
+        ? coverage
+        : undefined;
   }
-  const lastVolume =
-    candles.length > 0 ? candles[candles.length - 1]!.volume : undefined;
   return {
     indicators: computeIndicators(candles),
-    volume24hUsd:
-      typeof lastVolume === "number" && lastVolume > 0 ? lastVolume : undefined,
+    volume24hUsd: latestVolume,
+    volumeMissingVenues: latestVolumeMissingVenues,
   };
 }
 
@@ -191,6 +202,12 @@ async function enrichFromCandles(
     entry.fundamentals = {
       ...(entry.fundamentals ?? {}),
       volume24hUsd: cc.volume24hUsd,
+    };
+  }
+  if (cc.volumeMissingVenues != null) {
+    entry.fundamentals = {
+      ...(entry.fundamentals ?? {}),
+      volumeMissingVenues: cc.volumeMissingVenues,
     };
   }
 }

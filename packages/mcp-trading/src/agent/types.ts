@@ -321,6 +321,9 @@ export interface CoinFundamentals {
   marketCapRank?: number;
   marketCapUsd?: number;
   volume24hUsd?: number; // rolling 24h quote volume on the tracked exchanges
+  // Number of expected venues missing from the latest candle's volume, when
+  // the server can establish coverage. Absent means coverage is unknown.
+  volumeMissingVenues?: number;
   headlines?: Array<{
     title: string;
     at?: string; // publishedAt (ISO)
