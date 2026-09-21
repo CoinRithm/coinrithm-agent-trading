@@ -4954,6 +4954,13 @@ components:
         createdAt: { type: string, format: date-time }
         markPrice: { type: [number, "null"], description: "list endpoint, open positions only" }
         unrealizedPnlMusd: { type: [number, "null"] }
+        fundingPaidMusd:
+          type: [number, "null"]
+          description: "Signed cumulative funding applied in mUSD (positive = paid, negative = received); omitted or null when unavailable. Zero is a meaningful value."
+        fundingAppliedThrough:
+          type: [string, "null"]
+          format: date-time
+          description: "Latest timestamp through which cumulative funding was applied; omitted or null when unavailable."
         liquidationDistancePct: { type: [number, "null"] }
         atLiquidation: { type: [boolean, "null"] }
 

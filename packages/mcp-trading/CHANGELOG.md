@@ -14,6 +14,8 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
   resource exhaustion, in runner results and configured same-model retries.
 - Export `classifyProviderFailure` from the supported engine entry point.
   Retry counts and trading behavior are unchanged.
+- Surface signed cumulative futures funding and its applied-through timestamp to
+  the agent observation so funding already reflected in balances is not counted twice.
 
 The provider-capacity fixes are already deployed to hosted MCP and scheduler at
 `1748b2d2850e16fffceb64a44d85318166c6b0b6`. The scheduler's shared routing deadline

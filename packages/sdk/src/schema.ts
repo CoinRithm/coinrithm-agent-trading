@@ -3416,6 +3416,13 @@ export interface components {
             /** @description list endpoint, open positions only */
             markPrice?: number | null;
             unrealizedPnlMusd?: number | null;
+            /** @description Signed cumulative funding applied in mUSD (positive = paid, negative = received); omitted or null when unavailable. Zero is a meaningful value. */
+            fundingPaidMusd?: number | null;
+            /**
+             * Format: date-time
+             * @description Latest timestamp through which cumulative funding was applied; omitted or null when unavailable.
+             */
+            fundingAppliedThrough?: string | null;
             liquidationDistancePct?: number | null;
             atLiquidation?: boolean | null;
         };

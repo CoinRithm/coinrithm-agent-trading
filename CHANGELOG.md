@@ -16,6 +16,8 @@ Each package has its own version; the API contract is versioned separately.
 - Prepare package delivery of the hosted provider-capacity classification fixes
   and the engine's `classifyProviderFailure` export. The scheduler's shared
   routing deadline remains a separate hosted-service change.
+- Carry signed cumulative futures funding and its applied-through timestamp into
+  observations and generated SDK models, preserving missing, zero, and negative values.
 - npm/PyPI publication is pending; the source version is not a registry receipt.
 
 - Start the developer reference and quick start with a working anonymous data

@@ -343,6 +343,10 @@ export interface OpenPosition {
   leverage?: number;
   marginMusd?: number;
   unrealizedPnlMusd?: number;
+  // Signed cumulative funding in mUSD: positive = paid, negative = received.
+  // Keep omission distinct from an explicit zero or null from the API.
+  fundingPaidMusd?: number | null;
+  fundingAppliedThrough?: string | null; // ISO timestamp, when available
   // Per-position prices the backend already returns on /positions/futures.
   // Surfaced so the model can orient triggers (take-profit vs markPrice,
   // stop-loss vs liquidationPrice) and tell a winner from a loser, instead of
