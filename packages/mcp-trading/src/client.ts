@@ -317,6 +317,40 @@ export class CoinRithmClient {
       query,
     );
   }
+  /** Best-effort anonymous interest marker for an explicitly viewed open event. */
+  markPublicPmEventViewed(source: string, slug: string): Promise<ApiResult> {
+    const path = `/api/prediction-markets/events/${encodeURIComponent(source)}/${encodeURIComponent(slug)}/view`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 1000);
+    return fetch(this.baseUrl + path, {
+      method: "POST",
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        const text = await res.text();
+        let data: unknown = text;
+        if (text) {
+          try {
+            data = JSON.parse(text);
+          } catch {
+            // leave as text
+          }
+        }
+        return { ok: res.ok, status: res.status, data };
+      })
+      .catch((err) => ({
+        ok: false,
+        status: 0,
+        data: {
+          error:
+            err instanceof DOMException && err.name === "AbortError"
+              ? "timeout"
+              : "network_error",
+        },
+      }))
+      .finally(() => clearTimeout(timer));
+  }
   getPublicPmWhales() {
     return this.publicRequest("/api/prediction-markets/whales");
   }

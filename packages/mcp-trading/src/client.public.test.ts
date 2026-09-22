@@ -46,6 +46,52 @@ describe("public PM data client (keyless)", () => {
     );
   });
 
+  it("marks an explicitly viewed event anonymously", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    const client = new CoinRithmClient({
+      apiKey: "crk_live_secret",
+      baseUrl: "https://api.example.test",
+    });
+    const result = await client.markPublicPmEventViewed("kalshi", "open/1");
+    expect(result.ok).toBe(true);
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toBe(
+      "https://api.example.test/api/prediction-markets/events/kalshi/open%2F1/view",
+    );
+    expect(init?.method).toBe("POST");
+    expect(new Headers(init?.headers).has("authorization")).toBe(false);
+  });
+
+  it("surfaces marker failures without throwing", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ error: "closed" }, 409));
+    const client = new CoinRithmClient({ baseUrl: "https://api.example.test" });
+    await expect(
+      client.markPublicPmEventViewed("kalshi", "closed"),
+    ).resolves.toMatchObject({ ok: false, status: 409 });
+  });
+
+  it("aborts a marker after one second without retry", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockImplementationOnce(
+      (_input, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () =>
+            reject(new DOMException("aborted", "AbortError")),
+          );
+        }),
+    );
+    const client = new CoinRithmClient({ baseUrl: "https://api.example.test" });
+    const pending = client.markPublicPmEventViewed("kalshi", "slow");
+    await vi.advanceTimersByTimeAsync(1000);
+    await expect(pending).resolves.toMatchObject({
+      ok: false,
+      status: 0,
+      data: { error: "timeout" },
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
+  });
+
   it("passes search filters as query params and surfaces non-2xx as ok:false", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ error: "not_found" }, 404));
     const client = new CoinRithmClient({ baseUrl: "https://api.example.test" });

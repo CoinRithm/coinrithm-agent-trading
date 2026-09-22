@@ -2276,6 +2276,22 @@ export function registerTools(
     },
     async ({ source, slug, fiat, detail }) => {
       const result = await client.getPublicPmEvent(source, slug, { fiat });
+      const body = result.data;
+      const event =
+        body && typeof body === "object" && !Array.isArray(body)
+          ? (body as Record<string, unknown>).event
+          : null;
+      const status =
+        event && typeof event === "object" && !Array.isArray(event)
+          ? (event as Record<string, unknown>).status
+          : body && typeof body === "object" && !Array.isArray(body)
+            ? (body as Record<string, unknown>).status
+            : null;
+      if (result.ok && status === "open") {
+        void client
+          .markPublicPmEventViewed(source, slug)
+          .catch(() => undefined);
+      }
       return present(
         detail === "full"
           ? result
