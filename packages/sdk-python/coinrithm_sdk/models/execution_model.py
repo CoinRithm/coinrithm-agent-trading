@@ -18,10 +18,12 @@ class ExecutionModel:
     trading friction (a flat round-trip is a small loss, not a free
     breakeven). This is a rehearsal cost model, NOT an exchange fill
     guarantee. Per venue:
-      - spot/futures: a taker fee (`feeBps`) on notional, folded into
-        realized PnL. Spot market orders also fill at an adverse price
-        (half-spread + slippage); futures entry/exit spread/slippage is
-        not modeled in v1.
+        - spot: a taker fee (`feeBps`) on notional, with market orders also
+          filling at an adverse price (half-spread + slippage). Futures use
+          the default-off legacy mark fill unless `futures_fill_v1` is
+          pinned; that model applies deterministic half-spread, slippage,
+          and square-root size-scaled impact, with adverse cost embedded in
+          the executed price.
       - PM: fills at the ask (mid + half the ingested bid-ask spread) with
         size/liquidity-based slippage and a Polymarket-shaped taker fee
         (~1.8% near 50%, ~0 at the extremes), folded into `sharesMusd`.
@@ -31,14 +33,16 @@ class ExecutionModel:
     available and may change before settlement. Covered futures charges are
     applied from recorded settled venue history; `fundingMode` is
     `not_modeled` when no latest rate is available. Funding does not apply
-    to spot or PM. Order-book depth, latency, and market impact are not
-    modeled.
+    to spot or PM. Futures liquidation forfeits margin without adverse fill
+    cost, and fixed-price SL/TP triggers fill at their set price. Order-book
+    depth, latency, and partial fills are not modeled.
 
         Attributes:
             version (str | Unset):
             fee_bps (float | Unset): taker fee, basis points of notional
             spread_bps (float | Unset): modeled bid/ask spread (bps)
             slippage_bps (float | Unset): modeled slippage (bps)
+            fill_model (None | str | Unset): Futures fill model pinned for this execution, or null for legacy mark fills.
             estimated_fee_musd (float | Unset): estimated fee for this trade (mUSD)
             estimated_slippage_musd (float | Unset): estimated slippage cost for this trade (mUSD)
             funding_mode (str | Unset):
@@ -49,6 +53,7 @@ class ExecutionModel:
     fee_bps: float | Unset = UNSET
     spread_bps: float | Unset = UNSET
     slippage_bps: float | Unset = UNSET
+    fill_model: None | str | Unset = UNSET
     estimated_fee_musd: float | Unset = UNSET
     estimated_slippage_musd: float | Unset = UNSET
     funding_mode: str | Unset = UNSET
@@ -63,6 +68,12 @@ class ExecutionModel:
         spread_bps = self.spread_bps
 
         slippage_bps = self.slippage_bps
+
+        fill_model: None | str | Unset
+        if isinstance(self.fill_model, Unset):
+            fill_model = UNSET
+        else:
+            fill_model = self.fill_model
 
         estimated_fee_musd = self.estimated_fee_musd
 
@@ -85,6 +96,8 @@ class ExecutionModel:
             field_dict["spreadBps"] = spread_bps
         if slippage_bps is not UNSET:
             field_dict["slippageBps"] = slippage_bps
+        if fill_model is not UNSET:
+            field_dict["fillModel"] = fill_model
         if estimated_fee_musd is not UNSET:
             field_dict["estimatedFeeMusd"] = estimated_fee_musd
         if estimated_slippage_musd is not UNSET:
@@ -107,6 +120,15 @@ class ExecutionModel:
 
         slippage_bps = d.pop("slippageBps", UNSET)
 
+        def _parse_fill_model(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        fill_model = _parse_fill_model(d.pop("fillModel", UNSET))
+
         estimated_fee_musd = d.pop("estimatedFeeMusd", UNSET)
 
         estimated_slippage_musd = d.pop("estimatedSlippageMusd", UNSET)
@@ -120,6 +142,7 @@ class ExecutionModel:
             fee_bps=fee_bps,
             spread_bps=spread_bps,
             slippage_bps=slippage_bps,
+            fill_model=fill_model,
             estimated_fee_musd=estimated_fee_musd,
             estimated_slippage_musd=estimated_slippage_musd,
             funding_mode=funding_mode,

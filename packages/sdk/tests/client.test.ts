@@ -35,18 +35,58 @@ describe("TypeScript SDK request contract", () => {
     };
 
     const state:
-      | "open"
-      | "closed"
-      | "resolved"
-      | "voided"
-      | "unknown"
-      | undefined = outcome.lifecycle?.state;
+      "open" | "closed" | "resolved" | "voided" | "unknown" | undefined =
+      outcome.lifecycle?.state;
     const winnerId: string | null | undefined =
       event.resolvedOutcomeExternalMarketId;
     expect(state).toBe("unknown");
     expect(winnerId).toBeNull();
     expect(outcome.probability).toBe(0);
     expect(outcome.normalizedProbability).toBeNull();
+  });
+
+  it("exposes futures fill estimates and audit execution evidence", () => {
+    const quote: components["schemas"]["FuturesQuoteResponse"] = {
+      eligible: true,
+      referenceMark: 100,
+      entryPrice: 100.04,
+      fill: {
+        model: "futures_fill_v1",
+        referenceMark: 100,
+        execPrice: 100.04,
+        sizeCoin: 10,
+        adverseBps: 4,
+        adverseCostMusd: 0.4,
+        impactBps: 2,
+        impactBasis: "volume",
+        volumeCoverage: "complete",
+        unavailable: null,
+      },
+      executionModel: {
+        fillModel: "futures_fill_v1",
+        assumptions: ["slippage is embedded in fillPrice"],
+      },
+    };
+    const position: components["schemas"]["AuditFuturesPosition"] = {
+      fillModel: null,
+    };
+    const event: components["schemas"]["AuditFuturesEvent"] = {
+      fillPrice: 100.04,
+      executionVersion: null,
+    };
+    const unavailable: components["schemas"]["FuturesQuoteResponse"] = {
+      fill: { model: "futures_fill_v1", unavailable: "price_overflow" },
+    };
+    const legacy: components["schemas"]["FuturesQuoteResponse"] = {
+      fill: null,
+    };
+    expect(quote.fill?.execPrice).toBe(100.04);
+    expect(quote.executionModel?.fillModel).toBe("futures_fill_v1");
+    expect(position.fillModel).toBeNull();
+    expect(event.fillPrice).toBe(100.04);
+    expect(event.executionVersion).toBeNull();
+    expect(unavailable.fill?.unavailable).toBe("price_overflow");
+    expect(legacy.fill).toBeNull();
   });
 
   it.each([

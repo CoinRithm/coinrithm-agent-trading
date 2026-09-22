@@ -2165,6 +2165,59 @@ export interface components {
             /** @description Present when exporting with a runId filter. */
             run?: components["schemas"]["AgentRunEvidenceManifest"] | null;
             data?: components["schemas"]["AgentActionEvent"][];
+            /** @description Futures positions included in a filtered run export. */
+            futures?: components["schemas"]["AuditFuturesPosition"][];
+            /** @description Canonical futures mutation events for the exported positions. */
+            futuresEvents?: components["schemas"]["AuditFuturesEvent"][];
+        };
+        AuditFuturesPosition: {
+            id?: number;
+            coinSymbol?: string;
+            /** @enum {string} */
+            side?: "long" | "short";
+            leverage?: number;
+            entryPrice?: number;
+            marginMusd?: number;
+            notionalMusd?: number;
+            sizeCoin?: number;
+            maintenanceMarginRate?: number;
+            liquidationPrice?: number;
+            stopLossPrice?: number | null;
+            takeProfitPrice?: number | null;
+            /** Format: date-time */
+            entryPriceAsOf?: string | null;
+            entryFreshnessAgeSeconds?: number | null;
+            entryFreshnessStatus?: string | null;
+            /** @enum {string} */
+            status?: "open" | "closed" | "liquidated";
+            exitPrice?: number | null;
+            exitReason?: string | null;
+            realizedPnlMusd?: number | null;
+            fillModel?: string | null;
+            idempotencyKey?: string | null;
+            /** Format: date-time */
+            openedAt?: string | null;
+            /** Format: date-time */
+            closedAt?: string | null;
+            /** Format: date-time */
+            createdAt?: string;
+        };
+        AuditFuturesEvent: {
+            id?: number;
+            positionId?: number;
+            type?: string;
+            sizeDeltaCoin?: number;
+            markPrice?: number;
+            /** @description Executed fill price; markPrice remains the reference mark and slippage is already embedded here. */
+            fillPrice?: number | null;
+            realizedPnlMusd?: number;
+            marginDeltaMusd?: number;
+            feeMusd?: number;
+            slippageMusd?: number;
+            executionVersion?: string | null;
+            idempotencyKey?: string | null;
+            /** Format: date-time */
+            createdAt?: string;
         };
         /** @description Private reproducibility bundle metadata for one agentTrace.runId. */
         AgentRunEvidenceManifest: {
@@ -3140,10 +3193,12 @@ export interface components {
          *     trading friction (a flat round-trip is a small loss, not a free
          *     breakeven). This is a rehearsal cost model, NOT an exchange fill
          *     guarantee. Per venue:
-         *       - spot/futures: a taker fee (`feeBps`) on notional, folded into
-         *         realized PnL. Spot market orders also fill at an adverse price
-         *         (half-spread + slippage); futures entry/exit spread/slippage is
-         *         not modeled in v1.
+         *         - spot: a taker fee (`feeBps`) on notional, with market orders also
+         *           filling at an adverse price (half-spread + slippage). Futures use
+         *           the default-off legacy mark fill unless `futures_fill_v1` is
+         *           pinned; that model applies deterministic half-spread, slippage,
+         *           and square-root size-scaled impact, with adverse cost embedded in
+         *           the executed price.
          *       - PM: fills at the ask (mid + half the ingested bid-ask spread) with
          *         size/liquidity-based slippage and a Polymarket-shaped taker fee
          *         (~1.8% near 50%, ~0 at the extremes), folded into `sharesMusd`.
@@ -3153,8 +3208,9 @@ export interface components {
          *     available and may change before settlement. Covered futures charges are
          *     applied from recorded settled venue history; `fundingMode` is
          *     `not_modeled` when no latest rate is available. Funding does not apply
-         *     to spot or PM. Order-book depth, latency, and market impact are not
-         *     modeled.
+         *     to spot or PM. Futures liquidation forfeits margin without adverse fill
+         *     cost, and fixed-price SL/TP triggers fill at their set price. Order-book
+         *     depth, latency, and partial fills are not modeled.
          */
         ExecutionModel: {
             /** @example paper_execution_v1 */
@@ -3165,6 +3221,8 @@ export interface components {
             spreadBps?: number;
             /** @description modeled slippage (bps) */
             slippageBps?: number;
+            /** @description Futures fill model pinned for this execution, or null for legacy mark fills. */
+            fillModel?: string | null;
             /** @description estimated fee for this trade (mUSD) */
             estimatedFeeMusd?: number;
             /** @description estimated slippage cost for this trade (mUSD) */
@@ -3371,11 +3429,29 @@ export interface components {
             minMargin?: number;
             /** @example 20 */
             maxLeverage?: number;
+            /** @description Mark price the quote was priced from; executable entryPrice may include the fill model. */
+            referenceMark?: number | null;
             entryPrice?: number | null;
             notionalMusd?: number | null;
             sizeCoin?: number | null;
             liquidationPrice?: number | null;
             maintenanceMarginRate?: number | null;
+            executionModel?: components["schemas"]["ExecutionModel"];
+            /** @description Estimated executable fill; null when the futures fill model is disabled. */
+            fill?: {
+                model?: string;
+                referenceMark?: number;
+                execPrice?: number;
+                sizeCoin?: number;
+                adverseBps?: number;
+                adverseCostMusd?: number;
+                impactBps?: number;
+                /** @enum {string} */
+                impactBasis?: "volume" | "cap_fallback";
+                /** @enum {string} */
+                volumeCoverage?: "complete" | "partial" | "unknown";
+                unavailable?: string | null;
+            } | null;
             /** @description Latest venue funding quote; null when no funding rate is available for this coin. */
             funding?: components["schemas"]["FuturesFundingQuote"] | null;
             freshness?: components["schemas"]["Freshness"];
@@ -3481,6 +3557,8 @@ export interface components {
             /** @description user_close | liquidation | stop_loss | take_profit */
             exitReason?: string | null;
             realizedPnlMusd?: number | null;
+            /** @description Fill model pinned when the position opened; null for legacy mark fills. */
+            fillModel?: string | null;
             /** Format: date-time */
             openedAt?: string | null;
             /** Format: date-time */
