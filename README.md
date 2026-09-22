@@ -325,10 +325,13 @@ Liquidations forfeit margin without adverse fill cost, and fixed-price SL/TP
 triggers fill at their set price. Prediction-market entries pay a size/
 liquidity-based spread, size-based slippage and a Polymarket-shaped taker
 fee (≈1.8% near 50% probability, tapering toward 0 at the extremes). All
-reported PnL is **net of these modeled costs**. Futures quotes estimate funding
-from the latest venue rate and the estimate may change before settlement;
-covered futures charges use recorded settled venue history. Missing rates remain
-unavailable. Borrow fees are not modeled. Do not treat
+reported PnL is **net of these modeled costs**. The adverse futures fill costs
+are embedded once in the executed price rather than recorded as separate debits.
+Futures quotes estimate funding from the latest venue rate (`funding.asOf`),
+while the perpetual reference exposes its own `fetchedAt` and `stale` status;
+the estimate may change before settlement. Covered futures charges use
+recorded settled venue history. Missing rates remain unavailable. Borrow fees
+are not modeled. Do not treat
 paper PnL as a direct predictor of live-trading results.
 
 ---

@@ -99,6 +99,14 @@ describe("TypeScript SDK request contract", () => {
         fillModel: "futures_fill_v1",
         assumptions: ["slippage is embedded in fillPrice"],
       },
+      perpetual: {
+        listed: true,
+        venue: "bybit",
+        symbol: "BTCUSDT",
+        fundingIntervalHours: 8,
+        fetchedAt: "2026-09-22T12:00:00.000Z",
+        stale: false,
+      },
     };
     const position: components["schemas"]["AuditFuturesPosition"] = {
       fillModel: null,
@@ -114,12 +122,30 @@ describe("TypeScript SDK request contract", () => {
       fill: null,
     };
     expect(quote.fill?.execPrice).toBe(100.04);
+    expect(quote.perpetual?.venue).toBe("bybit");
+    expect(quote.perpetual?.fundingIntervalHours).toBe(8);
+    expect(quote.perpetual?.fetchedAt).toBe("2026-09-22T12:00:00.000Z");
+    expect(quote.perpetual?.stale).toBe(false);
     expect(quote.executionModel?.fillModel).toBe("futures_fill_v1");
     expect(position.fillModel).toBeNull();
     expect(event.fillPrice).toBe(100.04);
     expect(event.executionVersion).toBeNull();
     expect(unavailable.fill?.unavailable).toBe("price_overflow");
     expect(legacy.fill).toBeNull();
+
+    const legacyFunding: components["schemas"]["FuturesQuoteResponse"] = {
+      funding: {
+        venue: "binance",
+        symbol: "BTCUSDT",
+        rate: 0.0001,
+        intervalHours: 8,
+        nextFundingTime: "2026-09-22T16:00:00.000Z",
+        asOf: "2026-09-22T12:00:00.000Z",
+        estimatedPerIntervalMusd: 0.1,
+        annualizedRate: 0.1095,
+      },
+    };
+    expect(legacyFunding.funding?.stale).toBeUndefined();
   });
 
   it.each([

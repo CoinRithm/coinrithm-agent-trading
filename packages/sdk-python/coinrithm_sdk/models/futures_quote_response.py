@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from ..models.execution_model import ExecutionModel
     from ..models.freshness import Freshness
     from ..models.futures_funding_quote import FuturesFundingQuote
+    from ..models.futures_perpetual_reference import FuturesPerpetualReference
     from ..models.futures_quote_response_coin import FuturesQuoteResponseCoin
     from ..models.futures_quote_response_fill_type_0 import FuturesQuoteResponseFillType0
 
@@ -57,7 +58,9 @@ class FuturesQuoteResponse:
                 order size; `entryProbability` stays the mid for calibration.
             Futures quote funding is estimated from the latest venue rate when
             available and may change before settlement. Covered futures charges are
-            applied from recorded settled venue history; `fundingMode` is
+            applied from recorded settled venue history; `fundingMode` is a
+            venue-specific mode such as `binance_perp_rate_v1`,
+            `bybit_perp_rate_v1`, or `gateio_perp_rate_v1`, and is
             `not_modeled` when no latest rate is available. Funding does not apply
             to spot or PM. Futures liquidation forfeits margin without adverse fill
             cost, and fixed-price SL/TP triggers fill at their set price. Order-book
@@ -66,6 +69,8 @@ class FuturesQuoteResponse:
             is disabled.
         funding (FuturesFundingQuote | None | Unset): Latest venue funding quote; null when no funding rate is available
             for this coin.
+        perpetual (FuturesPerpetualReference | None | Unset): Current perpetual contract reference used by the entry
+            gate and funding source; this is not historical funding provenance.
         freshness (Freshness | Unset): Data-freshness descriptor. Futures + spot use ageSeconds; PM uses
             ageMinutes. `status` is a freshness label; `basis` (PM only) names which
             timestamp the age was measured against.
@@ -92,12 +97,14 @@ class FuturesQuoteResponse:
     execution_model: ExecutionModel | Unset = UNSET
     fill: FuturesQuoteResponseFillType0 | None | Unset = UNSET
     funding: FuturesFundingQuote | None | Unset = UNSET
+    perpetual: FuturesPerpetualReference | None | Unset = UNSET
     freshness: Freshness | Unset = UNSET
     observation: AgentObservation | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         from ..models.futures_funding_quote import FuturesFundingQuote
+        from ..models.futures_perpetual_reference import FuturesPerpetualReference
         from ..models.futures_quote_response_fill_type_0 import FuturesQuoteResponseFillType0
 
         eligible = self.eligible
@@ -188,6 +195,14 @@ class FuturesQuoteResponse:
         else:
             funding = self.funding
 
+        perpetual: dict[str, Any] | None | Unset
+        if isinstance(self.perpetual, Unset):
+            perpetual = UNSET
+        elif isinstance(self.perpetual, FuturesPerpetualReference):
+            perpetual = self.perpetual.to_dict()
+        else:
+            perpetual = self.perpetual
+
         freshness: dict[str, Any] | Unset = UNSET
         if not isinstance(self.freshness, Unset):
             freshness = self.freshness.to_dict()
@@ -233,6 +248,8 @@ class FuturesQuoteResponse:
             field_dict["fill"] = fill
         if funding is not UNSET:
             field_dict["funding"] = funding
+        if perpetual is not UNSET:
+            field_dict["perpetual"] = perpetual
         if freshness is not UNSET:
             field_dict["freshness"] = freshness
         if observation is not UNSET:
@@ -246,6 +263,7 @@ class FuturesQuoteResponse:
         from ..models.execution_model import ExecutionModel
         from ..models.freshness import Freshness
         from ..models.futures_funding_quote import FuturesFundingQuote
+        from ..models.futures_perpetual_reference import FuturesPerpetualReference
         from ..models.futures_quote_response_coin import FuturesQuoteResponseCoin
         from ..models.futures_quote_response_fill_type_0 import FuturesQuoteResponseFillType0
 
@@ -387,6 +405,23 @@ class FuturesQuoteResponse:
 
         funding = _parse_funding(d.pop("funding", UNSET))
 
+        def _parse_perpetual(data: object) -> FuturesPerpetualReference | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                perpetual_type_0 = FuturesPerpetualReference.from_dict(data)
+
+                return perpetual_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(FuturesPerpetualReference | None | Unset, data)
+
+        perpetual = _parse_perpetual(d.pop("perpetual", UNSET))
+
         _freshness = d.pop("freshness", UNSET)
         freshness: Freshness | Unset
         if isinstance(_freshness, Unset):
@@ -419,6 +454,7 @@ class FuturesQuoteResponse:
             execution_model=execution_model,
             fill=fill,
             funding=funding,
+            perpetual=perpetual,
             freshness=freshness,
             observation=observation,
         )

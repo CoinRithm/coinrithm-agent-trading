@@ -4772,7 +4772,9 @@ components:
             order size; `entryProbability` stays the mid for calibration.
         Futures quote funding is estimated from the latest venue rate when
         available and may change before settlement. Covered futures charges are
-        applied from recorded settled venue history; `fundingMode` is
+        applied from recorded settled venue history; `fundingMode` is a
+        venue-specific mode such as `binance_perp_rate_v1`,
+        `bybit_perp_rate_v1`, or `gateio_perp_rate_v1`, and is
         `not_modeled` when no latest rate is available. Funding does not apply
         to spot or PM. Futures liquidation forfeits margin without adverse fill
         cost, and fixed-price SL/TP triggers fill at their set price. Order-book
@@ -4787,7 +4789,10 @@ components:
           description: "Futures fill model pinned for this execution, or null for legacy mark fills."
         estimatedFeeMusd: { type: number, description: "estimated fee for this trade (mUSD)" }
         estimatedSlippageMusd: { type: number, description: "estimated slippage cost for this trade (mUSD)" }
-        fundingMode: { type: string, examples: ["binance_perp_rate_v1", "not_modeled"] }
+        fundingMode:
+          type: string
+          description: "Venue-specific current funding reference mode, or not_modeled when no latest rate is available."
+          examples: ["binance_perp_rate_v1", "bybit_perp_rate_v1", "gateio_perp_rate_v1", "not_modeled"]
         assumptions:
           type: array
           items: { type: string }
@@ -5018,8 +5023,24 @@ components:
           oneOf:
             - $ref: "#/components/schemas/FuturesFundingQuote"
             - type: "null"
+        perpetual:
+          description: "Current perpetual contract reference used by the entry gate and funding source; this is not historical funding provenance."
+          oneOf:
+            - $ref: "#/components/schemas/FuturesPerpetualReference"
+            - type: "null"
         freshness: { $ref: "#/components/schemas/Freshness" }
         observation: { $ref: "#/components/schemas/AgentObservation" }
+    FuturesPerpetualReference:
+      type: object
+      required: [listed, venue, symbol, fundingIntervalHours, fetchedAt, stale]
+      description: "Current venue/contract reference for a coin. Historical funding charges remain on funding ledger events."
+      properties:
+        listed: { type: boolean, description: "Whether a covered venue reference is currently known." }
+        venue: { type: [string, "null"], description: "Current funding venue identifier, such as binance, bybit, or gateio." }
+        symbol: { type: [string, "null"], description: "Current venue perpetual symbol." }
+        fundingIntervalHours: { type: [integer, "null"], description: "Current venue funding interval in hours." }
+        fetchedAt: { type: [string, "null"], format: date-time, description: "When the current venue reference was fetched; null when unavailable." }
+        stale: { type: boolean, description: "Whether the current venue reference exceeds the freshness policy." }
     FuturesFundingQuote:
       type: object
       required: [venue, symbol, rate, intervalHours, nextFundingTime, asOf, estimatedPerIntervalMusd, annualizedRate]
@@ -5044,6 +5065,7 @@ components:
         annualizedRate:
           type: number
           description: "Signed simple annualized rate (rate multiplied by intervals per year; not compounded)."
+        stale: { type: boolean, description: "Whether this latest venue rate exceeds the freshness policy." }
     FuturesOpenRequest:
       type: object
       required: [coinId, side, leverage, marginMusd, idempotencyKey]
@@ -5133,8 +5155,22 @@ components:
           type: [string, "null"]
           format: date-time
           description: "Latest timestamp through which cumulative funding was applied; omitted or null when unavailable."
+        currentFundingReference:
+          description: "Current venue/contract reference for this coin; this is current metadata, not proof of historical funding charges."
+          oneOf:
+            - $ref: "#/components/schemas/FuturesFundingSource"
+            - type: "null"
         liquidationDistancePct: { type: [number, "null"] }
         atLiquidation: { type: [boolean, "null"] }
+
+    FuturesFundingSource:
+      type: object
+      required: [venue, symbol, fundingIntervalHours]
+      description: "Current venue/contract funding reference. Historical charges are represented by funding events."
+      properties:
+        venue: { type: string, description: "Current funding venue identifier." }
+        symbol: { type: string, description: "Current venue perpetual symbol." }
+        fundingIntervalHours: { type: integer, description: "Current venue funding interval in hours." }
 
     # ---- prediction markets ----
     PmQuality:

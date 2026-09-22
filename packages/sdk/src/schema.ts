@@ -3223,7 +3223,9 @@ export interface components {
          *         order size; `entryProbability` stays the mid for calibration.
          *     Futures quote funding is estimated from the latest venue rate when
          *     available and may change before settlement. Covered futures charges are
-         *     applied from recorded settled venue history; `fundingMode` is
+         *     applied from recorded settled venue history; `fundingMode` is a
+         *     venue-specific mode such as `binance_perp_rate_v1`,
+         *     `bybit_perp_rate_v1`, or `gateio_perp_rate_v1`, and is
          *     `not_modeled` when no latest rate is available. Funding does not apply
          *     to spot or PM. Futures liquidation forfeits margin without adverse fill
          *     cost, and fixed-price SL/TP triggers fill at their set price. Order-book
@@ -3245,7 +3247,10 @@ export interface components {
             /** @description estimated slippage cost for this trade (mUSD) */
             estimatedSlippageMusd?: number;
             /**
+             * @description Venue-specific current funding reference mode, or not_modeled when no latest rate is available.
              * @example binance_perp_rate_v1
+             * @example bybit_perp_rate_v1
+             * @example gateio_perp_rate_v1
              * @example not_modeled
              */
             fundingMode?: string;
@@ -3471,8 +3476,28 @@ export interface components {
             } | null;
             /** @description Latest venue funding quote; null when no funding rate is available for this coin. */
             funding?: components["schemas"]["FuturesFundingQuote"] | null;
+            /** @description Current perpetual contract reference used by the entry gate and funding source; this is not historical funding provenance. */
+            perpetual?: components["schemas"]["FuturesPerpetualReference"] | null;
             freshness?: components["schemas"]["Freshness"];
             observation?: components["schemas"]["AgentObservation"];
+        };
+        /** @description Current venue/contract reference for a coin. Historical funding charges remain on funding ledger events. */
+        FuturesPerpetualReference: {
+            /** @description Whether a covered venue reference is currently known. */
+            listed: boolean;
+            /** @description Current funding venue identifier, such as binance, bybit, or gateio. */
+            venue: string | null;
+            /** @description Current venue perpetual symbol. */
+            symbol: string | null;
+            /** @description Current venue funding interval in hours. */
+            fundingIntervalHours: number | null;
+            /**
+             * Format: date-time
+             * @description When the current venue reference was fetched; null when unavailable.
+             */
+            fetchedAt: string | null;
+            /** @description Whether the current venue reference exceeds the freshness policy. */
+            stale: boolean;
         };
         /**
          * @description Latest funding rate used by the futures quote. The rate is signed as
@@ -3506,6 +3531,8 @@ export interface components {
             estimatedPerIntervalMusd: number | null;
             /** @description Signed simple annualized rate (rate multiplied by intervals per year; not compounded). */
             annualizedRate: number;
+            /** @description Whether this latest venue rate exceeds the freshness policy. */
+            stale?: boolean;
         };
         FuturesOpenRequest: {
             coinId: string;
@@ -3592,8 +3619,19 @@ export interface components {
              * @description Latest timestamp through which cumulative funding was applied; omitted or null when unavailable.
              */
             fundingAppliedThrough?: string | null;
+            /** @description Current venue/contract reference for this coin; this is current metadata, not proof of historical funding charges. */
+            currentFundingReference?: components["schemas"]["FuturesFundingSource"] | null;
             liquidationDistancePct?: number | null;
             atLiquidation?: boolean | null;
+        };
+        /** @description Current venue/contract funding reference. Historical charges are represented by funding events. */
+        FuturesFundingSource: {
+            /** @description Current funding venue identifier. */
+            venue: string;
+            /** @description Current venue perpetual symbol. */
+            symbol: string;
+            /** @description Current venue funding interval in hours. */
+            fundingIntervalHours: number;
         };
         /**
          * @description Persisted quality assessment from CoinRithm's truth engine — the
