@@ -213,6 +213,114 @@ describe("compact public prediction-market MCP responses", () => {
     expect(compact.pagination).toEqual(source.pagination);
   });
 
+  it("puts current outcomes before settled children and preserves lifecycle evidence", () => {
+    const settled = {
+      externalMarketId: "settled",
+      name: "Settled winner",
+      probability: 100,
+      lifecycle: {
+        state: "resolved",
+        isResult: true,
+        result: "won",
+        basis: "provider",
+      },
+      priorProbability: {
+        value: 62,
+        asOf: "2026-09-20T00:00:00Z",
+        cutoff: "2026-09-20T00:00:00Z",
+      },
+    };
+    const paused = {
+      externalMarketId: "paused",
+      name: "Paused quote",
+      probability: 80,
+      lifecycle: {
+        state: "open",
+        isResult: false,
+        result: null,
+        providerAcceptingOrders: false,
+        entryBlockedByLifecycle: true,
+      },
+    };
+    const compact = compactPublicPmEvents({
+      data: [
+        {
+          ...event,
+          outcomes: [settled, paused],
+        },
+      ],
+    }) as { data: Array<{ outcomes: Array<Record<string, unknown>> }> };
+
+    expect(compact.data[0].outcomes.map((outcome) => outcome.name)).toEqual([
+      "Paused quote",
+      "Settled winner",
+    ]);
+    expect(compact.data[0].outcomes[0].lifecycle).toMatchObject({
+      state: "open",
+      providerAcceptingOrders: false,
+    });
+    expect(compact.data[0].outcomes[1]).toMatchObject({
+      lifecycle: { state: "resolved", result: "won", basis: "provider" },
+      priorProbability: settled.priorProbability,
+    });
+  });
+
+  it("preserves lifecycle fields in detail summaries and historical snapshots", () => {
+    const lifecycle = {
+      state: "resolved",
+      isResult: true,
+      result: "lost",
+      basis: "provider",
+    };
+    const compact = compactPublicPmEvent({
+      event: {
+        ...event,
+        status: "closed",
+        outcomes: [{ name: "No", probability: 0, lifecycle }],
+      },
+      snapshots: [{ outcomes: [{ name: "No", probability: 0, lifecycle }] }],
+    }) as Record<string, any>;
+
+    expect(compact.event.outcomes[0].lifecycle).toEqual(lifecycle);
+    expect(compact.snapshots[0].outcomes[0].lifecycle).toEqual(lifecycle);
+  });
+
+  it("keeps a provider-confirmed closed winner within the compact limit", () => {
+    const outcomes = Array.from({ length: 6 }, (_, index) => ({
+      externalMarketId: index === 5 ? "winner" : `other-${index}`,
+      name: index === 5 ? "Winner" : `Other ${index}`,
+      probability: index === 5 ? 1 : 90 - index,
+      lifecycle:
+        index === 5
+          ? {
+              state: "resolved",
+              isResult: true,
+              result: "won",
+              basis: "provider",
+            }
+          : {
+              state: "resolved",
+              isResult: true,
+              result: "lost",
+              basis: "provider",
+            },
+    }));
+    const compact = compactPublicPmEvents({
+      data: [
+        {
+          ...event,
+          status: "closed",
+          resolvedOutcomeExternalMarketId: "winner",
+          resolutionOutcomeBasis: "provider",
+          outcomes,
+        },
+      ],
+    }) as { data: Array<{ outcomes: Array<{ name: string }> }> };
+
+    expect(compact.data[0].outcomes[0].name).toBe("Winner");
+    expect(compact.data[0].outcomes).toHaveLength(5);
+  });
+
   it("bounds whale rows without dropping aggregate coverage or evidence", () => {
     const trade = {
       source: "polymarket",

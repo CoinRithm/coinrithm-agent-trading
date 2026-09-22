@@ -12,6 +12,7 @@ from coinrithm_sdk.api.public_pm_data import get_public_prediction_market_source
 from coinrithm_sdk.models.arena_contract_capital import ArenaContractCapital
 from coinrithm_sdk.models.arena_contract_ranking import ArenaContractRanking
 from coinrithm_sdk.models.error import Error
+from coinrithm_sdk.models.public_pm_outcome import PublicPmOutcome
 
 
 def test_distribution_version_matches_generator_override() -> None:
@@ -66,6 +67,37 @@ def test_arena_capital_parses_current_independent_paper_book_contract() -> None:
     assert capital.starting_equity_musd == 50000
     assert capital.independent_wallet_since == "2026-09-05"
     assert capital.to_dict() == payload
+
+
+def test_public_pm_outcome_round_trips_lifecycle_null_zero_and_unknown_fields() -> None:
+    payload = {
+        "name": "Paused quote",
+        "externalMarketId": "paused",
+        "probability": 0,
+        "normalizedProbability": None,
+        "priceChange24h": None,
+        "lifecycle": {
+            "state": "unknown",
+            "providerAcceptingOrders": None,
+            "entryBlockedByLifecycle": True,
+            "isResult": False,
+            "result": None,
+            "basis": "unknown",
+            "closedAt": None,
+            "resolvedAt": None,
+            "observedAt": None,
+            "futureLifecycleField": "preserved",
+        },
+        "priorProbability": None,
+    }
+
+    outcome = PublicPmOutcome.from_dict(payload)
+
+    assert outcome.probability == 0
+    assert outcome.lifecycle is not None
+    assert outcome.lifecycle.state.value == "unknown"
+    assert outcome.lifecycle["futureLifecycleField"] == "preserved"
+    assert outcome.to_dict() == payload
 
 
 def test_authenticated_client_sends_bearer_token() -> None:
