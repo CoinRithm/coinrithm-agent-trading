@@ -405,6 +405,17 @@ export function buildUserPrompt(
       ...brokenTheses.map((b) => `- ${b}`),
     );
   }
+  if (
+    obs.openPositions.some(
+      (p) =>
+        p.fundingPaidMusd !== undefined ||
+        p.fundingAppliedThrough !== undefined,
+    )
+  ) {
+    lines.push(
+      "Futures funding shown in the position is already reflected in margin and balances; do not deduct it again when judging available capital or PnL.",
+    );
+  }
   // Settlement-feedback loop: surface the agent's recently-RESOLVED PM bets so the
   // model can reflect and adapt. Reflective context only — never a new action.
   if (hasPm) lines.push(...formatPmResolutions(obs.pmResolutions ?? []));

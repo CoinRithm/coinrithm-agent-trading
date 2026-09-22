@@ -11,6 +11,7 @@ from ..types import UNSET, Unset
 if TYPE_CHECKING:
     from ..models.agent_observation import AgentObservation
     from ..models.freshness import Freshness
+    from ..models.futures_funding_quote import FuturesFundingQuote
     from ..models.futures_quote_response_coin import FuturesQuoteResponseCoin
 
 
@@ -34,6 +35,8 @@ class FuturesQuoteResponse:
         size_coin (float | None | Unset):
         liquidation_price (float | None | Unset):
         maintenance_margin_rate (float | None | Unset):
+        funding (FuturesFundingQuote | None | Unset): Latest venue funding quote; null when no funding rate is available
+            for this coin.
         freshness (Freshness | Unset): Data-freshness descriptor. Futures + spot use ageSeconds; PM uses
             ageMinutes. `status` is a freshness label; `basis` (PM only) names which
             timestamp the age was measured against.
@@ -56,11 +59,14 @@ class FuturesQuoteResponse:
     size_coin: float | None | Unset = UNSET
     liquidation_price: float | None | Unset = UNSET
     maintenance_margin_rate: float | None | Unset = UNSET
+    funding: FuturesFundingQuote | None | Unset = UNSET
     freshness: Freshness | Unset = UNSET
     observation: AgentObservation | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        from ..models.futures_funding_quote import FuturesFundingQuote
+
         eligible = self.eligible
 
         block_reasons: list[str] | Unset = UNSET
@@ -123,6 +129,14 @@ class FuturesQuoteResponse:
         else:
             maintenance_margin_rate = self.maintenance_margin_rate
 
+        funding: dict[str, Any] | None | Unset
+        if isinstance(self.funding, Unset):
+            funding = UNSET
+        elif isinstance(self.funding, FuturesFundingQuote):
+            funding = self.funding.to_dict()
+        else:
+            funding = self.funding
+
         freshness: dict[str, Any] | Unset = UNSET
         if not isinstance(self.freshness, Unset):
             freshness = self.freshness.to_dict()
@@ -160,6 +174,8 @@ class FuturesQuoteResponse:
             field_dict["liquidationPrice"] = liquidation_price
         if maintenance_margin_rate is not UNSET:
             field_dict["maintenanceMarginRate"] = maintenance_margin_rate
+        if funding is not UNSET:
+            field_dict["funding"] = funding
         if freshness is not UNSET:
             field_dict["freshness"] = freshness
         if observation is not UNSET:
@@ -171,6 +187,7 @@ class FuturesQuoteResponse:
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.agent_observation import AgentObservation
         from ..models.freshness import Freshness
+        from ..models.futures_funding_quote import FuturesFundingQuote
         from ..models.futures_quote_response_coin import FuturesQuoteResponseCoin
 
         d = dict(src_dict)
@@ -261,6 +278,23 @@ class FuturesQuoteResponse:
 
         maintenance_margin_rate = _parse_maintenance_margin_rate(d.pop("maintenanceMarginRate", UNSET))
 
+        def _parse_funding(data: object) -> FuturesFundingQuote | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                funding_type_0 = FuturesFundingQuote.from_dict(data)
+
+                return funding_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(FuturesFundingQuote | None | Unset, data)
+
+        funding = _parse_funding(d.pop("funding", UNSET))
+
         _freshness = d.pop("freshness", UNSET)
         freshness: Freshness | Unset
         if isinstance(_freshness, Unset):
@@ -289,6 +323,7 @@ class FuturesQuoteResponse:
             size_coin=size_coin,
             liquidation_price=liquidation_price,
             maintenance_margin_rate=maintenance_margin_rate,
+            funding=funding,
             freshness=freshness,
             observation=observation,
         )

@@ -10,8 +10,39 @@ import {
   Observation,
   QuoteEvidence,
 } from "./types.js";
-import { asObj, asNum } from "./extract.js";
+import { asObj, asNum, asStr } from "./extract.js";
 import { freshnessOf } from "./pmContext.js";
+
+function fundingQuoteEvidence(value: unknown): QuoteEvidence["funding"] {
+  if (value === null) return null;
+  if (typeof value !== "object" || value === null) return undefined;
+  const f = asObj(value);
+  const estimatedPerIntervalMusd = Object.prototype.hasOwnProperty.call(
+    f,
+    "estimatedPerIntervalMusd",
+  )
+    ? (asNum(f.estimatedPerIntervalMusd) ??
+      (f.estimatedPerIntervalMusd === null ? null : undefined))
+    : undefined;
+  return {
+    ...(asStr(f.venue) !== undefined ? { venue: asStr(f.venue) } : {}),
+    ...(asStr(f.symbol) !== undefined ? { symbol: asStr(f.symbol) } : {}),
+    ...(asNum(f.rate) !== undefined ? { rate: asNum(f.rate) } : {}),
+    ...(asNum(f.intervalHours) !== undefined
+      ? { intervalHours: asNum(f.intervalHours) }
+      : {}),
+    ...(asStr(f.nextFundingTime) !== undefined
+      ? { nextFundingTime: asStr(f.nextFundingTime) }
+      : {}),
+    ...(asStr(f.asOf) !== undefined ? { asOf: asStr(f.asOf) } : {}),
+    ...(estimatedPerIntervalMusd !== undefined
+      ? { estimatedPerIntervalMusd }
+      : {}),
+    ...(asNum(f.annualizedRate) !== undefined
+      ? { annualizedRate: asNum(f.annualizedRate) }
+      : {}),
+  };
+}
 
 function coinIdFor(
   observation: Observation,
@@ -93,6 +124,9 @@ export async function fetchQuote(
             asObj(d.executionModel).estimatedEntryFeeMusd,
           ),
           cashRequiredMusd: asNum(d.cashRequiredMusd),
+          ...(Object.prototype.hasOwnProperty.call(d, "funding")
+            ? { funding: fundingQuoteEvidence(d.funding) }
+            : {}),
         }
       : {}),
     // Freshness lives in the response's `observation` block (anti-look-ahead).

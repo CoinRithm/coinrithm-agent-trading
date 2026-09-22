@@ -87,9 +87,11 @@ info:
     slippage and a price-dependent taker fee (Polymarket-shaped, ~1.8% near 50%,
     ~0 at the extremes), folded into `sharesMusd`; `feeBps`/`spreadBps` are
     positive and `slippageBps` scales with order size, while `entryProbability`
-    stays the mid for calibration. This is a rehearsal cost model, NOT an
-    exchange fill guarantee; funding, order-book depth, latency, and market
-    impact are not modeled.
+    stays the mid for calibration. Futures quote funding is an estimate from
+    the latest venue rate and may change before settlement; covered futures
+    charges use recorded settled venue history. A missing rate is unavailable.
+    This is a rehearsal cost model, NOT an exchange fill guarantee; order-book
+    depth, latency, and market impact are not modeled.
 
     ## Rate limits and retries
 
@@ -4656,7 +4658,11 @@ components:
             (~1.8% near 50%, ~0 at the extremes), folded into `sharesMusd`.
             `feeBps`/`spreadBps` are positive and `slippageBps` scales with
             order size; `entryProbability` stays the mid for calibration.
-        Funding rates, order-book depth, latency, and market impact are not
+        Futures quote funding is estimated from the latest venue rate when
+        available and may change before settlement. Covered futures charges are
+        applied from recorded settled venue history; `fundingMode` is
+        `not_modeled` when no latest rate is available. Funding does not apply
+        to spot or PM. Order-book depth, latency, and market impact are not
         modeled.
       properties:
         version: { type: string, examples: ["paper_execution_v1"] }
@@ -4665,7 +4671,7 @@ components:
         slippageBps: { type: number, description: "modeled slippage (bps)" }
         estimatedFeeMusd: { type: number, description: "estimated fee for this trade (mUSD)" }
         estimatedSlippageMusd: { type: number, description: "estimated slippage cost for this trade (mUSD)" }
-        fundingMode: { type: string, examples: ["not_modeled"] }
+        fundingMode: { type: string, examples: ["binance_perp_rate_v1", "not_modeled"] }
         assumptions:
           type: array
           items: { type: string }
@@ -4873,8 +4879,37 @@ components:
         sizeCoin: { type: [number, "null"] }
         liquidationPrice: { type: [number, "null"] }
         maintenanceMarginRate: { type: [number, "null"] }
+        funding:
+          description: "Latest venue funding quote; null when no funding rate is available for this coin."
+          oneOf:
+            - $ref: "#/components/schemas/FuturesFundingQuote"
+            - type: "null"
         freshness: { $ref: "#/components/schemas/Freshness" }
         observation: { $ref: "#/components/schemas/AgentObservation" }
+    FuturesFundingQuote:
+      type: object
+      required: [venue, symbol, rate, intervalHours, nextFundingTime, asOf, estimatedPerIntervalMusd, annualizedRate]
+      description: |
+        Latest funding rate used by the futures quote. The rate is signed as
+        provided by the venue: for a long, a positive rate produces a positive
+        estimated payment; a negative rate produces a receipt. The estimate is
+        for the quoted position at the next settlement and is signed the same
+        way (positive = paid, negative = received). `estimatedPerIntervalMusd`
+        is null when the quote cannot price a position; zero remains a real
+        estimate.
+      properties:
+        venue: { type: string, description: "Funding-rate venue identifier." }
+        symbol: { type: string, description: "Venue perpetual symbol." }
+        rate: { type: number, description: "Signed venue funding rate for the next settlement." }
+        intervalHours: { type: integer, description: "Funding settlement interval in hours." }
+        nextFundingTime: { type: string, format: date-time, description: "Next expected funding settlement." }
+        asOf: { type: string, format: date-time, description: "When this venue rate was fetched." }
+        estimatedPerIntervalMusd:
+          type: [number, "null"]
+          description: "Signed estimated payment for the quoted position in mUSD (positive = paid, negative = received); null when unavailable. Zero is meaningful."
+        annualizedRate:
+          type: number
+          description: "Signed simple annualized rate (rate multiplied by intervals per year; not compounded)."
     FuturesOpenRequest:
       type: object
       required: [coinId, side, leverage, marginMusd, idempotencyKey]
@@ -4954,6 +4989,13 @@ components:
         createdAt: { type: string, format: date-time }
         markPrice: { type: [number, "null"], description: "list endpoint, open positions only" }
         unrealizedPnlMusd: { type: [number, "null"] }
+        fundingPaidMusd:
+          type: [number, "null"]
+          description: "Signed cumulative funding applied in mUSD (positive = paid, negative = received); omitted or null when unavailable. Zero is a meaningful value."
+        fundingAppliedThrough:
+          type: [string, "null"]
+          format: date-time
+          description: "Latest timestamp through which cumulative funding was applied; omitted or null when unavailable."
         liquidationDistancePct: { type: [number, "null"] }
         atLiquidation: { type: [boolean, "null"] }
 

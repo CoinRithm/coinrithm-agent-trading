@@ -427,6 +427,20 @@ export async function observe(
       // and could not tell a winner from a small loser before a manual close.
       // Tolerant fallbacks keep older/mocked shapes working.
       const coin = asObj(p.coin);
+      const fundingPaidMusd = Object.prototype.hasOwnProperty.call(
+        p,
+        "fundingPaidMusd",
+      )
+        ? (asNum(p.fundingPaidMusd) ??
+          (p.fundingPaidMusd === null ? null : undefined))
+        : undefined;
+      const fundingAppliedThrough = Object.prototype.hasOwnProperty.call(
+        p,
+        "fundingAppliedThrough",
+      )
+        ? (asStr(p.fundingAppliedThrough) ??
+          (p.fundingAppliedThrough === null ? null : undefined))
+        : undefined;
       return {
         venue: "futures" as const,
         id: Number(asNum(p.id) ?? p.id),
@@ -438,6 +452,10 @@ export async function observe(
         leverage: asNum(p.leverage),
         marginMusd: asNum(p.marginMusd),
         unrealizedPnlMusd: asNum(p.unrealizedPnlMusd),
+        ...(fundingPaidMusd !== undefined ? { fundingPaidMusd } : {}),
+        ...(fundingAppliedThrough !== undefined
+          ? { fundingAppliedThrough }
+          : {}),
         entryPrice: asNum(p.entryPrice),
         markPrice: asNum(p.markPrice),
         liquidationPrice: asNum(p.liquidationPrice),

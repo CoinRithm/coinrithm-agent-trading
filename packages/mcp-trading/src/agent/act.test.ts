@@ -238,4 +238,50 @@ describe("executeAction idempotency-key wiring", () => {
     expect(cancelSpotOrder.mock.calls[0][0]).toBe(7);
     expect(cancelSpotOrder.mock.calls[0][1]).toBe("run-1:cancel:7:0");
   });
+
+  it("retains signed funding evidence and explicit null or zero values", async () => {
+    const obs = emptyObservation();
+    obs.watch = [{ symbol: "BTC", coinId: "1" }];
+    const client = {
+      futuresQuote: async () =>
+        okData({
+          eligible: true,
+          funding: {
+            venue: "binance",
+            symbol: "BTCUSDT",
+            rate: -0.0001,
+            intervalHours: 8,
+            nextFundingTime: "2026-09-22T00:00:00.000Z",
+            asOf: "2026-09-21T23:55:00.000Z",
+            estimatedPerIntervalMusd: -0.1,
+            annualizedRate: -0.1095,
+          },
+        }),
+    } as unknown as CoinRithmClient;
+    const action: ProposedAction = {
+      type: "futures_open",
+      symbol: "BTC",
+      side: "long",
+      leverage: 2,
+      marginMusd: 100,
+    };
+    const q = await fetchQuote(client, action, obs);
+    expect(q?.funding).toMatchObject({
+      rate: -0.0001,
+      estimatedPerIntervalMusd: -0.1,
+    });
+
+    const nullClient = {
+      futuresQuote: async () => okData({ eligible: true, funding: null }),
+    } as unknown as CoinRithmClient;
+    expect((await fetchQuote(nullClient, action, obs))?.funding).toBeNull();
+
+    const zeroClient = {
+      futuresQuote: async () =>
+        okData({ eligible: true, funding: { estimatedPerIntervalMusd: 0 } }),
+    } as unknown as CoinRithmClient;
+    expect((await fetchQuote(zeroClient, action, obs))?.funding).toMatchObject({
+      estimatedPerIntervalMusd: 0,
+    });
+  });
 });

@@ -303,7 +303,9 @@ the sanitized ledger rows. It also includes `executionAssumptions`: paper
 account only, latest stored market/probability snapshots, and the versioned
 `paper_execution_v1` cost model (paper execution is **not costless** — fills
 charge a modeled taker fee plus spread + slippage on spot/PM, disclosed per fill;
-futures funding is not modeled), and worker-driven resting order / SL / TP /
+futures quote funding is an estimate from the latest venue rate and may change
+before settlement, while covered futures charges use recorded settled venue
+history; missing rates remain unavailable), and worker-driven resting order / SL / TP /
 settlement timing. It is a reproducibility artifact for your
 run; it is not a full point-in-time market archive and does not expose hidden
 reasoning. Aggregate audit stats include trace coverage for `runId` and

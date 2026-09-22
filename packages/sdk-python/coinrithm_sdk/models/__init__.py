@@ -97,6 +97,7 @@ from .freshness_status_type_1 import FreshnessStatusType1
 from .freshness_status_type_2_type_1 import FreshnessStatusType2Type1
 from .freshness_status_type_3_type_1 import FreshnessStatusType3Type1
 from .futures_close_request import FuturesCloseRequest
+from .futures_funding_quote import FuturesFundingQuote
 from .futures_open_request import FuturesOpenRequest
 from .futures_open_request_side import FuturesOpenRequestSide
 from .futures_position import FuturesPosition
@@ -418,6 +419,7 @@ __all__ = (
     "FreshnessStatusType2Type1",
     "FreshnessStatusType3Type1",
     "FuturesCloseRequest",
+    "FuturesFundingQuote",
     "FuturesOpenRequest",
     "FuturesOpenRequestSide",
     "FuturesPosition",

@@ -50,6 +50,10 @@ class FuturesPosition:
             created_at (datetime.datetime | Unset):
             mark_price (float | None | Unset): list endpoint, open positions only
             unrealized_pnl_musd (float | None | Unset):
+            funding_paid_musd (float | None | Unset): Signed cumulative funding applied in mUSD (positive = paid, negative =
+                received); omitted or null when unavailable. Zero is a meaningful value.
+            funding_applied_through (datetime.datetime | None | Unset): Latest timestamp through which cumulative funding
+                was applied; omitted or null when unavailable.
             liquidation_distance_pct (float | None | Unset):
             at_liquidation (bool | None | Unset):
     """
@@ -76,6 +80,8 @@ class FuturesPosition:
     created_at: datetime.datetime | Unset = UNSET
     mark_price: float | None | Unset = UNSET
     unrealized_pnl_musd: float | None | Unset = UNSET
+    funding_paid_musd: float | None | Unset = UNSET
+    funding_applied_through: datetime.datetime | None | Unset = UNSET
     liquidation_distance_pct: float | None | Unset = UNSET
     at_liquidation: bool | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -175,6 +181,20 @@ class FuturesPosition:
         else:
             unrealized_pnl_musd = self.unrealized_pnl_musd
 
+        funding_paid_musd: float | None | Unset
+        if isinstance(self.funding_paid_musd, Unset):
+            funding_paid_musd = UNSET
+        else:
+            funding_paid_musd = self.funding_paid_musd
+
+        funding_applied_through: None | str | Unset
+        if isinstance(self.funding_applied_through, Unset):
+            funding_applied_through = UNSET
+        elif isinstance(self.funding_applied_through, datetime.datetime):
+            funding_applied_through = self.funding_applied_through.isoformat()
+        else:
+            funding_applied_through = self.funding_applied_through
+
         liquidation_distance_pct: float | None | Unset
         if isinstance(self.liquidation_distance_pct, Unset):
             liquidation_distance_pct = UNSET
@@ -234,6 +254,10 @@ class FuturesPosition:
             field_dict["markPrice"] = mark_price
         if unrealized_pnl_musd is not UNSET:
             field_dict["unrealizedPnlMusd"] = unrealized_pnl_musd
+        if funding_paid_musd is not UNSET:
+            field_dict["fundingPaidMusd"] = funding_paid_musd
+        if funding_applied_through is not UNSET:
+            field_dict["fundingAppliedThrough"] = funding_applied_through
         if liquidation_distance_pct is not UNSET:
             field_dict["liquidationDistancePct"] = liquidation_distance_pct
         if at_liquidation is not UNSET:
@@ -395,6 +419,32 @@ class FuturesPosition:
 
         unrealized_pnl_musd = _parse_unrealized_pnl_musd(d.pop("unrealizedPnlMusd", UNSET))
 
+        def _parse_funding_paid_musd(data: object) -> float | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(float | None | Unset, data)
+
+        funding_paid_musd = _parse_funding_paid_musd(d.pop("fundingPaidMusd", UNSET))
+
+        def _parse_funding_applied_through(data: object) -> datetime.datetime | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, str):
+                    raise TypeError()
+                funding_applied_through_type_0 = datetime.datetime.fromisoformat(data)
+
+                return funding_applied_through_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(datetime.datetime | None | Unset, data)
+
+        funding_applied_through = _parse_funding_applied_through(d.pop("fundingAppliedThrough", UNSET))
+
         def _parse_liquidation_distance_pct(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -436,6 +486,8 @@ class FuturesPosition:
             created_at=created_at,
             mark_price=mark_price,
             unrealized_pnl_musd=unrealized_pnl_musd,
+            funding_paid_musd=funding_paid_musd,
+            funding_applied_through=funding_applied_through,
             liquidation_distance_pct=liquidation_distance_pct,
             at_liquidation=at_liquidation,
         )

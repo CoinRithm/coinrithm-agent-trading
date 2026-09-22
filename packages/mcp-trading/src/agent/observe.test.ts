@@ -431,6 +431,8 @@ describe("observe", () => {
               takeProfitPrice: 71000,
               markPrice: 67500,
               unrealizedPnlMusd: 1.2,
+              fundingPaidMusd: -0.37,
+              fundingAppliedThrough: "2026-09-21T12:34:56.000Z",
             },
           ],
         }),
@@ -446,6 +448,39 @@ describe("observe", () => {
     expect(p.stopLossPrice).toBe(64000);
     expect(p.takeProfitPrice).toBe(71000);
     expect(p.leverage).toBe(2);
+    expect(p.fundingPaidMusd).toBe(-0.37);
+    expect(p.fundingAppliedThrough).toBe("2026-09-21T12:34:56.000Z");
+  });
+
+  it("preserves zero funding and omits funding fields absent from legacy positions", async () => {
+    const fSpec = {
+      ...spec,
+      venues: ["futures"] as ("spot" | "futures" | "pm")[],
+    };
+    const c = fakeClient({
+      futuresPositions: async () =>
+        okData({
+          positions: [
+            {
+              id: 53,
+              status: "open",
+              coin: { ucid: "2", symbol: "ETH" },
+              fundingPaidMusd: 0,
+              fundingAppliedThrough: null,
+            },
+            { id: 54, status: "open", coin: { ucid: "3", symbol: "SOL" } },
+          ],
+        }),
+    });
+    const { observation } = await observe(c, fSpec, newState("r"));
+    expect(observation.openPositions[0]).toMatchObject({
+      fundingPaidMusd: 0,
+      fundingAppliedThrough: null,
+    });
+    expect(observation.openPositions[1]).not.toHaveProperty("fundingPaidMusd");
+    expect(observation.openPositions[1]).not.toHaveProperty(
+      "fundingAppliedThrough",
+    );
   });
 
   it("SCHEMA CONTRACT: /positions/pm — eventSlug + nested outcome + unrealizedPnl survive observe (dup-guard + drawdown inputs)", async () => {
