@@ -12,6 +12,8 @@ from ..types import UNSET, Unset
 if TYPE_CHECKING:
     from ..models.agent_action_event import AgentActionEvent
     from ..models.agent_run_evidence_manifest import AgentRunEvidenceManifest
+    from ..models.audit_futures_event import AuditFuturesEvent
+    from ..models.audit_futures_position import AuditFuturesPosition
 
 
 T = TypeVar("T", bound="AgentLedgerExport")
@@ -27,6 +29,8 @@ class AgentLedgerExport:
         max_rows (int | Unset):
         run (AgentRunEvidenceManifest | None | Unset): Present when exporting with a runId filter.
         data (list[AgentActionEvent] | Unset):
+        futures (list[AuditFuturesPosition] | Unset): Futures positions included in a filtered run export.
+        futures_events (list[AuditFuturesEvent] | Unset): Canonical futures mutation events for the exported positions.
     """
 
     api_key_id: int | Unset = UNSET
@@ -35,6 +39,8 @@ class AgentLedgerExport:
     max_rows: int | Unset = UNSET
     run: AgentRunEvidenceManifest | None | Unset = UNSET
     data: list[AgentActionEvent] | Unset = UNSET
+    futures: list[AuditFuturesPosition] | Unset = UNSET
+    futures_events: list[AuditFuturesEvent] | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -65,6 +71,20 @@ class AgentLedgerExport:
                 data_item = data_item_data.to_dict()
                 data.append(data_item)
 
+        futures: list[dict[str, Any]] | Unset = UNSET
+        if not isinstance(self.futures, Unset):
+            futures = []
+            for futures_item_data in self.futures:
+                futures_item = futures_item_data.to_dict()
+                futures.append(futures_item)
+
+        futures_events: list[dict[str, Any]] | Unset = UNSET
+        if not isinstance(self.futures_events, Unset):
+            futures_events = []
+            for futures_events_item_data in self.futures_events:
+                futures_events_item = futures_events_item_data.to_dict()
+                futures_events.append(futures_events_item)
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update({})
@@ -80,6 +100,10 @@ class AgentLedgerExport:
             field_dict["run"] = run
         if data is not UNSET:
             field_dict["data"] = data
+        if futures is not UNSET:
+            field_dict["futures"] = futures
+        if futures_events is not UNSET:
+            field_dict["futuresEvents"] = futures_events
 
         return field_dict
 
@@ -87,6 +111,8 @@ class AgentLedgerExport:
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.agent_action_event import AgentActionEvent
         from ..models.agent_run_evidence_manifest import AgentRunEvidenceManifest
+        from ..models.audit_futures_event import AuditFuturesEvent
+        from ..models.audit_futures_position import AuditFuturesPosition
 
         d = dict(src_dict)
         api_key_id = d.pop("apiKeyId", UNSET)
@@ -128,6 +154,24 @@ class AgentLedgerExport:
 
                 data.append(data_item)
 
+        _futures = d.pop("futures", UNSET)
+        futures: list[AuditFuturesPosition] | Unset = UNSET
+        if _futures is not UNSET:
+            futures = []
+            for futures_item_data in _futures:
+                futures_item = AuditFuturesPosition.from_dict(futures_item_data)
+
+                futures.append(futures_item)
+
+        _futures_events = d.pop("futuresEvents", UNSET)
+        futures_events: list[AuditFuturesEvent] | Unset = UNSET
+        if _futures_events is not UNSET:
+            futures_events = []
+            for futures_events_item_data in _futures_events:
+                futures_events_item = AuditFuturesEvent.from_dict(futures_events_item_data)
+
+                futures_events.append(futures_events_item)
+
         agent_ledger_export = cls(
             api_key_id=api_key_id,
             exported_at=exported_at,
@@ -135,6 +179,8 @@ class AgentLedgerExport:
             max_rows=max_rows,
             run=run,
             data=data,
+            futures=futures,
+            futures_events=futures_events,
         )
 
         agent_ledger_export.additional_properties = d

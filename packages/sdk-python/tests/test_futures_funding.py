@@ -3,6 +3,11 @@ import datetime
 from coinrithm_sdk.models.futures_position import FuturesPosition
 from coinrithm_sdk.models.futures_funding_quote import FuturesFundingQuote
 from coinrithm_sdk.models.futures_quote_response import FuturesQuoteResponse
+from coinrithm_sdk.models.futures_quote_response_fill_type_0 import FuturesQuoteResponseFillType0
+from coinrithm_sdk.models.futures_quote_response_fill_type_0_impact_basis import FuturesQuoteResponseFillType0ImpactBasis
+from coinrithm_sdk.models.futures_quote_response_fill_type_0_volume_coverage import FuturesQuoteResponseFillType0VolumeCoverage
+from coinrithm_sdk.models.audit_futures_event import AuditFuturesEvent
+from coinrithm_sdk.models.audit_futures_position import AuditFuturesPosition
 from coinrithm_sdk.types import UNSET, Unset
 
 
@@ -75,3 +80,33 @@ def test_futures_quote_funding_round_trip_preserves_signed_zero_null_and_absent(
 
     assert FuturesQuoteResponse(funding=None).to_dict()["funding"] is None
     assert "funding" not in FuturesQuoteResponse().to_dict()
+
+
+def test_futures_fill_and_audit_fields_round_trip_preserve_null_and_zero():
+    response = FuturesQuoteResponse(
+        reference_mark=100.0,
+        fill=FuturesQuoteResponseFillType0(
+            model="futures_fill_v1",
+            reference_mark=100.0,
+            exec_price=100.04,
+            size_coin=10.0,
+            adverse_bps=0.0,
+            adverse_cost_musd=0.0,
+            impact_bps=2.0,
+            impact_basis=FuturesQuoteResponseFillType0ImpactBasis.VOLUME,
+            volume_coverage=FuturesQuoteResponseFillType0VolumeCoverage.COMPLETE,
+            unavailable=None,
+        ),
+    )
+    restored = FuturesQuoteResponse.from_dict(response.to_dict())
+    assert restored.reference_mark == 100.0
+    assert restored.fill.exec_price == 100.04
+    assert restored.fill.adverse_bps == 0.0
+    assert restored.fill.unavailable is None
+
+    event = AuditFuturesEvent(
+        fill_price=100.04, slippage_musd=0.0, execution_version=None
+    )
+    assert AuditFuturesEvent.from_dict(event.to_dict()).fill_price == 100.04
+    position = AuditFuturesPosition(fill_model=None)
+    assert AuditFuturesPosition.from_dict(position.to_dict()).fill_model is None

@@ -63,6 +63,10 @@ from .arena_decision_opportunity_kind import ArenaDecisionOpportunityKind
 from .arena_decision_result import ArenaDecisionResult
 from .arena_opportunity import ArenaOpportunity
 from .arena_opportunity_opportunity_kind import ArenaOpportunityOpportunityKind
+from .audit_futures_event import AuditFuturesEvent
+from .audit_futures_position import AuditFuturesPosition
+from .audit_futures_position_side import AuditFuturesPositionSide
+from .audit_futures_position_status import AuditFuturesPositionStatus
 from .cancel_spot_order_response_200 import CancelSpotOrderResponse200
 from .competition_board_row import CompetitionBoardRow
 from .competition_board_row_by_venue import CompetitionBoardRowByVenue
@@ -109,6 +113,9 @@ from .futures_quote_request import FuturesQuoteRequest
 from .futures_quote_request_side import FuturesQuoteRequestSide
 from .futures_quote_response import FuturesQuoteResponse
 from .futures_quote_response_coin import FuturesQuoteResponseCoin
+from .futures_quote_response_fill_type_0 import FuturesQuoteResponseFillType0
+from .futures_quote_response_fill_type_0_impact_basis import FuturesQuoteResponseFillType0ImpactBasis
+from .futures_quote_response_fill_type_0_volume_coverage import FuturesQuoteResponseFillType0VolumeCoverage
 from .get_agent_news_response_200 import GetAgentNewsResponse200
 from .get_agent_news_response_200_items_item import GetAgentNewsResponse200ItemsItem
 from .get_arena_agent_response_200 import GetArenaAgentResponse200
@@ -392,6 +399,10 @@ __all__ = (
     "ArenaDecisionResult",
     "ArenaOpportunity",
     "ArenaOpportunityOpportunityKind",
+    "AuditFuturesEvent",
+    "AuditFuturesPosition",
+    "AuditFuturesPositionSide",
+    "AuditFuturesPositionStatus",
     "CancelSpotOrderResponse200",
     "CompetitionBoardRow",
     "CompetitionBoardRowByVenue",
@@ -438,6 +449,9 @@ __all__ = (
     "FuturesQuoteRequestSide",
     "FuturesQuoteResponse",
     "FuturesQuoteResponseCoin",
+    "FuturesQuoteResponseFillType0",
+    "FuturesQuoteResponseFillType0ImpactBasis",
+    "FuturesQuoteResponseFillType0VolumeCoverage",
     "GetAgentNewsResponse200",
     "GetAgentNewsResponse200ItemsItem",
     "GetArenaAgentResponse200",

@@ -31,10 +31,12 @@ class SpotOrderResponseSummary:
             trading friction (a flat round-trip is a small loss, not a free
             breakeven). This is a rehearsal cost model, NOT an exchange fill
             guarantee. Per venue:
-              - spot/futures: a taker fee (`feeBps`) on notional, folded into
-                realized PnL. Spot market orders also fill at an adverse price
-                (half-spread + slippage); futures entry/exit spread/slippage is
-                not modeled in v1.
+                - spot: a taker fee (`feeBps`) on notional, with market orders also
+                  filling at an adverse price (half-spread + slippage). Futures use
+                  the default-off legacy mark fill unless `futures_fill_v1` is
+                  pinned; that model applies deterministic half-spread, slippage,
+                  and square-root size-scaled impact, with adverse cost embedded in
+                  the executed price.
               - PM: fills at the ask (mid + half the ingested bid-ask spread) with
                 size/liquidity-based slippage and a Polymarket-shaped taker fee
                 (~1.8% near 50%, ~0 at the extremes), folded into `sharesMusd`.
@@ -44,8 +46,9 @@ class SpotOrderResponseSummary:
             available and may change before settlement. Covered futures charges are
             applied from recorded settled venue history; `fundingMode` is
             `not_modeled` when no latest rate is available. Funding does not apply
-            to spot or PM. Order-book depth, latency, and market impact are not
-            modeled.
+            to spot or PM. Futures liquidation forfeits margin without adverse fill
+            cost, and fixed-price SL/TP triggers fill at their set price. Order-book
+            depth, latency, and partial fills are not modeled.
         limit_price (float | Unset): limit/stop only
         order_type (str | Unset): limit/stop only
     """

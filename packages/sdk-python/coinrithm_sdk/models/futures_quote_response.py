@@ -10,9 +10,11 @@ from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
     from ..models.agent_observation import AgentObservation
+    from ..models.execution_model import ExecutionModel
     from ..models.freshness import Freshness
     from ..models.futures_funding_quote import FuturesFundingQuote
     from ..models.futures_quote_response_coin import FuturesQuoteResponseCoin
+    from ..models.futures_quote_response_fill_type_0 import FuturesQuoteResponseFillType0
 
 
 T = TypeVar("T", bound="FuturesQuoteResponse")
@@ -30,11 +32,38 @@ class FuturesQuoteResponse:
         margin_musd (float | None | Unset):
         min_margin (float | Unset):
         max_leverage (float | Unset):
+        reference_mark (float | None | Unset): Mark price the quote was priced from; executable entryPrice may include
+            the fill model.
         entry_price (float | None | Unset):
         notional_musd (float | None | Unset):
         size_coin (float | None | Unset):
         liquidation_price (float | None | Unset):
         maintenance_margin_rate (float | None | Unset):
+        execution_model (ExecutionModel | Unset): Paper Execution Realism v1 cost disclosure. Paper fills apply a
+            deterministic, fully-disclosed cost so simulated PnL reflects real
+            trading friction (a flat round-trip is a small loss, not a free
+            breakeven). This is a rehearsal cost model, NOT an exchange fill
+            guarantee. Per venue:
+                - spot: a taker fee (`feeBps`) on notional, with market orders also
+                  filling at an adverse price (half-spread + slippage). Futures use
+                  the default-off legacy mark fill unless `futures_fill_v1` is
+                  pinned; that model applies deterministic half-spread, slippage,
+                  and square-root size-scaled impact, with adverse cost embedded in
+                  the executed price.
+              - PM: fills at the ask (mid + half the ingested bid-ask spread) with
+                size/liquidity-based slippage and a Polymarket-shaped taker fee
+                (~1.8% near 50%, ~0 at the extremes), folded into `sharesMusd`.
+                `feeBps`/`spreadBps` are positive and `slippageBps` scales with
+                order size; `entryProbability` stays the mid for calibration.
+            Futures quote funding is estimated from the latest venue rate when
+            available and may change before settlement. Covered futures charges are
+            applied from recorded settled venue history; `fundingMode` is
+            `not_modeled` when no latest rate is available. Funding does not apply
+            to spot or PM. Futures liquidation forfeits margin without adverse fill
+            cost, and fixed-price SL/TP triggers fill at their set price. Order-book
+            depth, latency, and partial fills are not modeled.
+        fill (FuturesQuoteResponseFillType0 | None | Unset): Estimated executable fill; null when the futures fill model
+            is disabled.
         funding (FuturesFundingQuote | None | Unset): Latest venue funding quote; null when no funding rate is available
             for this coin.
         freshness (Freshness | Unset): Data-freshness descriptor. Futures + spot use ageSeconds; PM uses
@@ -54,11 +83,14 @@ class FuturesQuoteResponse:
     margin_musd: float | None | Unset = UNSET
     min_margin: float | Unset = UNSET
     max_leverage: float | Unset = UNSET
+    reference_mark: float | None | Unset = UNSET
     entry_price: float | None | Unset = UNSET
     notional_musd: float | None | Unset = UNSET
     size_coin: float | None | Unset = UNSET
     liquidation_price: float | None | Unset = UNSET
     maintenance_margin_rate: float | None | Unset = UNSET
+    execution_model: ExecutionModel | Unset = UNSET
+    fill: FuturesQuoteResponseFillType0 | None | Unset = UNSET
     funding: FuturesFundingQuote | None | Unset = UNSET
     freshness: Freshness | Unset = UNSET
     observation: AgentObservation | Unset = UNSET
@@ -66,6 +98,7 @@ class FuturesQuoteResponse:
 
     def to_dict(self) -> dict[str, Any]:
         from ..models.futures_funding_quote import FuturesFundingQuote
+        from ..models.futures_quote_response_fill_type_0 import FuturesQuoteResponseFillType0
 
         eligible = self.eligible
 
@@ -99,6 +132,12 @@ class FuturesQuoteResponse:
 
         max_leverage = self.max_leverage
 
+        reference_mark: float | None | Unset
+        if isinstance(self.reference_mark, Unset):
+            reference_mark = UNSET
+        else:
+            reference_mark = self.reference_mark
+
         entry_price: float | None | Unset
         if isinstance(self.entry_price, Unset):
             entry_price = UNSET
@@ -128,6 +167,18 @@ class FuturesQuoteResponse:
             maintenance_margin_rate = UNSET
         else:
             maintenance_margin_rate = self.maintenance_margin_rate
+
+        execution_model: dict[str, Any] | Unset = UNSET
+        if not isinstance(self.execution_model, Unset):
+            execution_model = self.execution_model.to_dict()
+
+        fill: dict[str, Any] | None | Unset
+        if isinstance(self.fill, Unset):
+            fill = UNSET
+        elif isinstance(self.fill, FuturesQuoteResponseFillType0):
+            fill = self.fill.to_dict()
+        else:
+            fill = self.fill
 
         funding: dict[str, Any] | None | Unset
         if isinstance(self.funding, Unset):
@@ -164,6 +215,8 @@ class FuturesQuoteResponse:
             field_dict["minMargin"] = min_margin
         if max_leverage is not UNSET:
             field_dict["maxLeverage"] = max_leverage
+        if reference_mark is not UNSET:
+            field_dict["referenceMark"] = reference_mark
         if entry_price is not UNSET:
             field_dict["entryPrice"] = entry_price
         if notional_musd is not UNSET:
@@ -174,6 +227,10 @@ class FuturesQuoteResponse:
             field_dict["liquidationPrice"] = liquidation_price
         if maintenance_margin_rate is not UNSET:
             field_dict["maintenanceMarginRate"] = maintenance_margin_rate
+        if execution_model is not UNSET:
+            field_dict["executionModel"] = execution_model
+        if fill is not UNSET:
+            field_dict["fill"] = fill
         if funding is not UNSET:
             field_dict["funding"] = funding
         if freshness is not UNSET:
@@ -186,9 +243,11 @@ class FuturesQuoteResponse:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.agent_observation import AgentObservation
+        from ..models.execution_model import ExecutionModel
         from ..models.freshness import Freshness
         from ..models.futures_funding_quote import FuturesFundingQuote
         from ..models.futures_quote_response_coin import FuturesQuoteResponseCoin
+        from ..models.futures_quote_response_fill_type_0 import FuturesQuoteResponseFillType0
 
         d = dict(src_dict)
         eligible = d.pop("eligible", UNSET)
@@ -232,6 +291,15 @@ class FuturesQuoteResponse:
         min_margin = d.pop("minMargin", UNSET)
 
         max_leverage = d.pop("maxLeverage", UNSET)
+
+        def _parse_reference_mark(data: object) -> float | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(float | None | Unset, data)
+
+        reference_mark = _parse_reference_mark(d.pop("referenceMark", UNSET))
 
         def _parse_entry_price(data: object) -> float | None | Unset:
             if data is None:
@@ -278,6 +346,30 @@ class FuturesQuoteResponse:
 
         maintenance_margin_rate = _parse_maintenance_margin_rate(d.pop("maintenanceMarginRate", UNSET))
 
+        _execution_model = d.pop("executionModel", UNSET)
+        execution_model: ExecutionModel | Unset
+        if isinstance(_execution_model, Unset):
+            execution_model = UNSET
+        else:
+            execution_model = ExecutionModel.from_dict(_execution_model)
+
+        def _parse_fill(data: object) -> FuturesQuoteResponseFillType0 | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                fill_type_0 = FuturesQuoteResponseFillType0.from_dict(data)
+
+                return fill_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(FuturesQuoteResponseFillType0 | None | Unset, data)
+
+        fill = _parse_fill(d.pop("fill", UNSET))
+
         def _parse_funding(data: object) -> FuturesFundingQuote | None | Unset:
             if data is None:
                 return data
@@ -318,11 +410,14 @@ class FuturesQuoteResponse:
             margin_musd=margin_musd,
             min_margin=min_margin,
             max_leverage=max_leverage,
+            reference_mark=reference_mark,
             entry_price=entry_price,
             notional_musd=notional_musd,
             size_coin=size_coin,
             liquidation_price=liquidation_price,
             maintenance_margin_rate=maintenance_margin_rate,
+            execution_model=execution_model,
+            fill=fill,
             funding=funding,
             freshness=freshness,
             observation=observation,
