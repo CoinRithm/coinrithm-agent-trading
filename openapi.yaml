@@ -5043,7 +5043,7 @@ components:
         stale: { type: boolean, description: "Whether the current venue reference exceeds the freshness policy." }
     FuturesFundingQuote:
       type: object
-      required: [venue, symbol, rate, intervalHours, nextFundingTime, asOf, estimatedPerIntervalMusd, annualizedRate, stale]
+      required: [venue, symbol, rate, intervalHours, nextFundingTime, asOf, estimatedPerIntervalMusd, annualizedRate]
       description: |
         Latest funding rate used by the futures quote. The rate is signed as
         provided by the venue: for a long, a positive rate produces a positive

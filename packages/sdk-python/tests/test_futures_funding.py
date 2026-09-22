@@ -68,6 +68,19 @@ def test_futures_quote_funding_round_trip_preserves_signed_zero_null_and_absent(
     assert restored.funding.estimated_per_interval_musd == -0.1
     assert restored.funding.stale is True
 
+    legacy_wire = {
+        "venue": "binance",
+        "symbol": "BTCUSDT",
+        "rate": 0.0001,
+        "intervalHours": 8,
+        "nextFundingTime": next_funding.isoformat(),
+        "asOf": as_of.isoformat(),
+        "estimatedPerIntervalMusd": 0.1,
+        "annualizedRate": 0.1095,
+    }
+    legacy_restored = FuturesFundingQuote.from_dict(legacy_wire)
+    assert isinstance(legacy_restored.stale, Unset)
+
     zero_wire = FuturesQuoteResponse(
         funding=FuturesFundingQuote(
             venue="binance",

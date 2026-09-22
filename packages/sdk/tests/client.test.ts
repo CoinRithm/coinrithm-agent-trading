@@ -132,6 +132,20 @@ describe("TypeScript SDK request contract", () => {
     expect(event.executionVersion).toBeNull();
     expect(unavailable.fill?.unavailable).toBe("price_overflow");
     expect(legacy.fill).toBeNull();
+
+    const legacyFunding: components["schemas"]["FuturesQuoteResponse"] = {
+      funding: {
+        venue: "binance",
+        symbol: "BTCUSDT",
+        rate: 0.0001,
+        intervalHours: 8,
+        nextFundingTime: "2026-09-22T16:00:00.000Z",
+        asOf: "2026-09-22T12:00:00.000Z",
+        estimatedPerIntervalMusd: 0.1,
+        annualizedRate: 0.1095,
+      },
+    };
+    expect(legacyFunding.funding?.stale).toBeUndefined();
   });
 
   it.each([

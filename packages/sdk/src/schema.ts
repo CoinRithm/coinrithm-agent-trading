@@ -3532,7 +3532,7 @@ export interface components {
             /** @description Signed simple annualized rate (rate multiplied by intervals per year; not compounded). */
             annualizedRate: number;
             /** @description Whether this latest venue rate exceeds the freshness policy. */
-            stale: boolean;
+            stale?: boolean;
         };
         FuturesOpenRequest: {
             coinId: string;
