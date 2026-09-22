@@ -5,6 +5,39 @@ import type { components } from "../src/schema.js";
 afterEach(() => vi.unstubAllGlobals());
 
 describe("TypeScript SDK request contract", () => {
+  it("round-trips optional PM thesis and advisory sizing fields", () => {
+    const request: components["schemas"]["PmQuoteRequest"] = {
+      source: "kalshi",
+      slug: "fixture",
+      outcomeExternalMarketId: "yes",
+      side: "no",
+      stakeMusd: 25,
+      forecastProbability: 42,
+      bankrollMusd: 1000,
+    };
+    const response: components["schemas"]["PmQuoteResponse"] = {
+      entryProbability: 40,
+      edgeSizing: {
+        basis: "fractional_kelly_capped",
+        edgePoints: 2,
+        suggestedStakeMusd: null,
+        noEdge: false,
+      },
+    };
+    const open: components["schemas"]["PmOpenRequest"] = {
+      source: "kalshi",
+      slug: "fixture",
+      outcomeExternalMarketId: "yes",
+      side: "no",
+      stakeMusd: request.stakeMusd,
+      idempotencyKey: "fixture-1",
+      forecastProbability: 42,
+      thesis: "Inflation cools",
+    };
+    expect(response.edgeSizing?.suggestedStakeMusd).toBeNull();
+    expect(open.thesis).toBe("Inflation cools");
+  });
+
   it("exposes prediction-market lifecycle, prior quote, and winner fields", () => {
     const outcome: components["schemas"]["PublicPmOutcome"] = {
       name: "Paused quote",

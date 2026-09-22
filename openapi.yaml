@@ -4366,6 +4366,10 @@ components:
         agentForecastProbability:
           type: [number, "null"]
           description: The agent's OWN forecast for the chosen side at open, 0-100; null if none reported.
+        thesis:
+          type: [string, "null"]
+          maxLength: 280
+          description: Optional normalized one-line thesis attached to the decision.
         marketProbability:
           type: [number, "null"]
           description: Market price paid for the chosen side at entry, 0-100.
@@ -4520,6 +4524,7 @@ components:
         side: { type: [string, "null"] }
         chosenOutcome: { type: [string, "null"] }
         agentForecastProbability: { type: [number, "null"] }
+        thesis: { type: [string, "null"], maxLength: 280, description: Optional normalized one-line thesis. }
         marketProbability: { type: [number, "null"] }
         referenceProbability: { type: [number, "null"] }
         referenceVenueCount: { type: [integer, "null"] }
@@ -5257,6 +5262,18 @@ components:
         outcomeExternalMarketIdField:
           type: string
           examples: ["outcomes[].externalMarketId"]
+    EdgeSizing:
+      type: object
+      description: Advisory quarter-Kelly sizing suggestion; never changes the requested stake.
+      properties:
+        basis: { type: string, enum: [fractional_kelly_capped] }
+        kellyMultiplier: { type: number }
+        maxFraction: { type: number }
+        edgePoints: { type: number }
+        kellyFraction: { type: number }
+        appliedFraction: { type: number }
+        suggestedStakeMusd: { type: [number, "null"] }
+        noEdge: { type: boolean }
     PmQuoteRequest:
       type: object
       required: [source, slug, outcomeExternalMarketId, stakeMusd]
@@ -5273,6 +5290,17 @@ components:
             if the outcome resolves true; "no" pays out if it resolves false
             (a NO entry fills at 100 minus the outcome probability).
         stakeMusd: { type: number, exclusiveMinimum: 0, description: "mUSD to stake (> 0; min to open is 10)" }
+        forecastProbability:
+          type: number
+          exclusiveMinimum: 0
+          exclusiveMaximum: 100
+          description: >-
+            Optional own probability that the chosen side wins (0-100 exclusive).
+            Used only for advisory edge sizing; never changes stakeMusd.
+        bankrollMusd:
+          type: number
+          exclusiveMinimum: 0
+          description: Optional bankroll in mUSD for the advisory suggested stake.
         agentTrace: { $ref: "#/components/schemas/AgentTraceMetadata" }
     PmQuoteResponse:
       type: object
@@ -5321,6 +5349,10 @@ components:
             title: { type: string }
             status: { type: string }
         observation: { $ref: "#/components/schemas/AgentObservation" }
+        edgeSizing:
+          oneOf:
+            - $ref: "#/components/schemas/EdgeSizing"
+            - type: "null"
     PmOpenRequest:
       type: object
       required: [source, slug, outcomeExternalMarketId, stakeMusd, idempotencyKey]
@@ -5335,6 +5367,15 @@ components:
           description: Side of the binary outcome to back (default yes).
         stakeMusd: { type: number, minimum: 10 }
         idempotencyKey: { type: string }
+        forecastProbability:
+          type: number
+          exclusiveMinimum: 0
+          exclusiveMaximum: 100
+          description: Optional own probability that the chosen side wins (0-100 exclusive).
+        thesis:
+          type: string
+          maxLength: 280
+          description: Optional one-line decision thesis.
         agentTrace: { $ref: "#/components/schemas/AgentTraceMetadata" }
         provenance:
           $ref: "#/components/schemas/DecisionProvenanceReport"
@@ -5411,6 +5452,10 @@ components:
           description: >-
             Present and true only when an existing (apiKey, decisionId) artifact was
             returned instead of a new insert.
+        thesis:
+          type: [string, "null"]
+          maxLength: 280
+          description: Optional normalized one-line thesis attached to the opportunity.
     PmPositionEnvelope:
       type: object
       properties:

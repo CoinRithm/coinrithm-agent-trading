@@ -91,6 +91,9 @@ export async function fetchQuote(
         slug: action.slug,
         outcomeExternalMarketId: action.outcomeExternalMarketId,
         stakeMusd: action.stakeMusd,
+        ...(action.forecastProbability != null
+          ? { forecastProbability: action.forecastProbability }
+          : {}),
       },
       trace,
     );
@@ -218,6 +221,7 @@ export async function executeAction(
       ...(action.forecastProbability != null
         ? { forecastProbability: action.forecastProbability }
         : {}),
+      ...(action.thesis?.summary ? { thesis: action.thesis.summary } : {}),
       // Attach runner provenance only when present (byte-identical to before when absent).
       ...(provenance ? { provenance } : {}),
       agentTrace: trace,

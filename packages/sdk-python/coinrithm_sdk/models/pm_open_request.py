@@ -28,6 +28,8 @@ class PmOpenRequest:
         idempotency_key (str):
         side (PmOpenRequestSide | Unset): Side of the binary outcome to back (default yes). Default:
             PmOpenRequestSide.YES.
+        forecast_probability (float | Unset): Optional own probability that the chosen side wins (0-100 exclusive).
+        thesis (str | Unset): Optional one-line decision thesis.
         agent_trace (AgentTraceMetadata | Unset): Optional private trace metadata supplied by a user-run agent.
             CoinRithm
             stores only this structured summary; do not send chain-of-thought,
@@ -51,6 +53,8 @@ class PmOpenRequest:
     stake_musd: float
     idempotency_key: str
     side: PmOpenRequestSide | Unset = PmOpenRequestSide.YES
+    forecast_probability: float | Unset = UNSET
+    thesis: str | Unset = UNSET
     agent_trace: AgentTraceMetadata | Unset = UNSET
     provenance: DecisionProvenanceReport | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -69,6 +73,10 @@ class PmOpenRequest:
         side: str | Unset = UNSET
         if not isinstance(self.side, Unset):
             side = self.side.value
+
+        forecast_probability = self.forecast_probability
+
+        thesis = self.thesis
 
         agent_trace: dict[str, Any] | Unset = UNSET
         if not isinstance(self.agent_trace, Unset):
@@ -91,6 +99,10 @@ class PmOpenRequest:
         )
         if side is not UNSET:
             field_dict["side"] = side
+        if forecast_probability is not UNSET:
+            field_dict["forecastProbability"] = forecast_probability
+        if thesis is not UNSET:
+            field_dict["thesis"] = thesis
         if agent_trace is not UNSET:
             field_dict["agentTrace"] = agent_trace
         if provenance is not UNSET:
@@ -121,6 +133,10 @@ class PmOpenRequest:
         else:
             side = PmOpenRequestSide(_side)
 
+        forecast_probability = d.pop("forecastProbability", UNSET)
+
+        thesis = d.pop("thesis", UNSET)
+
         _agent_trace = d.pop("agentTrace", UNSET)
         agent_trace: AgentTraceMetadata | Unset
         if isinstance(_agent_trace, Unset):
@@ -142,6 +158,8 @@ class PmOpenRequest:
             stake_musd=stake_musd,
             idempotency_key=idempotency_key,
             side=side,
+            forecast_probability=forecast_probability,
+            thesis=thesis,
             agent_trace=agent_trace,
             provenance=provenance,
         )

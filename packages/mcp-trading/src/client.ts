@@ -579,6 +579,8 @@ export class CoinRithmClient {
       // outcome probability and pays out if the outcome resolves false.
       side?: "yes" | "no";
       stakeMusd: number;
+      forecastProbability?: number;
+      bankrollMusd?: number;
     } & { agentTrace?: AgentTrace },
     apiKey?: string,
   ) {
@@ -666,6 +668,7 @@ export class CoinRithmClient {
       // the chosen side wins. Recorded separately from the market price for the
       // agent's public calibration record. Omit if not forecasting.
       forecastProbability?: number;
+      thesis?: string;
       // Optional SELF-REPORTED provenance (WHAT RAN). Sending it (even {}) makes the
       // artifact schemaVersion 2. The server stamps policy versions + providerVerified.
       provenance?: ProvenanceReport;

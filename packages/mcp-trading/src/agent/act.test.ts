@@ -199,6 +199,27 @@ describe("fetchQuote PM execution-cost evidence", () => {
 // computed for the intent — these two mutating ops must carry it through so a
 // retry can't double-send, consistent with open/close/place.
 describe("executeAction idempotency-key wiring", () => {
+  it("propagates the sanitized PM thesis on open without changing stake", async () => {
+    const openPmPosition = vi.fn(async () => okData({ positionId: 7 }));
+    const client = { openPmPosition } as unknown as CoinRithmClient;
+    const action: ProposedAction = {
+      type: "pm_open",
+      source: "kalshi",
+      slug: "event",
+      outcomeExternalMarketId: "yes",
+      stakeMusd: 25,
+      thesis: { summary: "Inflation cools", invalidation: {} },
+    };
+    await executeAction(client, action, emptyObservation(), trace, "pm-1");
+    expect(openPmPosition).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stakeMusd: 25,
+        thesis: "Inflation cools",
+        idempotencyKey: "pm-1",
+      }),
+    );
+  });
+
   it("passes the idempotency key to setFuturesSlTp", async () => {
     const setFuturesSlTp = vi.fn(async () => okData({}));
     const client = { setFuturesSlTp } as unknown as CoinRithmClient;
