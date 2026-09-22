@@ -1,9 +1,54 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createClient, PRODUCTION_BASE_URL } from "../src/index.js";
+import type { components } from "../src/schema.js";
 
 afterEach(() => vi.unstubAllGlobals());
 
 describe("TypeScript SDK request contract", () => {
+  it("exposes prediction-market lifecycle, prior quote, and winner fields", () => {
+    const outcome: components["schemas"]["PublicPmOutcome"] = {
+      name: "Paused quote",
+      probability: 0,
+      normalizedProbability: null,
+      lifecycle: {
+        state: "unknown",
+        providerAcceptingOrders: null,
+        entryBlockedByLifecycle: true,
+        isResult: false,
+        result: null,
+        basis: "unknown",
+        closedAt: null,
+        resolvedAt: null,
+        observedAt: null,
+      },
+      priorProbability: null,
+    };
+    const event: components["schemas"]["PublicPmEvent"] = {
+      id: "event-1",
+      slug: "event-1",
+      title: "Fixture",
+      status: "closed",
+      source: { id: "kalshi", name: "Kalshi" },
+      outcomes: [outcome],
+      resolvedOutcomeExternalMarketId: null,
+      resolutionOutcomeBasis: "provider",
+    };
+
+    const state:
+      | "open"
+      | "closed"
+      | "resolved"
+      | "voided"
+      | "unknown"
+      | undefined = outcome.lifecycle?.state;
+    const winnerId: string | null | undefined =
+      event.resolvedOutcomeExternalMarketId;
+    expect(state).toBe("unknown");
+    expect(winnerId).toBeNull();
+    expect(outcome.probability).toBe(0);
+    expect(outcome.normalizedProbability).toBeNull();
+  });
+
   it.each([
     { status: 200, payload: { ok: true }, alreadyClosed: undefined },
     {

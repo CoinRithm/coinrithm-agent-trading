@@ -1527,6 +1527,36 @@ export interface components {
             normalizedProbability?: number | null;
             /** @description 24h probability move in PERCENTAGE POINTS on the 0–100 scale (e.g. 5.5 means +5.5 points), NOT a fraction and not a relative percent change. */
             priceChange24h?: number | null;
+            /** @description Per-outcome provider lifecycle evidence. Terminal states are results, not live quotes; an open state with providerAcceptingOrders=false is a paused quote. */
+            lifecycle?: ({
+                /** @enum {string} */
+                state?: "open" | "closed" | "resolved" | "voided" | "unknown";
+                providerAcceptingOrders?: boolean | null;
+                entryBlockedByLifecycle?: boolean;
+                isResult?: boolean;
+                /** @enum {string|null} */
+                result?: "won" | "lost" | "voided" | null;
+                /** @enum {string} */
+                basis?: "provider" | "stored_winner" | "unknown";
+                /** Format: date-time */
+                closedAt?: string | null;
+                /** Format: date-time */
+                resolvedAt?: string | null;
+                /** Format: date-time */
+                observedAt?: string | null;
+            } & {
+                [key: string]: unknown;
+            }) | null;
+            /** @description Last stored provider quote before the outcome closed, when available. */
+            priorProbability?: ({
+                value?: number;
+                /** Format: date-time */
+                asOf?: string;
+                /** Format: date-time */
+                cutoff?: string;
+            } & {
+                [key: string]: unknown;
+            }) | null;
         } & {
             [key: string]: unknown;
         };
@@ -1542,6 +1572,8 @@ export interface components {
             endDate?: string | null;
             /** Format: date-time */
             resolvedAt?: string | null;
+            resolvedOutcomeExternalMarketId?: string | null;
+            resolutionOutcomeBasis?: string | null;
             /** @description Observation time, age and source-aware freshness state. */
             freshness?: {
                 [key: string]: unknown;
