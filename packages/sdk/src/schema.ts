@@ -3223,7 +3223,9 @@ export interface components {
          *         order size; `entryProbability` stays the mid for calibration.
          *     Futures quote funding is estimated from the latest venue rate when
          *     available and may change before settlement. Covered futures charges are
-         *     applied from recorded settled venue history; `fundingMode` is
+         *     applied from recorded settled venue history; `fundingMode` is a
+         *     venue-specific mode such as `binance_perp_rate_v1`,
+         *     `bybit_perp_rate_v1`, or `gateio_perp_rate_v1`, and is
          *     `not_modeled` when no latest rate is available. Funding does not apply
          *     to spot or PM. Futures liquidation forfeits margin without adverse fill
          *     cost, and fixed-price SL/TP triggers fill at their set price. Order-book
@@ -3245,7 +3247,10 @@ export interface components {
             /** @description estimated slippage cost for this trade (mUSD) */
             estimatedSlippageMusd?: number;
             /**
+             * @description Venue-specific current funding reference mode, or not_modeled when no latest rate is available.
              * @example binance_perp_rate_v1
+             * @example bybit_perp_rate_v1
+             * @example gateio_perp_rate_v1
              * @example not_modeled
              */
             fundingMode?: string;

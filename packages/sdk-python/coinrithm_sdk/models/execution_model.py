@@ -31,7 +31,9 @@ class ExecutionModel:
         order size; `entryProbability` stays the mid for calibration.
     Futures quote funding is estimated from the latest venue rate when
     available and may change before settlement. Covered futures charges are
-    applied from recorded settled venue history; `fundingMode` is
+    applied from recorded settled venue history; `fundingMode` is a
+    venue-specific mode such as `binance_perp_rate_v1`,
+    `bybit_perp_rate_v1`, or `gateio_perp_rate_v1`, and is
     `not_modeled` when no latest rate is available. Funding does not apply
     to spot or PM. Futures liquidation forfeits margin without adverse fill
     cost, and fixed-price SL/TP triggers fill at their set price. Order-book
@@ -45,7 +47,8 @@ class ExecutionModel:
             fill_model (None | str | Unset): Futures fill model pinned for this execution, or null for legacy mark fills.
             estimated_fee_musd (float | Unset): estimated fee for this trade (mUSD)
             estimated_slippage_musd (float | Unset): estimated slippage cost for this trade (mUSD)
-            funding_mode (str | Unset):
+            funding_mode (str | Unset): Venue-specific current funding reference mode, or not_modeled when no latest rate is
+                available.
             assumptions (list[str] | Unset): human-readable list of what is and isn't modeled
     """
 
