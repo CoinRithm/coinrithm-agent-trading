@@ -301,7 +301,7 @@ The export includes a manifest and summary: first/last event time, venues,
 ledger statuses, quote/write/reject/replay counts, related paper-trade ids, and
 the sanitized ledger rows. It also includes `executionAssumptions`: paper
 account only, latest stored market/probability snapshots, and the versioned
-`paper_execution_v1` cost model (paper execution is **not costless** — fills
+`paper_execution_v1` cost model. Paper execution is **not costless** — fills
 charge a modeled taker fee plus spread + slippage on spot/PM, disclosed per fill.
 Futures are default-off for `futures_fill_v1`; when enabled, a new open pins
 the model, while adds and user closes follow the existing position's pinned
@@ -312,7 +312,7 @@ triggers fill at their set price. Futures quote funding is an estimate from the
 latest venue rate and may change before settlement, while covered futures charges
 use recorded settled venue history; missing rates remain unavailable. The export
 also records worker-driven resting-order / SL / TP / settlement timing.
-settlement timing. It is a reproducibility artifact for your
+It is a reproducibility artifact for your
 run; it is not a full point-in-time market archive and does not expose hidden
 reasoning. Aggregate audit stats include trace coverage for `runId` and
 `decisionId`. Run exports also include `retentionPolicy`: private ledger rows
