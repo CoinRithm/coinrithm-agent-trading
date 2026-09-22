@@ -368,9 +368,9 @@ class PmQuoteResponse:
             try:
                 if not isinstance(data, dict):
                     raise TypeError()
-                edge_sizing_type_1 = EdgeSizing.from_dict(data)
+                edge_sizing_type_0 = EdgeSizing.from_dict(data)
 
-                return edge_sizing_type_1
+                return edge_sizing_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
                 pass
             return cast(EdgeSizing | None | Unset, data)
