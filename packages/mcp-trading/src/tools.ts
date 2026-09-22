@@ -273,6 +273,7 @@ const OUTCOME_SUMMARY_FIELDS = [
   "priceChange24h",
   "lifecycle",
   "priorProbability",
+  "venueTerms",
 ] as const;
 
 const WHALE_TRADE_FIELDS = [
