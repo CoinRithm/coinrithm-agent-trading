@@ -5032,16 +5032,18 @@ components:
         observation: { $ref: "#/components/schemas/AgentObservation" }
     FuturesPerpetualReference:
       type: object
-      required: [listed, venue, symbol, fundingIntervalHours]
+      required: [listed, venue, symbol, fundingIntervalHours, fetchedAt, stale]
       description: "Current venue/contract reference for a coin. Historical funding charges remain on funding ledger events."
       properties:
         listed: { type: boolean, description: "Whether a covered venue reference is currently known." }
         venue: { type: [string, "null"], description: "Current funding venue identifier, such as binance, bybit, or gateio." }
         symbol: { type: [string, "null"], description: "Current venue perpetual symbol." }
         fundingIntervalHours: { type: [integer, "null"], description: "Current venue funding interval in hours." }
+        fetchedAt: { type: [string, "null"], format: date-time, description: "When the current venue reference was fetched; null when unavailable." }
+        stale: { type: boolean, description: "Whether the current venue reference exceeds the freshness policy." }
     FuturesFundingQuote:
       type: object
-      required: [venue, symbol, rate, intervalHours, nextFundingTime, asOf, estimatedPerIntervalMusd, annualizedRate]
+      required: [venue, symbol, rate, intervalHours, nextFundingTime, asOf, estimatedPerIntervalMusd, annualizedRate, stale]
       description: |
         Latest funding rate used by the futures quote. The rate is signed as
         provided by the venue: for a long, a positive rate produces a positive
@@ -5063,6 +5065,7 @@ components:
         annualizedRate:
           type: number
           description: "Signed simple annualized rate (rate multiplied by intervals per year; not compounded)."
+        stale: { type: boolean, description: "Whether this latest venue rate exceeds the freshness policy." }
     FuturesOpenRequest:
       type: object
       required: [coinId, side, leverage, marginMusd, idempotencyKey]

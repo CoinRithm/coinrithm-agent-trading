@@ -57,6 +57,7 @@ def test_futures_quote_funding_round_trip_preserves_signed_zero_null_and_absent(
         as_of=as_of,
         estimated_per_interval_musd=-0.1,
         annualized_rate=-0.1095,
+        stale=True,
     )
     response = FuturesQuoteResponse(funding=funding)
     wire = response.to_dict()
@@ -65,6 +66,7 @@ def test_futures_quote_funding_round_trip_preserves_signed_zero_null_and_absent(
     restored = FuturesQuoteResponse.from_dict(wire)
     assert restored.funding.rate == -0.0001
     assert restored.funding.estimated_per_interval_musd == -0.1
+    assert restored.funding.stale is True
 
     zero_wire = FuturesQuoteResponse(
         funding=FuturesFundingQuote(
@@ -76,6 +78,7 @@ def test_futures_quote_funding_round_trip_preserves_signed_zero_null_and_absent(
             as_of=as_of,
             estimated_per_interval_musd=0.0,
             annualized_rate=0.0,
+            stale=False,
         )
     ).to_dict()
     assert zero_wire["funding"]["estimatedPerIntervalMusd"] == 0.0
@@ -85,6 +88,7 @@ def test_futures_quote_funding_round_trip_preserves_signed_zero_null_and_absent(
 
 
 def test_current_funding_reference_and_perpetual_contract_round_trip():
+    as_of = datetime.datetime(2026, 9, 22, tzinfo=datetime.timezone.utc)
     source = FuturesFundingSource(
         venue="gateio", symbol="BTC_USDT", funding_interval_hours=8
     )
@@ -99,12 +103,16 @@ def test_current_funding_reference_and_perpetual_contract_round_trip():
             venue="bybit",
             symbol="BTCUSDT",
             funding_interval_hours=None,
+            fetched_at=as_of,
+            stale=False,
         )
     )
     restored_response = FuturesQuoteResponse.from_dict(response.to_dict())
     assert restored_response.perpetual.listed is True
     assert restored_response.perpetual.venue == "bybit"
     assert restored_response.perpetual.funding_interval_hours is None
+    assert restored_response.perpetual.fetched_at == as_of
+    assert restored_response.perpetual.stale is False
 
     assert FuturesPosition(current_funding_reference=None).to_dict()[
         "currentFundingReference"

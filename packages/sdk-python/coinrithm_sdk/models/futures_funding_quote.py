@@ -30,6 +30,7 @@ class FuturesFundingQuote:
             estimated_per_interval_musd (float | None): Signed estimated payment for the quoted position in mUSD (positive =
                 paid, negative = received); null when unavailable. Zero is meaningful.
             annualized_rate (float): Signed simple annualized rate (rate multiplied by intervals per year; not compounded).
+            stale (bool): Whether this latest venue rate exceeds the freshness policy.
     """
 
     venue: str
@@ -40,6 +41,7 @@ class FuturesFundingQuote:
     as_of: datetime.datetime
     estimated_per_interval_musd: float | None
     annualized_rate: float
+    stale: bool
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -60,6 +62,8 @@ class FuturesFundingQuote:
 
         annualized_rate = self.annualized_rate
 
+        stale = self.stale
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -72,6 +76,7 @@ class FuturesFundingQuote:
                 "asOf": as_of,
                 "estimatedPerIntervalMusd": estimated_per_interval_musd,
                 "annualizedRate": annualized_rate,
+                "stale": stale,
             }
         )
 
@@ -101,6 +106,8 @@ class FuturesFundingQuote:
 
         annualized_rate = d.pop("annualizedRate")
 
+        stale = d.pop("stale")
+
         futures_funding_quote = cls(
             venue=venue,
             symbol=symbol,
@@ -110,6 +117,7 @@ class FuturesFundingQuote:
             as_of=as_of,
             estimated_per_interval_musd=estimated_per_interval_musd,
             annualized_rate=annualized_rate,
+            stale=stale,
         )
 
         futures_funding_quote.additional_properties = d

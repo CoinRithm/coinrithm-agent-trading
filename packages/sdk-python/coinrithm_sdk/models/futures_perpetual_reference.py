@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 from collections.abc import Mapping
 from typing import Any, TypeVar, cast
 
@@ -18,12 +19,16 @@ class FuturesPerpetualReference:
         venue (None | str): Current funding venue identifier, such as binance, bybit, or gateio.
         symbol (None | str): Current venue perpetual symbol.
         funding_interval_hours (int | None): Current venue funding interval in hours.
+        fetched_at (datetime.datetime | None): When the current venue reference was fetched; null when unavailable.
+        stale (bool): Whether the current venue reference exceeds the freshness policy.
     """
 
     listed: bool
     venue: None | str
     symbol: None | str
     funding_interval_hours: int | None
+    fetched_at: datetime.datetime | None
+    stale: bool
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -38,6 +43,14 @@ class FuturesPerpetualReference:
         funding_interval_hours: int | None
         funding_interval_hours = self.funding_interval_hours
 
+        fetched_at: None | str
+        if isinstance(self.fetched_at, datetime.datetime):
+            fetched_at = self.fetched_at.isoformat()
+        else:
+            fetched_at = self.fetched_at
+
+        stale = self.stale
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -46,6 +59,8 @@ class FuturesPerpetualReference:
                 "venue": venue,
                 "symbol": symbol,
                 "fundingIntervalHours": funding_interval_hours,
+                "fetchedAt": fetched_at,
+                "stale": stale,
             }
         )
 
@@ -77,11 +92,30 @@ class FuturesPerpetualReference:
 
         funding_interval_hours = _parse_funding_interval_hours(d.pop("fundingIntervalHours"))
 
+        def _parse_fetched_at(data: object) -> datetime.datetime | None:
+            if data is None:
+                return data
+            try:
+                if not isinstance(data, str):
+                    raise TypeError()
+                fetched_at_type_0 = datetime.datetime.fromisoformat(data)
+
+                return fetched_at_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(datetime.datetime | None, data)
+
+        fetched_at = _parse_fetched_at(d.pop("fetchedAt"))
+
+        stale = d.pop("stale")
+
         futures_perpetual_reference = cls(
             listed=listed,
             venue=venue,
             symbol=symbol,
             funding_interval_hours=funding_interval_hours,
+            fetched_at=fetched_at,
+            stale=stale,
         )
 
         futures_perpetual_reference.additional_properties = d

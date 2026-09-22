@@ -3491,6 +3491,13 @@ export interface components {
             symbol: string | null;
             /** @description Current venue funding interval in hours. */
             fundingIntervalHours: number | null;
+            /**
+             * Format: date-time
+             * @description When the current venue reference was fetched; null when unavailable.
+             */
+            fetchedAt: string | null;
+            /** @description Whether the current venue reference exceeds the freshness policy. */
+            stale: boolean;
         };
         /**
          * @description Latest funding rate used by the futures quote. The rate is signed as
@@ -3524,6 +3531,8 @@ export interface components {
             estimatedPerIntervalMusd: number | null;
             /** @description Signed simple annualized rate (rate multiplied by intervals per year; not compounded). */
             annualizedRate: number;
+            /** @description Whether this latest venue rate exceeds the freshness policy. */
+            stale: boolean;
         };
         FuturesOpenRequest: {
             coinId: string;
