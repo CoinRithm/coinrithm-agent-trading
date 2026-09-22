@@ -18,6 +18,10 @@ Each package has its own version; the API contract is versioned separately.
   routing deadline remains a separate hosted-service change.
 - Carry signed cumulative futures funding and its applied-through timestamp into
   observations and generated SDK models, preserving missing, zero, and negative values.
+- Document the default-off `futures_fill_v1` policy: new opens pin the model;
+  adds and user closes follow the existing position's pinned model. Modeled
+  adverse costs are embedded once, while liquidation and fixed-price SL/TP
+  fills are exempt.
 - npm/PyPI publication is pending; the source version is not a registry receipt.
 
 - Start the developer reference and quick start with a working anonymous data

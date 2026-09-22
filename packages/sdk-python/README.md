@@ -9,6 +9,13 @@ OpenAPI contract that drives the hosted MCP at `mcp.coinrithm.com`.
   CoinRithm API key (`crk_live_…`), sent as a bearer token.
 - The API is paper-only: no real funds ever move.
 
+Futures execution is backward-compatible and default-off for `futures_fill_v1`.
+When enabled, a new open pins the model; adds and user closes follow the
+existing position's pinned model, with modeled adverse costs embedded in the
+executed price. Existing positions keep their prior model. Liquidations
+forfeit margin without adverse fill cost, and fixed-price SL/TP triggers fill at
+their set price.
+
 ## 1.8.2 — prepared, publication pending
 
 The candle model also exposes optional `vm` volume coverage: `None` means unknown,

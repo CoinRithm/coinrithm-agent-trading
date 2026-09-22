@@ -9,6 +9,13 @@ via [`openapi-typescript`](https://github.com/openapi-ts/openapi-typescript) +
 All trading on this surface is **paper only** (virtual mUSD). Nothing touches
 real money. Not financial advice.
 
+Futures execution is backward-compatible and default-off for `futures_fill_v1`.
+When enabled, a new open pins the model; adds and user closes follow the
+existing position's pinned model, with modeled adverse costs embedded in the
+executed price. Existing positions keep their prior model. Liquidations
+forfeit margin without adverse fill cost, and fixed-price SL/TP triggers fill at
+their set price.
+
 ## Install
 
 ```bash

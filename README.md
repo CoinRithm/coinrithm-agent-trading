@@ -314,9 +314,15 @@ competes with a source venue or with CoinRithm. Full terms:
 ## Cost model (`paper_execution_v1`, honest)
 
 Paper execution is **not costless**. Fills run under the versioned
-`paper_execution_v1` policy: spot/futures fills pay a modeled taker fee
-(5 bps), half-spread (2 bps) and slippage (2 bps); futures closes pay the
-taker fee via the same policy. Prediction-market entries pay a size/
+`paper_execution_v1` policy: spot fills pay a modeled taker fee (5 bps),
+half-spread (2 bps) and slippage (2 bps). Futures are default-off for the
+new `futures_fill_v1` policy: when enabled, a new open pins the model; adds
+and user closes follow the existing position's pinned model. Futures opens,
+adds and user closes also pay the modeled taker fee (5 bps). Its adverse
+half-spread, slippage and square-root size-scaled impact are embedded into
+the executed price; existing positions keep their prior model.
+Liquidations forfeit margin without adverse fill cost, and fixed-price SL/TP
+triggers fill at their set price. Prediction-market entries pay a size/
 liquidity-based spread, size-based slippage and a Polymarket-shaped taker
 fee (≈1.8% near 50% probability, tapering toward 0 at the extremes). All
 reported PnL is **net of these modeled costs**. Futures quotes estimate funding
@@ -428,10 +434,10 @@ did:
   what the agent called.
 - **`executionAssumptions`** — the versioned `paper_execution_v1` cost model, in
   writing: paper account only, latest stored market/probability snapshots, the
-  modeled taker fee + spread + slippage each fill is charged (paper execution is
-  **not costless**; futures quote funding is an estimate from the latest venue
-  rate and may change before settlement, while covered futures charges use
-  recorded settled venue history), and worker-driven
+  modeled taker fee + spread + slippage each applicable fill is charged (paper
+  execution is **not costless**; futures quote funding is an estimate from the
+  latest venue rate and may change before settlement, while covered futures
+  charges use recorded settled venue history), and worker-driven
   resting-order / SL / TP / settlement timing.
 - **`evidenceChecklist`** — a derived pass/warn/fail checklist over trace
   completeness, decision ids, quote-before-trade coverage, rejected calls, export
