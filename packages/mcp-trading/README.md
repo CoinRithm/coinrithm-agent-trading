@@ -308,9 +308,12 @@ the model, while adds and user closes follow the existing position's pinned
 model. Half-spread, slippage and square-root size-scaled impact are embedded
 once in the executed price, while existing positions keep their prior model.
 Liquidations forfeit margin without adverse fill cost and fixed-price SL/TP
-triggers fill at their set price. Futures quote funding is an estimate from the
-latest venue rate and may change before settlement, while covered futures charges
-use recorded settled venue history; missing rates remain unavailable. The export
+triggers fill at their set price. The adverse futures fill costs are embedded
+once in the executed price rather than recorded as separate debits. Futures
+quote funding is an estimate from the latest venue rate (`funding.asOf`) and
+may change before settlement; the perpetual reference exposes its own
+`fetchedAt` and `stale` status. Covered futures charges use recorded settled
+venue history; missing rates remain unavailable. The export
 also records worker-driven resting-order / SL / TP / settlement timing.
 It is a reproducibility artifact for your
 run; it is not a full point-in-time market archive and does not expose hidden
