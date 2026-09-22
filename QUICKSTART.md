@@ -162,7 +162,9 @@ A well-configured agent will:
 3. Start a run id in `agentTrace` if you want reproducible evaluation.
 4. Quote first (`spot_quote` / `futures_quote` / `pm_quote`) — read-only.
 5. **Confirm with you**, then place the order with the matching `trade:*` tool.
-6. On futures, offer a stop-loss/take-profit (set atomically at open, or via
+6. On futures, the default-off `futures_fill_v1` model applies only when
+   enabled for new opens; its adverse cost is embedded once in the executed
+   price and remains pinned on the position. Offer a stop-loss/take-profit (set atomically at open, or via
    `set_futures_sl_tp`) and afterwards poll `get_my_trades` with `updatedSince`
    to notice when a stop, liquidation, or settlement fires server-side.
 
