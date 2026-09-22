@@ -244,6 +244,8 @@ const EVENT_SUMMARY_FIELDS = [
   "endDate",
   "resolvedAt",
   "resolvedAtBasis",
+  "resolvedOutcomeExternalMarketId",
+  "resolutionOutcomeBasis",
   "settlementWindowClosedAt",
   "freshness",
   "volume",
@@ -269,6 +271,8 @@ const OUTCOME_SUMMARY_FIELDS = [
   "probability",
   "normalizedProbability",
   "priceChange24h",
+  "lifecycle",
+  "priorProbability",
 ] as const;
 
 const WHALE_TRADE_FIELDS = [
@@ -325,6 +329,21 @@ function eventSummary(value: unknown): unknown {
     ? value.outcomes
         .map((outcome, index) => ({ outcome, index }))
         .sort((left, right) => {
+          if (value.status === "open") {
+            const leftTerminal =
+              isJsonRecord(left.outcome) && isTerminalOutcome(left.outcome);
+            const rightTerminal =
+              isJsonRecord(right.outcome) && isTerminalOutcome(right.outcome);
+            if (leftTerminal !== rightTerminal) return leftTerminal ? 1 : -1;
+          } else {
+            const leftWinner =
+              isJsonRecord(left.outcome) &&
+              isProviderConfirmedWinner(left.outcome, value);
+            const rightWinner =
+              isJsonRecord(right.outcome) &&
+              isProviderConfirmedWinner(right.outcome, value);
+            if (leftWinner !== rightWinner) return leftWinner ? -1 : 1;
+          }
           const a = isJsonRecord(left.outcome)
             ? probability(left.outcome.probability)
             : null;
@@ -352,6 +371,31 @@ function eventSummary(value: unknown): unknown {
     outcomeCount: Array.isArray(value.outcomes) ? value.outcomes.length : 0,
     outcomes,
   };
+}
+
+function isTerminalOutcome(outcome: JsonRecord): boolean {
+  const lifecycle = isJsonRecord(outcome.lifecycle) ? outcome.lifecycle : null;
+  return Boolean(
+    lifecycle?.isResult === true ||
+    (typeof lifecycle?.state === "string" &&
+      ["closed", "resolved", "voided"].includes(lifecycle.state)),
+  );
+}
+
+function isProviderConfirmedWinner(
+  outcome: JsonRecord,
+  event: JsonRecord,
+): boolean {
+  const lifecycle = isJsonRecord(outcome.lifecycle) ? outcome.lifecycle : null;
+  const lifecycleWinner =
+    lifecycle?.isResult === true &&
+    lifecycle.result === "won" &&
+    lifecycle.basis === "provider";
+  const eventWinner =
+    event.resolutionOutcomeBasis === "provider" &&
+    typeof event.resolvedOutcomeExternalMarketId === "string" &&
+    outcome.externalMarketId === event.resolvedOutcomeExternalMarketId;
+  return lifecycleWinner || eventWinner;
 }
 
 /**
@@ -2084,7 +2128,8 @@ export function registerTools(
         "Manifold, Metaculus, PredictIt, Futuur, Myriad, ForecastEx, Gemini) — broader than discover_pm_markets, which is " +
         "scoped to the paper-tradeable venues. Returns titles, probabilities, " +
         "volume/liquidity, status, and source per event, plus " +
-        "the five highest-probability outcomes and the full outcome count. " +
+        "up to five outcomes, with current outcomes ahead of terminal result " +
+        "rows when an event still has live quotes, plus the full outcome count. " +
         "Use pm_data_event for all outcomes and full evidence. Also returns " +
         "referenceProbability when present (CoinRithm's canonical cross-venue " +
         "number for open events matched across venues — probability, " +

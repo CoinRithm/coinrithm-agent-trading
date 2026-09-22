@@ -2805,6 +2805,28 @@ components:
         priceChange24h:
           type: [number, "null"]
           description: 24h probability move in PERCENTAGE POINTS on the 0–100 scale (e.g. 5.5 means +5.5 points), NOT a fraction and not a relative percent change.
+        lifecycle:
+          type: [object, "null"]
+          additionalProperties: true
+          description: Per-outcome provider lifecycle evidence. Terminal states are results, not live quotes; an open state with providerAcceptingOrders=false is a paused quote.
+          properties:
+            state: { type: string, enum: [open, closed, resolved, voided, unknown] }
+            providerAcceptingOrders: { type: [boolean, "null"] }
+            entryBlockedByLifecycle: { type: boolean }
+            isResult: { type: boolean }
+            result: { type: [string, "null"], enum: [won, lost, voided, null] }
+            basis: { type: string, enum: [provider, stored_winner, unknown] }
+            closedAt: { type: [string, "null"], format: date-time }
+            resolvedAt: { type: [string, "null"], format: date-time }
+            observedAt: { type: [string, "null"], format: date-time }
+        priorProbability:
+          type: [object, "null"]
+          additionalProperties: true
+          description: Last stored provider quote before the outcome closed, when available.
+          properties:
+            value: { type: number, minimum: 0, maximum: 100 }
+            asOf: { type: string, format: date-time }
+            cutoff: { type: string, format: date-time }
       required: [name]
 
     PublicPmEvent:
@@ -2819,6 +2841,8 @@ components:
         startDate: { type: [string, "null"], format: date-time }
         endDate: { type: [string, "null"], format: date-time }
         resolvedAt: { type: [string, "null"], format: date-time }
+        resolvedOutcomeExternalMarketId: { type: [string, "null"] }
+        resolutionOutcomeBasis: { type: [string, "null"] }
         freshness:
           type: object
           additionalProperties: true

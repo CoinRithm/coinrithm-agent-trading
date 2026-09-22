@@ -260,6 +260,13 @@ from .public_pm_events_response import PublicPmEventsResponse
 from .public_pm_events_response_meta import PublicPmEventsResponseMeta
 from .public_pm_events_response_pagination import PublicPmEventsResponsePagination
 from .public_pm_outcome import PublicPmOutcome
+from .public_pm_outcome_lifecycle_type_0 import PublicPmOutcomeLifecycleType0
+from .public_pm_outcome_lifecycle_type_0_basis import PublicPmOutcomeLifecycleType0Basis
+from .public_pm_outcome_lifecycle_type_0_result_type_1 import PublicPmOutcomeLifecycleType0ResultType1
+from .public_pm_outcome_lifecycle_type_0_result_type_2_type_1 import PublicPmOutcomeLifecycleType0ResultType2Type1
+from .public_pm_outcome_lifecycle_type_0_result_type_3_type_1 import PublicPmOutcomeLifecycleType0ResultType3Type1
+from .public_pm_outcome_lifecycle_type_0_state import PublicPmOutcomeLifecycleType0State
+from .public_pm_outcome_prior_probability_type_0 import PublicPmOutcomePriorProbabilityType0
 from .public_pm_overview_response import PublicPmOverviewResponse
 from .public_pm_overview_response_by_category_item import PublicPmOverviewResponseByCategoryItem
 from .public_pm_overview_response_by_source_item import PublicPmOverviewResponseBySourceItem
@@ -568,6 +575,13 @@ __all__ = (
     "PublicPmEventsResponseMeta",
     "PublicPmEventsResponsePagination",
     "PublicPmOutcome",
+    "PublicPmOutcomeLifecycleType0",
+    "PublicPmOutcomeLifecycleType0Basis",
+    "PublicPmOutcomeLifecycleType0ResultType1",
+    "PublicPmOutcomeLifecycleType0ResultType2Type1",
+    "PublicPmOutcomeLifecycleType0ResultType3Type1",
+    "PublicPmOutcomeLifecycleType0State",
+    "PublicPmOutcomePriorProbabilityType0",
     "PublicPmOverviewResponse",
     "PublicPmOverviewResponseByCategoryItem",
     "PublicPmOverviewResponseBySourceItem",

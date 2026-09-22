@@ -37,6 +37,8 @@ class PublicPmEvent:
         start_date (datetime.datetime | None | Unset):
         end_date (datetime.datetime | None | Unset):
         resolved_at (datetime.datetime | None | Unset):
+        resolved_outcome_external_market_id (None | str | Unset):
+        resolution_outcome_basis (None | str | Unset):
         freshness (PublicPmEventFreshness | Unset): Observation time, age and source-aware freshness state.
         volume (float | None | Unset):
         volume24h (float | None | Unset):
@@ -69,6 +71,8 @@ class PublicPmEvent:
     start_date: datetime.datetime | None | Unset = UNSET
     end_date: datetime.datetime | None | Unset = UNSET
     resolved_at: datetime.datetime | None | Unset = UNSET
+    resolved_outcome_external_market_id: None | str | Unset = UNSET
+    resolution_outcome_basis: None | str | Unset = UNSET
     freshness: PublicPmEventFreshness | Unset = UNSET
     volume: float | None | Unset = UNSET
     volume24h: float | None | Unset = UNSET
@@ -135,6 +139,18 @@ class PublicPmEvent:
             resolved_at = self.resolved_at.isoformat()
         else:
             resolved_at = self.resolved_at
+
+        resolved_outcome_external_market_id: None | str | Unset
+        if isinstance(self.resolved_outcome_external_market_id, Unset):
+            resolved_outcome_external_market_id = UNSET
+        else:
+            resolved_outcome_external_market_id = self.resolved_outcome_external_market_id
+
+        resolution_outcome_basis: None | str | Unset
+        if isinstance(self.resolution_outcome_basis, Unset):
+            resolution_outcome_basis = UNSET
+        else:
+            resolution_outcome_basis = self.resolution_outcome_basis
 
         freshness: dict[str, Any] | Unset = UNSET
         if not isinstance(self.freshness, Unset):
@@ -247,6 +263,10 @@ class PublicPmEvent:
             field_dict["endDate"] = end_date
         if resolved_at is not UNSET:
             field_dict["resolvedAt"] = resolved_at
+        if resolved_outcome_external_market_id is not UNSET:
+            field_dict["resolvedOutcomeExternalMarketId"] = resolved_outcome_external_market_id
+        if resolution_outcome_basis is not UNSET:
+            field_dict["resolutionOutcomeBasis"] = resolution_outcome_basis
         if freshness is not UNSET:
             field_dict["freshness"] = freshness
         if volume is not UNSET:
@@ -366,6 +386,26 @@ class PublicPmEvent:
             return cast(datetime.datetime | None | Unset, data)
 
         resolved_at = _parse_resolved_at(d.pop("resolvedAt", UNSET))
+
+        def _parse_resolved_outcome_external_market_id(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        resolved_outcome_external_market_id = _parse_resolved_outcome_external_market_id(
+            d.pop("resolvedOutcomeExternalMarketId", UNSET)
+        )
+
+        def _parse_resolution_outcome_basis(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        resolution_outcome_basis = _parse_resolution_outcome_basis(d.pop("resolutionOutcomeBasis", UNSET))
 
         _freshness = d.pop("freshness", UNSET)
         freshness: PublicPmEventFreshness | Unset
@@ -534,6 +574,8 @@ class PublicPmEvent:
             start_date=start_date,
             end_date=end_date,
             resolved_at=resolved_at,
+            resolved_outcome_external_market_id=resolved_outcome_external_market_id,
+            resolution_outcome_basis=resolution_outcome_basis,
             freshness=freshness,
             volume=volume,
             volume24h=volume24h,
