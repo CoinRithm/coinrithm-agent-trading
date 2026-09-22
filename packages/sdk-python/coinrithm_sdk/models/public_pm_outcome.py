@@ -11,6 +11,7 @@ from ..types import UNSET, Unset
 if TYPE_CHECKING:
     from ..models.public_pm_outcome_lifecycle_type_0 import PublicPmOutcomeLifecycleType0
     from ..models.public_pm_outcome_prior_probability_type_0 import PublicPmOutcomePriorProbabilityType0
+    from ..models.public_pm_outcome_venue_terms import PublicPmOutcomeVenueTerms
 
 
 T = TypeVar("T", bound="PublicPmOutcome")
@@ -34,6 +35,8 @@ class PublicPmOutcome:
             states are results, not live quotes; an open state with providerAcceptingOrders=false is a paused quote.
         prior_probability (None | PublicPmOutcomePriorProbabilityType0 | Unset): Last stored provider quote before the
             outcome closed, when available.
+        venue_terms (PublicPmOutcomeVenueTerms | Unset): Venue-published order and settlement terms; null values mean
+            unavailable, unreported, or invalid.
     """
 
     name: str
@@ -43,6 +46,7 @@ class PublicPmOutcome:
     price_change_24_h: float | None | Unset = UNSET
     lifecycle: None | PublicPmOutcomeLifecycleType0 | Unset = UNSET
     prior_probability: None | PublicPmOutcomePriorProbabilityType0 | Unset = UNSET
+    venue_terms: PublicPmOutcomeVenueTerms | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -87,6 +91,10 @@ class PublicPmOutcome:
         else:
             prior_probability = self.prior_probability
 
+        venue_terms: dict[str, Any] | Unset = UNSET
+        if not isinstance(self.venue_terms, Unset):
+            venue_terms = self.venue_terms.to_dict()
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -106,6 +114,8 @@ class PublicPmOutcome:
             field_dict["lifecycle"] = lifecycle
         if prior_probability is not UNSET:
             field_dict["priorProbability"] = prior_probability
+        if venue_terms is not UNSET:
+            field_dict["venueTerms"] = venue_terms
 
         return field_dict
 
@@ -113,6 +123,7 @@ class PublicPmOutcome:
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.public_pm_outcome_lifecycle_type_0 import PublicPmOutcomeLifecycleType0
         from ..models.public_pm_outcome_prior_probability_type_0 import PublicPmOutcomePriorProbabilityType0
+        from ..models.public_pm_outcome_venue_terms import PublicPmOutcomeVenueTerms
 
         d = dict(src_dict)
         name = d.pop("name")
@@ -180,6 +191,13 @@ class PublicPmOutcome:
 
         prior_probability = _parse_prior_probability(d.pop("priorProbability", UNSET))
 
+        _venue_terms = d.pop("venueTerms", UNSET)
+        venue_terms: PublicPmOutcomeVenueTerms | Unset
+        if isinstance(_venue_terms, Unset):
+            venue_terms = UNSET
+        else:
+            venue_terms = PublicPmOutcomeVenueTerms.from_dict(_venue_terms)
+
         public_pm_outcome = cls(
             name=name,
             external_market_id=external_market_id,
@@ -188,6 +206,7 @@ class PublicPmOutcome:
             price_change_24_h=price_change_24_h,
             lifecycle=lifecycle,
             prior_probability=prior_probability,
+            venue_terms=venue_terms,
         )
 
         public_pm_outcome.additional_properties = d

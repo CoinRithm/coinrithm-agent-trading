@@ -18,6 +18,10 @@ their set price.
 
 ## 1.8.2 — prepared, publication pending
 
+- Adds typed optional per-outcome `venue_terms` for venue-published minimum size,
+  tick, fee, early-close, and settlement-timer facts. Unavailable values remain
+  explicit `None`; valid `False` and `0` values are preserved.
+
 The candle model also exposes optional `vm` volume coverage: `None` means unknown,
 zero means no known missing expected venue, and a positive count identifies
 partial volume. Older responses without the field remain supported.

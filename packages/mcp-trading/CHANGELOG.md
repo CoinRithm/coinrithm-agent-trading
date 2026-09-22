@@ -7,6 +7,8 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
 ## 0.7.13 — prepared, publication pending
 
+- Preserve optional per-outcome venue terms in compact prediction-market output,
+  including explicit unavailable values and valid false/zero facts.
 - Include candle volume coverage in agent fundamentals: positive counts identify
   missing expected venues; unknown coverage stays unknown. Preserve measured zero
   volume and keep each volume paired with its own coverage.

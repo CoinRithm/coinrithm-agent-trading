@@ -218,6 +218,13 @@ describe("compact public prediction-market MCP responses", () => {
       externalMarketId: "settled",
       name: "Settled winner",
       probability: 100,
+      venueTerms: {
+        orderMinSize: null,
+        tickSize: null,
+        feesEnabled: null,
+        canCloseEarly: false,
+        settlementTimerSeconds: 0,
+      },
       lifecycle: {
         state: "resolved",
         isResult: true,
@@ -262,7 +269,25 @@ describe("compact public prediction-market MCP responses", () => {
     expect(compact.data[0].outcomes[1]).toMatchObject({
       lifecycle: { state: "resolved", result: "won", basis: "provider" },
       priorProbability: settled.priorProbability,
+      venueTerms: settled.venueTerms,
     });
+  });
+
+  it("preserves all venue term values in compact outcome summaries", () => {
+    const venueTerms = {
+      orderMinSize: 5,
+      tickSize: 0.01,
+      feesEnabled: true,
+      canCloseEarly: null,
+      settlementTimerSeconds: null,
+    };
+    const compact = compactPublicPmEvents({
+      data: [
+        { ...event, outcomes: [{ name: "Yes", probability: 55, venueTerms }] },
+      ],
+    }) as { data: Array<{ outcomes: Array<Record<string, unknown>> }> };
+
+    expect(compact.data[0].outcomes[0].venueTerms).toEqual(venueTerms);
   });
 
   it("preserves lifecycle fields in detail summaries and historical snapshots", () => {
@@ -272,17 +297,28 @@ describe("compact public prediction-market MCP responses", () => {
       result: "lost",
       basis: "provider",
     };
+    const venueTerms = {
+      orderMinSize: null,
+      tickSize: 0.005,
+      feesEnabled: false,
+      canCloseEarly: null,
+      settlementTimerSeconds: null,
+    };
     const compact = compactPublicPmEvent({
       event: {
         ...event,
         status: "closed",
-        outcomes: [{ name: "No", probability: 0, lifecycle }],
+        outcomes: [{ name: "No", probability: 0, lifecycle, venueTerms }],
       },
-      snapshots: [{ outcomes: [{ name: "No", probability: 0, lifecycle }] }],
+      snapshots: [
+        { outcomes: [{ name: "No", probability: 0, lifecycle, venueTerms }] },
+      ],
     }) as Record<string, any>;
 
     expect(compact.event.outcomes[0].lifecycle).toEqual(lifecycle);
+    expect(compact.event.outcomes[0].venueTerms).toEqual(venueTerms);
     expect(compact.snapshots[0].outcomes[0].lifecycle).toEqual(lifecycle);
+    expect(compact.snapshots[0].outcomes[0].venueTerms).toEqual(venueTerms);
   });
 
   it("keeps a provider-confirmed closed winner within the compact limit", () => {

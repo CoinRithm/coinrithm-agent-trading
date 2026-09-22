@@ -2827,6 +2827,32 @@ components:
             value: { type: number, minimum: 0, maximum: 100 }
             asOf: { type: string, format: date-time }
             cutoff: { type: string, format: date-time }
+        venueTerms:
+          type: object
+          additionalProperties: false
+          description: Venue-published order and settlement terms; null values mean unavailable, unreported, or invalid.
+          properties:
+            orderMinSize:
+              type: [number, "null"]
+              minimum: 0
+              description: Polymarket minimum order size in shares.
+            tickSize:
+              type: [number, "null"]
+              exclusiveMinimum: 0
+              maximum: 1
+              description: Polymarket minimum probability increment as a ratio.
+            feesEnabled:
+              type: [boolean, "null"]
+              description: Polymarket market fee flag.
+            canCloseEarly:
+              type: [boolean, "null"]
+              description: Kalshi early-close capability.
+            settlementTimerSeconds:
+              type: [integer, "null"]
+              minimum: 0
+              maximum: 9007199254740991
+              description: Kalshi venue-published settlement timer in seconds; not a guaranteed deadline after close.
+          required: [orderMinSize, tickSize, feesEnabled, canCloseEarly, settlementTimerSeconds]
       required: [name]
 
     PublicPmEvent:

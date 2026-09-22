@@ -1557,6 +1557,19 @@ export interface components {
             } & {
                 [key: string]: unknown;
             }) | null;
+            /** @description Venue-published order and settlement terms; null values mean unavailable, unreported, or invalid. */
+            venueTerms?: {
+                /** @description Polymarket minimum order size in shares. */
+                orderMinSize: number | null;
+                /** @description Polymarket minimum probability increment as a ratio. */
+                tickSize: number | null;
+                /** @description Polymarket market fee flag. */
+                feesEnabled: boolean | null;
+                /** @description Kalshi early-close capability. */
+                canCloseEarly: boolean | null;
+                /** @description Kalshi venue-published settlement timer in seconds; not a guaranteed deadline after close. */
+                settlementTimerSeconds: number | null;
+            };
         } & {
             [key: string]: unknown;
         };

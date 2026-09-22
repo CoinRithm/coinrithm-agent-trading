@@ -23,6 +23,7 @@ import coinrithm_sdk.api
 import coinrithm_sdk.models
 from coinrithm_sdk import AuthenticatedClient
 from coinrithm_sdk.errors import UnexpectedStatus
+from coinrithm_sdk.models import PublicPmOutcome, PublicPmOutcomeVenueTerms
 from coinrithm_sdk.types import UNSET, Unset
 
 MODEL_MODULES = [
@@ -118,6 +119,27 @@ def test_generated_model_preserves_wire_values_and_unknown_fields(model, variant
         assert "futureField" not in restored.to_dict()
     else:
         assert model.from_dict({**payload, "futureField": 1}).to_dict() == payload
+
+
+def test_public_pm_outcome_round_trips_venue_terms_values() -> None:
+    terms = PublicPmOutcomeVenueTerms(
+        order_min_size=0,
+        tick_size=None,
+        fees_enabled=False,
+        can_close_early=True,
+        settlement_timer_seconds=0,
+    )
+    outcome = PublicPmOutcome(name="Yes", venue_terms=terms)
+
+    payload = outcome.to_dict()
+    assert payload["venueTerms"] == {
+        "orderMinSize": 0,
+        "tickSize": None,
+        "feesEnabled": False,
+        "canCloseEarly": True,
+        "settlementTimerSeconds": 0,
+    }
+    assert PublicPmOutcome.from_dict(payload).to_dict() == payload
 
 
 @pytest.mark.parametrize("enum", ENUMS, ids=lambda cls: cls.__name__)

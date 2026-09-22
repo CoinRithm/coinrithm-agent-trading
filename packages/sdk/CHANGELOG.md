@@ -2,6 +2,9 @@
 
 ## 0.3.2 — prepared, publication pending
 
+- Adds typed optional per-outcome `venueTerms` for venue-published minimum size,
+  tick, fee, early-close, and settlement-timer facts. Unavailable values remain
+  explicit `null`; valid `false` and `0` values are preserved.
 - Type optional candle `vm`: null means unknown coverage, zero means no known
   missing expected venue, and a positive count identifies partial volume.
 - Correct generated cancellation types and documentation for the existing
