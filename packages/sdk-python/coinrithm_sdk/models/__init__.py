@@ -91,6 +91,8 @@ from .decision_support_spread_tier import DecisionSupportSpreadTier
 from .decision_support_volume_tier import DecisionSupportVolumeTier
 from .discover_prediction_markets_sort import DiscoverPredictionMarketsSort
 from .discover_prediction_markets_source import DiscoverPredictionMarketsSource
+from .edge_sizing import EdgeSizing
+from .edge_sizing_basis import EdgeSizingBasis
 from .entry_context import EntryContext
 from .error import Error
 from .execution_model import ExecutionModel
@@ -428,6 +430,8 @@ __all__ = (
     "DecisionSupportVolumeTier",
     "DiscoverPredictionMarketsSort",
     "DiscoverPredictionMarketsSource",
+    "EdgeSizing",
+    "EdgeSizingBasis",
     "EntryContext",
     "Error",
     "ExecutionModel",

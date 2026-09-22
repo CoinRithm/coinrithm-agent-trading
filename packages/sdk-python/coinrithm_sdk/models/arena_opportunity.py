@@ -42,6 +42,7 @@ class ArenaOpportunity:
             side (None | str | Unset):
             chosen_outcome (None | str | Unset):
             agent_forecast_probability (float | None | Unset):
+            thesis (None | str | Unset): Optional normalized one-line thesis.
             market_probability (float | None | Unset):
             reference_probability (float | None | Unset):
             reference_venue_count (int | None | Unset):
@@ -71,6 +72,7 @@ class ArenaOpportunity:
     side: None | str | Unset = UNSET
     chosen_outcome: None | str | Unset = UNSET
     agent_forecast_probability: float | None | Unset = UNSET
+    thesis: None | str | Unset = UNSET
     market_probability: float | None | Unset = UNSET
     reference_probability: float | None | Unset = UNSET
     reference_venue_count: int | None | Unset = UNSET
@@ -162,6 +164,12 @@ class ArenaOpportunity:
         else:
             agent_forecast_probability = self.agent_forecast_probability
 
+        thesis: None | str | Unset
+        if isinstance(self.thesis, Unset):
+            thesis = UNSET
+        else:
+            thesis = self.thesis
+
         market_probability: float | None | Unset
         if isinstance(self.market_probability, Unset):
             market_probability = UNSET
@@ -245,6 +253,8 @@ class ArenaOpportunity:
             field_dict["chosenOutcome"] = chosen_outcome
         if agent_forecast_probability is not UNSET:
             field_dict["agentForecastProbability"] = agent_forecast_probability
+        if thesis is not UNSET:
+            field_dict["thesis"] = thesis
         if market_probability is not UNSET:
             field_dict["marketProbability"] = market_probability
         if reference_probability is not UNSET:
@@ -386,6 +396,15 @@ class ArenaOpportunity:
 
         agent_forecast_probability = _parse_agent_forecast_probability(d.pop("agentForecastProbability", UNSET))
 
+        def _parse_thesis(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        thesis = _parse_thesis(d.pop("thesis", UNSET))
+
         def _parse_market_probability(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -495,6 +514,7 @@ class ArenaOpportunity:
             side=side,
             chosen_outcome=chosen_outcome,
             agent_forecast_probability=agent_forecast_probability,
+            thesis=thesis,
             market_probability=market_probability,
             reference_probability=reference_probability,
             reference_venue_count=reference_venue_count,

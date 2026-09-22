@@ -330,6 +330,9 @@ export class CoinRithmClient {
       slug: string;
       outcomeExternalMarketId: string;
       stakeMusd: number;
+      side?: "yes" | "no";
+      forecastProbability?: number;
+      bankrollMusd?: number;
     },
     trace?: AgentTrace,
   ) {
@@ -400,6 +403,7 @@ export class CoinRithmClient {
     // wins, recorded separately from the market price for its public calibration
     // record. Omitted entirely when the agent isn't forecasting.
     forecastProbability?: number;
+    thesis?: string;
     // Optional SELF-REPORTED provenance (WHAT RAN). Makes the artifact schemaVersion 2.
     provenance?: ProvenanceReport;
     agentTrace?: AgentTrace;

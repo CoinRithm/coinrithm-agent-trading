@@ -28,6 +28,9 @@ class PmQuoteRequest:
             if the outcome resolves true; "no" pays out if it resolves false
             (a NO entry fills at 100 minus the outcome probability).
              Default: PmQuoteRequestSide.YES.
+        forecast_probability (float | Unset): Optional own probability that the chosen side wins (0-100 exclusive). Used
+            only for advisory edge sizing; never changes stakeMusd.
+        bankroll_musd (float | Unset): Optional bankroll in mUSD for the advisory suggested stake.
         agent_trace (AgentTraceMetadata | Unset): Optional private trace metadata supplied by a user-run agent.
             CoinRithm
             stores only this structured summary; do not send chain-of-thought,
@@ -39,6 +42,8 @@ class PmQuoteRequest:
     outcome_external_market_id: str
     stake_musd: float
     side: PmQuoteRequestSide | Unset = PmQuoteRequestSide.YES
+    forecast_probability: float | Unset = UNSET
+    bankroll_musd: float | Unset = UNSET
     agent_trace: AgentTraceMetadata | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -54,6 +59,10 @@ class PmQuoteRequest:
         side: str | Unset = UNSET
         if not isinstance(self.side, Unset):
             side = self.side.value
+
+        forecast_probability = self.forecast_probability
+
+        bankroll_musd = self.bankroll_musd
 
         agent_trace: dict[str, Any] | Unset = UNSET
         if not isinstance(self.agent_trace, Unset):
@@ -71,6 +80,10 @@ class PmQuoteRequest:
         )
         if side is not UNSET:
             field_dict["side"] = side
+        if forecast_probability is not UNSET:
+            field_dict["forecastProbability"] = forecast_probability
+        if bankroll_musd is not UNSET:
+            field_dict["bankrollMusd"] = bankroll_musd
         if agent_trace is not UNSET:
             field_dict["agentTrace"] = agent_trace
 
@@ -96,6 +109,10 @@ class PmQuoteRequest:
         else:
             side = PmQuoteRequestSide(_side)
 
+        forecast_probability = d.pop("forecastProbability", UNSET)
+
+        bankroll_musd = d.pop("bankrollMusd", UNSET)
+
         _agent_trace = d.pop("agentTrace", UNSET)
         agent_trace: AgentTraceMetadata | Unset
         if isinstance(_agent_trace, Unset):
@@ -109,6 +126,8 @@ class PmQuoteRequest:
             outcome_external_market_id=outcome_external_market_id,
             stake_musd=stake_musd,
             side=side,
+            forecast_probability=forecast_probability,
+            bankroll_musd=bankroll_musd,
             agent_trace=agent_trace,
         )
 

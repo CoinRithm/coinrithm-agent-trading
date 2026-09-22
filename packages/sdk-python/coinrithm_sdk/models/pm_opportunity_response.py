@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 from uuid import UUID
 
 from attrs import define as _attrs_define
@@ -24,12 +24,14 @@ class PmOpportunityResponse:
             forecast_only->quoted, quote_expired->rejected).
         idempotent_replay (bool | Unset): Present and true only when an existing (apiKey, decisionId) artifact was
             returned instead of a new insert.
+        thesis (None | str | Unset): Optional normalized one-line thesis attached to the opportunity.
     """
 
     decision_uuid: UUID | Unset = UNSET
     opportunity_kind: PmOpportunityResponseOpportunityKind | Unset = UNSET
     result: PmOpportunityResponseResult | Unset = UNSET
     idempotent_replay: bool | Unset = UNSET
+    thesis: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -47,6 +49,12 @@ class PmOpportunityResponse:
 
         idempotent_replay = self.idempotent_replay
 
+        thesis: None | str | Unset
+        if isinstance(self.thesis, Unset):
+            thesis = UNSET
+        else:
+            thesis = self.thesis
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update({})
@@ -58,6 +66,8 @@ class PmOpportunityResponse:
             field_dict["result"] = result
         if idempotent_replay is not UNSET:
             field_dict["idempotentReplay"] = idempotent_replay
+        if thesis is not UNSET:
+            field_dict["thesis"] = thesis
 
         return field_dict
 
@@ -87,11 +97,21 @@ class PmOpportunityResponse:
 
         idempotent_replay = d.pop("idempotentReplay", UNSET)
 
+        def _parse_thesis(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        thesis = _parse_thesis(d.pop("thesis", UNSET))
+
         pm_opportunity_response = cls(
             decision_uuid=decision_uuid,
             opportunity_kind=opportunity_kind,
             result=result,
             idempotent_replay=idempotent_replay,
+            thesis=thesis,
         )
 
         pm_opportunity_response.additional_properties = d

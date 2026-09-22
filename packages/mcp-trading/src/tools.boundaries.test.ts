@@ -307,6 +307,35 @@ describe("MCP tool requests use the declared contract", () => {
       ).toBe(false);
     },
   );
+  it("marks a successful explicitly viewed open event in the background", async () => {
+    const f = fixture({ event: { status: "open", slug: "fixture" } });
+    const response = await f.call("pm_data_event", {
+      source: "polymarket",
+      slug: "fixture",
+    });
+    expect(response.isError).toBe(false);
+    await vi.waitFor(() => expect(f.requests).toHaveLength(2));
+    expect(f.requests[1]!.init?.method).toBe("POST");
+    expect(new URL(f.requests[1]!.url).pathname).toBe(
+      "/api/prediction-markets/events/polymarket/fixture/view",
+    );
+  });
+
+  it("does not mark closed events or detail failures", async () => {
+    const closed = fixture({ event: { status: "closed" } });
+    await closed.call("pm_data_event", {
+      source: "polymarket",
+      slug: "closed",
+    });
+    expect(closed.requests).toHaveLength(1);
+
+    const failed = fixture({ error: "unavailable" }, 503);
+    await failed.call("pm_data_event", {
+      source: "polymarket",
+      slug: "failed",
+    });
+    expect(failed.requests).toHaveLength(1);
+  });
   it("retains errors without compacting away rejection details", async () => {
     const body = { error: "upstream unavailable", diagnostic: "fixture" };
     const f = fixture(body, 503);

@@ -2867,6 +2867,8 @@ export interface components {
             chosenOutcome?: string | null;
             /** @description The agent's OWN forecast for the chosen side at open, 0-100; null if none reported. */
             agentForecastProbability?: number | null;
+            /** @description Optional normalized one-line thesis attached to the decision. */
+            thesis?: string | null;
             /** @description Market price paid for the chosen side at entry, 0-100. */
             marketProbability?: number | null;
             /** @description Cross-venue reference probability at entry, 0-100. */
@@ -3005,6 +3007,8 @@ export interface components {
             side?: string | null;
             chosenOutcome?: string | null;
             agentForecastProbability?: number | null;
+            /** @description Optional normalized one-line thesis. */
+            thesis?: string | null;
             marketProbability?: number | null;
             referenceProbability?: number | null;
             referenceVenueCount?: number | null;
@@ -3697,6 +3701,18 @@ export interface components {
             /** @example outcomes[].externalMarketId */
             outcomeExternalMarketIdField?: string;
         };
+        /** @description Advisory quarter-Kelly sizing suggestion; never changes the requested stake. */
+        EdgeSizing: {
+            /** @enum {string} */
+            basis?: "fractional_kelly_capped";
+            kellyMultiplier?: number;
+            maxFraction?: number;
+            edgePoints?: number;
+            kellyFraction?: number;
+            appliedFraction?: number;
+            suggestedStakeMusd?: number | null;
+            noEdge?: boolean;
+        };
         PmQuoteRequest: {
             /** @description Source slug, e.g. kalshi / polymarket (lowercased) */
             source: string;
@@ -3714,6 +3730,10 @@ export interface components {
             side: "yes" | "no";
             /** @description mUSD to stake (> 0; min to open is 10) */
             stakeMusd: number;
+            /** @description Optional own probability that the chosen side wins (0-100 exclusive). Used only for advisory edge sizing; never changes stakeMusd. */
+            forecastProbability?: number;
+            /** @description Optional bankroll in mUSD for the advisory suggested stake. */
+            bankrollMusd?: number;
             agentTrace?: components["schemas"]["AgentTraceMetadata"];
         };
         PmQuoteResponse: {
@@ -3762,6 +3782,7 @@ export interface components {
                 status?: string;
             };
             observation?: components["schemas"]["AgentObservation"];
+            edgeSizing?: components["schemas"]["EdgeSizing"] | null;
         };
         PmOpenRequest: {
             source: string;
@@ -3775,6 +3796,10 @@ export interface components {
             side: "yes" | "no";
             stakeMusd: number;
             idempotencyKey: string;
+            /** @description Optional own probability that the chosen side wins (0-100 exclusive). */
+            forecastProbability?: number;
+            /** @description Optional one-line decision thesis. */
+            thesis?: string;
             agentTrace?: components["schemas"]["AgentTraceMetadata"];
             provenance?: components["schemas"]["DecisionProvenanceReport"];
         };
@@ -3827,6 +3852,8 @@ export interface components {
             result?: "abstained" | "quoted" | "rejected";
             /** @description Present and true only when an existing (apiKey, decisionId) artifact was returned instead of a new insert. */
             idempotentReplay?: boolean;
+            /** @description Optional normalized one-line thesis attached to the opportunity. */
+            thesis?: string | null;
         };
         PmPositionEnvelope: {
             position?: components["schemas"]["PmPosition"];

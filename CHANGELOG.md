@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Added optional prediction-market thesis and advisory edge-sizing fields to the
+  canonical API contract and typed SDK consumers. Advisory sizing remains
+  opt-in and never changes the caller-selected stake.
+
 Release summaries for the MCP server and runner, hosted scheduler, and SDKs.
 Each package has its own version; the API contract is versioned separately.
 

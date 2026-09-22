@@ -12,6 +12,7 @@ from ..types import UNSET, Unset
 if TYPE_CHECKING:
     from ..models.agent_observation import AgentObservation
     from ..models.decision_support import DecisionSupport
+    from ..models.edge_sizing import EdgeSizing
     from ..models.execution_model import ExecutionModel
     from ..models.freshness import Freshness
     from ..models.pm_quality import PmQuality
@@ -88,6 +89,7 @@ class PmQuoteResponse:
             also stored in the private ledger responseSummary when the request uses
             agentTrace/run headers, giving run exports a verifiable snapshot of what
             the agent observed without creating a full market archive.
+        edge_sizing (EdgeSizing | None | Unset):
     """
 
     eligible: bool | Unset = UNSET
@@ -109,9 +111,12 @@ class PmQuoteResponse:
     eligibility: PmQuoteResponseEligibility | Unset = UNSET
     event: PmQuoteResponseEvent | Unset = UNSET
     observation: AgentObservation | Unset = UNSET
+    edge_sizing: EdgeSizing | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        from ..models.edge_sizing import EdgeSizing
+
         eligible = self.eligible
 
         block_reasons: list[str] | Unset = UNSET
@@ -184,6 +189,14 @@ class PmQuoteResponse:
         if not isinstance(self.observation, Unset):
             observation = self.observation.to_dict()
 
+        edge_sizing: dict[str, Any] | None | Unset
+        if isinstance(self.edge_sizing, Unset):
+            edge_sizing = UNSET
+        elif isinstance(self.edge_sizing, EdgeSizing):
+            edge_sizing = self.edge_sizing.to_dict()
+        else:
+            edge_sizing = self.edge_sizing
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update({})
@@ -225,6 +238,8 @@ class PmQuoteResponse:
             field_dict["event"] = event
         if observation is not UNSET:
             field_dict["observation"] = observation
+        if edge_sizing is not UNSET:
+            field_dict["edgeSizing"] = edge_sizing
 
         return field_dict
 
@@ -232,6 +247,7 @@ class PmQuoteResponse:
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.agent_observation import AgentObservation
         from ..models.decision_support import DecisionSupport
+        from ..models.edge_sizing import EdgeSizing
         from ..models.execution_model import ExecutionModel
         from ..models.freshness import Freshness
         from ..models.pm_quality import PmQuality
@@ -344,6 +360,23 @@ class PmQuoteResponse:
         else:
             observation = AgentObservation.from_dict(_observation)
 
+        def _parse_edge_sizing(data: object) -> EdgeSizing | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                edge_sizing_type_0 = EdgeSizing.from_dict(data)
+
+                return edge_sizing_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(EdgeSizing | None | Unset, data)
+
+        edge_sizing = _parse_edge_sizing(d.pop("edgeSizing", UNSET))
+
         pm_quote_response = cls(
             eligible=eligible,
             block_reasons=block_reasons,
@@ -364,6 +397,7 @@ class PmQuoteResponse:
             eligibility=eligibility,
             event=event,
             observation=observation,
+            edge_sizing=edge_sizing,
         )
 
         pm_quote_response.additional_properties = d

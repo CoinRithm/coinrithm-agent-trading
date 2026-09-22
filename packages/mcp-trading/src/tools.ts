@@ -1464,13 +1464,39 @@ export function registerTools(
               "Omitted = yes.",
           ),
         stakeMusd: z.number().positive().describe("mUSD to stake (> 0)."),
+        forecastProbability: z
+          .number()
+          .finite()
+          .gt(0)
+          .lt(100)
+          .optional()
+          .describe(
+            "Optional own probability that the selected side wins (0-100 exclusive) for advisory edge sizing.",
+          ),
+        bankrollMusd: z
+          .number()
+          .finite()
+          .positive()
+          .optional()
+          .describe(
+            "Optional bankroll in mUSD for the advisory suggested stake.",
+          ),
         agentTrace: AGENT_TRACE_SCHEMA,
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: readOnlyAnnotations("Prediction-market quote"),
     },
     async (
-      { source, slug, outcomeExternalMarketId, side, stakeMusd, agentTrace },
+      {
+        source,
+        slug,
+        outcomeExternalMarketId,
+        side,
+        stakeMusd,
+        forecastProbability,
+        bankrollMusd,
+        agentTrace,
+      },
       extra,
     ) =>
       present(
@@ -1481,6 +1507,8 @@ export function registerTools(
             outcomeExternalMarketId,
             side,
             stakeMusd,
+            forecastProbability,
+            bankrollMusd,
             agentTrace,
           },
           requestKey(extra),
@@ -1865,6 +1893,13 @@ export function registerTools(
               "SKILL — not the market's. Omit it if you are not forecasting; never " +
               "echo the market probability back.",
           ),
+        thesis: z
+          .string()
+          .max(280)
+          .optional()
+          .describe(
+            "Optional one-line thesis for this decision (max 280 characters).",
+          ),
         provenance: PROVENANCE_REPORT_SCHEMA,
         agentTrace: AGENT_TRACE_SCHEMA,
       },
@@ -1882,6 +1917,7 @@ export function registerTools(
         stakeMusd,
         idempotencyKey,
         forecastProbability,
+        thesis,
         provenance,
         agentTrace,
       },
@@ -1897,6 +1933,7 @@ export function registerTools(
             stakeMusd,
             idempotencyKey,
             forecastProbability,
+            thesis,
             provenance,
             agentTrace,
           },
@@ -2239,6 +2276,22 @@ export function registerTools(
     },
     async ({ source, slug, fiat, detail }) => {
       const result = await client.getPublicPmEvent(source, slug, { fiat });
+      const body = result.data;
+      const event =
+        body && typeof body === "object" && !Array.isArray(body)
+          ? (body as Record<string, unknown>).event
+          : null;
+      const status =
+        event && typeof event === "object" && !Array.isArray(event)
+          ? (event as Record<string, unknown>).status
+          : body && typeof body === "object" && !Array.isArray(body)
+            ? (body as Record<string, unknown>).status
+            : null;
+      if (result.ok && status === "open") {
+        void client
+          .markPublicPmEventViewed(source, slug)
+          .catch(() => undefined);
+      }
       return present(
         detail === "full"
           ? result
