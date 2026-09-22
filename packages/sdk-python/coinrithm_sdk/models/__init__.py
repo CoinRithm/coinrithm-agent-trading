@@ -104,8 +104,10 @@ from .freshness_status_type_2_type_1 import FreshnessStatusType2Type1
 from .freshness_status_type_3_type_1 import FreshnessStatusType3Type1
 from .futures_close_request import FuturesCloseRequest
 from .futures_funding_quote import FuturesFundingQuote
+from .futures_funding_source import FuturesFundingSource
 from .futures_open_request import FuturesOpenRequest
 from .futures_open_request_side import FuturesOpenRequestSide
+from .futures_perpetual_reference import FuturesPerpetualReference
 from .futures_position import FuturesPosition
 from .futures_position_coin import FuturesPositionCoin
 from .futures_position_envelope import FuturesPositionEnvelope
@@ -443,8 +445,10 @@ __all__ = (
     "FreshnessStatusType3Type1",
     "FuturesCloseRequest",
     "FuturesFundingQuote",
+    "FuturesFundingSource",
     "FuturesOpenRequest",
     "FuturesOpenRequestSide",
+    "FuturesPerpetualReference",
     "FuturesPosition",
     "FuturesPositionCoin",
     "FuturesPositionEnvelope",

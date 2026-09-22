@@ -13,6 +13,7 @@ from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
     from ..models.freshness import Freshness
+    from ..models.futures_funding_source import FuturesFundingSource
     from ..models.futures_position_coin import FuturesPositionCoin
 
 
@@ -55,6 +56,8 @@ class FuturesPosition:
                 received); omitted or null when unavailable. Zero is a meaningful value.
             funding_applied_through (datetime.datetime | None | Unset): Latest timestamp through which cumulative funding
                 was applied; omitted or null when unavailable.
+            current_funding_reference (FuturesFundingSource | None | Unset): Current venue/contract reference for this coin;
+                this is current metadata, not proof of historical funding charges.
             liquidation_distance_pct (float | None | Unset):
             at_liquidation (bool | None | Unset):
     """
@@ -84,11 +87,14 @@ class FuturesPosition:
     unrealized_pnl_musd: float | None | Unset = UNSET
     funding_paid_musd: float | None | Unset = UNSET
     funding_applied_through: datetime.datetime | None | Unset = UNSET
+    current_funding_reference: FuturesFundingSource | None | Unset = UNSET
     liquidation_distance_pct: float | None | Unset = UNSET
     at_liquidation: bool | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        from ..models.futures_funding_source import FuturesFundingSource
+
         id = self.id
 
         status: str | Unset = UNSET
@@ -203,6 +209,14 @@ class FuturesPosition:
         else:
             funding_applied_through = self.funding_applied_through
 
+        current_funding_reference: dict[str, Any] | None | Unset
+        if isinstance(self.current_funding_reference, Unset):
+            current_funding_reference = UNSET
+        elif isinstance(self.current_funding_reference, FuturesFundingSource):
+            current_funding_reference = self.current_funding_reference.to_dict()
+        else:
+            current_funding_reference = self.current_funding_reference
+
         liquidation_distance_pct: float | None | Unset
         if isinstance(self.liquidation_distance_pct, Unset):
             liquidation_distance_pct = UNSET
@@ -268,6 +282,8 @@ class FuturesPosition:
             field_dict["fundingPaidMusd"] = funding_paid_musd
         if funding_applied_through is not UNSET:
             field_dict["fundingAppliedThrough"] = funding_applied_through
+        if current_funding_reference is not UNSET:
+            field_dict["currentFundingReference"] = current_funding_reference
         if liquidation_distance_pct is not UNSET:
             field_dict["liquidationDistancePct"] = liquidation_distance_pct
         if at_liquidation is not UNSET:
@@ -278,6 +294,7 @@ class FuturesPosition:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.freshness import Freshness
+        from ..models.futures_funding_source import FuturesFundingSource
         from ..models.futures_position_coin import FuturesPositionCoin
 
         d = dict(src_dict)
@@ -464,6 +481,23 @@ class FuturesPosition:
 
         funding_applied_through = _parse_funding_applied_through(d.pop("fundingAppliedThrough", UNSET))
 
+        def _parse_current_funding_reference(data: object) -> FuturesFundingSource | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                current_funding_reference_type_0 = FuturesFundingSource.from_dict(data)
+
+                return current_funding_reference_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(FuturesFundingSource | None | Unset, data)
+
+        current_funding_reference = _parse_current_funding_reference(d.pop("currentFundingReference", UNSET))
+
         def _parse_liquidation_distance_pct(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -508,6 +542,7 @@ class FuturesPosition:
             unrealized_pnl_musd=unrealized_pnl_musd,
             funding_paid_musd=funding_paid_musd,
             funding_applied_through=funding_applied_through,
+            current_funding_reference=current_funding_reference,
             liquidation_distance_pct=liquidation_distance_pct,
             at_liquidation=at_liquidation,
         )

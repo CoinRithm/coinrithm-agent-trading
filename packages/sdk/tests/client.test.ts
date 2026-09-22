@@ -99,6 +99,12 @@ describe("TypeScript SDK request contract", () => {
         fillModel: "futures_fill_v1",
         assumptions: ["slippage is embedded in fillPrice"],
       },
+      perpetual: {
+        listed: true,
+        venue: "bybit",
+        symbol: "BTCUSDT",
+        fundingIntervalHours: 8,
+      },
     };
     const position: components["schemas"]["AuditFuturesPosition"] = {
       fillModel: null,
@@ -114,6 +120,8 @@ describe("TypeScript SDK request contract", () => {
       fill: null,
     };
     expect(quote.fill?.execPrice).toBe(100.04);
+    expect(quote.perpetual?.venue).toBe("bybit");
+    expect(quote.perpetual?.fundingIntervalHours).toBe(8);
     expect(quote.executionModel?.fillModel).toBe("futures_fill_v1");
     expect(position.fillModel).toBeNull();
     expect(event.fillPrice).toBe(100.04);

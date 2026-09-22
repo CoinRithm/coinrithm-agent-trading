@@ -2,6 +2,8 @@ import datetime
 
 from coinrithm_sdk.models.futures_position import FuturesPosition
 from coinrithm_sdk.models.futures_funding_quote import FuturesFundingQuote
+from coinrithm_sdk.models.futures_funding_source import FuturesFundingSource
+from coinrithm_sdk.models.futures_perpetual_reference import FuturesPerpetualReference
 from coinrithm_sdk.models.futures_quote_response import FuturesQuoteResponse
 from coinrithm_sdk.models.futures_quote_response_fill_type_0 import FuturesQuoteResponseFillType0
 from coinrithm_sdk.models.futures_quote_response_fill_type_0_impact_basis import FuturesQuoteResponseFillType0ImpactBasis
@@ -80,6 +82,34 @@ def test_futures_quote_funding_round_trip_preserves_signed_zero_null_and_absent(
 
     assert FuturesQuoteResponse(funding=None).to_dict()["funding"] is None
     assert "funding" not in FuturesQuoteResponse().to_dict()
+
+
+def test_current_funding_reference_and_perpetual_contract_round_trip():
+    source = FuturesFundingSource(
+        venue="gateio", symbol="BTC_USDT", funding_interval_hours=8
+    )
+    position = FuturesPosition(current_funding_reference=source)
+    restored_position = FuturesPosition.from_dict(position.to_dict())
+    assert restored_position.current_funding_reference.venue == "gateio"
+    assert restored_position.current_funding_reference.symbol == "BTC_USDT"
+
+    response = FuturesQuoteResponse(
+        perpetual=FuturesPerpetualReference(
+            listed=True,
+            venue="bybit",
+            symbol="BTCUSDT",
+            funding_interval_hours=None,
+        )
+    )
+    restored_response = FuturesQuoteResponse.from_dict(response.to_dict())
+    assert restored_response.perpetual.listed is True
+    assert restored_response.perpetual.venue == "bybit"
+    assert restored_response.perpetual.funding_interval_hours is None
+
+    assert FuturesPosition(current_funding_reference=None).to_dict()[
+        "currentFundingReference"
+    ] is None
+    assert "perpetual" not in FuturesQuoteResponse().to_dict()
 
 
 def test_futures_fill_and_audit_fields_round_trip_preserve_null_and_zero():
