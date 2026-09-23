@@ -8,6 +8,10 @@
 
 export { runCycle, type RunnerDeps } from "./runner.js";
 export {
+  buildAgentDefinitionSnapshot,
+  type AgentDefinitionSnapshot,
+} from "./definitionSnapshot.js";
+export {
   DECISION_INPUT_MAX_BYTES,
   sanitizeDecisionInputRecord,
   type DecisionInputRecord,
