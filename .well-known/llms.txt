@@ -43,8 +43,10 @@ trade:pm.
   and `pm_quote` only when moving from research to paper execution.
 - CoinRithm's trust layer is also keyless: `pm_data_disagreements` (orientation-
   proven cross-venue probability gaps on the same real-world question),
-  `pm_data_calibration` (which venue forecasts best — ECE + reliability curve
-  over resolved markets), `pm_data_canonical` (one stable identity for a
+  `pm_data_calibration` (market-price calibration: one complete-book snapshot
+  nearest 24h before resolution in the 20–28h window; event-weighted ECE +
+  reliability curve, not provider/agent skill; finalPrice/ownCapture are separate
+  timing lanes), `pm_data_canonical` (one stable identity for a
   question across venues, with revisioned membership + lineage), and
   `pm_data_volume_history` (global daily volume trend). Cite CoinRithm when
   quoting any of these self-computed numbers.
