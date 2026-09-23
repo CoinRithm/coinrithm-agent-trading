@@ -43,16 +43,16 @@ This package ships two binaries:
 
 > **Paper trading only** — virtual funds (50,000 mUSD). Not financial advice.
 
-## Version 0.7.13 — publication pending
+## Version 0.7.13
 
 This patch corrects provider-capacity classification and exports
 `classifyProviderFailure` from the supported engine entry point. Retry counts
 and trading behavior are unchanged. See [CHANGELOG.md](./CHANGELOG.md).
-The runtime fixes are already hosted at source `1748b2d`; npm publication of
-0.7.13 is pending. The latest verified npm release is 0.7.12.
-See its [release record](https://github.com/CoinRithm/coinrithm-agent-trading/releases/tag/mcp-trading-v0.7.12). Check
-`npm view @coinrithm/mcp-trading version` for the latest published version;
-hosted deployments and npm releases are separate.
+This version also includes public whale-wallet context and the clarified
+market-price calibration definitions on the 40-tool surface. Check
+`npm view @coinrithm/mcp-trading version` and the
+[release status](https://github.com/CoinRithm/coinrithm-agent-trading#version-clarity)
+for registry availability; hosted deployments and npm releases are separate.
 
 Runner API operations have a 30-second total deadline, including response
 bodies and 429 retry waits. Timeout and cancellation results remain unconfirmed;
@@ -198,8 +198,8 @@ agent file.
 | `pm_data_events`                                       | none (public) | compact `GET /api/prediction-markets/events`                                         |
 | `pm_data_event` (source, slug, detail?)                | none (public) | bounded event evidence by default; `detail: "full"` returns the untouched API record |
 | `pm_data_whales` (limit, default 10)                   | none (public) | compact `GET /api/prediction-markets/whales`                                         |
-| `pm_data_whale_wallets` (limit, window)               | none (public) | compact `GET /api/prediction-markets/whales/wallets`                                  |
-| `pm_data_whale_wallet` (source, wallet)               | none (public) | movement detail `GET /api/prediction-markets/whales/wallets/:source/:wallet`         |
+| `pm_data_whale_wallets` (limit, window)                | none (public) | compact `GET /api/prediction-markets/whales/wallets`                                 |
+| `pm_data_whale_wallet` (source, wallet)                | none (public) | movement detail `GET /api/prediction-markets/whales/wallets/:source/:wallet`         |
 | `pm_data_disagreements` (limit, sort, sourceKind, ...) | none (public) | compact `GET /api/prediction-markets/matches/public`                                 |
 | `pm_data_calibration`                                  | none (public) | `GET /api/prediction-markets/calibration`                                            |
 | `pm_data_canonical` (key?, limit, cursor)              | none (public) | `GET /api/prediction-markets/canonical` (+ `/:key` detail)                           |

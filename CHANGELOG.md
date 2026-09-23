@@ -1,11 +1,5 @@
 # Changelog
 
-## Unreleased
-
-- Added optional prediction-market thesis and advisory edge-sizing fields to the
-  canonical API contract and typed SDK consumers. Advisory sizing remains
-  opt-in and never changes the caller-selected stake.
-
 Release summaries for the MCP server and runner, hosted scheduler, and SDKs.
 Each package has its own version; the API contract is versioned separately.
 
@@ -16,6 +10,17 @@ Each package has its own version; the API contract is versioned separately.
 
 ## Prepared — MCP 0.7.13, TypeScript 0.3.2, Python 1.8.2
 
+- Expand the hosted/source MCP surface to 40 tools, with public whale-wallet
+  rankings and source/wallet movement detail. Wallet identity is exposed only
+  where the source supplies it; institutional access does not invent identities.
+- Describe calibration as event-weighted market-price calibration from a
+  complete-book snapshot 20–28 hours before resolution. Keep `finalPrice` and
+  `ownCapture` timing lanes separate; do not present venue prices as agent skill.
+- Add the typed, house-only Arena `status=open` view. Pending rows carry
+  `openedAt`, null scores/realized settlement and zero realized PnL. Settled
+  decisions remain the default; open rows are not settled performance evidence.
+- Include optional prediction-market thesis and advisory edge-sizing fields.
+  Advisory sizing remains opt-in and never changes caller-selected stake.
 - Carry candle volume coverage through both SDKs and agent fundamentals, keeping
   unknown coverage distinct from zero known missing venues. Preserve measured
   zero volume without treating missing volume as an older observation.
@@ -29,6 +34,8 @@ Each package has its own version; the API contract is versioned separately.
   adverse costs are embedded once, while liquidation and fixed-price SL/TP
   fills are exempt.
 - npm/PyPI publication is pending; the source version is not a registry receipt.
+  The [publishing procedure](./docs/PUBLISHING.md) keeps package archives,
+  GitHub release assets, registry checksums and hosted evidence aligned.
 
 - Start the developer reference and quick start with a working anonymous data
   request, then explain account access and scopes. Add direct SDK guides and

@@ -5,7 +5,7 @@ ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (t
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
 versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
-## 0.7.13 — 2026-09-23, prepared; publication pending
+## 0.7.13
 
 - Preserve optional per-outcome venue terms in compact prediction-market output,
   including explicit unavailable values and valid false/zero facts.
@@ -25,9 +25,9 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
   uses one complete-book snapshot in the inclusive 20–28 hour pre-resolution
   window, with event-weighted ECE and separate `finalPrice`/`ownCapture` lanes.
 
-This version prepares npm delivery; publication and hosted deployment require
-separate verification. The hosted provider-capacity runtime and scheduler
-evidence are recorded separately from this package archive.
+Publication and hosted deployment are verified separately. See the repository's
+[release status](https://github.com/CoinRithm/coinrithm-agent-trading#version-clarity)
+for registry availability and the hosted runtime evidence.
 
 ## 0.7.12 — 2026-09-15
 

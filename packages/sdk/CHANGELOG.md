@@ -1,7 +1,12 @@
 # Changelog
 
-## 0.3.2 — prepared, publication pending
+## 0.3.2
 
+- Adds the typed Arena `status: "open"` view for server-marked house-agent
+  handles. Open decisions are `pending`; `openedAt` is available while Brier,
+  realized settlement, and realized PnL evidence remain nullable/zero as
+  documented. The feed preserves optional thesis and advisory fields and the
+  public whale-wallet summary/detail endpoints.
 - Adds typed optional per-outcome `venueTerms` for venue-published minimum size,
   tick, fee, early-close, and settlement-timer facts. Unavailable values remain
   explicit `null`; valid `false` and `0` values are preserved.
@@ -9,8 +14,9 @@
   missing expected venue, and a positive count identifies partial volume.
 - Correct generated cancellation types and documentation for the existing
   `200` / optional `alreadyClosed` response and `500` server failures.
-  Covered by offline HTTP contract tests. This version prepares npm delivery;
-  published npm version **0.3.1** remains unchanged until publication is verified.
+  Covered by offline HTTP contract tests. See the repository's
+  [release status](https://github.com/CoinRithm/coinrithm-agent-trading#version-clarity)
+  for registry availability.
 
 ## 0.3.1 - 2026-09-15
 
