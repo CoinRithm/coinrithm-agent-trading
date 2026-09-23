@@ -30,7 +30,7 @@ class GetArenaDecisionsResponse200:
             (fees/spread/slippage; never costless). pnlMusd is net of these modeled costs. Example: paper_execution_v1.
         evaluation_policy_version (str | Unset): Versioned evaluation policy these decisions are scored under. Example:
             eval-1.
-        count (int | Unset): Total matching resolved decisions across all cursor pages.
+        count (int | Unset): Total matching decisions for the selected status across all cursor pages.
         decisions (list[ArenaDecision] | Unset):
         opportunities (list[ArenaOpportunity] | Unset): NON-opened opportunities — present ONLY when
             ?includeOpportunities=true. A distinct record type (no fill, no settlement), so fill-only fields are honestly

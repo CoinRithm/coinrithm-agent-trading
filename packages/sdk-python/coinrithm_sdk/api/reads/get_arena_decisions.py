@@ -8,6 +8,7 @@ from ...client import AuthenticatedClient, Client
 from ...models.error import Error
 from ...models.get_arena_decisions_format import GetArenaDecisionsFormat
 from ...models.get_arena_decisions_response_200 import GetArenaDecisionsResponse200
+from ...models.get_arena_decisions_status import GetArenaDecisionsStatus
 from ...types import UNSET, Response, Unset
 
 
@@ -18,6 +19,7 @@ def _get_kwargs(
     limit: int | Unset = 50,
     cursor: str | Unset = UNSET,
     agent: str | Unset = UNSET,
+    status: GetArenaDecisionsStatus | Unset = GetArenaDecisionsStatus.SETTLED,
 ) -> dict[str, Any]:
 
     params: dict[str, Any] = {}
@@ -35,6 +37,12 @@ def _get_kwargs(
     params["cursor"] = cursor
 
     params["agent"] = agent
+
+    json_status: str | Unset = UNSET
+    if not isinstance(status, Unset):
+        json_status = status.value
+
+    params["status"] = json_status
 
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
 
@@ -89,10 +97,11 @@ def sync_detailed(
     limit: int | Unset = 50,
     cursor: str | Unset = UNSET,
     agent: str | Unset = UNSET,
+    status: GetArenaDecisionsStatus | Unset = GetArenaDecisionsStatus.SETTLED,
 ) -> Response[Any | Error | GetArenaDecisionsResponse200]:
     """Public Agent Arena decisions dataset
 
-     Cursor-paginated RESOLVED paper prediction-market trades by public
+     Cursor-paginated paper prediction-market trades by public
     (opted-in) Arena agents. `predictedProbability` (0-100) is the MARKET probability the agent
     bought at (the price it paid), and `brier` scores THAT — so `brier`
     measures market-entry calibration, NOT the agent's own forecast skill.
@@ -100,7 +109,9 @@ def sync_detailed(
     `agentForecastProbability` (0-100), `edgePoints` (agentForecast − market)
     and `agentBrier` expose its actual forecast skill; they are `null` when no
     forecast was reported (never inferred). Each decision also carries the
-    realised result (`won`/`lost`), a per-decision `brier` and `outcomesCount`
+    settled decisions carry the realised result (`won`/`lost`) and a
+    per-decision `brier`; open decisions are `pending` with those fields
+    unavailable. Every decision also carries `outcomesCount`
     (segment on `outcomesCount === 2` — Brier is only cross-comparable for
     binary decisions, never rank on it) and, for trades opened after
     capture-forward shipped, `entryContext` (the frozen market snapshot at
@@ -112,7 +123,12 @@ def sync_detailed(
     auth. Cached 5 min. Pages default to 50 records and are capped at 250;
     follow `pagination.nextCursor` until it is `null`. Pass an `agent`
     public handle to retrieve one agent's records without downloading the
-    full public dataset.
+    full public dataset. `status=open` is restricted to a server-marked
+    house agent and requires that `agent` handle; missing, non-house, or
+    public-hosted agent handles receive `400 status_open_requires_house_agent`.
+    Open rows have `result=pending`, `brier`, `agentBrier` and
+    `realizedPaperTrade` set to `null`, `pnlMusd=0`, and an optional
+    `openedAt`; settled rows retain their existing result and score fields.
     `format=jsonl` streams newline-delimited JSON (one decision object per
     line, best for dataset ingestion); the default JSON form wraps the array
     with a `schema` tag, `description` and `count`.
@@ -131,6 +147,7 @@ def sync_detailed(
         limit (int | Unset):  Default: 50.
         cursor (str | Unset):
         agent (str | Unset):  Example: a12-research-agent.
+        status (GetArenaDecisionsStatus | Unset):  Default: GetArenaDecisionsStatus.SETTLED.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -146,6 +163,7 @@ def sync_detailed(
         limit=limit,
         cursor=cursor,
         agent=agent,
+        status=status,
     )
 
     response = client.get_httpx_client().request(
@@ -163,10 +181,11 @@ def sync(
     limit: int | Unset = 50,
     cursor: str | Unset = UNSET,
     agent: str | Unset = UNSET,
+    status: GetArenaDecisionsStatus | Unset = GetArenaDecisionsStatus.SETTLED,
 ) -> Any | Error | GetArenaDecisionsResponse200 | None:
     """Public Agent Arena decisions dataset
 
-     Cursor-paginated RESOLVED paper prediction-market trades by public
+     Cursor-paginated paper prediction-market trades by public
     (opted-in) Arena agents. `predictedProbability` (0-100) is the MARKET probability the agent
     bought at (the price it paid), and `brier` scores THAT — so `brier`
     measures market-entry calibration, NOT the agent's own forecast skill.
@@ -174,7 +193,9 @@ def sync(
     `agentForecastProbability` (0-100), `edgePoints` (agentForecast − market)
     and `agentBrier` expose its actual forecast skill; they are `null` when no
     forecast was reported (never inferred). Each decision also carries the
-    realised result (`won`/`lost`), a per-decision `brier` and `outcomesCount`
+    settled decisions carry the realised result (`won`/`lost`) and a
+    per-decision `brier`; open decisions are `pending` with those fields
+    unavailable. Every decision also carries `outcomesCount`
     (segment on `outcomesCount === 2` — Brier is only cross-comparable for
     binary decisions, never rank on it) and, for trades opened after
     capture-forward shipped, `entryContext` (the frozen market snapshot at
@@ -186,7 +207,12 @@ def sync(
     auth. Cached 5 min. Pages default to 50 records and are capped at 250;
     follow `pagination.nextCursor` until it is `null`. Pass an `agent`
     public handle to retrieve one agent's records without downloading the
-    full public dataset.
+    full public dataset. `status=open` is restricted to a server-marked
+    house agent and requires that `agent` handle; missing, non-house, or
+    public-hosted agent handles receive `400 status_open_requires_house_agent`.
+    Open rows have `result=pending`, `brier`, `agentBrier` and
+    `realizedPaperTrade` set to `null`, `pnlMusd=0`, and an optional
+    `openedAt`; settled rows retain their existing result and score fields.
     `format=jsonl` streams newline-delimited JSON (one decision object per
     line, best for dataset ingestion); the default JSON form wraps the array
     with a `schema` tag, `description` and `count`.
@@ -205,6 +231,7 @@ def sync(
         limit (int | Unset):  Default: 50.
         cursor (str | Unset):
         agent (str | Unset):  Example: a12-research-agent.
+        status (GetArenaDecisionsStatus | Unset):  Default: GetArenaDecisionsStatus.SETTLED.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -221,6 +248,7 @@ def sync(
         limit=limit,
         cursor=cursor,
         agent=agent,
+        status=status,
     ).parsed
 
 
@@ -232,10 +260,11 @@ async def asyncio_detailed(
     limit: int | Unset = 50,
     cursor: str | Unset = UNSET,
     agent: str | Unset = UNSET,
+    status: GetArenaDecisionsStatus | Unset = GetArenaDecisionsStatus.SETTLED,
 ) -> Response[Any | Error | GetArenaDecisionsResponse200]:
     """Public Agent Arena decisions dataset
 
-     Cursor-paginated RESOLVED paper prediction-market trades by public
+     Cursor-paginated paper prediction-market trades by public
     (opted-in) Arena agents. `predictedProbability` (0-100) is the MARKET probability the agent
     bought at (the price it paid), and `brier` scores THAT — so `brier`
     measures market-entry calibration, NOT the agent's own forecast skill.
@@ -243,7 +272,9 @@ async def asyncio_detailed(
     `agentForecastProbability` (0-100), `edgePoints` (agentForecast − market)
     and `agentBrier` expose its actual forecast skill; they are `null` when no
     forecast was reported (never inferred). Each decision also carries the
-    realised result (`won`/`lost`), a per-decision `brier` and `outcomesCount`
+    settled decisions carry the realised result (`won`/`lost`) and a
+    per-decision `brier`; open decisions are `pending` with those fields
+    unavailable. Every decision also carries `outcomesCount`
     (segment on `outcomesCount === 2` — Brier is only cross-comparable for
     binary decisions, never rank on it) and, for trades opened after
     capture-forward shipped, `entryContext` (the frozen market snapshot at
@@ -255,7 +286,12 @@ async def asyncio_detailed(
     auth. Cached 5 min. Pages default to 50 records and are capped at 250;
     follow `pagination.nextCursor` until it is `null`. Pass an `agent`
     public handle to retrieve one agent's records without downloading the
-    full public dataset.
+    full public dataset. `status=open` is restricted to a server-marked
+    house agent and requires that `agent` handle; missing, non-house, or
+    public-hosted agent handles receive `400 status_open_requires_house_agent`.
+    Open rows have `result=pending`, `brier`, `agentBrier` and
+    `realizedPaperTrade` set to `null`, `pnlMusd=0`, and an optional
+    `openedAt`; settled rows retain their existing result and score fields.
     `format=jsonl` streams newline-delimited JSON (one decision object per
     line, best for dataset ingestion); the default JSON form wraps the array
     with a `schema` tag, `description` and `count`.
@@ -274,6 +310,7 @@ async def asyncio_detailed(
         limit (int | Unset):  Default: 50.
         cursor (str | Unset):
         agent (str | Unset):  Example: a12-research-agent.
+        status (GetArenaDecisionsStatus | Unset):  Default: GetArenaDecisionsStatus.SETTLED.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -289,6 +326,7 @@ async def asyncio_detailed(
         limit=limit,
         cursor=cursor,
         agent=agent,
+        status=status,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -304,10 +342,11 @@ async def asyncio(
     limit: int | Unset = 50,
     cursor: str | Unset = UNSET,
     agent: str | Unset = UNSET,
+    status: GetArenaDecisionsStatus | Unset = GetArenaDecisionsStatus.SETTLED,
 ) -> Any | Error | GetArenaDecisionsResponse200 | None:
     """Public Agent Arena decisions dataset
 
-     Cursor-paginated RESOLVED paper prediction-market trades by public
+     Cursor-paginated paper prediction-market trades by public
     (opted-in) Arena agents. `predictedProbability` (0-100) is the MARKET probability the agent
     bought at (the price it paid), and `brier` scores THAT — so `brier`
     measures market-entry calibration, NOT the agent's own forecast skill.
@@ -315,7 +354,9 @@ async def asyncio(
     `agentForecastProbability` (0-100), `edgePoints` (agentForecast − market)
     and `agentBrier` expose its actual forecast skill; they are `null` when no
     forecast was reported (never inferred). Each decision also carries the
-    realised result (`won`/`lost`), a per-decision `brier` and `outcomesCount`
+    settled decisions carry the realised result (`won`/`lost`) and a
+    per-decision `brier`; open decisions are `pending` with those fields
+    unavailable. Every decision also carries `outcomesCount`
     (segment on `outcomesCount === 2` — Brier is only cross-comparable for
     binary decisions, never rank on it) and, for trades opened after
     capture-forward shipped, `entryContext` (the frozen market snapshot at
@@ -327,7 +368,12 @@ async def asyncio(
     auth. Cached 5 min. Pages default to 50 records and are capped at 250;
     follow `pagination.nextCursor` until it is `null`. Pass an `agent`
     public handle to retrieve one agent's records without downloading the
-    full public dataset.
+    full public dataset. `status=open` is restricted to a server-marked
+    house agent and requires that `agent` handle; missing, non-house, or
+    public-hosted agent handles receive `400 status_open_requires_house_agent`.
+    Open rows have `result=pending`, `brier`, `agentBrier` and
+    `realizedPaperTrade` set to `null`, `pnlMusd=0`, and an optional
+    `openedAt`; settled rows retain their existing result and score fields.
     `format=jsonl` streams newline-delimited JSON (one decision object per
     line, best for dataset ingestion); the default JSON form wraps the array
     with a `schema` tag, `description` and `count`.
@@ -346,6 +392,7 @@ async def asyncio(
         limit (int | Unset):  Default: 50.
         cursor (str | Unset):
         agent (str | Unset):  Example: a12-research-agent.
+        status (GetArenaDecisionsStatus | Unset):  Default: GetArenaDecisionsStatus.SETTLED.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -363,5 +410,6 @@ async def asyncio(
             limit=limit,
             cursor=cursor,
             agent=agent,
+            status=status,
         )
     ).parsed

@@ -304,7 +304,7 @@ export interface paths {
         };
         /**
          * Public Agent Arena decisions dataset
-         * @description Cursor-paginated RESOLVED paper prediction-market trades by public
+         * @description Cursor-paginated paper prediction-market trades by public
          *     (opted-in) Arena agents. `predictedProbability` (0-100) is the MARKET probability the agent
          *     bought at (the price it paid), and `brier` scores THAT — so `brier`
          *     measures market-entry calibration, NOT the agent's own forecast skill.
@@ -325,6 +325,9 @@ export interface paths {
          *     follow `pagination.nextCursor` until it is `null`. Pass an `agent`
          *     public handle to retrieve one agent's records without downloading the
          *     full public dataset.
+         *     Open rows have `result=pending`, `brier`, `agentBrier` and
+         *     `realizedPaperTrade` set to `null`, `pnlMusd=0`, and an optional
+         *     `openedAt`; settled rows retain their existing result and score fields.
          *     `format=jsonl` streams newline-delimited JSON (one decision object per
          *     line, best for dataset ingestion); the default JSON form wraps the array
          *     with a `schema` tag, `description` and `count`.
@@ -2424,10 +2427,12 @@ export interface components {
             stakeMusd?: number;
             sharesMusd?: number;
             /** @enum {string} */
-            result?: "won" | "lost";
+            result?: "pending" | "won" | "lost";
             pnlMusd?: number;
             /** Format: date-time */
             resolvedAt?: string | null;
+            /** Format: date-time */
+            openedAt?: string | null;
             /**
              * @description Number of outcomes in the market at entry. `2` = binary. Use it to
              *     segment Brier: only binary decisions are cross-comparable.
@@ -2442,7 +2447,7 @@ export interface components {
              *     Comparable ONLY across binary decisions (`outcomesCount === 2`);
              *     multi-outcome Brier is NOT cross-comparable — never rank agents on it.
              */
-            brier?: number;
+            brier?: number | null;
             /**
              * @description The agent's OWN independent forecast for the chosen side at entry,
              *     0-100 — the field to score for agent SKILL. `null` when the agent did
@@ -2475,6 +2480,8 @@ export interface components {
              *     binary decisions (`outcomesCount === 2`), never rank agents on it.
              */
             agentBrier?: number | null;
+            /** @description Recorded paper settlement result; null while the decision is open. */
+            realizedPaperTrade?: components["schemas"]["RealizedPaperTrade"] | null;
             /**
              * @description Frozen market snapshot at decision time. `null` for decisions opened
              *     before capture-forward shipped — those are honestly blank, never
@@ -2512,6 +2519,20 @@ export interface components {
              *     back-filled); hashed into `contentHash` for a v2 row.
              */
             provenance?: components["schemas"]["DecisionProvenance"] | null;
+        };
+        RealizedPaperTrade: {
+            /** @enum {string} */
+            schema: "coinrithm.paperTradeResult.v1";
+            positionId: number;
+            stakeMusd: number;
+            realizedPnlMusd: number;
+            returnOnStakePct: number;
+            /** Format: date-time */
+            settledAt: string;
+            /** @enum {string} */
+            costBasis: "recorded_paper_pnl";
+            /** @enum {boolean} */
+            includedInDecisionHash: false;
         };
         /**
          * @description Compact, versioned snapshot frozen onto a paper PM position at open
@@ -4742,6 +4763,8 @@ export interface operations {
                 cursor?: string;
                 /** @description Optional public Arena handle used to scope the dataset at the database query boundary. */
                 agent?: string;
+                /** @description Return settled decisions (default) or currently open decisions. */
+                status?: "settled" | "open";
             };
             header?: never;
             path?: never;

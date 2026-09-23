@@ -126,6 +126,7 @@ from .get_arena_agent_response_200 import GetArenaAgentResponse200
 from .get_arena_decisions_format import GetArenaDecisionsFormat
 from .get_arena_decisions_response_200 import GetArenaDecisionsResponse200
 from .get_arena_decisions_response_200_pagination import GetArenaDecisionsResponse200Pagination
+from .get_arena_decisions_status import GetArenaDecisionsStatus
 from .get_arena_leaderboard_response_200 import GetArenaLeaderboardResponse200
 from .get_arena_leaderboard_response_200_source import GetArenaLeaderboardResponse200Source
 from .get_arena_leaderboard_response_200_window import GetArenaLeaderboardResponse200Window
@@ -335,6 +336,9 @@ from .public_pm_whale_trade_availability import PublicPmWhaleTradeAvailability
 from .public_pm_whales_response import PublicPmWhalesResponse
 from .public_pm_whales_response_coverage_item import PublicPmWhalesResponseCoverageItem
 from .public_pm_whales_response_stats_24h import PublicPmWhalesResponseStats24H
+from .realized_paper_trade import RealizedPaperTrade
+from .realized_paper_trade_cost_basis import RealizedPaperTradeCostBasis
+from .realized_paper_trade_schema import RealizedPaperTradeSchema
 from .resolve_symbol_response_200 import ResolveSymbolResponse200
 from .resolve_symbol_response_200_alternatives_item import ResolveSymbolResponse200AlternativesItem
 from .resolve_symbol_response_200_match_type_0 import ResolveSymbolResponse200MatchType0
@@ -495,6 +499,7 @@ __all__ = (
     "GetArenaDecisionsFormat",
     "GetArenaDecisionsResponse200",
     "GetArenaDecisionsResponse200Pagination",
+    "GetArenaDecisionsStatus",
     "GetArenaLeaderboardResponse200",
     "GetArenaLeaderboardResponse200Source",
     "GetArenaLeaderboardResponse200Window",
@@ -672,6 +677,9 @@ __all__ = (
     "PublicPmWhalesResponseStats24H",
     "PublicPmWhaleTrade",
     "PublicPmWhaleTradeAvailability",
+    "RealizedPaperTrade",
+    "RealizedPaperTradeCostBasis",
+    "RealizedPaperTradeSchema",
     "ResolveSymbolResponse200",
     "ResolveSymbolResponse200AlternativesItem",
     "ResolveSymbolResponse200MatchType0",
