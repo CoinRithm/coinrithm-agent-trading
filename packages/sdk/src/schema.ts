@@ -1105,11 +1105,36 @@ export interface paths {
         };
         /**
          * Aggregated large-trader wallet activity
-         * @description Wallet-level aggregation behind the public whales surface. On-chain
+         * @description Observed-window wallet aggregation behind the public whales surface. On-chain
          *     venues only, so absence of a wallet is not evidence of absence of
          *     trading — it means the venue does not expose one.
          */
         get: operations["getPublicPredictionMarketWhaleWallets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/prediction-markets/whales/wallets/{source}/{wallet}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Public wallet movement detail
+         * @description Read-only observed trade-notional summaries, daily activity, top
+         *     events, and recent matched BUY/SELL fills for one identifiable wallet.
+         *     CoinRithm flow fields are public matched-trade observations. Some
+         *     providers may additionally report positions or PnL with their own
+         *     availability and as-of markers; these are separate provider context,
+         *     not CoinRithm-derived holdings or PnL. Wallet availability is venue-specific.
+         */
+        get: operations["getPublicPredictionMarketWhaleWallet"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5608,7 +5633,12 @@ export interface operations {
     };
     getPublicPredictionMarketWhaleWallets: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Observed aggregation window. */
+                window?: "7d" | "30d";
+                /** @description Restrict wallet aggregation to one supported venue. */
+                source?: "polymarket" | "limitless" | "myriad";
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5622,10 +5652,32 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /** @enum {string} */
+                        window?: "7d" | "30d";
+                        venues?: string[];
+                        wallets?: ({
+                            wallet?: string;
+                            address?: string;
+                            traderName?: string | null;
+                            venues?: {
+                                [key: string]: unknown;
+                            }[];
+                            tradeCount?: number;
+                            totalUsd?: number;
+                            maxUsd?: number;
+                            /** Format: date-time */
+                            firstSeen?: string | null;
+                            /** Format: date-time */
+                            lastSeen?: string | null;
+                        } & {
+                            [key: string]: unknown;
+                        })[];
+                    } & {
                         [key: string]: unknown;
                     };
                 };
             };
+            400: components["responses"]["BadRequest"];
             /** @description Public request rate limit exceeded; honor `Retry-After`. */
             429: {
                 headers: {
@@ -5634,6 +5686,65 @@ export interface operations {
                 content?: never;
             };
             500: components["responses"]["ServerError"];
+            503: components["responses"]["ServerError"];
+        };
+    };
+    getPublicPredictionMarketWhaleWallet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source: "polymarket" | "limitless" | "myriad";
+                wallet: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Wallet movement detail with freshness and provenance */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        source?: string;
+                        sourceName?: string;
+                        sourceIcon?: string | null;
+                        wallet?: string;
+                        walletShort?: string | null;
+                        traderName?: string | null;
+                        summary30d?: {
+                            [key: string]: unknown;
+                        };
+                        rollup?: {
+                            [key: string]: unknown;
+                        };
+                        daily?: {
+                            [key: string]: unknown;
+                        }[];
+                        topEvents30d?: {
+                            [key: string]: unknown;
+                        }[];
+                        recentFills?: {
+                            [key: string]: unknown;
+                        }[];
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description Public request rate limit exceeded; honor `Retry-After`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            500: components["responses"]["ServerError"];
+            503: components["responses"]["ServerError"];
         };
     };
     getPublicPredictionMarketSources: {

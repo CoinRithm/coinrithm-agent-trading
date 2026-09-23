@@ -354,6 +354,20 @@ export class CoinRithmClient {
   getPublicPmWhales() {
     return this.publicRequest("/api/prediction-markets/whales");
   }
+  getPublicPmWhaleWallets(
+    window?: "7d" | "30d",
+    source?: "polymarket" | "limitless" | "myriad",
+  ) {
+    return this.publicRequest("/api/prediction-markets/whales/wallets", {
+      ...(window ? { window } : {}),
+      ...(source ? { source } : {}),
+    });
+  }
+  getPublicPmWhaleWallet(source: string, wallet: string) {
+    return this.publicRequest(
+      `/api/prediction-markets/whales/wallets/${encodeURIComponent(source)}/${encodeURIComponent(wallet)}`,
+    );
+  }
   // Cross-venue disagreement clusters (approved event matches, graph-clustered).
   getPublicPmMatches(query?: {
     limit?: number;

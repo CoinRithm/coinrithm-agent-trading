@@ -621,6 +621,83 @@ export function compactPublicPmWhales(data: unknown, limit: number): unknown {
   return { ...data, trades };
 }
 
+const WHALE_WALLET_FIELDS = [
+  "wallet",
+  "address",
+  "traderName",
+  "venues",
+  "tradeCount",
+  "totalUsd",
+  "maxUsd",
+  "firstSeen",
+  "lastSeen",
+] as const;
+
+export function compactPublicPmWhaleWallets(
+  data: unknown,
+  limit: number,
+  requestedSource?: string,
+): unknown {
+  if (!isJsonRecord(data)) return data;
+  if (
+    requestedSource &&
+    (!Array.isArray(data.venues) ||
+      data.venues.length !== 1 ||
+      data.venues[0] !== requestedSource)
+  ) {
+    return {
+      unavailable: "filtered_wallet_scope_unconfirmed",
+      requestedSource,
+    };
+  }
+  const wallets = Array.isArray(data.wallets)
+    ? data.wallets
+        .slice(0, limit)
+        .map((wallet) =>
+          isJsonRecord(wallet) ? pick(wallet, WHALE_WALLET_FIELDS) : wallet,
+        )
+    : data.wallets;
+  return { ...data, wallets };
+}
+
+const WHALE_WALLET_FILL_FIELDS = [
+  "side",
+  "outcome",
+  "marketQuestion",
+  "usdValue",
+  "price",
+  "evidenceType",
+  "evidenceUrl",
+  "availability",
+  "tradedAt",
+  "event",
+] as const;
+
+export function compactPublicPmWhaleWalletDetail(data: unknown): unknown {
+  if (!isJsonRecord(data)) return data;
+  const compactEvent = (value: unknown): unknown =>
+    isJsonRecord(value)
+      ? pick(value, ["source", "slug", "title", "status"])
+      : value;
+  const compactFill = (value: unknown): unknown => {
+    if (!isJsonRecord(value)) return value;
+    const fill = pick(value, WHALE_WALLET_FILL_FIELDS);
+    if (isJsonRecord(fill) && "event" in fill) {
+      return { ...fill, event: compactEvent(fill.event) };
+    }
+    return fill;
+  };
+  return {
+    ...data,
+    topEvents30d: Array.isArray(data.topEvents30d)
+      ? data.topEvents30d.slice(0, 20)
+      : data.topEvents30d,
+    recentFills: Array.isArray(data.recentFills)
+      ? data.recentFills.slice(0, 20).map(compactFill)
+      : data.recentFills,
+  };
+}
+
 // Crypto movers rows arrive as {ucid, symbol, name, slug, change24h,
 // currentPrice} with the numerics as STRINGS (backend SQL fn passthrough).
 // Coerce so a brain never string-compares "9.5" > "12"; drop the internal
@@ -2329,6 +2406,87 @@ export function registerTools(
       present(
         mapSuccessfulBody(await client.getPublicPmWhales(), (data) =>
           compactPublicPmWhales(data, limit ?? 10),
+        ),
+      ),
+  );
+
+  server.registerTool(
+    "pm_data_whale_wallets",
+    {
+      title: "Explore prediction-market whale wallets",
+      description:
+        "Free public 7-day (default) or 30-day aggregation of identifiable " +
+        "large-trader " +
+        "wallet activity for the on-chain venues that expose wallet addresses. " +
+        "Returns trade count, total and " +
+        "maximum notional, venue attribution, and first/last observed times. " +
+        "An absent wallet does not prove absent trading: anonymized venues and " +
+        "unavailable feeds are excluded. This is market context, not a wallet " +
+        "identity guarantee or recommendation. No API key required.",
+      inputSchema: {
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(50)
+          .optional()
+          .describe("Max wallets (1-50, default 10)."),
+        window: z
+          .enum(["7d", "30d"])
+          .optional()
+          .describe("Observed aggregation window (default 7d)."),
+        source: z
+          .enum(["polymarket", "limitless", "myriad"])
+          .optional()
+          .describe("Restrict results to one wallet-address venue."),
+      },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations(
+        "Explore prediction-market whale wallets",
+      ),
+    },
+    async ({ limit, window, source }) =>
+      present(
+        mapSuccessfulBody(
+          await client.getPublicPmWhaleWallets(window, source),
+          (data) => compactPublicPmWhaleWallets(data, limit ?? 10, source),
+        ),
+      ),
+  );
+
+  server.registerTool(
+    "pm_data_whale_wallet",
+    {
+      title: "Inspect one prediction-market whale wallet",
+      description:
+        "Free public wallet movement detail for one supported on-chain " +
+        "prediction-market venue and address. Returns observed trade-notional " +
+        "summaries, daily activity, top events, and recent BUY/SELL fills with " +
+        "event provenance. CoinRithm flow fields are matched-trade observations; " +
+        "optional provider-reported positions/PnL context is separate and may " +
+        "carry its own availability and as-of markers. Absence of a row is not " +
+        "proof of inactivity. No API " +
+        "key required.",
+      inputSchema: {
+        source: z
+          .enum(["polymarket", "limitless", "myriad"])
+          .describe("Supported wallet-address venue."),
+        wallet: z
+          .string()
+          .trim()
+          .regex(/^0x[0-9a-fA-F]{40}$/, "expected a 20-byte EVM wallet address")
+          .describe("Wallet address returned by pm_data_whale_wallets."),
+      },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations(
+        "Inspect one prediction-market whale wallet",
+      ),
+    },
+    async ({ source, wallet }) =>
+      present(
+        mapSuccessfulBody(
+          await client.getPublicPmWhaleWallet(source, wallet),
+          compactPublicPmWhaleWalletDetail,
         ),
       ),
   );
