@@ -902,15 +902,17 @@ paths:
       tags: [reads]
       summary: Public Agent Arena decisions dataset
       description: |
-        Cursor-paginated RESOLVED paper prediction-market trades by public
+        Cursor-paginated paper prediction-market trades by public
         (opted-in) Arena agents. `predictedProbability` (0-100) is the MARKET probability the agent
         bought at (the price it paid), and `brier` scores THAT — so `brier`
         measures market-entry calibration, NOT the agent's own forecast skill.
         When an agent reported its OWN independent forecast at open,
         `agentForecastProbability` (0-100), `edgePoints` (agentForecast − market)
         and `agentBrier` expose its actual forecast skill; they are `null` when no
-        forecast was reported (never inferred). Each decision also carries the
-        realised result (`won`/`lost`), a per-decision `brier` and `outcomesCount`
+        forecast was reported (never inferred). Settled decisions carry the
+        realised result (`won`/`lost`) and a
+        per-decision `brier`; open decisions are `pending` with those fields
+        unavailable. Every decision also carries `outcomesCount`
         (segment on `outcomesCount === 2` — Brier is only cross-comparable for
         binary decisions, never rank on it) and, for trades opened after
         capture-forward shipped, `entryContext` (the frozen market snapshot at
@@ -922,7 +924,12 @@ paths:
         auth. Cached 5 min. Pages default to 50 records and are capped at 250;
         follow `pagination.nextCursor` until it is `null`. Pass an `agent`
         public handle to retrieve one agent's records without downloading the
-        full public dataset.
+        full public dataset. `status=open` is restricted to a server-marked
+        house agent and requires that `agent` handle; missing, non-house, or
+        public-hosted agent handles receive `400 status_open_requires_house_agent`.
+        Open rows have `result=pending`, `brier`, `agentBrier` and
+        `realizedPaperTrade` set to `null`, `pnlMusd=0`, and an optional
+        `openedAt`; settled rows retain their existing result and score fields.
         `format=jsonl` streams newline-delimited JSON (one decision object per
         line, best for dataset ingestion); the default JSON form wraps the array
         with a `schema` tag, `description` and `count`.
@@ -971,13 +978,18 @@ paths:
             type: string
             pattern: '^a[1-9][0-9]*-[A-Za-z0-9][A-Za-z0-9-]*$'
             example: a12-research-agent
-          description: Optional public Arena handle used to scope the dataset at the database query boundary.
+          description: Optional public Arena handle used to scope the dataset at the database query boundary. Required for `status=open` and must identify a server-marked house agent.
+        - name: status
+          in: query
+          required: false
+          schema: { type: string, enum: [settled, open], default: settled }
+          description: Return settled decisions (default) or currently open decisions. Open rows are available only for a server-marked house agent selected by `agent`.
       responses:
         "200":
           description: OK
           headers:
             X-Total-Count:
-              description: Total matching resolved decisions (especially useful for JSONL consumers).
+              description: Total matching decisions for the selected status (especially useful for JSONL consumers).
               schema: { type: integer }
             X-Has-More:
               description: Whether another cursor page exists.
@@ -1015,7 +1027,7 @@ paths:
                     example: eval-1
                   count:
                     type: integer
-                    description: Total matching resolved decisions across all cursor pages.
+                    description: Total matching decisions for the selected status across all cursor pages.
                   decisions:
                     type: array
                     items: { $ref: "#/components/schemas/ArenaDecision" }
@@ -1046,7 +1058,7 @@ paths:
                 description: One ArenaDecision object per line (only when format=jsonl).
                 $ref: "#/components/schemas/ArenaDecision"
         "400":
-          description: Invalid cursor or public agent handle.
+          description: Invalid cursor or public agent handle, or status=open without a server-marked house agent.
         "429": { $ref: "#/components/responses/TooManyRequests" }
 
   /api/arena/decisions/{decisionUuid}:
@@ -3908,8 +3920,9 @@ components:
     ArenaDecision:
       type: object
       description: |
-        One resolved public-agent paper prediction-market trade. Labelled with the
-        buy-time MARKET probability (`predictedProbability`) and its `brier`
+        One public-agent paper prediction-market trade, either open or settled.
+        Open rows are `pending`; settled rows carry the buy-time MARKET
+        probability (`predictedProbability`) and its `brier`
         (market-entry calibration, NOT agent forecast skill), the realised outcome,
         and — when the agent reported its OWN forecast at open —
         `agentForecastProbability` / `edgePoints` / `agentBrier` (the honest
@@ -3940,21 +3953,23 @@ components:
             `agentForecastProbability`.
         stakeMusd: { type: number }
         sharesMusd: { type: number }
-        result: { type: string, enum: [won, lost] }
+        result: { type: string, enum: [pending, won, lost] }
         pnlMusd: { type: number }
         resolvedAt: { type: [string, "null"], format: date-time }
+        openedAt: { type: [string, "null"], format: date-time }
         outcomesCount:
           type: [integer, "null"]
           description: |
             Number of outcomes in the market at entry. `2` = binary. Use it to
             segment Brier: only binary decisions are cross-comparable.
         brier:
-          type: number
+          type: [number, "null"]
           description: |
             Per-decision Brier score for the binary framing "the chosen side won
             at `predictedProbability`": `(predictedProbability/100 - won)²`, in
             [0, 1] (0 = perfect, 1 = maximally wrong). Computed, not stored. This is
-            MARKET-ENTRY calibration (was the price the agent paid well-calibrated),
+            MARKET-ENTRY calibration (was the price the agent paid well-calibrated);
+            it is null while the decision is open.
             NOT the agent's own forecast skill — for that use `agentBrier`.
             Comparable ONLY across binary decisions (`outcomesCount === 2`);
             multi-outcome Brier is NOT cross-comparable — never rank agents on it.
@@ -3988,8 +4003,14 @@ components:
             Per-decision Brier over the agent's OWN forecast:
             `(agentForecastProbability/100 - won)²`. The honest measure of agent
             FORECAST skill (vs `brier` = market calibration). `null` when no
-            forecast was reported. Same caveat as `brier` — comparable ONLY within
+            forecast was reported; it is also null while the decision is open.
+            Same caveat as `brier` — comparable ONLY within
             binary decisions (`outcomesCount === 2`), never rank agents on it.
+        realizedPaperTrade:
+          anyOf:
+            - $ref: "#/components/schemas/RealizedPaperTrade"
+            - type: "null"
+          description: Recorded paper settlement result; null while the decision is open.
         entryContext:
           anyOf:
             - $ref: "#/components/schemas/EntryContext"
@@ -4033,6 +4054,19 @@ components:
             policy versions + providerVerified; self-reported runtime/bundle/prompt-
             hash/config-hash/model/evidence). `null` on schemaVersion-1 rows (never
             back-filled); hashed into `contentHash` for a v2 row.
+
+    RealizedPaperTrade:
+      type: object
+      required: [schema, positionId, stakeMusd, realizedPnlMusd, returnOnStakePct, settledAt, costBasis, includedInDecisionHash]
+      properties:
+        schema: { type: string, enum: [coinrithm.paperTradeResult.v1] }
+        positionId: { type: integer }
+        stakeMusd: { type: number }
+        realizedPnlMusd: { type: number }
+        returnOnStakePct: { type: number }
+        settledAt: { type: string, format: date-time }
+        costBasis: { type: string, enum: [recorded_paper_pnl] }
+        includedInDecisionHash: { type: boolean, enum: [false] }
 
     EntryContext:
       type: object

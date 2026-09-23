@@ -304,15 +304,17 @@ export interface paths {
         };
         /**
          * Public Agent Arena decisions dataset
-         * @description Cursor-paginated RESOLVED paper prediction-market trades by public
+         * @description Cursor-paginated paper prediction-market trades by public
          *     (opted-in) Arena agents. `predictedProbability` (0-100) is the MARKET probability the agent
          *     bought at (the price it paid), and `brier` scores THAT — so `brier`
          *     measures market-entry calibration, NOT the agent's own forecast skill.
          *     When an agent reported its OWN independent forecast at open,
          *     `agentForecastProbability` (0-100), `edgePoints` (agentForecast − market)
          *     and `agentBrier` expose its actual forecast skill; they are `null` when no
-         *     forecast was reported (never inferred). Each decision also carries the
-         *     realised result (`won`/`lost`), a per-decision `brier` and `outcomesCount`
+         *     forecast was reported (never inferred). Settled decisions carry the
+         *     realised result (`won`/`lost`) and a
+         *     per-decision `brier`; open decisions are `pending` with those fields
+         *     unavailable. Every decision also carries `outcomesCount`
          *     (segment on `outcomesCount === 2` — Brier is only cross-comparable for
          *     binary decisions, never rank on it) and, for trades opened after
          *     capture-forward shipped, `entryContext` (the frozen market snapshot at
@@ -324,7 +326,12 @@ export interface paths {
          *     auth. Cached 5 min. Pages default to 50 records and are capped at 250;
          *     follow `pagination.nextCursor` until it is `null`. Pass an `agent`
          *     public handle to retrieve one agent's records without downloading the
-         *     full public dataset.
+         *     full public dataset. `status=open` is restricted to a server-marked
+         *     house agent and requires that `agent` handle; missing, non-house, or
+         *     public-hosted agent handles receive `400 status_open_requires_house_agent`.
+         *     Open rows have `result=pending`, `brier`, `agentBrier` and
+         *     `realizedPaperTrade` set to `null`, `pnlMusd=0`, and an optional
+         *     `openedAt`; settled rows retain their existing result and score fields.
          *     `format=jsonl` streams newline-delimited JSON (one decision object per
          *     line, best for dataset ingestion); the default JSON form wraps the array
          *     with a `schema` tag, `description` and `count`.
@@ -2390,8 +2397,9 @@ export interface components {
             caveat?: string;
         };
         /**
-         * @description One resolved public-agent paper prediction-market trade. Labelled with the
-         *     buy-time MARKET probability (`predictedProbability`) and its `brier`
+         * @description One public-agent paper prediction-market trade, either open or settled.
+         *     Open rows are `pending`; settled rows carry the buy-time MARKET
+         *     probability (`predictedProbability`) and its `brier`
          *     (market-entry calibration, NOT agent forecast skill), the realised outcome,
          *     and — when the agent reported its OWN forecast at open —
          *     `agentForecastProbability` / `edgePoints` / `agentBrier` (the honest
@@ -2424,10 +2432,12 @@ export interface components {
             stakeMusd?: number;
             sharesMusd?: number;
             /** @enum {string} */
-            result?: "won" | "lost";
+            result?: "pending" | "won" | "lost";
             pnlMusd?: number;
             /** Format: date-time */
             resolvedAt?: string | null;
+            /** Format: date-time */
+            openedAt?: string | null;
             /**
              * @description Number of outcomes in the market at entry. `2` = binary. Use it to
              *     segment Brier: only binary decisions are cross-comparable.
@@ -2437,12 +2447,13 @@ export interface components {
              * @description Per-decision Brier score for the binary framing "the chosen side won
              *     at `predictedProbability`": `(predictedProbability/100 - won)²`, in
              *     [0, 1] (0 = perfect, 1 = maximally wrong). Computed, not stored. This is
-             *     MARKET-ENTRY calibration (was the price the agent paid well-calibrated),
+             *     MARKET-ENTRY calibration (was the price the agent paid well-calibrated);
+             *     it is null while the decision is open.
              *     NOT the agent's own forecast skill — for that use `agentBrier`.
              *     Comparable ONLY across binary decisions (`outcomesCount === 2`);
              *     multi-outcome Brier is NOT cross-comparable — never rank agents on it.
              */
-            brier?: number;
+            brier?: number | null;
             /**
              * @description The agent's OWN independent forecast for the chosen side at entry,
              *     0-100 — the field to score for agent SKILL. `null` when the agent did
@@ -2471,10 +2482,13 @@ export interface components {
              * @description Per-decision Brier over the agent's OWN forecast:
              *     `(agentForecastProbability/100 - won)²`. The honest measure of agent
              *     FORECAST skill (vs `brier` = market calibration). `null` when no
-             *     forecast was reported. Same caveat as `brier` — comparable ONLY within
+             *     forecast was reported; it is also null while the decision is open.
+             *     Same caveat as `brier` — comparable ONLY within
              *     binary decisions (`outcomesCount === 2`), never rank agents on it.
              */
             agentBrier?: number | null;
+            /** @description Recorded paper settlement result; null while the decision is open. */
+            realizedPaperTrade?: components["schemas"]["RealizedPaperTrade"] | null;
             /**
              * @description Frozen market snapshot at decision time. `null` for decisions opened
              *     before capture-forward shipped — those are honestly blank, never
@@ -2512,6 +2526,20 @@ export interface components {
              *     back-filled); hashed into `contentHash` for a v2 row.
              */
             provenance?: components["schemas"]["DecisionProvenance"] | null;
+        };
+        RealizedPaperTrade: {
+            /** @enum {string} */
+            schema: "coinrithm.paperTradeResult.v1";
+            positionId: number;
+            stakeMusd: number;
+            realizedPnlMusd: number;
+            returnOnStakePct: number;
+            /** Format: date-time */
+            settledAt: string;
+            /** @enum {string} */
+            costBasis: "recorded_paper_pnl";
+            /** @enum {boolean} */
+            includedInDecisionHash: false;
         };
         /**
          * @description Compact, versioned snapshot frozen onto a paper PM position at open
@@ -4740,8 +4768,10 @@ export interface operations {
                 limit?: number;
                 /** @description Opaque `pagination.nextCursor` from the previous response. */
                 cursor?: string;
-                /** @description Optional public Arena handle used to scope the dataset at the database query boundary. */
+                /** @description Optional public Arena handle used to scope the dataset at the database query boundary. Required for `status=open` and must identify a server-marked house agent. */
                 agent?: string;
+                /** @description Return settled decisions (default) or currently open decisions. Open rows are available only for a server-marked house agent selected by `agent`. */
+                status?: "settled" | "open";
             };
             header?: never;
             path?: never;
@@ -4752,7 +4782,7 @@ export interface operations {
             /** @description OK */
             200: {
                 headers: {
-                    /** @description Total matching resolved decisions (especially useful for JSONL consumers). */
+                    /** @description Total matching decisions for the selected status (especially useful for JSONL consumers). */
                     "X-Total-Count"?: number;
                     /** @description Whether another cursor page exists. */
                     "X-Has-More"?: boolean;
@@ -4783,7 +4813,7 @@ export interface operations {
                          * @example eval-1
                          */
                         evaluationPolicyVersion?: string;
-                        /** @description Total matching resolved decisions across all cursor pages. */
+                        /** @description Total matching decisions for the selected status across all cursor pages. */
                         count?: number;
                         decisions?: components["schemas"]["ArenaDecision"][];
                         /** @description NON-opened opportunities — present ONLY when ?includeOpportunities=true. A distinct record type (no fill, no settlement), so fill-only fields are honestly absent. */
@@ -4803,7 +4833,7 @@ export interface operations {
                     "application/x-ndjson": components["schemas"]["ArenaDecision"];
                 };
             };
-            /** @description Invalid cursor or public agent handle. */
+            /** @description Invalid cursor or public agent handle, or status=open without a server-marked house agent. */
             400: {
                 headers: {
                     [name: string]: unknown;

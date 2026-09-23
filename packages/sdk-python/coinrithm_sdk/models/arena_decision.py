@@ -15,6 +15,7 @@ from ..types import UNSET, Unset
 if TYPE_CHECKING:
     from ..models.decision_provenance import DecisionProvenance
     from ..models.entry_context import EntryContext
+    from ..models.realized_paper_trade import RealizedPaperTrade
 
 
 T = TypeVar("T", bound="ArenaDecision")
@@ -22,8 +23,9 @@ T = TypeVar("T", bound="ArenaDecision")
 
 @_attrs_define
 class ArenaDecision:
-    """One resolved public-agent paper prediction-market trade. Labelled with the
-    buy-time MARKET probability (`predictedProbability`) and its `brier`
+    """One public-agent paper prediction-market trade, either open or settled.
+    Open rows are `pending`; settled rows carry the buy-time MARKET
+    probability (`predictedProbability`) and its `brier`
     (market-entry calibration, NOT agent forecast skill), the realised outcome,
     and — when the agent reported its OWN forecast at open —
     `agentForecastProbability` / `edgePoints` / `agentBrier` (the honest
@@ -51,12 +53,14 @@ class ArenaDecision:
             result (ArenaDecisionResult | Unset):
             pnl_musd (float | Unset):
             resolved_at (datetime.datetime | None | Unset):
+            opened_at (datetime.datetime | None | Unset):
             outcomes_count (int | None | Unset): Number of outcomes in the market at entry. `2` = binary. Use it to
                 segment Brier: only binary decisions are cross-comparable.
-            brier (float | Unset): Per-decision Brier score for the binary framing "the chosen side won
+            brier (float | None | Unset): Per-decision Brier score for the binary framing "the chosen side won
                 at `predictedProbability`": `(predictedProbability/100 - won)²`, in
                 [0, 1] (0 = perfect, 1 = maximally wrong). Computed, not stored. This is
-                MARKET-ENTRY calibration (was the price the agent paid well-calibrated),
+                MARKET-ENTRY calibration (was the price the agent paid well-calibrated);
+                it is null while the decision is open.
                 NOT the agent's own forecast skill — for that use `agentBrier`.
                 Comparable ONLY across binary decisions (`outcomesCount === 2`);
                 multi-outcome Brier is NOT cross-comparable — never rank agents on it.
@@ -77,8 +81,11 @@ class ArenaDecision:
             agent_brier (float | None | Unset): Per-decision Brier over the agent's OWN forecast:
                 `(agentForecastProbability/100 - won)²`. The honest measure of agent
                 FORECAST skill (vs `brier` = market calibration). `null` when no
-                forecast was reported. Same caveat as `brier` — comparable ONLY within
+                forecast was reported; it is also null while the decision is open.
+                Same caveat as `brier` — comparable ONLY within
                 binary decisions (`outcomesCount === 2`), never rank agents on it.
+            realized_paper_trade (None | RealizedPaperTrade | Unset): Recorded paper settlement result; null while the
+                decision is open.
             entry_context (EntryContext | None | Unset): Frozen market snapshot at decision time. `null` for decisions
                 opened
                 before capture-forward shipped — those are honestly blank, never
@@ -117,13 +124,15 @@ class ArenaDecision:
     result: ArenaDecisionResult | Unset = UNSET
     pnl_musd: float | Unset = UNSET
     resolved_at: datetime.datetime | None | Unset = UNSET
+    opened_at: datetime.datetime | None | Unset = UNSET
     outcomes_count: int | None | Unset = UNSET
-    brier: float | Unset = UNSET
+    brier: float | None | Unset = UNSET
     agent_forecast_probability: float | None | Unset = UNSET
     market_probability: float | None | Unset = UNSET
     reference_probability: float | None | Unset = UNSET
     edge_points: float | None | Unset = UNSET
     agent_brier: float | None | Unset = UNSET
+    realized_paper_trade: None | RealizedPaperTrade | Unset = UNSET
     entry_context: EntryContext | None | Unset = UNSET
     decision_uuid: None | Unset | UUID = UNSET
     opportunity_kind: ArenaDecisionOpportunityKind | Unset = UNSET
@@ -136,6 +145,7 @@ class ArenaDecision:
     def to_dict(self) -> dict[str, Any]:
         from ..models.decision_provenance import DecisionProvenance
         from ..models.entry_context import EntryContext
+        from ..models.realized_paper_trade import RealizedPaperTrade
 
         decision_id = self.decision_id
 
@@ -177,13 +187,25 @@ class ArenaDecision:
         else:
             resolved_at = self.resolved_at
 
+        opened_at: None | str | Unset
+        if isinstance(self.opened_at, Unset):
+            opened_at = UNSET
+        elif isinstance(self.opened_at, datetime.datetime):
+            opened_at = self.opened_at.isoformat()
+        else:
+            opened_at = self.opened_at
+
         outcomes_count: int | None | Unset
         if isinstance(self.outcomes_count, Unset):
             outcomes_count = UNSET
         else:
             outcomes_count = self.outcomes_count
 
-        brier = self.brier
+        brier: float | None | Unset
+        if isinstance(self.brier, Unset):
+            brier = UNSET
+        else:
+            brier = self.brier
 
         agent_forecast_probability: float | None | Unset
         if isinstance(self.agent_forecast_probability, Unset):
@@ -214,6 +236,14 @@ class ArenaDecision:
             agent_brier = UNSET
         else:
             agent_brier = self.agent_brier
+
+        realized_paper_trade: dict[str, Any] | None | Unset
+        if isinstance(self.realized_paper_trade, Unset):
+            realized_paper_trade = UNSET
+        elif isinstance(self.realized_paper_trade, RealizedPaperTrade):
+            realized_paper_trade = self.realized_paper_trade.to_dict()
+        else:
+            realized_paper_trade = self.realized_paper_trade
 
         entry_context: dict[str, Any] | None | Unset
         if isinstance(self.entry_context, Unset):
@@ -292,6 +322,8 @@ class ArenaDecision:
             field_dict["pnlMusd"] = pnl_musd
         if resolved_at is not UNSET:
             field_dict["resolvedAt"] = resolved_at
+        if opened_at is not UNSET:
+            field_dict["openedAt"] = opened_at
         if outcomes_count is not UNSET:
             field_dict["outcomesCount"] = outcomes_count
         if brier is not UNSET:
@@ -306,6 +338,8 @@ class ArenaDecision:
             field_dict["edgePoints"] = edge_points
         if agent_brier is not UNSET:
             field_dict["agentBrier"] = agent_brier
+        if realized_paper_trade is not UNSET:
+            field_dict["realizedPaperTrade"] = realized_paper_trade
         if entry_context is not UNSET:
             field_dict["entryContext"] = entry_context
         if decision_uuid is not UNSET:
@@ -327,6 +361,7 @@ class ArenaDecision:
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.decision_provenance import DecisionProvenance
         from ..models.entry_context import EntryContext
+        from ..models.realized_paper_trade import RealizedPaperTrade
 
         d = dict(src_dict)
         decision_id = d.pop("decisionId", UNSET)
@@ -384,6 +419,23 @@ class ArenaDecision:
 
         resolved_at = _parse_resolved_at(d.pop("resolvedAt", UNSET))
 
+        def _parse_opened_at(data: object) -> datetime.datetime | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, str):
+                    raise TypeError()
+                opened_at_type_0 = datetime.datetime.fromisoformat(data)
+
+                return opened_at_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(datetime.datetime | None | Unset, data)
+
+        opened_at = _parse_opened_at(d.pop("openedAt", UNSET))
+
         def _parse_outcomes_count(data: object) -> int | None | Unset:
             if data is None:
                 return data
@@ -393,7 +445,14 @@ class ArenaDecision:
 
         outcomes_count = _parse_outcomes_count(d.pop("outcomesCount", UNSET))
 
-        brier = d.pop("brier", UNSET)
+        def _parse_brier(data: object) -> float | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(float | None | Unset, data)
+
+        brier = _parse_brier(d.pop("brier", UNSET))
 
         def _parse_agent_forecast_probability(data: object) -> float | None | Unset:
             if data is None:
@@ -439,6 +498,23 @@ class ArenaDecision:
             return cast(float | None | Unset, data)
 
         agent_brier = _parse_agent_brier(d.pop("agentBrier", UNSET))
+
+        def _parse_realized_paper_trade(data: object) -> None | RealizedPaperTrade | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                realized_paper_trade_type_0 = RealizedPaperTrade.from_dict(data)
+
+                return realized_paper_trade_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(None | RealizedPaperTrade | Unset, data)
+
+        realized_paper_trade = _parse_realized_paper_trade(d.pop("realizedPaperTrade", UNSET))
 
         def _parse_entry_context(data: object) -> EntryContext | None | Unset:
             if data is None:
@@ -540,6 +616,7 @@ class ArenaDecision:
             result=result,
             pnl_musd=pnl_musd,
             resolved_at=resolved_at,
+            opened_at=opened_at,
             outcomes_count=outcomes_count,
             brier=brier,
             agent_forecast_probability=agent_forecast_probability,
@@ -547,6 +624,7 @@ class ArenaDecision:
             reference_probability=reference_probability,
             edge_points=edge_points,
             agent_brier=agent_brier,
+            realized_paper_trade=realized_paper_trade,
             entry_context=entry_context,
             decision_uuid=decision_uuid,
             opportunity_kind=opportunity_kind,
