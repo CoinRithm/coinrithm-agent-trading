@@ -5634,6 +5634,8 @@ export interface operations {
             query?: {
                 /** @description Observed aggregation window. */
                 window?: "7d" | "30d";
+                /** @description Restrict wallet aggregation to one supported venue. */
+                source?: "polymarket" | "limitless" | "myriad";
             };
             header?: never;
             path?: never;

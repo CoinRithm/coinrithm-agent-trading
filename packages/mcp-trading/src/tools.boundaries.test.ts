@@ -373,6 +373,7 @@ describe("MCP tool requests use the declared contract", () => {
     const response = await f.call("pm_data_whale_wallets", {
       limit: 2,
       window: "30d",
+      source: "polymarket",
     });
     expect(response.structuredContent.body.wallets).toHaveLength(2);
     expect(response.structuredContent.body.wallets[0]).toMatchObject({
@@ -383,9 +384,24 @@ describe("MCP tool requests use the declared contract", () => {
       "/api/prediction-markets/whales/wallets",
     );
     expect(f.requests[0]!.url).toContain("window=30d");
+    expect(f.requests[0]!.url).toContain("source=polymarket");
     expect(new Headers(f.requests[0]!.init?.headers).has("authorization")).toBe(
       false,
     );
+  });
+  it("does not present an unscoped wallet leaderboard as a filtered result", async () => {
+    const f = fixture({
+      window: "7d",
+      venues: ["polymarket", "limitless"],
+      wallets: [],
+    });
+    const response = await f.call("pm_data_whale_wallets", {
+      source: "polymarket",
+    });
+    expect(response.structuredContent.body).toEqual({
+      unavailable: "filtered_wallet_scope_unconfirmed",
+      requestedSource: "polymarket",
+    });
   });
   it("preserves bounded wallet movement provenance and distinguishes API errors", async () => {
     const f = fixture({

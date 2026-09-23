@@ -9,6 +9,7 @@ from ...models.error import Error
 from ...models.get_public_prediction_market_whale_wallets_response_200 import (
     GetPublicPredictionMarketWhaleWalletsResponse200,
 )
+from ...models.get_public_prediction_market_whale_wallets_source import GetPublicPredictionMarketWhaleWalletsSource
 from ...models.get_public_prediction_market_whale_wallets_window import GetPublicPredictionMarketWhaleWalletsWindow
 from ...types import UNSET, Response, Unset
 
@@ -16,6 +17,7 @@ from ...types import UNSET, Response, Unset
 def _get_kwargs(
     *,
     window: GetPublicPredictionMarketWhaleWalletsWindow | Unset = GetPublicPredictionMarketWhaleWalletsWindow.VALUE_0,
+    source: GetPublicPredictionMarketWhaleWalletsSource | Unset = UNSET,
 ) -> dict[str, Any]:
 
     params: dict[str, Any] = {}
@@ -25,6 +27,12 @@ def _get_kwargs(
         json_window = window.value
 
     params["window"] = json_window
+
+    json_source: str | Unset = UNSET
+    if not isinstance(source, Unset):
+        json_source = source.value
+
+    params["source"] = json_source
 
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
 
@@ -75,6 +83,7 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
     window: GetPublicPredictionMarketWhaleWalletsWindow | Unset = GetPublicPredictionMarketWhaleWalletsWindow.VALUE_0,
+    source: GetPublicPredictionMarketWhaleWalletsSource | Unset = UNSET,
 ) -> Response[Any | Error | GetPublicPredictionMarketWhaleWalletsResponse200]:
     """Aggregated large-trader wallet activity
 
@@ -85,6 +94,7 @@ def sync_detailed(
     Args:
         window (GetPublicPredictionMarketWhaleWalletsWindow | Unset):  Default:
             GetPublicPredictionMarketWhaleWalletsWindow.VALUE_0.
+        source (GetPublicPredictionMarketWhaleWalletsSource | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -96,6 +106,7 @@ def sync_detailed(
 
     kwargs = _get_kwargs(
         window=window,
+        source=source,
     )
 
     response = client.get_httpx_client().request(
@@ -109,6 +120,7 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
     window: GetPublicPredictionMarketWhaleWalletsWindow | Unset = GetPublicPredictionMarketWhaleWalletsWindow.VALUE_0,
+    source: GetPublicPredictionMarketWhaleWalletsSource | Unset = UNSET,
 ) -> Any | Error | GetPublicPredictionMarketWhaleWalletsResponse200 | None:
     """Aggregated large-trader wallet activity
 
@@ -119,6 +131,7 @@ def sync(
     Args:
         window (GetPublicPredictionMarketWhaleWalletsWindow | Unset):  Default:
             GetPublicPredictionMarketWhaleWalletsWindow.VALUE_0.
+        source (GetPublicPredictionMarketWhaleWalletsSource | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -131,6 +144,7 @@ def sync(
     return sync_detailed(
         client=client,
         window=window,
+        source=source,
     ).parsed
 
 
@@ -138,6 +152,7 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
     window: GetPublicPredictionMarketWhaleWalletsWindow | Unset = GetPublicPredictionMarketWhaleWalletsWindow.VALUE_0,
+    source: GetPublicPredictionMarketWhaleWalletsSource | Unset = UNSET,
 ) -> Response[Any | Error | GetPublicPredictionMarketWhaleWalletsResponse200]:
     """Aggregated large-trader wallet activity
 
@@ -148,6 +163,7 @@ async def asyncio_detailed(
     Args:
         window (GetPublicPredictionMarketWhaleWalletsWindow | Unset):  Default:
             GetPublicPredictionMarketWhaleWalletsWindow.VALUE_0.
+        source (GetPublicPredictionMarketWhaleWalletsSource | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -159,6 +175,7 @@ async def asyncio_detailed(
 
     kwargs = _get_kwargs(
         window=window,
+        source=source,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -170,6 +187,7 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
     window: GetPublicPredictionMarketWhaleWalletsWindow | Unset = GetPublicPredictionMarketWhaleWalletsWindow.VALUE_0,
+    source: GetPublicPredictionMarketWhaleWalletsSource | Unset = UNSET,
 ) -> Any | Error | GetPublicPredictionMarketWhaleWalletsResponse200 | None:
     """Aggregated large-trader wallet activity
 
@@ -180,6 +198,7 @@ async def asyncio(
     Args:
         window (GetPublicPredictionMarketWhaleWalletsWindow | Unset):  Default:
             GetPublicPredictionMarketWhaleWalletsWindow.VALUE_0.
+        source (GetPublicPredictionMarketWhaleWalletsSource | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -193,5 +212,6 @@ async def asyncio(
         await asyncio_detailed(
             client=client,
             window=window,
+            source=source,
         )
     ).parsed

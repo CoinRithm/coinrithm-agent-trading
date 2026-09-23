@@ -206,6 +206,7 @@ from .get_public_prediction_market_whale_wallets_response_200_wallets_item_venue
 from .get_public_prediction_market_whale_wallets_response_200_window import (
     GetPublicPredictionMarketWhaleWalletsResponse200Window,
 )
+from .get_public_prediction_market_whale_wallets_source import GetPublicPredictionMarketWhaleWalletsSource
 from .get_public_prediction_market_whale_wallets_window import GetPublicPredictionMarketWhaleWalletsWindow
 from .list_competitions_response_200 import ListCompetitionsResponse200
 from .list_open_orders_response_200 import ListOpenOrdersResponse200
@@ -548,6 +549,7 @@ __all__ = (
     "GetPublicPredictionMarketWhaleWalletsResponse200WalletsItem",
     "GetPublicPredictionMarketWhaleWalletsResponse200WalletsItemVenuesItem",
     "GetPublicPredictionMarketWhaleWalletsResponse200Window",
+    "GetPublicPredictionMarketWhaleWalletsSource",
     "GetPublicPredictionMarketWhaleWalletsWindow",
     "ListCompetitionsResponse200",
     "ListOpenOrdersResponse200",

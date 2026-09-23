@@ -636,8 +636,20 @@ const WHALE_WALLET_FIELDS = [
 export function compactPublicPmWhaleWallets(
   data: unknown,
   limit: number,
+  requestedSource?: string,
 ): unknown {
   if (!isJsonRecord(data)) return data;
+  if (
+    requestedSource &&
+    (!Array.isArray(data.venues) ||
+      data.venues.length !== 1 ||
+      data.venues[0] !== requestedSource)
+  ) {
+    return {
+      unavailable: "filtered_wallet_scope_unconfirmed",
+      requestedSource,
+    };
+  }
   const wallets = Array.isArray(data.wallets)
     ? data.wallets
         .slice(0, limit)
@@ -2422,17 +2434,21 @@ export function registerTools(
           .enum(["7d", "30d"])
           .optional()
           .describe("Observed aggregation window (default 7d)."),
+        source: z
+          .enum(["polymarket", "limitless", "myriad"])
+          .optional()
+          .describe("Restrict results to one wallet-address venue."),
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: readOnlyAnnotations(
         "Explore prediction-market whale wallets",
       ),
     },
-    async ({ limit, window }) =>
+    async ({ limit, window, source }) =>
       present(
         mapSuccessfulBody(
-          await client.getPublicPmWhaleWallets(window),
-          (data) => compactPublicPmWhaleWallets(data, limit ?? 10),
+          await client.getPublicPmWhaleWallets(window, source),
+          (data) => compactPublicPmWhaleWallets(data, limit ?? 10, source),
         ),
       ),
   );

@@ -2082,6 +2082,13 @@ paths:
           required: false
           schema: { type: string, enum: [7d, 30d], default: 7d }
           description: Observed aggregation window.
+        - name: source
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [polymarket, limitless, myriad]
+          description: Restrict wallet aggregation to one supported venue.
       responses:
         "200":
           description: Wallet rows with aggregated flow

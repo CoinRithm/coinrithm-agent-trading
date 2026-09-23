@@ -354,9 +354,13 @@ export class CoinRithmClient {
   getPublicPmWhales() {
     return this.publicRequest("/api/prediction-markets/whales");
   }
-  getPublicPmWhaleWallets(window?: "7d" | "30d") {
+  getPublicPmWhaleWallets(
+    window?: "7d" | "30d",
+    source?: "polymarket" | "limitless" | "myriad",
+  ) {
     return this.publicRequest("/api/prediction-markets/whales/wallets", {
       ...(window ? { window } : {}),
+      ...(source ? { source } : {}),
     });
   }
   getPublicPmWhaleWallet(source: string, wallet: string) {
