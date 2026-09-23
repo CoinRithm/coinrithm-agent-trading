@@ -1118,6 +1118,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/prediction-markets/whales/wallets/{source}/{wallet}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Public wallet movement detail
+         * @description Read-only observed trade-notional summaries, daily activity, top
+         *     events, and recent matched BUY/SELL fills for one identifiable wallet.
+         *     These are public matched-trade observations, not holdings, positions,
+         *     or PnL. Wallet availability is venue-specific.
+         */
+        get: operations["getPublicPredictionMarketWhaleWallet"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/prediction-markets/sources": {
         parameters: {
             query?: never;
@@ -5608,7 +5631,10 @@ export interface operations {
     };
     getPublicPredictionMarketWhaleWallets: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Observed aggregation window. */
+                window?: "7d" | "30d";
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5622,10 +5648,88 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /** @enum {string} */
+                        window?: "7d" | "30d";
+                        venues?: string[];
+                        wallets?: ({
+                            wallet?: string;
+                            address?: string;
+                            traderName?: string | null;
+                            venues?: {
+                                [key: string]: unknown;
+                            }[];
+                            tradeCount?: number;
+                            totalUsd?: number;
+                            maxUsd?: number;
+                            /** Format: date-time */
+                            firstSeen?: string | null;
+                            /** Format: date-time */
+                            lastSeen?: string | null;
+                        } & {
+                            [key: string]: unknown;
+                        })[];
+                    } & {
                         [key: string]: unknown;
                     };
                 };
             };
+            /** @description Public request rate limit exceeded; honor `Retry-After`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            500: components["responses"]["ServerError"];
+        };
+    };
+    getPublicPredictionMarketWhaleWallet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source: "polymarket" | "limitless" | "myriad";
+                wallet: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Wallet movement detail with freshness and provenance */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        source?: string;
+                        sourceName?: string;
+                        sourceIcon?: string | null;
+                        wallet?: string;
+                        walletShort?: string | null;
+                        traderName?: string | null;
+                        summary30d?: {
+                            [key: string]: unknown;
+                        };
+                        rollup?: {
+                            [key: string]: unknown;
+                        };
+                        daily?: {
+                            [key: string]: unknown;
+                        }[];
+                        topEvents30d?: {
+                            [key: string]: unknown;
+                        }[];
+                        recentFills?: {
+                            [key: string]: unknown;
+                        }[];
+                    } & {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
             /** @description Public request rate limit exceeded; honor `Retry-After`. */
             429: {
                 headers: {

@@ -9,7 +9,7 @@ confidence-weighted realized-PnL methodology. Paper results do not establish
 future returns or live execution performance.
 
 **Plus a free prediction-market data surface — no key at all.** The same server
-ships ten keyless `pm_data_*` tools serving CoinRithm's public cross-venue
+ships twelve keyless `pm_data_*` tools serving CoinRithm's public cross-venue
 dataset: odds, cross-venue matches with a liquidity-aware reference probability,
 a whale-trade tape, and market-wide volume statistics. Availability and freshness
 vary by source; inspect the returned source-health and observation metadata.
@@ -18,7 +18,7 @@ Metaculus, PredictIt, Rothera, Futuur, Myriad, ForecastEx and Gemini.
 Point an MCP client that supports Streamable HTTP at the hosted
 endpoint `https://mcp.coinrithm.com/mcp` and call them anonymously — the API
 key is needed for account and trading tools. The hosted `get_crypto_movers`
-tool also works anonymously, for **11 keyless tools** in total.
+tool also works anonymously, for **13 keyless tools** in total.
 
 Agents are **OKF bundles** — an open, model-agnostic folder of markdown + YAML
 (strategy, persona, hard caps) that any runtime can read. Two ways to run the
@@ -198,6 +198,8 @@ agent file.
 | `pm_data_events`                                       | none (public) | compact `GET /api/prediction-markets/events`                                         |
 | `pm_data_event` (source, slug, detail?)                | none (public) | bounded event evidence by default; `detail: "full"` returns the untouched API record |
 | `pm_data_whales` (limit, default 10)                   | none (public) | compact `GET /api/prediction-markets/whales`                                         |
+| `pm_data_whale_wallets` (limit, window)               | none (public) | compact `GET /api/prediction-markets/whales/wallets`                                  |
+| `pm_data_whale_wallet` (source, wallet)               | none (public) | movement detail `GET /api/prediction-markets/whales/wallets/:source/:wallet`         |
 | `pm_data_disagreements` (limit, sort, sourceKind, ...) | none (public) | compact `GET /api/prediction-markets/matches/public`                                 |
 | `pm_data_calibration`                                  | none (public) | `GET /api/prediction-markets/calibration`                                            |
 | `pm_data_canonical` (key?, limit, cursor)              | none (public) | `GET /api/prediction-markets/canonical` (+ `/:key` detail)                           |
@@ -212,7 +214,7 @@ symbols collide across listings and a lookup can land on a different coin than
 the one that moved. The self-host runner does this automatically for agents
 carrying the `universe_scan` capability.
 
-The ten `pm_data_*` tools wrap CoinRithm's free public cross-venue dataset
+The twelve `pm_data_*` tools wrap CoinRithm's free public cross-venue dataset
 (all 12 venues: Polymarket, Kalshi, Smarkets, Limitless, Manifold,
 Metaculus, PredictIt, Rothera, Futuur, Myriad, ForecastEx, Gemini). They require no API key, never attach yours, and
 are research surfaces: `pm_data_events` list rows carry `referenceProbability`

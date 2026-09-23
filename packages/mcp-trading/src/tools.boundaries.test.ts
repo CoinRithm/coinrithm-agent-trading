@@ -360,6 +360,73 @@ describe("MCP tool requests use the declared contract", () => {
       });
     },
   );
+  it("exposes bounded identifiable whale-wallet context without a key", async () => {
+    const f = fixture({
+      window: "7d",
+      venues: ["polymarket"],
+      wallets: [
+        { address: "0x1", traderName: "A", totalUsd: 10 },
+        { address: "0x2", traderName: "B", totalUsd: 9 },
+        { address: "0x3", traderName: "C", totalUsd: 8 },
+      ],
+    });
+    const response = await f.call("pm_data_whale_wallets", {
+      limit: 2,
+      window: "30d",
+    });
+    expect(response.structuredContent.body.wallets).toHaveLength(2);
+    expect(response.structuredContent.body.wallets[0]).toMatchObject({
+      address: "0x1",
+      totalUsd: 10,
+    });
+    expect(f.requests[0]!.url).toContain(
+      "/api/prediction-markets/whales/wallets",
+    );
+    expect(f.requests[0]!.url).toContain("window=30d");
+    expect(new Headers(f.requests[0]!.init?.headers).has("authorization")).toBe(
+      false,
+    );
+  });
+  it("preserves bounded wallet movement provenance and distinguishes API errors", async () => {
+    const f = fixture({
+      source: "polymarket",
+      wallet: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      summary30d: { basis: "trade_notional", tradeCount: 2 },
+      recentFills: Array.from({ length: 25 }, (_, i) => ({
+        side: i % 2 ? "SELL" : "BUY",
+        usdValue: i + 1,
+        evidenceType: "public_matched_trade",
+        event: {
+          source: "polymarket",
+          slug: `event-${i}`,
+          title: "Q",
+          status: "open",
+        },
+        ignored: true,
+      })),
+    });
+    const response = await f.call("pm_data_whale_wallet", {
+      source: "polymarket",
+      wallet: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    });
+    expect(response.structuredContent.body.recentFills).toHaveLength(20);
+    expect(response.structuredContent.body.recentFills[0]).toMatchObject({
+      side: "BUY",
+      evidenceType: "public_matched_trade",
+      event: { slug: "event-0" },
+    });
+    expect(
+      response.structuredContent.body.recentFills[0].ignored,
+    ).toBeUndefined();
+
+    const failed = fixture({ error: "wallet unavailable" }, 404);
+    const error = await failed.call("pm_data_whale_wallet", {
+      source: "polymarket",
+      wallet: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    });
+    expect(error.isError).toBe(true);
+    expect(error.structuredContent).toMatchObject({ httpStatus: 404 });
+  });
   it.each([{}, { direction: "losers", limit: 3 }])(
     "uses crypto discovery defaults only when omitted %j",
     async (args) => {

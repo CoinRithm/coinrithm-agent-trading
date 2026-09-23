@@ -179,7 +179,34 @@ from .get_public_prediction_market_price_history_response_200_markets_item impor
 from .get_public_prediction_market_price_history_response_200_markets_item_history_item import (
     GetPublicPredictionMarketPriceHistoryResponse200MarketsItemHistoryItem,
 )
+from .get_public_prediction_market_whale_wallet_response_200 import GetPublicPredictionMarketWhaleWalletResponse200
+from .get_public_prediction_market_whale_wallet_response_200_daily_item import (
+    GetPublicPredictionMarketWhaleWalletResponse200DailyItem,
+)
+from .get_public_prediction_market_whale_wallet_response_200_recent_fills_item import (
+    GetPublicPredictionMarketWhaleWalletResponse200RecentFillsItem,
+)
+from .get_public_prediction_market_whale_wallet_response_200_rollup import (
+    GetPublicPredictionMarketWhaleWalletResponse200Rollup,
+)
+from .get_public_prediction_market_whale_wallet_response_200_summary_30d import (
+    GetPublicPredictionMarketWhaleWalletResponse200Summary30D,
+)
+from .get_public_prediction_market_whale_wallet_response_200_top_events_30d_item import (
+    GetPublicPredictionMarketWhaleWalletResponse200TopEvents30DItem,
+)
+from .get_public_prediction_market_whale_wallet_source import GetPublicPredictionMarketWhaleWalletSource
 from .get_public_prediction_market_whale_wallets_response_200 import GetPublicPredictionMarketWhaleWalletsResponse200
+from .get_public_prediction_market_whale_wallets_response_200_wallets_item import (
+    GetPublicPredictionMarketWhaleWalletsResponse200WalletsItem,
+)
+from .get_public_prediction_market_whale_wallets_response_200_wallets_item_venues_item import (
+    GetPublicPredictionMarketWhaleWalletsResponse200WalletsItemVenuesItem,
+)
+from .get_public_prediction_market_whale_wallets_response_200_window import (
+    GetPublicPredictionMarketWhaleWalletsResponse200Window,
+)
+from .get_public_prediction_market_whale_wallets_window import GetPublicPredictionMarketWhaleWalletsWindow
 from .list_competitions_response_200 import ListCompetitionsResponse200
 from .list_open_orders_response_200 import ListOpenOrdersResponse200
 from .open_futures_position_response_422 import OpenFuturesPositionResponse422
@@ -510,7 +537,18 @@ __all__ = (
     "GetPublicPredictionMarketPriceHistoryResponse200",
     "GetPublicPredictionMarketPriceHistoryResponse200MarketsItem",
     "GetPublicPredictionMarketPriceHistoryResponse200MarketsItemHistoryItem",
+    "GetPublicPredictionMarketWhaleWalletResponse200",
+    "GetPublicPredictionMarketWhaleWalletResponse200DailyItem",
+    "GetPublicPredictionMarketWhaleWalletResponse200RecentFillsItem",
+    "GetPublicPredictionMarketWhaleWalletResponse200Rollup",
+    "GetPublicPredictionMarketWhaleWalletResponse200Summary30D",
+    "GetPublicPredictionMarketWhaleWalletResponse200TopEvents30DItem",
+    "GetPublicPredictionMarketWhaleWalletSource",
     "GetPublicPredictionMarketWhaleWalletsResponse200",
+    "GetPublicPredictionMarketWhaleWalletsResponse200WalletsItem",
+    "GetPublicPredictionMarketWhaleWalletsResponse200WalletsItemVenuesItem",
+    "GetPublicPredictionMarketWhaleWalletsResponse200Window",
+    "GetPublicPredictionMarketWhaleWalletsWindow",
     "ListCompetitionsResponse200",
     "ListOpenOrdersResponse200",
     "OpenFuturesPositionResponse422",

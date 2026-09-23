@@ -45,6 +45,8 @@ export const COMPLETION_TOOL_NAMES = [
   "pm_data_events",
   "pm_data_event",
   "pm_data_whales",
+  "pm_data_whale_wallets",
+  "pm_data_whale_wallet",
   "pm_data_disagreements",
   "pm_data_calibration",
   "pm_data_canonical",
