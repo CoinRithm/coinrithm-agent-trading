@@ -27,6 +27,7 @@ import {
   HOSTED_PROSE_MAX_CHARS,
 } from "./resolve.js";
 import { buildSpec, loadAgent } from "./skill.js";
+import { buildAgentDefinitionSnapshot } from "./definitionSnapshot.js";
 import { validateSkill, SkillValidationMode } from "./skillValidator.js";
 import { strictLint } from "./strictLint.js";
 import { checkCapabilityDrift } from "./capabilityGuard.js";
@@ -289,6 +290,12 @@ export function cmdInspect(path: string, json = false): CmdResult {
     resolvedConfig: resolved.rawFrontmatter,
     provenance: resolved.provenance,
     contentHashes: resolved.contentHashes,
+    // The local runtime consumes these exact compiled inputs. In particular,
+    // skill ablation changes prose, not the source manifest or hard caps.
+    compiledDefinition: buildAgentDefinitionSnapshot(
+      spec,
+      runtimeProse(resolved),
+    ),
     validation: { valid: v.valid, issues: v.issues, lint },
   };
   if (json) {
@@ -306,10 +313,19 @@ export function cmdInspect(path: string, json = false): CmdResult {
     `model:       ${spec.model ? `${spec.model.provider}/${spec.model.name}` : "(host free-tier)"}`,
     `risk:        maxLeverage=${spec.risk.maxLeverage} perTradeMargin=${spec.risk.perTradeMarginMusd} requireStopLoss=${spec.risk.requireStopLoss}`,
     `sources:     ${Object.keys(resolved.contentHashes).length} file(s)`,
+    `definition:  ${output.compiledDefinition.definitionHash}`,
     `validation:  ${v.valid ? "valid" : "INVALID"}${lint.length ? ` (+${lint.length} lint note(s))` : ""}`,
     ...output.warnings.map((warning) => `⚠ ${warning}`),
   ];
   return { ok: v.valid, code: 0, lines, data: output };
+}
+
+function runtimeProse(resolved: ReturnType<typeof resolveAgent>): string {
+  return envFlag(process.env.COINRITHM_AGENT_DISABLE_SKILLS)
+    ? mergeProseParts(
+        resolved.proseParts.filter((part) => !isSkillProseSource(part.source)),
+      )
+    : resolved.mergedProse;
 }
 
 // Is a process still alive? signal 0 probes without sending — ESRCH means it's
@@ -380,7 +396,12 @@ export function acquireLock(stateFile: string): (() => void) | null {
 // places paper trades. Reads COINRITHM_API_KEY + the model key from the ENV.
 export async function cmdRun(
   path: string,
-  opts: { once?: boolean; live?: boolean; stateFile?: string } = {},
+  opts: {
+    once?: boolean;
+    live?: boolean;
+    stateFile?: string;
+    expectDefinition?: string;
+  } = {},
 ): Promise<CmdResult> {
   let loaded;
   try {
@@ -389,6 +410,18 @@ export async function cmdRun(
     if (e instanceof ResolveError)
       return issuesResult(e.issues, "resolve failed");
     throw e;
+  }
+  const mergedProse = runtimeProse(loaded.resolved);
+  const definition = buildAgentDefinitionSnapshot(loaded.spec, mergedProse);
+  if (
+    opts.expectDefinition !== undefined &&
+    opts.expectDefinition !== definition.definitionHash
+  ) {
+    return fail([
+      "compiled agent definition does not match --expect-definition; no model or account call was made",
+      `current definition: ${definition.definitionHash}`,
+      "inspect the change before choosing a new baseline",
+    ]);
   }
   const apiKey = process.env.COINRITHM_API_KEY;
   if (!apiKey)
@@ -443,18 +476,12 @@ export async function cmdRun(
     const live = !!opts.live;
     const lines: string[] = [
       `run ${live ? "LIVE (paper trades WILL be placed)" : "DRY-RUN (no writes; set --live or LIVE=1)"} — ${loaded.spec.name}`,
+      `definition: ${definition.definitionHash}`,
     ];
     // Skills ablation kill-switch: drop tactic-skill prose from the prompt for
     // token-cost control or A/B testing. Affects ONLY the run-time prompt — the
     // resolver, manifest, and caps are untouched (the spec is still enforced).
     const disableSkills = envFlag(process.env.COINRITHM_AGENT_DISABLE_SKILLS);
-    const mergedProse = disableSkills
-      ? mergeProseParts(
-          loaded.resolved.proseParts.filter(
-            (p) => !isSkillProseSource(p.source),
-          ),
-        )
-      : loaded.body;
     if (disableSkills) {
       const dropped = loaded.resolved.proseParts.filter((p) =>
         isSkillProseSource(p.source),
@@ -493,6 +520,7 @@ function parseFlags(args: string[]): {
   live?: boolean;
   dryRun?: boolean;
   state?: string;
+  expectDefinition?: string;
   template?: string;
   preset?: string;
 } {
@@ -504,6 +532,7 @@ function parseFlags(args: string[]): {
     live?: boolean;
     dryRun?: boolean;
     state?: string;
+    expectDefinition?: string;
     template?: string;
     preset?: string;
   } = { _: [] };
@@ -518,6 +547,8 @@ function parseFlags(args: string[]): {
     else if (a === "--template") out.template = args[++i];
     else if (a === "--preset") out.preset = args[++i];
     else if (a === "--state") out.state = args[++i];
+    else if (a === "--expect-definition")
+      out.expectDefinition = args[++i] ?? "";
     else out._.push(a);
   }
   return out;
@@ -531,7 +562,7 @@ function usageLines(): string[] {
     "  inspect <path> [--json]",
     "  eject <agent.md | dir>",
     "  lock <path>",
-    "  run <path> [--once] [--live] [--dry-run] [--state <file>]   (dry-run by default)",
+    "  run <path> [--once] [--live] [--dry-run] [--state <file>] [--expect-definition sha256:...]   (dry-run by default)",
   ];
 }
 
@@ -566,6 +597,7 @@ export async function main(argv: string[]): Promise<number> {
         once: flags.once,
         live,
         stateFile: flags.state,
+        expectDefinition: flags.expectDefinition,
       });
       break;
     }

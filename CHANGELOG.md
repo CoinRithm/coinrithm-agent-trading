@@ -8,6 +8,11 @@ Each package has its own version; the API contract is versioned separately.
 [TypeScript history](packages/sdk/CHANGELOG.md) ·
 [Python release notes](packages/sdk-python/README.md)
 
+## Unreleased
+
+- Add compiled-agent snapshots and an optional local run baseline check. Source
+  only until the next package release; no change to published 0.7.13 behavior.
+
 ## MCP 0.7.13, TypeScript 0.3.2, Python 1.8.2 — 2026-09-23
 
 - Expand the hosted/source MCP surface to 40 tools, with public whale-wallet

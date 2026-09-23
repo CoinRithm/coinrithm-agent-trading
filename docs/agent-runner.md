@@ -270,6 +270,40 @@ doctrine. Every character bundle ships one — fork it and REPLACE the content
 with your own borders (see `pia-pump-fader` for the guard-sentence pattern
 and an adherence scorecard that grades violations).
 
+## Comparing compiled definitions (unreleased)
+
+`inspect <path> --json` now includes `compiledDefinition`: the compiled spec,
+exact merged strategy prose after local skills ablation, declared package/API/
+indicator versions and a deterministic `definitionHash`. This complements the
+source manifest: two identical source folders can run with different effective
+prose, and hosted callers can supply a spec after their deployment overlays.
+Source-file provenance remains in the source manifest; the definition hash
+does not include the resolver's separate `proseParts` metadata.
+The snapshot contains private strategy text; keep it with your experiment files.
+It does not read credentials, account balances, positions or runtime state.
+
+After reviewing that definition, prevent an accidental baseline change:
+
+```sh
+coinrithm-agent run my-agent --once --expect-definition sha256:YOUR_REVIEWED_HASH
+```
+
+A mismatch exits before any model/account call or state-file change. Use the
+same skills-ablation setting for inspection and execution. `--live` still means
+CoinRithm **paper** writes, and is off by default.
+
+The hash binds the definition and declared versions, not a complete runtime.
+Preserve the installed package archive/commit, environment policy, backend
+revision, input evidence and actually served model separately. Equal hashes
+do not prove identical data, routing, costs, binary contents or returns. The
+snapshot transfers strategy inputs; it never turns paper positions or paper
+PnL into real holdings, and no external broker adapter is supplied.
+
+Engine consumers can use `buildAgentDefinitionSnapshot(actualSpec, mergedProse)`
+from `@coinrithm/mcp-trading/engine` to freeze their actual compiled inputs. It
+does not recompile a hosted spec or remove platform overrides. This source
+feature is not present in the published 0.7.13 package.
+
 ## Embedding the engine
 
 ```ts

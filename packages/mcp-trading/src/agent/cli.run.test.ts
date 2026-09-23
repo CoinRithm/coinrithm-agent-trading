@@ -8,7 +8,8 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { cmdNew, cmdRun, main } from "./cli.js";
+import { cmdInspect, cmdNew, cmdRun, main } from "./cli.js";
+import type { AgentDefinitionSnapshot } from "./definitionSnapshot.js";
 import { newState } from "./state.js";
 import type { RunnerDeps } from "./runner.js";
 
@@ -48,6 +49,45 @@ afterEach(() => {
 });
 
 describe("runner CLI lifecycle", () => {
+  it("uses the inspected compiled baseline and refuses drift before credentials or account access", async () => {
+    const inspected = cmdInspect(folder, true).data as {
+      compiledDefinition: AgentDefinitionSnapshot;
+    };
+    const hash = inspected.compiledDefinition.definitionHash;
+    expect(
+      await main(["run", folder, "--once", "--expect-definition", hash]),
+    ).toBe(0);
+    expect(mocks.runLoop).toHaveBeenCalledTimes(1);
+    expect(mocks.runLoop.mock.calls[0][0]).toMatchObject({
+      spec: inspected.compiledDefinition.spec,
+      mergedProse: inspected.compiledDefinition.mergedProse,
+    });
+    mocks.runLoop.mockClear();
+    mocks.selectProvider.mockClear();
+    writeFileSync(
+      join(folder, "agent.md"),
+      readFileSync(join(folder, "agent.md"), "utf8") + "\nNew instruction.\n",
+    );
+    vi.stubEnv("COINRITHM_API_KEY", "");
+    expect(
+      await main(["run", folder, "--once", "--expect-definition", hash]),
+    ).toBe(1);
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining("definition does not match"),
+    );
+    expect(mocks.selectProvider).not.toHaveBeenCalled();
+    expect(mocks.runLoop).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("does not silently ignore an expected definition flag without its hash", async () => {
+    expect(await main(["run", folder, "--once", "--expect-definition"])).toBe(
+      1,
+    );
+    expect(mocks.selectProvider).not.toHaveBeenCalled();
+    expect(mocks.runLoop).not.toHaveBeenCalled();
+  });
+
   it("defaults to dry-run, persists completed counters and releases the lock", async () => {
     const listeners = process.listenerCount("SIGINT");
     const result = await cmdRun(folder, { once: true });
