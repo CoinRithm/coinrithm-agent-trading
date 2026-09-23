@@ -123,7 +123,7 @@ const mcp = new Client({ name: "package-smoke", version: "1.0.0" });
 try {
   await mcp.connect(transport);
   const { tools } = await mcp.listTools();
-  assert.equal(tools.length, 38);
+  assert.equal(tools.length, 40);
   assert.equal(new Set(tools.map((tool) => tool.name)).size, tools.length);
 } finally {
   await mcp.close();
