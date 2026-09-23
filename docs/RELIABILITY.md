@@ -198,6 +198,24 @@ format, type, generation-drift, build and secret-scanning checks.
 
 ## Release status is separate
 
+**Current verification, 23 September 2026:** npm serves MCP **0.7.12** and
+TypeScript SDK **0.3.1**; PyPI serves Python SDK **1.8.1**. MCP **0.7.13**,
+TypeScript **0.3.2** and Python **1.8.2** are prepared in source, with registry
+publication pending. The hosted MCP already reports 0.7.13 and 40 tools
+(13 keyless data tools), including the current calibration definitions, from
+`4b39cd057765f0ab995d0ec4db2cfde665fa4bdd`. The scheduler is separately deployed
+at `184201069cbf888989870e71243ba725fc98b634`.
+
+Source `e23ac2ced37d970ba9928ba77ffbc7d8e68d904f` passed
+[CI](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/35895525603)
+and the [Pages build](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/35895525641).
+Its live YAML matches the canonical contract, including house-only open
+decisions and whale-wallet routes. These checks establish source/docs and
+hosted behavior, not npm/PyPI delivery. Follow the
+[publishing procedure](./PUBLISHING.md) for the remaining delivery steps.
+
+### Earlier verified deliveries
+
 Source tests, a successful CI run, a healthy deployed image, a naturally
 observed agent cycle and a registry publication are different evidence.
 None establishes the others. See the [release sequence](../packages/mcp-trading/DEPLOY.md#release-sequencing-source-hosted-npm-and-registry).

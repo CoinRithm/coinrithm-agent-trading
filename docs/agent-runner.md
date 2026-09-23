@@ -171,9 +171,9 @@ decisions. Model-reported confidence is not independent evidence of correctness.
   action but the response was lost; transport failures are not automatically replayed.
 - **Kill-switch.** Drawdown (realized + unrealized), consecutive model failures,
   consecutive reject cycles, or rate-limit pressure disable the agent. The
-  model-failure threshold is floored at **10** (free models are flaky; the floor
-  prevents hair-trigger disables), so a `maxConsecutiveModelFailures` below 10 is
-  silently raised to 10.
+  positive model-failure threshold is floored at **10**, so values from 1 to 9
+  are raised to 10. `maxConsecutiveModelFailures: 0` disables this threshold;
+  the other configured controls still apply.
 - **Retry and restart protection.** Idempotency keys are deterministic per intent
   and advance only on confirmed success. File-backed live runs save their run
   identity before execution; a corrupt state file refuses to run, and a per-agent
@@ -190,11 +190,11 @@ waits for the response. The API client's existing retry policy is unchanged.
 For engine consumers, `CycleResult.opportunity` is present only after a successful
 API result. `CycleResult.opportunityReport` also preserves unconfirmed attempts:
 
-| Outcome | Meaning |
-| --- | --- |
-| `confirmed` | The API returned `ok: true`. |
-| `http_error` | The API returned an unsuccessful HTTP response; `status` contains its code. Delivery is unconfirmed. |
-| `unknown` | A transport failure or exception left delivery unknown; `status` is `0`. This does not prove rejection. |
+| Outcome      | Meaning                                                                                                 |
+| ------------ | ------------------------------------------------------------------------------------------------------- |
+| `confirmed`  | The API returned `ok: true`.                                                                            |
+| `http_error` | The API returned an unsuccessful HTTP response; `status` contains its code. Delivery is unconfirmed.    |
+| `unknown`    | A transport failure or exception left delivery unknown; `status` is `0`. This does not prove rejection. |
 
 The report contains the attempted `opportunity` payload, outcome and status.
 Neither API error bodies nor exception details enter these diagnostics. Dry-run
@@ -273,7 +273,12 @@ and an adherence scorecard that grades violations).
 ## Embedding the engine
 
 ```ts
-import { runCycle, loadState, saveState, type RunnerDeps } from "@coinrithm/mcp-trading/engine";
+import {
+  runCycle,
+  loadState,
+  saveState,
+  type RunnerDeps,
+} from "@coinrithm/mcp-trading/engine";
 ```
 
 This is the supported engine entry point. The previous

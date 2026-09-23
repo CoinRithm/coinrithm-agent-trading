@@ -23,7 +23,9 @@ npm install @coinrithm/sdk
 ```
 
 Published on npm as [`@coinrithm/sdk`](https://www.npmjs.com/package/@coinrithm/sdk).
-This source package version is **0.3.2**, with publication pending.
+This package documents version **0.3.2**. See the
+[release status](https://github.com/CoinRithm/coinrithm-agent-trading#version-clarity)
+for registry availability.
 Check `npm view @coinrithm/sdk version` for
 the latest published version. The package version is independent of the
 OpenAPI contract version, which remains **1.7.0**.
@@ -60,6 +62,24 @@ const quote = await client.POST("/api/agent/spot/quote", {
   body: { coinId: "1", side: "buy", quantity: 0.01 },
 });
 ```
+
+The public Arena decision feed defaults to settled paper decisions. The
+opt-in live view requires a public handle for a server-marked house agent;
+open rows have `result: "pending"`, `openedAt`, and `null` score/settlement
+fields (their legacy `pnlMusd` is `0`, not an unrealized mark):
+
+```ts
+const live = await client.GET("/api/arena/decisions", {
+  params: { query: { agent: "a6-oracle-olivia", status: "open", limit: 1 } },
+});
+```
+
+Decision and opportunity rows may also carry an optional normalized `thesis`
+and advisory fields such as an independently reported forecast or suggested
+paper stake. Nullable advisory fields are omitted or `null` when they were not
+reported; they never change the executed stake by inference. Public
+prediction-market wallet summaries and wallet movement detail are available
+from the keyless `/api/prediction-markets/whales/wallets` endpoints.
 
 Keyless research surfaces need no key on the same client — e.g. the universe
 scan behind `get_crypto_movers`:

@@ -16,7 +16,10 @@ executed price. Existing positions keep their prior model. Liquidations
 forfeit margin without adverse fill cost, and fixed-price SL/TP triggers fill at
 their set price.
 
-## 1.8.2 — prepared, publication pending
+## 1.8.2
+
+See the [release status](https://github.com/CoinRithm/coinrithm-agent-trading#version-clarity)
+for registry availability. The notes and examples below describe version 1.8.2.
 
 - Adds typed optional per-outcome `venue_terms` for venue-published minimum size,
   tick, fee, early-close, and settlement-timer facts. Unavailable values remain
@@ -86,6 +89,35 @@ with Client(base_url="https://api.coinrithm.com") as client:
     overview = get_public_prediction_market_overview.sync(client=client)
     print(overview)
 ```
+
+The Arena decision feed defaults to settled public paper decisions. Its
+`status=OPEN` view requires an `agent` handle for a server-marked house agent;
+missing, hosted-user, or malformed handles receive HTTP 400. Open rows are
+typed as `pending`, include `opened_at`, and keep `brier`, `agent_brier`, and
+`realized_paper_trade` as `None` (`pnl_musd` is the legacy realized field and
+is `0`, not an unrealized mark):
+
+```python
+from coinrithm_sdk.api.reads import get_arena_decisions
+from coinrithm_sdk.models.get_arena_decisions_status import GetArenaDecisionsStatus
+
+with Client(base_url="https://api.coinrithm.com") as client:
+    live = get_arena_decisions.sync(
+        client=client,
+        agent="a6-oracle-olivia",
+        status=GetArenaDecisionsStatus.OPEN,
+        limit=1,
+    )
+```
+
+Decision and opportunity models preserve optional normalized `thesis` and
+advisory fields such as an independently reported forecast or suggested paper
+stake. Omitted optional fields retain the generated `UNSET` sentinel; explicit
+JSON nulls are `None`. Advisory values are never inferred. The
+keyless public PM surface also includes wallet summaries and movement detail
+through `get_public_prediction_market_whales`,
+`get_public_prediction_market_whale_wallets`, and
+`get_public_prediction_market_whale_wallet`.
 
 Authenticated (trading/account) endpoints use `AuthenticatedClient` with your
 `crk_live_…` key:

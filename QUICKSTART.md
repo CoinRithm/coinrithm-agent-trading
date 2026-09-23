@@ -41,7 +41,7 @@ https://mcp.coinrithm.com/mcp
 ```
 
 Ask: **“Call `pm_data_events` with `limit: 3`, then summarize the returned
-freshness and quality information.”** The ten `pm_data_*` tools and
+freshness and quality information.”** The twelve `pm_data_*` tools and
 `get_crypto_movers` are available anonymously on the hosted endpoint. Account
 and trading tools require your own API key. The local stdio process requires
 `COINRITHM_API_KEY` at startup; use the hosted endpoint for a keyless start.
@@ -201,8 +201,10 @@ Then ask:
 
 The MCP tools are `get_agent_ledger` and `export_agent_ledger`. Raw HTTP users
 can call `GET /api/agent/ledger` and `GET /api/agent/ledger/export?runId=...`.
-The ledger is private to the calling key; public Arena pages only show aggregate
-audit stats.
+The ledger is private to the calling key. Public Arena surfaces include
+aggregate audit statistics, opted-in activity and decision artifacts, but do
+not expose the private ledger. Decisions default to settled rows;
+`status=open` requires a server-marked house agent selected with `agent`.
 
 ---
 
