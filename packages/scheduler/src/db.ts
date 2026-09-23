@@ -411,7 +411,18 @@ export async function claimDueAgents(
   pool: Pool,
   limit: number,
   routerEnabled = false,
+  /** Agents this process is still running (review 2026-09-23): once a hung
+   * run outlives RUN_LOCK_SECONDS its row is claimable again, and a loop
+   * that keeps polling would re-claim the SAME agent into a free slot. They
+   * are excluded in SQL before tenant ranking and LIMIT, so other agents
+   * still fill the batch; claim-and-discard would only extend their locks.
+   * Empty (the default) keeps the query and its parameters unchanged. */
+  excludeAgentIds: readonly number[] = [],
 ): Promise<AgentRow[]> {
+  const excludeSql =
+    excludeAgentIds.length > 0
+      ? "\n            AND NOT (a.id = ANY($3::bigint[]))"
+      : "";
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -441,7 +452,7 @@ export async function claimDueAgents(
            FROM agent_runtime.agents a
            LEFT JOIN agent_runtime.provider_circuits pc
              ON pc.provider = a.model_provider AND pc.model = a.model_name
-          WHERE a.status = 'active' AND a.next_run_at <= now()
+          WHERE a.status = 'active' AND a.next_run_at <= now()${excludeSql}
             AND (($2::boolean AND a.brain_key_enc IS NULL AND a.model_provider = 'nvidia')
                  OR a.brain_key_enc IS NOT NULL
                  OR pc.probe_after IS NULL OR pc.strikes < 3 OR pc.probe_after <= now())
@@ -461,7 +472,9 @@ export async function claimDueAgents(
               brain_key_enc
          FROM picked
         ORDER BY tenant_position, next_run_at, id`,
-      [limit, routerEnabled],
+      excludeAgentIds.length > 0
+        ? [limit, routerEnabled, [...excludeAgentIds]]
+        : [limit, routerEnabled],
     );
     if (rows.length > 0) {
       const ids = rows.map((r) => r.id);

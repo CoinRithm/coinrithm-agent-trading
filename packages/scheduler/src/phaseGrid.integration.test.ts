@@ -9,6 +9,7 @@ import {
 } from "vitest";
 import { Pool, type PoolClient } from "pg";
 import {
+  claimDueAgents,
   configureScheduling,
   migrate,
   phaseOffsetSeconds,
@@ -115,6 +116,38 @@ describe.skipIf(!databaseUrl)("phase grid on PostgreSQL", () => {
     expect(phaseOffsetSeconds(first, CADENCE)).not.toBe(
       phaseOffsetSeconds(second, CADENCE),
     );
+  });
+
+  it("claimDueAgents skips locally in-flight agents on real SQL", async () => {
+    // claimDueAgents runs its own BEGIN/COMMIT on a pooled connection; this
+    // wrapper maps them onto a savepoint of the test transaction so the
+    // claim sees the uncommitted fixture row and nothing leaks to the shared
+    // table (the capacity file wipes it from a parallel worker).
+    const savepointPool = {
+      connect: async () => ({
+        query: (text: string, params?: unknown[]) =>
+          client.query(
+            text === "BEGIN"
+              ? "SAVEPOINT claim_case"
+              : text === "COMMIT"
+                ? "RELEASE SAVEPOINT claim_case"
+                : text === "ROLLBACK"
+                  ? "ROLLBACK TO SAVEPOINT claim_case"
+                  : text,
+            params,
+          ),
+        release: () => {},
+      }),
+    } as unknown as Pool;
+    const id = await insertAgent("claim-exclude");
+    await client.query(
+      "UPDATE agent_runtime.agents SET next_run_at = now() - interval '1 second' WHERE id = $1",
+      [id],
+    );
+    const excluded = await claimDueAgents(savepointPool, 10, true, [id]);
+    expect(excluded.some((a) => a.id === id)).toBe(false);
+    const claimed = await claimDueAgents(savepointPool, 10, true);
+    expect(claimed.some((a) => a.id === id)).toBe(true);
   });
 
   it("with the grid off, a reschedule is exactly now()+cadence", async () => {

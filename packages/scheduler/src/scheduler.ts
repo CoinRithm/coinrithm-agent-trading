@@ -80,10 +80,6 @@ export async function runScheduler(
       logFn(
         `[scheduler] runner error for ${a.handle}: ${e instanceof Error ? e.message : String(e)}`,
       );
-    } finally {
-      // Progress beat: a slow but healthy batch keeps ticking as agents
-      // finish, so only a genuine freeze (no completions) trips the check.
-      if (heartbeat) heartbeat.lastTickAt = now();
     }
   };
 
@@ -91,43 +87,57 @@ export async function runScheduler(
   // the loop claims at most the FREE execution slots, so a claimed agent never
   // queues behind a slow model past its run lock, and newly due agents keep
   // being admitted while others run. Draining waits for every in-flight run.
-  // Progress liveness (review 2026-09-23): with runs no longer awaited as a
-  // batch, polling alone would keep the healthcheck green while every slot
-  // hangs. So a poll tick refreshes the heartbeat only while no in-flight run
-  // is older than the capacity lease TTL (>= the runtime's model timeout plus
-  // overhead, the same bound that expires its lease); completions always
-  // refresh it. A stall therefore freezes the heartbeat until the hung run
-  // returns or the orchestrator restarts the process, exactly what the old
-  // batch-awaiting loop did.
-  const staleAfterMs = config.capacityLeaseTtlSeconds * 1000;
-  const inFlight = new Map<Promise<void>, number>(); // run -> started at
-  const oldestInFlightAgeMs = (): number => {
-    let oldest = Number.POSITIVE_INFINITY;
-    for (const startedAt of inFlight.values())
-      oldest = Math.min(oldest, startedAt);
-    return oldest === Number.POSITIVE_INFINITY ? 0 : now() - oldest;
+  // Progress liveness (review 2026-09-23): every heartbeat update records
+  // min(now, start of the oldest still-running run), or now when nothing is
+  // in flight. One hung run therefore pins the heartbeat at its own start no
+  // matter how many other runs complete around it, so the existing health
+  // threshold trips after the same window as with the old batch-awaiting
+  // loop; when the oldest run finishes, the next oldest takes over and the
+  // heartbeat advances naturally.
+  const inFlight = new Map<
+    Promise<void>,
+    { agentId: number; startedAt: number }
+  >();
+  const oldestRunningStart = (): number | undefined => {
+    let oldest: number | undefined;
+    for (const { startedAt } of inFlight.values())
+      oldest = oldest === undefined ? startedAt : Math.min(oldest, startedAt);
+    return oldest;
   };
+  const beat = (): void => {
+    if (!heartbeat) return;
+    const t = now();
+    const oldest = oldestRunningStart();
+    heartbeat.lastTickAt = oldest === undefined ? t : Math.min(t, oldest);
+  };
+  const inFlightAgentIds = (): number[] =>
+    [...inFlight.values()].map((run) => run.agentId);
   const launch = (a: AgentRow): void => {
     const run: Promise<void> = runOne(a).finally(() => {
       inFlight.delete(run);
+      beat();
     });
-    inFlight.set(run, now());
+    inFlight.set(run, { agentId: a.id, startedAt: now() });
   };
-  let stallLogged = false;
+  const staleAfterMs = config.capacityLeaseTtlSeconds * 1000;
+  let staleLoggedFor: number | undefined;
 
   while (!control.stopped) {
     // Liveness heartbeat: the health endpoint reports UNHEALTHY if this stops
     // advancing, so an orchestrator restarts a HUNG loop, not just a crashed
     // process (a static "ok" can't tell a frozen loop from a healthy one).
-    const stalled = oldestInFlightAgeMs() > staleAfterMs;
-    if (heartbeat && !stalled) heartbeat.lastTickAt = now();
-    if (stalled && !stallLogged) {
-      logFn(
-        `[scheduler] progress stalled: an in-flight run is older than ${config.capacityLeaseTtlSeconds}s; heartbeat frozen until it returns`,
-      );
-      stallLogged = true;
-    } else if (!stalled) {
-      stallLogged = false;
+    beat();
+    // Informational only: the heartbeat above already pins on the oldest run.
+    const oldest = oldestRunningStart();
+    if (oldest !== undefined && now() - oldest > staleAfterMs) {
+      if (staleLoggedFor !== oldest) {
+        logFn(
+          `[scheduler] progress stalled: an in-flight run is older than ${config.capacityLeaseTtlSeconds}s; heartbeat pinned at its start until it returns`,
+        );
+        staleLoggedFor = oldest;
+      }
+    } else {
+      staleLoggedFor = undefined;
     }
     try {
       // Self-heal FIRST so a revived agent is also claimed this same tick: the
@@ -144,6 +154,7 @@ export async function runScheduler(
           pool,
           Math.min(config.claimBatch, free),
           config.routerEnabled,
+          inFlightAgentIds(),
         );
         if (due.length > 0) {
           logFn(
@@ -159,12 +170,13 @@ export async function runScheduler(
     }
     await sleep(config.pollIntervalMs);
   }
-  // Drain bounded by the same lease TTL: a run that cannot return within it
-  // is hung past its own timeout, and the orchestrator must not wait on it.
+  // Drain: wait for in-flight runs up to the lease TTL, then stop waiting.
+  // Nothing is cancelled here (a run's API/broker work finishes or times out
+  // on its own); index.ts keeps the hard process-exit backstop on shutdown.
   await new Promise<void>((resolve) => {
     const timer = setTimeout(() => {
       logFn(
-        `[scheduler] drain timed out with ${inFlight.size} run(s) still in flight after ${config.capacityLeaseTtlSeconds}s`,
+        `[scheduler] drain stopped waiting with ${inFlight.size} run(s) still in flight after ${config.capacityLeaseTtlSeconds}s (not cancelled)`,
       );
       resolve();
     }, staleAfterMs);

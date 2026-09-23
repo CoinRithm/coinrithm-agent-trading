@@ -94,6 +94,7 @@ describe("scheduler polling", () => {
       pool,
       Math.min(cfg.claimBatch, cfg.maxConcurrent),
       true,
+      [],
     );
     expect(mocks.configureScheduling).toHaveBeenCalledWith({
       phaseGrid: cfg.phaseGridEnabled,
@@ -240,7 +241,7 @@ describe("scheduler polling", () => {
     expect(drained).toBe(true);
   });
 
-  it("freezes the heartbeat when every slot is hung past the lease TTL and thaws it on a completion", async () => {
+  it("pins the heartbeat at the start of the oldest still-running run and releases it when that run completes", async () => {
     const control = { stopped: false };
     let clock = 1_000;
     const cfg = {
@@ -272,25 +273,20 @@ describe("scheduler polling", () => {
       () => clock,
       heartbeat,
     );
-    // Tick 1 claims and launches the only slot; the run never completes.
     await vi.advanceTimersByTimeAsync(250);
     expect(heartbeat.lastTickAt).toBe(1_000);
-    expect(mocks.runAgentOnce).toHaveBeenCalledTimes(1);
-    // Polling keeps refreshing the heartbeat while the run is younger than the
-    // lease TTL (poll liveness).
+    // Polling never advances the heartbeat past the hung run's start: the
+    // existing health threshold trips after the same window as before.
     clock = 100_000;
     await vi.advanceTimersByTimeAsync(250);
-    expect(heartbeat.lastTickAt).toBe(100_000);
-    // Past the lease TTL with no completion, polling must NOT refresh it
-    // (progress liveness): the healthcheck has to be able to trip.
+    expect(heartbeat.lastTickAt).toBe(1_000);
     clock = 1_000 + 361_000;
     await vi.advanceTimersByTimeAsync(250);
-    await vi.advanceTimersByTimeAsync(250);
-    expect(heartbeat.lastTickAt).toBe(100_000);
+    expect(heartbeat.lastTickAt).toBe(1_000);
     expect(log).toHaveBeenCalledWith(
       expect.stringContaining("progress stalled"),
     );
-    // A completion is progress: the heartbeat thaws on it.
+    // The completion releases it.
     clock = 1_000 + 400_000;
     release[0]!();
     await vi.advanceTimersByTimeAsync(0);
@@ -299,6 +295,72 @@ describe("scheduler polling", () => {
     await vi.runAllTimersAsync();
     await running;
     expect(log).toHaveBeenLastCalledWith("[scheduler] drained");
+  });
+
+  it("healthy completions cannot mask the hang, and in-flight agents are excluded from every later claim", async () => {
+    const control = { stopped: false };
+    let clock = 1_000;
+    const cfg = {
+      ...config(),
+      capacityEnabled: false,
+      maxConcurrent: 2,
+      claimBatch: 20,
+      capacityLeaseTtlSeconds: 360,
+    };
+    let releaseHung: (() => void) | undefined;
+    mocks.runAgentOnce.mockImplementation(async (_pool, a: AgentRow) => {
+      if (a.id === 1)
+        await new Promise<void>((resolve) => {
+          releaseHung = resolve;
+        });
+      // Every other agent completes at once.
+    });
+    let nextHealthy = 2;
+    mocks.claimDueAgents.mockImplementation(async (_pool, limit: number) => {
+      if (mocks.claimDueAgents.mock.calls.length === 1)
+        return [agent(1, "nvidia", "byo-1"), agent(2, "nvidia", "byo-2")].slice(
+          0,
+          limit,
+        );
+      nextHealthy += 1;
+      return [agent(nextHealthy, "nvidia", `byo-${nextHealthy}`)].slice(
+        0,
+        limit,
+      );
+    });
+    const heartbeat = { lastTickAt: 0 };
+    const running = runScheduler(
+      pool,
+      cfg,
+      control,
+      vi.fn(),
+      () => clock,
+      heartbeat,
+    );
+    await vi.advanceTimersByTimeAsync(250);
+    expect(heartbeat.lastTickAt).toBe(1_000);
+    for (const t of [50_000, 200_000, 500_000]) {
+      clock = t;
+      await vi.advanceTimersByTimeAsync(250);
+      // Healthy agents keep completing in the free slot...
+      expect(mocks.runAgentOnce.mock.calls.length).toBeGreaterThan(2);
+      // ...yet the heartbeat stays pinned at the hung run's start.
+      expect(heartbeat.lastTickAt).toBe(1_000);
+    }
+    // The hung agent is excluded from every claim after the first one.
+    const laterClaims = mocks.claimDueAgents.mock.calls.slice(1);
+    expect(laterClaims.length).toBeGreaterThan(0);
+    for (const call of laterClaims) {
+      expect(call[3]).toContain(1);
+      expect(call[1]).toBe(1); // one free slot next to the hung one
+    }
+    clock = 600_000;
+    releaseHung!();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(heartbeat.lastTickAt).toBe(600_000);
+    control.stopped = true;
+    await vi.runAllTimersAsync();
+    await running;
   });
 
   it("bounds the shutdown drain by the lease TTL when a run never returns", async () => {
@@ -327,7 +389,7 @@ describe("scheduler polling", () => {
     await running;
     expect(drained).toBe(true);
     expect(log).toHaveBeenCalledWith(
-      expect.stringContaining("drain timed out with 1 run(s)"),
+      expect.stringContaining("drain stopped waiting with 1 run(s)"),
     );
     expect(log).toHaveBeenLastCalledWith("[scheduler] drained");
   });

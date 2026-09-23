@@ -867,3 +867,40 @@ describe("phase grid scheduling", () => {
     expect(phaseOffsetSeconds(9, 1)).toBe(0);
   });
 });
+
+describe("claimDueAgents in-flight exclusion", () => {
+  function claimingPool() {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const client = { query, release: vi.fn() };
+    const pool = {
+      connect: vi.fn().mockResolvedValue(client),
+    } as unknown as Pool;
+    return { pool, query };
+  }
+  const claimCall = (query: ReturnType<typeof vi.fn>) =>
+    query.mock.calls.find((c) =>
+      String(c[0]).includes("FOR UPDATE OF a SKIP LOCKED"),
+    );
+
+  it("excludes locally in-flight agents in SQL before tenant ranking and LIMIT", async () => {
+    const { pool, query } = claimingPool();
+    await claimDueAgents(pool, 10, true, [7, 9]);
+    const call = claimCall(query);
+    const sql = String(call?.[0]);
+    expect(sql).toContain("AND NOT (a.id = ANY($3::bigint[]))");
+    // Inside the `due` CTE (filtered before ranking and LIMIT), not bolted on
+    // after the batch was picked.
+    expect(sql.indexOf("AND NOT (a.id = ANY($3::bigint[]))")).toBeLessThan(
+      sql.indexOf("picked AS MATERIALIZED"),
+    );
+    expect(call?.[1]).toEqual([10, true, [7, 9]]);
+  });
+
+  it("leaves the query and its parameters unchanged when nothing is in flight", async () => {
+    const { pool, query } = claimingPool();
+    await claimDueAgents(pool, 10, true, []);
+    const call = claimCall(query);
+    expect(String(call?.[0])).not.toContain("$3");
+    expect(call?.[1]).toEqual([10, true]);
+  });
+});
