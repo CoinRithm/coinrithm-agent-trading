@@ -5,6 +5,13 @@ ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (t
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
 versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
+## Unreleased
+
+- Include the exact compiled strategy definition and its digest in local
+  inspection; expose the same snapshot builder to engine consumers.
+- Add `run --expect-definition` to reject a changed baseline before model or
+  account access. The digest is not a full replay record or broker adapter.
+
 ## 0.7.13
 
 - Preserve optional per-outcome venue terms in compact prediction-market output,
