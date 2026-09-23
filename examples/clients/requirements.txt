@@ -1,1 +1,1 @@
-coinrithm-sdk==1.8.1
+coinrithm-sdk==1.8.2

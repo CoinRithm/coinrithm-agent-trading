@@ -26,8 +26,8 @@ node sdk/events.mjs
 ```
 
 The runnable files are plain JavaScript modules using the maintained TypeScript
-SDK, pinned to `@coinrithm/sdk@0.3.1`. In your own JavaScript or TypeScript project,
-install it with `npm install @coinrithm/sdk@0.3.1`, then copy an example. TypeScript
+SDK, pinned to `@coinrithm/sdk@0.3.2`. In your own JavaScript or TypeScript project,
+install it with `npm install @coinrithm/sdk@0.3.2`, then copy an example. TypeScript
 also infers request and response types from the same `createClient` interface.
 
 ## Python SDK
@@ -52,7 +52,7 @@ On macOS or Linux:
 .venv/bin/python python/events.py
 ```
 
-This uses the published `coinrithm-sdk==1.8.1`, not a local unreleased SDK build.
+This uses the published `coinrithm-sdk==1.8.2`, not a local unreleased SDK build.
 
 ## Choose a request
 

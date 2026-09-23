@@ -198,21 +198,25 @@ format, type, generation-drift, build and secret-scanning checks.
 
 ## Release status is separate
 
-**Current verification, 23 September 2026:** npm serves MCP **0.7.12** and
-TypeScript SDK **0.3.1**; PyPI serves Python SDK **1.8.1**. MCP **0.7.13**,
-TypeScript **0.3.2** and Python **1.8.2** are prepared in source, with registry
-publication pending. The hosted MCP already reports 0.7.13 and 40 tools
+**Current verification, 23 September 2026:** npm serves MCP **0.7.13** and
+TypeScript SDK **0.3.2**; PyPI serves Python SDK **1.8.2**. All four downloaded
+archives match the reviewed release manifest byte for byte. The official MCP
+Registry separately lists **0.7.13** as active and latest, verified after the
+[registry workflow](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/35926812905).
+
+The hosted MCP separately reports 0.7.13 and 40 tools
 (13 keyless data tools), including the current calibration definitions, from
 `4b39cd057765f0ab995d0ec4db2cfde665fa4bdd`. The scheduler is separately deployed
 at `184201069cbf888989870e71243ba725fc98b634`.
 
-Source `e23ac2ced37d970ba9928ba77ffbc7d8e68d904f` passed
-[CI](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/35895525603)
-and the [Pages build](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/35895525641).
-Its live YAML matches the canonical contract, including house-only open
-decisions and whale-wallet routes. These checks establish source/docs and
-hosted behavior, not npm/PyPI delivery. Follow the
-[publishing procedure](./PUBLISHING.md) for the remaining delivery steps.
+Release source `726d8f0466d0cfd02ab5a9d46aed6ca12a45ff06` passed all 26
+[CI jobs](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/35920620125)
+and the [Pages build](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/35920620098).
+Its tree is identical to archive build source
+`9ea286cacceb4d0a0da31c71f4f0b726e8c8b262`. The live YAML matches the canonical
+contract, including house-only open decisions and whale-wallet routes. Source,
+hosted and registry checks are recorded separately; none implies the others.
+Follow the [publishing procedure](./PUBLISHING.md) for the delivery sequence.
 
 ### Earlier verified deliveries
 
