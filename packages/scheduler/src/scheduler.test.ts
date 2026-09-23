@@ -240,6 +240,98 @@ describe("scheduler polling", () => {
     expect(drained).toBe(true);
   });
 
+  it("freezes the heartbeat when every slot is hung past the lease TTL and thaws it on a completion", async () => {
+    const control = { stopped: false };
+    let clock = 1_000;
+    const cfg = {
+      ...config(),
+      capacityEnabled: false,
+      maxConcurrent: 1,
+      claimBatch: 20,
+      capacityLeaseTtlSeconds: 360,
+    };
+    const release: Array<() => void> = [];
+    mocks.runAgentOnce.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          release.push(resolve);
+        }),
+    );
+    mocks.claimDueAgents.mockImplementation(async () =>
+      mocks.claimDueAgents.mock.calls.length === 1
+        ? [agent(1, "nvidia", "byo-1")]
+        : [],
+    );
+    const heartbeat = { lastTickAt: 0 };
+    const log = vi.fn();
+    const running = runScheduler(
+      pool,
+      cfg,
+      control,
+      log,
+      () => clock,
+      heartbeat,
+    );
+    // Tick 1 claims and launches the only slot; the run never completes.
+    await vi.advanceTimersByTimeAsync(250);
+    expect(heartbeat.lastTickAt).toBe(1_000);
+    expect(mocks.runAgentOnce).toHaveBeenCalledTimes(1);
+    // Polling keeps refreshing the heartbeat while the run is younger than the
+    // lease TTL (poll liveness).
+    clock = 100_000;
+    await vi.advanceTimersByTimeAsync(250);
+    expect(heartbeat.lastTickAt).toBe(100_000);
+    // Past the lease TTL with no completion, polling must NOT refresh it
+    // (progress liveness): the healthcheck has to be able to trip.
+    clock = 1_000 + 361_000;
+    await vi.advanceTimersByTimeAsync(250);
+    await vi.advanceTimersByTimeAsync(250);
+    expect(heartbeat.lastTickAt).toBe(100_000);
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining("progress stalled"),
+    );
+    // A completion is progress: the heartbeat thaws on it.
+    clock = 1_000 + 400_000;
+    release[0]!();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(heartbeat.lastTickAt).toBe(1_000 + 400_000);
+    control.stopped = true;
+    await vi.runAllTimersAsync();
+    await running;
+    expect(log).toHaveBeenLastCalledWith("[scheduler] drained");
+  });
+
+  it("bounds the shutdown drain by the lease TTL when a run never returns", async () => {
+    const control = { stopped: false };
+    const cfg = {
+      ...config(),
+      capacityEnabled: false,
+      maxConcurrent: 1,
+      capacityLeaseTtlSeconds: 360,
+    };
+    mocks.runAgentOnce.mockImplementation(() => new Promise<void>(() => {}));
+    mocks.claimDueAgents.mockImplementation(async () => {
+      control.stopped = true;
+      return [agent(1, "nvidia", "byo-1")];
+    });
+    const log = vi.fn();
+    const running = runScheduler(pool, cfg, control, log, () => 7);
+    let drained = false;
+    void running.then(() => {
+      drained = true;
+    });
+    await vi.advanceTimersByTimeAsync(250);
+    await vi.advanceTimersByTimeAsync(359_000);
+    expect(drained).toBe(false);
+    await vi.advanceTimersByTimeAsync(2_000);
+    await running;
+    expect(drained).toBe(true);
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining("drain timed out with 1 run(s)"),
+    );
+    expect(log).toHaveBeenLastCalledWith("[scheduler] drained");
+  });
+
   it("does not claim work after shutdown was requested", async () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
     await runScheduler(pool, config(), { stopped: true });

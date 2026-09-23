@@ -91,19 +91,44 @@ export async function runScheduler(
   // the loop claims at most the FREE execution slots, so a claimed agent never
   // queues behind a slow model past its run lock, and newly due agents keep
   // being admitted while others run. Draining waits for every in-flight run.
-  const inFlight = new Set<Promise<void>>();
+  // Progress liveness (review 2026-09-23): with runs no longer awaited as a
+  // batch, polling alone would keep the healthcheck green while every slot
+  // hangs. So a poll tick refreshes the heartbeat only while no in-flight run
+  // is older than the capacity lease TTL (>= the runtime's model timeout plus
+  // overhead, the same bound that expires its lease); completions always
+  // refresh it. A stall therefore freezes the heartbeat until the hung run
+  // returns or the orchestrator restarts the process, exactly what the old
+  // batch-awaiting loop did.
+  const staleAfterMs = config.capacityLeaseTtlSeconds * 1000;
+  const inFlight = new Map<Promise<void>, number>(); // run -> started at
+  const oldestInFlightAgeMs = (): number => {
+    let oldest = Number.POSITIVE_INFINITY;
+    for (const startedAt of inFlight.values())
+      oldest = Math.min(oldest, startedAt);
+    return oldest === Number.POSITIVE_INFINITY ? 0 : now() - oldest;
+  };
   const launch = (a: AgentRow): void => {
     const run: Promise<void> = runOne(a).finally(() => {
       inFlight.delete(run);
     });
-    inFlight.add(run);
+    inFlight.set(run, now());
   };
+  let stallLogged = false;
 
   while (!control.stopped) {
     // Liveness heartbeat: the health endpoint reports UNHEALTHY if this stops
     // advancing, so an orchestrator restarts a HUNG loop, not just a crashed
     // process (a static "ok" can't tell a frozen loop from a healthy one).
-    if (heartbeat) heartbeat.lastTickAt = now();
+    const stalled = oldestInFlightAgeMs() > staleAfterMs;
+    if (heartbeat && !stalled) heartbeat.lastTickAt = now();
+    if (stalled && !stallLogged) {
+      logFn(
+        `[scheduler] progress stalled: an in-flight run is older than ${config.capacityLeaseTtlSeconds}s; heartbeat frozen until it returns`,
+      );
+      stallLogged = true;
+    } else if (!stalled) {
+      stallLogged = false;
+    }
     try {
       // Self-heal FIRST so a revived agent is also claimed this same tick: the
       // Arena must never be a graveyard when a visitor lands (a flaky-model streak
@@ -134,6 +159,19 @@ export async function runScheduler(
     }
     await sleep(config.pollIntervalMs);
   }
-  await Promise.allSettled([...inFlight]);
+  // Drain bounded by the same lease TTL: a run that cannot return within it
+  // is hung past its own timeout, and the orchestrator must not wait on it.
+  await new Promise<void>((resolve) => {
+    const timer = setTimeout(() => {
+      logFn(
+        `[scheduler] drain timed out with ${inFlight.size} run(s) still in flight after ${config.capacityLeaseTtlSeconds}s`,
+      );
+      resolve();
+    }, staleAfterMs);
+    void Promise.allSettled([...inFlight.keys()]).then(() => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
   logFn("[scheduler] drained");
 }
