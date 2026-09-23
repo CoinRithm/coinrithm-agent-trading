@@ -411,7 +411,18 @@ export async function claimDueAgents(
   pool: Pool,
   limit: number,
   routerEnabled = false,
+  /** Agents this process is still running (review 2026-09-23): once a hung
+   * run outlives RUN_LOCK_SECONDS its row is claimable again, and a loop
+   * that keeps polling would re-claim the SAME agent into a free slot. They
+   * are excluded in SQL before tenant ranking and LIMIT, so other agents
+   * still fill the batch; claim-and-discard would only extend their locks.
+   * Empty (the default) keeps the query and its parameters unchanged. */
+  excludeAgentIds: readonly number[] = [],
 ): Promise<AgentRow[]> {
+  const excludeSql =
+    excludeAgentIds.length > 0
+      ? "\n            AND NOT (a.id = ANY($3::bigint[]))"
+      : "";
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -441,7 +452,7 @@ export async function claimDueAgents(
            FROM agent_runtime.agents a
            LEFT JOIN agent_runtime.provider_circuits pc
              ON pc.provider = a.model_provider AND pc.model = a.model_name
-          WHERE a.status = 'active' AND a.next_run_at <= now()
+          WHERE a.status = 'active' AND a.next_run_at <= now()${excludeSql}
             AND (($2::boolean AND a.brain_key_enc IS NULL AND a.model_provider = 'nvidia')
                  OR a.brain_key_enc IS NOT NULL
                  OR pc.probe_after IS NULL OR pc.strikes < 3 OR pc.probe_after <= now())
@@ -461,7 +472,9 @@ export async function claimDueAgents(
               brain_key_enc
          FROM picked
         ORDER BY tenant_position, next_run_at, id`,
-      [limit, routerEnabled],
+      excludeAgentIds.length > 0
+        ? [limit, routerEnabled, [...excludeAgentIds]]
+        : [limit, routerEnabled],
     );
     if (rows.length > 0) {
       const ids = rows.map((r) => r.id);
@@ -742,7 +755,7 @@ export async function persistCycleResult(
       // overlapping it (claimDueAgents set a RUN_LOCK_SECONDS lock; reset it here).
       await client.query(
         `UPDATE agent_runtime.agents
-            SET next_run_at = now() + make_interval(secs => ${NEXT_CADENCE_SECS}),
+            SET next_run_at = ${nextRunAtSql(schedulingFlags)},
                 updated_at = now()
           WHERE id = $1 AND status = 'active'`,
         [agentId],
@@ -790,6 +803,60 @@ const NEXT_CADENCE_SECS = `GREATEST(
        ) ELSE 0 END
      )`;
 
+// Phase grid (owner 2026-09-23) -------------------------------------------
+// Rescheduling every agent to now()+cadence keeps agents that finished
+// together coming due together, and a synchronized batch drains the shared
+// brain's per-minute budget in one go while later minutes sit idle (live
+// 2026-09-23: three house agents starting within ~7 s of each other every
+// cadence, 67-100% of their cycles deferred on capacity). On the grid, the
+// next due time is the agent's next SLOT: slots are cadence-sized and the
+// agent's phase inside a slot is a Fibonacci hash of its id (multiply by
+// 2^32/phi, keep the top bits), which spreads sequential ids evenly: ids 1..7
+// on a 240 s grid land at 148, 56, 204, 113, 21, 169 and 78 s. The result is
+// strictly after now() and at most one cadence away, so an overrunning cycle
+// simply runs at its next slot: no catch-up burst, no overlap (the claim-time
+// RUN_LOCK is untouched, and the shared-pool floor still sizes the slot).
+export interface SchedulingFlags {
+  phaseGrid: boolean;
+}
+let schedulingFlags: SchedulingFlags = {
+  phaseGrid: process.env.SCHEDULER_PHASE_GRID_ENABLED !== "false",
+};
+/** runScheduler sets this from Config at boot; tests set it explicitly. */
+export function configureScheduling(flags: SchedulingFlags): void {
+  schedulingFlags = { ...flags };
+}
+export function currentSchedulingFlags(): SchedulingFlags {
+  return { ...schedulingFlags };
+}
+
+/** 2^32 / phi: the Fibonacci-hash multiplier (Knuth). */
+export const PHASE_HASH_MULTIPLIER = 2654435769n;
+
+/** JS mirror of the SQL phase below: 0 <= phase < cadenceSeconds. */
+export function phaseOffsetSeconds(
+  agentId: number,
+  cadenceSeconds: number,
+): number {
+  const secs = BigInt(Math.max(1, Math.floor(cadenceSeconds)));
+  const hashed = (BigInt(agentId) * PHASE_HASH_MULTIPLIER) % 4294967296n;
+  return Number((hashed * secs) / 4294967296n);
+}
+
+/** SQL: the agent's next due time, evaluated against the UPDATE's own row
+ * (`id`, `cadence_seconds`, `brain_key_enc`). Grid on: the next slot of the
+ * agent's grid; off: now()+cadence, the historical behavior. */
+export function nextRunAtSql(flags: SchedulingFlags): string {
+  if (!flags.phaseGrid)
+    return `now() + make_interval(secs => ${NEXT_CADENCE_SECS})`;
+  return `(SELECT to_timestamp(
+              (floor((extract(epoch FROM now()) - grid.phase) / grid.secs) + 1) * grid.secs
+              + grid.phase)
+            FROM (SELECT slot.secs,
+                         (((id * ${PHASE_HASH_MULTIPLIER}) % 4294967296) * slot.secs) / 4294967296 AS phase
+                    FROM (SELECT GREATEST((${NEXT_CADENCE_SECS})::bigint, 1) AS secs) slot) grid)`;
+}
+
 // Reschedule an agent's NEXT cycle to now()+cadence WITHOUT recording a cycle.
 // claimDueAgents advances next_run_at by GREATEST(cadence, RUN_LOCK_SECONDS) at
 // claim time so a slow run is never re-claimed mid-flight; the COMPLETION path
@@ -803,7 +870,7 @@ export async function rescheduleToCadence(
 ): Promise<void> {
   await pool.query(
     `UPDATE agent_runtime.agents
-        SET next_run_at = now() + make_interval(secs => ${NEXT_CADENCE_SECS}),
+        SET next_run_at = ${nextRunAtSql(schedulingFlags)},
             updated_at = now()
       WHERE id = $1 AND status = 'active'`,
     [agentId],

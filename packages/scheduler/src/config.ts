@@ -36,6 +36,12 @@ export interface Config {
   // Hosted shared-key routing. Enabled by default with an env rollback switch:
   // capacity pressure/provider faults defer or fall through, never disable.
   routerEnabled: boolean;
+  // Phase grid (owner 2026-09-23): each agent's due times sit on its own
+  // cadence-sized grid, offset by a Fibonacci hash of its id, instead of
+  // now()+cadence. Agents that finish together stop coming due together, so
+  // the shared brain sees a steady trickle instead of one burst per cadence.
+  // Rollback: SCHEDULER_PHASE_GRID_ENABLED=false restores now()+cadence.
+  phaseGridEnabled: boolean;
   // Independent backup is eligible only after the boot contract probe passes.
   // The credential remains scheduler-only and is never persisted or logged.
   openAiBackupKey?: string;
@@ -146,6 +152,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       301,
     ),
     routerEnabled: boolEnv(env, "SCHEDULER_ROUTER_ENABLED", true),
+    phaseGridEnabled: boolEnv(env, "SCHEDULER_PHASE_GRID_ENABLED", true),
     openAiBackupKey: env.COINRITHM_OPENAI_BACKUP_KEY?.trim() || undefined,
     // Set true only by the startup probe; loading a key is not proof that its
     // model/request contract works.

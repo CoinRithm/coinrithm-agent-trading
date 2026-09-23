@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import type { Pool, PoolClient } from "pg";
 import type { DecisionInputRecord } from "@coinrithm/mcp-trading/engine";
 import {
@@ -11,6 +11,9 @@ import {
   migrateAgentsOffEolModels,
   migrateHouseAgentsOffGroq,
   rescheduleToCadence,
+  configureScheduling,
+  nextRunAtSql,
+  phaseOffsetSeconds,
   reviveDisabledAgents,
   sharedCadenceFloorSeconds,
   SHARED_CADENCE_TARGET_RPM,
@@ -588,7 +591,11 @@ describe("provider circuits — reliability slice 1 (never disable on provider f
     );
     // The reschedule branch still runs so the agent stays on cadence.
     expect(
-      sqls.some((s) => s.includes("next_run_at = now() + make_interval")),
+      sqls.some(
+        (s) =>
+          s.includes("next_run_at = now() + make_interval") ||
+          s.includes("next_run_at = (SELECT to_timestamp("),
+      ),
     ).toBe(true);
   });
 
@@ -794,5 +801,106 @@ describe("provider circuits — reliability slice 1 (never disable on provider f
     expect(String(query.mock.calls[1][0])).toContain(
       "DELETE FROM agent_runtime.provider_circuits",
     );
+  });
+});
+
+describe("phase grid scheduling", () => {
+  afterEach(() => configureScheduling({ phaseGrid: true }));
+
+  it("reschedules onto the agent's grid when the phase grid is on", async () => {
+    configureScheduling({ phaseGrid: true });
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    await rescheduleToCadence({ query } as unknown as Pool, 42);
+    const [sql] = query.mock.calls[0] as [string];
+    expect(sql).toContain("next_run_at = (SELECT to_timestamp(");
+    expect(sql).toContain("2654435769");
+    expect(sql).toContain("% 4294967296");
+    // The slot is still the shared-pool floored cadence.
+    expect(sql).toContain("GREATEST((GREATEST(");
+    expect(sql).toContain("CASE WHEN brain_key_enc IS NULL");
+    expect(sql).not.toContain("make_interval");
+  });
+
+  it("falls back to now()+cadence when the phase grid is off", async () => {
+    configureScheduling({ phaseGrid: false });
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    await rescheduleToCadence({ query } as unknown as Pool, 42);
+    const [sql] = query.mock.calls[0] as [string];
+    expect(sql).toContain("next_run_at = now() + make_interval");
+    expect(sql).not.toContain("to_timestamp(");
+  });
+
+  it("nextRunAtSql exposes both forms", () => {
+    expect(nextRunAtSql({ phaseGrid: true })).toMatch(
+      /^\(SELECT to_timestamp\(/,
+    );
+    expect(nextRunAtSql({ phaseGrid: false })).toMatch(
+      /^now\(\) \+ make_interval\(secs => GREATEST\(/,
+    );
+  });
+
+  it("spreads sequential ids across the whole slot (Fibonacci hash, top bits)", () => {
+    // Pinned values: the SQL and the mirror must agree on these forever.
+    expect(
+      [1, 2, 3, 4, 5, 6, 7].map((id) => phaseOffsetSeconds(id, 240)),
+    ).toEqual([148, 56, 204, 113, 21, 169, 78]);
+    expect([1, 2, 3, 4, 5].map((id) => phaseOffsetSeconds(id, 180))).toEqual([
+      111, 42, 153, 84, 16,
+    ]);
+    // Sixty-five sequential ids (a fleet of the current size) cover every
+    // 10-second bucket of a 240 s slot with at most four per bucket, instead
+    // of the first 65 seconds that `id % cadence` would give.
+    const buckets = new Map<number, number>();
+    for (let id = 1; id <= 65; id += 1) {
+      const phase = phaseOffsetSeconds(id, 240);
+      expect(phase).toBeGreaterThanOrEqual(0);
+      expect(phase).toBeLessThan(240);
+      buckets.set(
+        Math.floor(phase / 10),
+        (buckets.get(Math.floor(phase / 10)) ?? 0) + 1,
+      );
+    }
+    expect(buckets.size).toBe(24);
+    expect(Math.max(...buckets.values())).toBeLessThanOrEqual(4);
+    // Degenerate cadences never divide by zero or escape the slot.
+    expect(phaseOffsetSeconds(9, 0)).toBe(0);
+    expect(phaseOffsetSeconds(9, 1)).toBe(0);
+  });
+});
+
+describe("claimDueAgents in-flight exclusion", () => {
+  function claimingPool() {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const client = { query, release: vi.fn() };
+    const pool = {
+      connect: vi.fn().mockResolvedValue(client),
+    } as unknown as Pool;
+    return { pool, query };
+  }
+  const claimCall = (query: ReturnType<typeof vi.fn>) =>
+    query.mock.calls.find((c) =>
+      String(c[0]).includes("FOR UPDATE OF a SKIP LOCKED"),
+    );
+
+  it("excludes locally in-flight agents in SQL before tenant ranking and LIMIT", async () => {
+    const { pool, query } = claimingPool();
+    await claimDueAgents(pool, 10, true, [7, 9]);
+    const call = claimCall(query);
+    const sql = String(call?.[0]);
+    expect(sql).toContain("AND NOT (a.id = ANY($3::bigint[]))");
+    // Inside the `due` CTE (filtered before ranking and LIMIT), not bolted on
+    // after the batch was picked.
+    expect(sql.indexOf("AND NOT (a.id = ANY($3::bigint[]))")).toBeLessThan(
+      sql.indexOf("picked AS MATERIALIZED"),
+    );
+    expect(call?.[1]).toEqual([10, true, [7, 9]]);
+  });
+
+  it("leaves the query and its parameters unchanged when nothing is in flight", async () => {
+    const { pool, query } = claimingPool();
+    await claimDueAgents(pool, 10, true, []);
+    const call = claimCall(query);
+    expect(String(call?.[0])).not.toContain("$3");
+    expect(call?.[1]).toEqual([10, true]);
   });
 });

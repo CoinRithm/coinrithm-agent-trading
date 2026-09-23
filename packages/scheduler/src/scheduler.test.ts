@@ -6,6 +6,7 @@ import { runScheduler } from "./scheduler.js";
 
 const mocks = vi.hoisted(() => ({
   claimDueAgents: vi.fn(),
+  configureScheduling: vi.fn(),
   reviveDisabledAgents: vi.fn(),
   recordCycle: vi.fn(),
   rescheduleToCadence: vi.fn(),
@@ -88,11 +89,16 @@ describe("scheduler polling", () => {
     expect(mocks.rescheduleToCadence.mock.calls.map((c) => c[1])).toEqual([
       2, 4,
     ]);
+    // Claims are bounded by the free execution slots, never the raw batch.
     expect(mocks.claimDueAgents).toHaveBeenCalledWith(
       pool,
-      cfg.claimBatch,
+      Math.min(cfg.claimBatch, cfg.maxConcurrent),
       true,
+      [],
     );
+    expect(mocks.configureScheduling).toHaveBeenCalledWith({
+      phaseGrid: cfg.phaseGridEnabled,
+    });
     expect(heartbeat.lastTickAt).toBe(1234);
     expect(log).toHaveBeenCalledWith(expect.stringContaining("revived 1"));
     expect(log).toHaveBeenLastCalledWith("[scheduler] drained");
@@ -179,9 +185,213 @@ describe("scheduler polling", () => {
     await vi.runAllTimersAsync();
     await running;
     expect(heartbeat.lastTickAt).toBe(5);
+    // A runner failure is isolated per agent (the loop keeps polling), never
+    // surfaced as a tick-level error that would imply the poll itself broke.
     expect(log).toHaveBeenCalledWith(
-      "[scheduler] tick error: fixture runner failure",
+      "[scheduler] runner error for fixture-1: fixture runner failure",
     );
+  });
+
+  it("claims no more agents than the free execution slots and keeps polling while runs are in flight", async () => {
+    const control = { stopped: false };
+    const cfg = {
+      ...config(),
+      capacityEnabled: false,
+      maxConcurrent: 2,
+      claimBatch: 20,
+    };
+    const release: Array<() => void> = [];
+    mocks.runAgentOnce.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          release.push(resolve);
+        }),
+    );
+    mocks.claimDueAgents.mockImplementation(async (_pool, limit: number) => {
+      // Only the first claim finds work; both slots then stay busy.
+      if (mocks.claimDueAgents.mock.calls.length === 1)
+        return [agent(1, "nvidia", "byo-1"), agent(2, "nvidia", "byo-2")].slice(
+          0,
+          limit,
+        );
+      if (mocks.claimDueAgents.mock.calls.length >= 3) control.stopped = true;
+      return [];
+    });
+    const running = runScheduler(pool, cfg, control, vi.fn(), () => 99);
+    // Tick 1 claims two (the free slots), ticks 2+ find every slot busy.
+    await vi.advanceTimersByTimeAsync(250);
+    expect(mocks.claimDueAgents.mock.calls[0]?.[1]).toBe(2);
+    await vi.advanceTimersByTimeAsync(250);
+    await vi.advanceTimersByTimeAsync(250);
+    // No claim while both slots are occupied: every later poll asked for 0.
+    for (const call of mocks.claimDueAgents.mock.calls.slice(1)) {
+      expect(call[1]).toBeUndefined();
+    }
+    expect(mocks.runAgentOnce).toHaveBeenCalledTimes(2);
+    // Draining waits for the in-flight runs.
+    let drained = false;
+    void running.then(() => {
+      drained = true;
+    });
+    await vi.advanceTimersByTimeAsync(250);
+    expect(drained).toBe(false);
+    for (const resolve of release) resolve();
+    await vi.runAllTimersAsync();
+    await running;
+    expect(drained).toBe(true);
+  });
+
+  it("pins the heartbeat at the start of the oldest still-running run and releases it when that run completes", async () => {
+    const control = { stopped: false };
+    let clock = 1_000;
+    const cfg = {
+      ...config(),
+      capacityEnabled: false,
+      maxConcurrent: 1,
+      claimBatch: 20,
+      capacityLeaseTtlSeconds: 360,
+    };
+    const release: Array<() => void> = [];
+    mocks.runAgentOnce.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          release.push(resolve);
+        }),
+    );
+    mocks.claimDueAgents.mockImplementation(async () =>
+      mocks.claimDueAgents.mock.calls.length === 1
+        ? [agent(1, "nvidia", "byo-1")]
+        : [],
+    );
+    const heartbeat = { lastTickAt: 0 };
+    const log = vi.fn();
+    const running = runScheduler(
+      pool,
+      cfg,
+      control,
+      log,
+      () => clock,
+      heartbeat,
+    );
+    await vi.advanceTimersByTimeAsync(250);
+    expect(heartbeat.lastTickAt).toBe(1_000);
+    // Polling never advances the heartbeat past the hung run's start: the
+    // existing health threshold trips after the same window as before.
+    clock = 100_000;
+    await vi.advanceTimersByTimeAsync(250);
+    expect(heartbeat.lastTickAt).toBe(1_000);
+    clock = 1_000 + 361_000;
+    await vi.advanceTimersByTimeAsync(250);
+    expect(heartbeat.lastTickAt).toBe(1_000);
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining("progress stalled"),
+    );
+    // The completion releases it.
+    clock = 1_000 + 400_000;
+    release[0]!();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(heartbeat.lastTickAt).toBe(1_000 + 400_000);
+    control.stopped = true;
+    await vi.runAllTimersAsync();
+    await running;
+    expect(log).toHaveBeenLastCalledWith("[scheduler] drained");
+  });
+
+  it("healthy completions cannot mask the hang, and in-flight agents are excluded from every later claim", async () => {
+    const control = { stopped: false };
+    let clock = 1_000;
+    const cfg = {
+      ...config(),
+      capacityEnabled: false,
+      maxConcurrent: 2,
+      claimBatch: 20,
+      capacityLeaseTtlSeconds: 360,
+    };
+    let releaseHung: (() => void) | undefined;
+    mocks.runAgentOnce.mockImplementation(async (_pool, a: AgentRow) => {
+      if (a.id === 1)
+        await new Promise<void>((resolve) => {
+          releaseHung = resolve;
+        });
+      // Every other agent completes at once.
+    });
+    let nextHealthy = 2;
+    mocks.claimDueAgents.mockImplementation(async (_pool, limit: number) => {
+      if (mocks.claimDueAgents.mock.calls.length === 1)
+        return [agent(1, "nvidia", "byo-1"), agent(2, "nvidia", "byo-2")].slice(
+          0,
+          limit,
+        );
+      nextHealthy += 1;
+      return [agent(nextHealthy, "nvidia", `byo-${nextHealthy}`)].slice(
+        0,
+        limit,
+      );
+    });
+    const heartbeat = { lastTickAt: 0 };
+    const running = runScheduler(
+      pool,
+      cfg,
+      control,
+      vi.fn(),
+      () => clock,
+      heartbeat,
+    );
+    await vi.advanceTimersByTimeAsync(250);
+    expect(heartbeat.lastTickAt).toBe(1_000);
+    for (const t of [50_000, 200_000, 500_000]) {
+      clock = t;
+      await vi.advanceTimersByTimeAsync(250);
+      // Healthy agents keep completing in the free slot...
+      expect(mocks.runAgentOnce.mock.calls.length).toBeGreaterThan(2);
+      // ...yet the heartbeat stays pinned at the hung run's start.
+      expect(heartbeat.lastTickAt).toBe(1_000);
+    }
+    // The hung agent is excluded from every claim after the first one.
+    const laterClaims = mocks.claimDueAgents.mock.calls.slice(1);
+    expect(laterClaims.length).toBeGreaterThan(0);
+    for (const call of laterClaims) {
+      expect(call[3]).toContain(1);
+      expect(call[1]).toBe(1); // one free slot next to the hung one
+    }
+    clock = 600_000;
+    releaseHung!();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(heartbeat.lastTickAt).toBe(600_000);
+    control.stopped = true;
+    await vi.runAllTimersAsync();
+    await running;
+  });
+
+  it("bounds the shutdown drain by the lease TTL when a run never returns", async () => {
+    const control = { stopped: false };
+    const cfg = {
+      ...config(),
+      capacityEnabled: false,
+      maxConcurrent: 1,
+      capacityLeaseTtlSeconds: 360,
+    };
+    mocks.runAgentOnce.mockImplementation(() => new Promise<void>(() => {}));
+    mocks.claimDueAgents.mockImplementation(async () => {
+      control.stopped = true;
+      return [agent(1, "nvidia", "byo-1")];
+    });
+    const log = vi.fn();
+    const running = runScheduler(pool, cfg, control, log, () => 7);
+    let drained = false;
+    void running.then(() => {
+      drained = true;
+    });
+    await vi.advanceTimersByTimeAsync(250);
+    await vi.advanceTimersByTimeAsync(359_000);
+    expect(drained).toBe(false);
+    await vi.advanceTimersByTimeAsync(2_000);
+    await running;
+    expect(drained).toBe(true);
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining("drain stopped waiting with 1 run(s)"),
+    );
+    expect(log).toHaveBeenLastCalledWith("[scheduler] drained");
   });
 
   it("does not claim work after shutdown was requested", async () => {
