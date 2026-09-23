@@ -57,6 +57,11 @@ def _parse_response(
 
         return response_500
 
+    if response.status_code == 503:
+        response_503 = Error.from_dict(response.json())
+
+        return response_503
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -84,8 +89,10 @@ def sync_detailed(
 
      Read-only observed trade-notional summaries, daily activity, top
     events, and recent matched BUY/SELL fills for one identifiable wallet.
-    These are public matched-trade observations, not holdings, positions,
-    or PnL. Wallet availability is venue-specific.
+    CoinRithm flow fields are public matched-trade observations. Some
+    providers may additionally report positions or PnL with their own
+    availability and as-of markers; these are separate provider context,
+    not CoinRithm-derived holdings or PnL. Wallet availability is venue-specific.
 
     Args:
         source (GetPublicPredictionMarketWhaleWalletSource):
@@ -121,8 +128,10 @@ def sync(
 
      Read-only observed trade-notional summaries, daily activity, top
     events, and recent matched BUY/SELL fills for one identifiable wallet.
-    These are public matched-trade observations, not holdings, positions,
-    or PnL. Wallet availability is venue-specific.
+    CoinRithm flow fields are public matched-trade observations. Some
+    providers may additionally report positions or PnL with their own
+    availability and as-of markers; these are separate provider context,
+    not CoinRithm-derived holdings or PnL. Wallet availability is venue-specific.
 
     Args:
         source (GetPublicPredictionMarketWhaleWalletSource):
@@ -153,8 +162,10 @@ async def asyncio_detailed(
 
      Read-only observed trade-notional summaries, daily activity, top
     events, and recent matched BUY/SELL fills for one identifiable wallet.
-    These are public matched-trade observations, not holdings, positions,
-    or PnL. Wallet availability is venue-specific.
+    CoinRithm flow fields are public matched-trade observations. Some
+    providers may additionally report positions or PnL with their own
+    availability and as-of markers; these are separate provider context,
+    not CoinRithm-derived holdings or PnL. Wallet availability is venue-specific.
 
     Args:
         source (GetPublicPredictionMarketWhaleWalletSource):
@@ -188,8 +199,10 @@ async def asyncio(
 
      Read-only observed trade-notional summaries, daily activity, top
     events, and recent matched BUY/SELL fills for one identifiable wallet.
-    These are public matched-trade observations, not holdings, positions,
-    or PnL. Wallet availability is venue-specific.
+    CoinRithm flow fields are public matched-trade observations. Some
+    providers may additionally report positions or PnL with their own
+    availability and as-of markers; these are separate provider context,
+    not CoinRithm-derived holdings or PnL. Wallet availability is venue-specific.
 
     Args:
         source (GetPublicPredictionMarketWhaleWalletSource):

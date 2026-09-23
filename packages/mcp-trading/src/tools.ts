@@ -2461,8 +2461,10 @@ export function registerTools(
         "Free public wallet movement detail for one supported on-chain " +
         "prediction-market venue and address. Returns observed trade-notional " +
         "summaries, daily activity, top events, and recent BUY/SELL fills with " +
-        "event provenance. These are matched-trade observations, not holdings, " +
-        "positions, or PnL; absence of a row is not proof of inactivity. No API " +
+        "event provenance. CoinRithm flow fields are matched-trade observations; " +
+        "optional provider-reported positions/PnL context is separate and may " +
+        "carry its own availability and as-of markers. Absence of a row is not " +
+        "proof of inactivity. No API " +
         "key required.",
       inputSchema: {
         source: z

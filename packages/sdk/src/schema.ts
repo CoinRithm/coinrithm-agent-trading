@@ -1105,7 +1105,7 @@ export interface paths {
         };
         /**
          * Aggregated large-trader wallet activity
-         * @description Wallet-level aggregation behind the public whales surface. On-chain
+         * @description Observed-window wallet aggregation behind the public whales surface. On-chain
          *     venues only, so absence of a wallet is not evidence of absence of
          *     trading — it means the venue does not expose one.
          */
@@ -1129,8 +1129,10 @@ export interface paths {
          * Public wallet movement detail
          * @description Read-only observed trade-notional summaries, daily activity, top
          *     events, and recent matched BUY/SELL fills for one identifiable wallet.
-         *     These are public matched-trade observations, not holdings, positions,
-         *     or PnL. Wallet availability is venue-specific.
+         *     CoinRithm flow fields are public matched-trade observations. Some
+         *     providers may additionally report positions or PnL with their own
+         *     availability and as-of markers; these are separate provider context,
+         *     not CoinRithm-derived holdings or PnL. Wallet availability is venue-specific.
          */
         get: operations["getPublicPredictionMarketWhaleWallet"];
         put?: never;
@@ -5675,6 +5677,7 @@ export interface operations {
                     };
                 };
             };
+            400: components["responses"]["BadRequest"];
             /** @description Public request rate limit exceeded; honor `Retry-After`. */
             429: {
                 headers: {
@@ -5683,6 +5686,7 @@ export interface operations {
                 content?: never;
             };
             500: components["responses"]["ServerError"];
+            503: components["responses"]["ServerError"];
         };
     };
     getPublicPredictionMarketWhaleWallet: {
@@ -5740,6 +5744,7 @@ export interface operations {
                 content?: never;
             };
             500: components["responses"]["ServerError"];
+            503: components["responses"]["ServerError"];
         };
     };
     getPublicPredictionMarketSources: {

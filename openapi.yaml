@@ -2072,7 +2072,7 @@ paths:
       tags: [public-pm-data]
       summary: Aggregated large-trader wallet activity
       description: |
-        Wallet-level aggregation behind the public whales surface. On-chain
+        Observed-window wallet aggregation behind the public whales surface. On-chain
         venues only, so absence of a wallet is not evidence of absence of
         trading — it means the venue does not expose one.
       security: []
@@ -2119,9 +2119,11 @@ paths:
                         maxUsd: { type: number }
                         firstSeen: { type: [string, 'null'], format: date-time }
                         lastSeen: { type: [string, 'null'], format: date-time }
+        "400": { $ref: "#/components/responses/BadRequest" }
         "429":
           description: Public request rate limit exceeded; honor `Retry-After`.
         "500": { $ref: "#/components/responses/ServerError" }
+        "503": { $ref: "#/components/responses/ServerError" }
 
   /api/prediction-markets/whales/wallets/{source}/{wallet}:
     get:
@@ -2131,8 +2133,10 @@ paths:
       description: |
         Read-only observed trade-notional summaries, daily activity, top
         events, and recent matched BUY/SELL fills for one identifiable wallet.
-        These are public matched-trade observations, not holdings, positions,
-        or PnL. Wallet availability is venue-specific.
+        CoinRithm flow fields are public matched-trade observations. Some
+        providers may additionally report positions or PnL with their own
+        availability and as-of markers; these are separate provider context,
+        not CoinRithm-derived holdings or PnL. Wallet availability is venue-specific.
       security: []
       parameters:
         - name: source
@@ -2177,6 +2181,7 @@ paths:
         "429":
           description: Public request rate limit exceeded; honor `Retry-After`.
         "500": { $ref: "#/components/responses/ServerError" }
+        "503": { $ref: "#/components/responses/ServerError" }
 
   /api/prediction-markets/sources:
     get:
