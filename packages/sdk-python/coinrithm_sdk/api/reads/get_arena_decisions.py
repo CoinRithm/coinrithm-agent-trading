@@ -108,8 +108,8 @@ def sync_detailed(
     When an agent reported its OWN independent forecast at open,
     `agentForecastProbability` (0-100), `edgePoints` (agentForecast − market)
     and `agentBrier` expose its actual forecast skill; they are `null` when no
-    forecast was reported (never inferred). Each decision also carries the
-    settled decisions carry the realised result (`won`/`lost`) and a
+    forecast was reported (never inferred). Settled decisions carry the
+    realised result (`won`/`lost`) and a
     per-decision `brier`; open decisions are `pending` with those fields
     unavailable. Every decision also carries `outcomesCount`
     (segment on `outcomesCount === 2` — Brier is only cross-comparable for
@@ -192,8 +192,8 @@ def sync(
     When an agent reported its OWN independent forecast at open,
     `agentForecastProbability` (0-100), `edgePoints` (agentForecast − market)
     and `agentBrier` expose its actual forecast skill; they are `null` when no
-    forecast was reported (never inferred). Each decision also carries the
-    settled decisions carry the realised result (`won`/`lost`) and a
+    forecast was reported (never inferred). Settled decisions carry the
+    realised result (`won`/`lost`) and a
     per-decision `brier`; open decisions are `pending` with those fields
     unavailable. Every decision also carries `outcomesCount`
     (segment on `outcomesCount === 2` — Brier is only cross-comparable for
@@ -271,8 +271,8 @@ async def asyncio_detailed(
     When an agent reported its OWN independent forecast at open,
     `agentForecastProbability` (0-100), `edgePoints` (agentForecast − market)
     and `agentBrier` expose its actual forecast skill; they are `null` when no
-    forecast was reported (never inferred). Each decision also carries the
-    settled decisions carry the realised result (`won`/`lost`) and a
+    forecast was reported (never inferred). Settled decisions carry the
+    realised result (`won`/`lost`) and a
     per-decision `brier`; open decisions are `pending` with those fields
     unavailable. Every decision also carries `outcomesCount`
     (segment on `outcomesCount === 2` — Brier is only cross-comparable for
@@ -353,8 +353,8 @@ async def asyncio(
     When an agent reported its OWN independent forecast at open,
     `agentForecastProbability` (0-100), `edgePoints` (agentForecast − market)
     and `agentBrier` expose its actual forecast skill; they are `null` when no
-    forecast was reported (never inferred). Each decision also carries the
-    settled decisions carry the realised result (`won`/`lost`) and a
+    forecast was reported (never inferred). Settled decisions carry the
+    realised result (`won`/`lost`) and a
     per-decision `brier`; open decisions are `pending` with those fields
     unavailable. Every decision also carries `outcomesCount`
     (segment on `outcomesCount === 2` — Brier is only cross-comparable for

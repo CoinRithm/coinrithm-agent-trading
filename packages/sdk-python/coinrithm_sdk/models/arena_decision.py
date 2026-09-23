@@ -81,7 +81,8 @@ class ArenaDecision:
             agent_brier (float | None | Unset): Per-decision Brier over the agent's OWN forecast:
                 `(agentForecastProbability/100 - won)²`. The honest measure of agent
                 FORECAST skill (vs `brier` = market calibration). `null` when no
-                forecast was reported. Same caveat as `brier` — comparable ONLY within
+                forecast was reported; it is also null while the decision is open.
+                Same caveat as `brier` — comparable ONLY within
                 binary decisions (`outcomesCount === 2`), never rank agents on it.
             realized_paper_trade (None | RealizedPaperTrade | Unset): Recorded paper settlement result; null while the
                 decision is open.
