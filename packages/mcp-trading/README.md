@@ -233,8 +233,13 @@ CoinRithm's trust-layer surfaces are keyless too: `pm_data_disagreements`
 returns graph-clustered, orientation-proven cross-venue probability gaps on
 the SAME real-world question (each cluster bounded to its top-5
 highest-delta shared outcomes per pairwise comparison); `pm_data_calibration`
-scores which venue forecasts best (Expected Calibration Error + a 10-bucket
-reliability curve over resolved markets); `pm_data_canonical` is CoinRithm's
+measures market-price calibration: its primary lane uses one complete-book
+snapshot selected nearest 24h before resolution in the inclusive 20–28h window,
+with event-weighted Expected Calibration Error and a 10-bucket reliability
+curve. Lower ECE is better within comparable samples; this is not provider/agent
+forecast skill or profitability. Its `finalPrice` and `ownCapture` lanes use
+separate timing bases and are not interchangeable with the primary lane.
+`pm_data_canonical` is CoinRithm's
 stable cross-venue identity for one question (list, or pass `key` for one
 canonical's venue members + append-only judgment lineage); and
 `pm_data_volume_history` is the global daily volume trend (real-money venues

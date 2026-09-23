@@ -2619,25 +2619,23 @@ export function registerTools(
   server.registerTool(
     "pm_data_calibration",
     {
-      title: "Per-venue forecast-accuracy calibration",
+      title: "Per-venue market-price calibration",
       description:
-        "Free public per-venue forecast-accuracy scorecard: for each venue, " +
-        "calibrationError (Expected Calibration Error, 0-1, lower is better — " +
-        "the fair cross-venue headline), sampleSize, meanWinnerConfidence, and " +
-        "a 10-bucket reliability curve (predictedMean vs realizedRate per " +
-        "probability bucket) computed from that venue's OWN probability ~24h " +
-        "before resolution against the outcome that actually happened, over " +
-        "resolved markets with >=24h of pre-resolution history. Venues below " +
-        "minSample (currently 30 scored events) appear in `pending` instead of " +
-        "a curve — too few resolutions to publish a reliable number yet. Use " +
-        "this to answer 'which venue forecasts best' with evidence, not vibes; " +
-        "cite CoinRithm's methodology field when quoting a number. No API key " +
-        "required.",
+        "Free public per-venue market-price calibration scorecard. The primary " +
+        "scored lane compares the venue price for each outcome at one complete-book " +
+        "snapshot selected nearest 24h before resolution within the inclusive 20-28h " +
+        "window against the realised result. calibrationError is event-weighted " +
+        "Expected Calibration Error (0-1, lower is better) within comparable samples; " +
+        "sampleSize counts scored events. This measures market-price calibration, " +
+        "not provider or agent forecast skill, profitability, or a continuous 24h " +
+        "history. Venues below minSample (currently 30 scored events) appear in " +
+        "`pending`. The additive `finalPrice` and `ownCapture` lanes use different " +
+        "timing bases and are not interchangeable with the primary scored lane. " +
+        "Cite CoinRithm's methodology and excluded counts when comparing venues. " +
+        "No API key required.",
       inputSchema: {},
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
-      annotations: readOnlyAnnotations(
-        "Per-venue forecast-accuracy calibration",
-      ),
+      annotations: readOnlyAnnotations("Per-venue market-price calibration"),
     },
     async () => present(await client.getPublicPmCalibration()),
   );
