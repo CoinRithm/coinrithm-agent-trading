@@ -2415,7 +2415,8 @@ export function registerTools(
     {
       title: "Explore prediction-market whale wallets",
       description:
-        "Free public seven-day aggregation of identifiable large-trader " +
+        "Free public 7-day (default) or 30-day aggregation of identifiable " +
+        "large-trader " +
         "wallet activity for the on-chain venues that expose wallet addresses. " +
         "Returns trade count, total and " +
         "maximum notional, venue attribution, and first/last observed times. " +
