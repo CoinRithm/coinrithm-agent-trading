@@ -8,7 +8,7 @@ Each package has its own version; the API contract is versioned separately.
 [TypeScript history](packages/sdk/CHANGELOG.md) ·
 [Python release notes](packages/sdk-python/README.md)
 
-## Prepared — MCP 0.7.13, TypeScript 0.3.2, Python 1.8.2
+## MCP 0.7.13, TypeScript 0.3.2, Python 1.8.2 — 2026-09-23
 
 - Expand the hosted/source MCP surface to 40 tools, with public whale-wallet
   rankings and source/wallet movement detail. Wallet identity is exposed only
@@ -24,7 +24,7 @@ Each package has its own version; the API contract is versioned separately.
 - Carry candle volume coverage through both SDKs and agent fundamentals, keeping
   unknown coverage distinct from zero known missing venues. Preserve measured
   zero volume without treating missing volume as an older observation.
-- Prepare package delivery of the hosted provider-capacity classification fixes
+- Deliver the hosted provider-capacity classification fixes in the MCP package
   and the engine's `classifyProviderFailure` export. The scheduler's shared
   routing deadline remains a separate hosted-service change.
 - Carry signed cumulative futures funding and its applied-through timestamp into
@@ -33,7 +33,10 @@ Each package has its own version; the API contract is versioned separately.
   adds and user closes follow the existing position's pinned model. Modeled
   adverse costs are embedded once, while liquidation and fixed-price SL/TP
   fills are exempt.
-- npm/PyPI publication is pending; the source version is not a registry receipt.
+- npm/PyPI publication is verified: all four downloaded archives match the
+  reviewed manifest for source `726d8f0466d0cfd02ab5a9d46aed6ca12a45ff06`.
+  The official MCP Registry separately lists **0.7.13** as active and latest,
+  verified after the [registry workflow](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/35926812905).
   The [publishing procedure](./docs/PUBLISHING.md) keeps package archives,
   GitHub release assets, registry checksums and hosted evidence aligned.
 
@@ -43,8 +46,7 @@ Each package has its own version; the API contract is versioned separately.
 - Correct the existing spot-cancellation contract: an absent order returns
   `200` with `alreadyClosed: true`, and server failures return `500`.
 - Regenerate SDK source types/models and test cancellation responses offline.
-  These source updates are not a new npm/PyPI publication. MCP **0.7.12**,
-  TypeScript SDK **0.3.1** and Python SDK **1.8.1** remain the published versions;
+  These updates are included in the verified npm/PyPI releases above;
   API contract **1.7.0** and trading-service behavior are unchanged.
 
 ## 0.7.12 — 2026-09-15

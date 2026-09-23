@@ -1,11 +1,11 @@
-# Publish the prepared packages
+# Package publication
 
 The package archives, the hosted services, the GitHub release and the official
 MCP Registry are delivered separately. Current publication status is in the
 [README](../README.md#version-clarity); package changes are in the
 [changelog](../CHANGELOG.md).
 
-## Prepared release
+## Verified delivery — 23 September 2026
 
 | Registry | Package                  | Version  | Files                                                                |
 | -------- | ------------------------ | -------- | -------------------------------------------------------------------- |
@@ -17,11 +17,17 @@ The MCP package ships **both** `coinrithm-mcp` and `coinrithm-agent`; there is n
 separate agent-runner npm upload. The Python wheel and source archive must come
 from the same reviewed source. Do not mix archives from older preparation runs.
 
+All three versions above are published. All four registry downloads match the
+reviewed SHA-256 manifest; npm integrity also matches. Clean installs of the
+downloaded packages passed the existing Node and Python smoke checks. The
+commands below record the upload procedure; a subsequent release must use its
+own reviewed versions and filenames, because these versions are immutable.
+
 ## Before uploading
 
 1. Use the reviewed archive directory and its `release-manifest.json`. Verify
-   each SHA-256 against that manifest. The matching GitHub draft holds the same
-   archives and manifest; it is not a published release yet.
+   each SHA-256 against that manifest. Stage the same archives and manifest in
+   a GitHub draft, keeping it unpublished until registry delivery is verified.
 2. Confirm the manifest's source tree has passed the applicable checks, that
    the generated SDKs match the contract, and that package documentation describes
    the same version. Reuse valid checks for unchanged runtime source.
@@ -38,10 +44,9 @@ python -m pip index versions coinrithm-sdk
 An npm `E404` for one of these exact versions means that target is not published.
 If Python 1.8.2 appears in the version list, verify its files before uploading.
 
-As checked on 23 September 2026, the latest registry versions are MCP 0.7.12,
-TypeScript 0.3.1 and Python 1.8.1. All three targets above are prepared for the
-next publication. The live API reference follows the current contract, while
-its runnable examples currently use the published SDKs.
+As verified on 23 September 2026, the registry versions are MCP 0.7.13,
+TypeScript 0.3.2 and Python 1.8.2. The API reference follows the current contract;
+its runnable examples are pinned to these published SDK versions.
 
 ## Upload the exact archives
 

@@ -265,24 +265,26 @@ version. The MCP package (`@coinrithm/mcp-trading`, currently **0.7.13** in
 source) is versioned separately. Registry publication was checked on
 **23 September 2026**:
 
-| Package                                                | Published registry version | Prepared source version |
-| ------------------------------------------------------ | -------------------------- | ----------------------- |
-| `@coinrithm/mcp-trading` (MCP server and agent runner) | **0.7.12**                 | **0.7.13**              |
-| `@coinrithm/sdk` (TypeScript)                          | **0.3.1**                  | **0.3.2**               |
-| `coinrithm-sdk` (Python)                               | **1.8.1**                  | **1.8.2**               |
+| Package                                                | Published registry version | Source version |
+| ------------------------------------------------------ | -------------------------- | -------------- |
+| `@coinrithm/mcp-trading` (MCP server and agent runner) | **0.7.13**                 | **0.7.13**     |
+| `@coinrithm/sdk` (TypeScript)                          | **0.3.2**                  | **0.3.2**      |
+| `coinrithm-sdk` (Python)                               | **1.8.2**                  | **1.8.2**      |
 
-The prepared versions are not yet published to npm/PyPI. The hosted MCP already
-reports **0.7.13**, with **40 tools**, including **13 keyless data tools**, at
+All four npm/PyPI archives match the reviewed release manifest byte for byte
+for source `726d8f0466d0cfd02ab5a9d46aed6ca12a45ff06`. The official MCP Registry
+separately lists **0.7.13** as active and latest, verified after the
+[registry workflow](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/35926812905).
+The hosted MCP reports **0.7.13**, with **40 tools**, including **13 keyless data tools**, at
 source `4b39cd057765f0ab995d0ec4db2cfde665fa4bdd`. The hosted scheduler runs
 `184201069cbf888989870e71243ba725fc98b634`; both were checked separately from
-the registries. Installing npm's current release does not install newer hosted
-tool definitions.
+the registries. Package publication does not change those hosted deployments.
 
-The prepared SDKs include whale-wallet summary/detail reads, the house-only
+The published SDKs include whale-wallet summary/detail reads, the house-only
 open-decision view, optional thesis/advisory fields, venue terms, funding and
 candle-coverage fields, and corrected cancellation responses. The reference
-site follows the current contract; its runnable examples remain pinned to
-published SDK versions until the next versions are available.
+site follows the current contract; its runnable examples use published SDK
+versions and are validated separately when their pins change.
 
 See the [changelog](./CHANGELOG.md), [published releases](https://github.com/CoinRithm/coinrithm-agent-trading/releases)
 and [publishing procedure](./docs/PUBLISHING.md). Check registry versions before

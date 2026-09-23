@@ -201,12 +201,19 @@ published. Its npm and [GitHub release](https://github.com/CoinRithm/coinrithm-a
 downloads matched the CI-tested archive. This historical evidence does not
 establish publication of 0.7.13.
 
-**Prepared release (2026-09-23):** source `e23ac2ced37d970ba9928ba77ffbc7d8e68d904f`
-contains the prepared 0.7.13 package and current wallet/calibration documentation.
+**Verified package publication (2026-09-23):** MCP **0.7.13**, TypeScript SDK
+**0.3.2** and Python SDK **1.8.2** are published to npm/PyPI. All four registry
+downloads match the reviewed manifest for release source
+`726d8f0466d0cfd02ab5a9d46aed6ca12a45ff06`; its tree is identical to archive build
+source `9ea286cacceb4d0a0da31c71f4f0b726e8c8b262`. Release source passed all 26
+[CI jobs](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/35920620125).
+The official MCP Registry separately lists **0.7.13** as active and latest,
+verified after the [registry workflow](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/35926812905).
+
 Hosted MCP runtime `4b39cd057765f0ab995d0ec4db2cfde665fa4bdd` and scheduler
 runtime `1842010` are separate deployment evidence; verify the exact deployed
-image and health before calling either runtime current. Neither this source SHA
-nor the prepared archive proves npm or registry publication.
+image and health before calling either runtime current. Package publication does
+not change those hosted deployments.
 
 The official MCP Registry and npm latest version must be checked independently.
 TypeScript SDK and Python SDK publication are separate release states.
