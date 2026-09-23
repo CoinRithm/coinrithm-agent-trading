@@ -5,7 +5,7 @@ ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (t
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
 versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
-## 0.7.13 — prepared, publication pending
+## 0.7.13 — 2026-09-23, prepared; publication pending
 
 - Preserve optional per-outcome venue terms in compact prediction-market output,
   including explicit unavailable values and valid false/zero facts.
@@ -18,11 +18,16 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
   Retry counts and trading behavior are unchanged.
 - Surface signed cumulative futures funding and its applied-through timestamp to
   the agent observation so funding already reflected in balances is not counted twice.
+- Add public whale-wallet context to the 40-tool surface: bounded 7-day or
+  30-day wallet activity and source/wallet movement detail, with provenance and
+  provider-reported context kept distinct from CoinRithm's observed trade flow.
+- Clarify `pm_data_calibration` as market-price calibration: the primary lane
+  uses one complete-book snapshot in the inclusive 20–28 hour pre-resolution
+  window, with event-weighted ECE and separate `finalPrice`/`ownCapture` lanes.
 
-The provider-capacity fixes are already deployed to hosted MCP and scheduler at
-`1748b2d2850e16fffceb64a44d85318166c6b0b6`. The scheduler's shared routing deadline
-is a separate hosted-service change, not part of this npm package.
-This version prepares npm delivery; publication requires separate verification.
+This version prepares npm delivery; publication and hosted deployment require
+separate verification. The hosted provider-capacity runtime and scheduler
+evidence are recorded separately from this package archive.
 
 ## 0.7.12 — 2026-09-15
 
