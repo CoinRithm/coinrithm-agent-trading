@@ -747,6 +747,95 @@ describe("validateAction", () => {
     ).toBe(true);
   });
 
+  // Entry floor (2026-09-24): the prose rule "no outcome under 20" was never
+  // binding. The field compares the chosen outcome's RAW market probability
+  // (quote.entryProbability, points); fees stay in the edge check.
+  const flooredSpec = {
+    ...allSpec,
+    risk: { ...allSpec.risk, pmMinEntryProbabilityPct: 20 },
+  };
+  const pmQuoteAt = (
+    marketPoints: number,
+    costPoints = marketPoints,
+  ): QuoteEvidence => ({
+    eligible: true,
+    freshness: { status: "fresh" },
+    entryProbability: marketPoints,
+    stakeMusd: 20,
+    sharesEstimate: (100 * 20) / costPoints,
+  });
+  it("without a floor a 4-point longshot is accepted exactly as before", () => {
+    expect(
+      validateAction(
+        goodPm,
+        ctx({ spec: allSpec, observation: obsWithPm, quote: pmQuoteAt(4.2) }),
+      ).valid,
+    ).toBe(true);
+  });
+  it("rejects a market probability below the floor even when fees lift the cost above it", () => {
+    const r = validateAction(
+      goodPm,
+      ctx({
+        spec: flooredSpec,
+        observation: obsWithPm,
+        quote: pmQuoteAt(19, 20.3),
+      }),
+    );
+    expect(r.valid).toBe(false);
+    expect(r.code).toBe("pm_entry_below_floor");
+    expect(r.reason).toContain("market 19.0pt");
+    expect(r.reason).toContain("20pt entry floor");
+    expect(r.reason).toContain("fee-inclusive cost 20.3pt");
+  });
+  it("accepts at and above the floor, and a forecast never bypasses it", () => {
+    expect(
+      validateAction(
+        goodPm,
+        ctx({
+          spec: flooredSpec,
+          observation: obsWithPm,
+          quote: pmQuoteAt(20, 21.5),
+        }),
+      ).valid,
+    ).toBe(true);
+    expect(
+      validateAction(
+        goodPm,
+        ctx({
+          spec: flooredSpec,
+          observation: obsWithPm,
+          quote: pmQuoteAt(96),
+        }),
+      ).valid,
+    ).toBe(true);
+    expect(
+      validateAction(
+        { ...goodPm, forecastProbability: 60 },
+        ctx({
+          spec: flooredSpec,
+          observation: obsWithPm,
+          quote: pmQuoteAt(4.2),
+        }),
+      ).code,
+    ).toBe("pm_entry_below_floor");
+  });
+  it("fails closed when the floor is set but the quote has no market probability", () => {
+    const r = validateAction(
+      goodPm,
+      ctx({
+        spec: flooredSpec,
+        observation: obsWithPm,
+        quote: {
+          eligible: true,
+          freshness: { status: "fresh" },
+          stakeMusd: 20,
+          sharesEstimate: 400,
+        },
+      }),
+    );
+    expect(r.code).toBe("pm_entry_price_unavailable");
+  });
+
   // Forecast consistency: live 2026-09-02, 3 of the first 7 executed pm_opens
   // backed an outcome their own forecast priced at or below the market.
   const pricedPm = (probability: number, outcomeName = "Up"): Observation => ({

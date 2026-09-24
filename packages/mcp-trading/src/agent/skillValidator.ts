@@ -190,6 +190,16 @@ export function validateSkill(
         "skill_risk_watchlist",
         "risk.watchlist must be a non-empty list of symbols",
       );
+    // Optional PM entry floor: absent means no floor; present must be a finite
+    // number of probability points in [0, 100].
+    if (r.pmMinEntryProbabilityPct !== undefined) {
+      const f = r.pmMinEntryProbabilityPct;
+      if (typeof f !== "number" || !Number.isFinite(f) || f < 0 || f > 100)
+        add(
+          "skill_risk_pm_entry_floor",
+          "risk.pmMinEntryProbabilityPct must be a number between 0 and 100 (points; omit for no floor)",
+        );
+    }
     // Fail-closed on the side restriction: a typo ("shorts_only") must never
     // silently mean "unrestricted" — that is exactly how a prose-only
     // constraint failed live on 2026-08-24.

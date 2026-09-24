@@ -119,6 +119,14 @@ export interface RiskConfig {
   //   long_only   -> futures_open must be side "long"
   // Omitted = both directions allowed (every agent before this field existed).
   direction?: "long_only" | "short_only";
+  // Optional HARD floor on prediction-market entries (2026-09-24): the chosen
+  // outcome's raw market probability at entry (the quote's entryProbability,
+  // 0..100 points) must be at least this value or pm_open is rejected. Fees do
+  // NOT count here (they belong to the forecast-edge and RR checks), so a
+  // 19-point outcome fails a 20-point floor even when fees push its all-in
+  // cost above 20. Absent = no floor (unchanged behaviour). Born from the
+  // house prose rule "no PM outcome under 20" that prose alone never enforced.
+  pmMinEntryProbabilityPct?: number;
 }
 
 export interface LimitsConfig {

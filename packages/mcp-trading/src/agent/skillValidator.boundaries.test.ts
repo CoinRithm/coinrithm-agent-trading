@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseSkill } from "./skill.js";
+import { buildSpec, parseSkill } from "./skill.js";
 import { renderFolderOfOne } from "./templates.js";
 import { validateSkill } from "./skillValidator.js";
 
@@ -25,6 +25,9 @@ describe("skill authoring rejects malformed policies before execution", () => {
     ["risk.requireStopLoss", "false", "skill_risk_sl"],
     ["risk.watchlist", [], "skill_risk_watchlist"],
     ["risk.watchlist", "BTC", "skill_risk_watchlist"],
+    ["risk.pmMinEntryProbabilityPct", -1, "skill_risk_pm_entry_floor"],
+    ["risk.pmMinEntryProbabilityPct", 101, "skill_risk_pm_entry_floor"],
+    ["risk.pmMinEntryProbabilityPct", "20", "skill_risk_pm_entry_floor"],
     ["model", null, "skill_model"],
     ["model", { provider: "unknown", name: "fixture" }, "skill_model_provider"],
     ["model.name", " ", "skill_model_name"],
@@ -68,6 +71,25 @@ describe("skill authoring rejects malformed policies before execution", () => {
     expect(result.issues).toEqual(
       expect.arrayContaining([expect.objectContaining({ code })]),
     );
+  });
+
+  it("accepts an absent or in-range PM entry floor and compiles it verbatim", () => {
+    const absent = fixture();
+    expect(validateSkill(absent, "hosted").valid).toBe(true);
+    expect(buildSpec(absent.raw).risk.pmMinEntryProbabilityPct).toBeUndefined();
+    for (const floor of [0, 20, 100]) {
+      const parsed = fixture();
+      (parsed.raw.risk as Record<string, unknown>).pmMinEntryProbabilityPct =
+        floor;
+      expect(validateSkill(parsed, "hosted").valid).toBe(true);
+      expect(buildSpec(parsed.raw).risk.pmMinEntryProbabilityPct).toBe(floor);
+    }
+    const garbage = fixture();
+    (garbage.raw.risk as Record<string, unknown>).pmMinEntryProbabilityPct =
+      "20";
+    expect(
+      buildSpec(garbage.raw).risk.pmMinEntryProbabilityPct,
+    ).toBeUndefined();
   });
 
   it("requires a self-host model while permitting the hosted default", () => {
