@@ -207,18 +207,21 @@ downloads match the reviewed manifest for release source
 `726d8f0466d0cfd02ab5a9d46aed6ca12a45ff06`; its tree is identical to archive build
 source `9ea286cacceb4d0a0da31c71f4f0b726e8c8b262`. Release source passed all 26
 [CI jobs](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/35920620125).
-The official MCP Registry separately lists **0.7.13** as active and latest,
+At that check, the official MCP Registry listed **0.7.13** as active and latest,
 verified after the [registry workflow](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/35926812905).
 
-**Prepared package release (2026-09-24):** MCP **0.7.14**, TypeScript SDK
-**0.3.3** and Python SDK **1.8.3** are prepared from reviewed source. They are
-not published until the registry downloads are verified and recorded here and
-in the [publishing procedure](../../docs/PUBLISHING.md).
+**Verified package publication (2026-09-24):** MCP **0.7.14**, TypeScript SDK
+**0.3.3** and Python SDK **1.8.3** are published. All four registry downloads
+match the reviewed manifest for source `c374e782a87d01ee3b7a2fbff304ac6e6edb7123`,
+including npm integrity. See the [publishing procedure](../../docs/PUBLISHING.md).
+Clean-install Node/Python checks passed. The official MCP Registry now lists
+**0.7.14** as active and latest, verified after the
+[registry workflow](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/36003403675).
 
-Hosted MCP runtime `4b39cd057765f0ab995d0ec4db2cfde665fa4bdd` and scheduler
-runtime `1842010` are separate deployment evidence; verify the exact deployed
-image and health before calling either runtime current. Package publication does
-not change those hosted deployments.
+Hosted MCP (deployment 2673) and scheduler (2672) were verified separately at
+`c374e782a87d01ee3b7a2fbff304ac6e6edb7123` on 24 September 2026. The MCP
+advertises 0.7.14 with 40 tools; both services passed their health checks with
+zero restarts. Package publication does not change those hosted deployments.
 
 The official MCP Registry and npm latest version must be checked independently.
 TypeScript SDK and Python SDK publication are separate release states.

@@ -10,8 +10,12 @@ Each package has its own version; the API contract is versioned separately.
 
 ## MCP 0.7.14, TypeScript 0.3.3, Python 1.8.3 (2026-09-24)
 
-Prepared for publication from reviewed source; not yet on the registries. The
-registry verification is recorded here after the upload.
+Published to npm/PyPI and verified on 24 September 2026. All four registry
+downloads match the reviewed SHA-256 manifest for source
+`c374e782a87d01ee3b7a2fbff304ac6e6edb7123`; npm integrity also matches.
+Clean-install Node/Python checks passed. The official MCP Registry lists
+**0.7.14** as active and latest after the
+[registry workflow](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/36003403675).
 
 - Add the optional `risk.pmMinEntryProbabilityPct` policy (0..100 points): the
   runner rejects `pm_open` when the chosen outcome's raw market probability at
@@ -45,7 +49,7 @@ registry verification is recorded here after the upload.
   with zero restarts at verification. Casa remains active with its strategy,
   model and key preserved. The mixed-route failure regression is covered by
   tests; no provider failures were injected into production. npm/PyPI publication
-  remains pending separately.
+  was subsequently verified separately, as recorded above.
 - Move shared, unpinned user agents that are active or stopped as
   `model_unavailable`, and whose owner-matched CoinRithm key exists and is not
   revoked, off the obsolete hosted Groq route onto the living NVIDIA models at
