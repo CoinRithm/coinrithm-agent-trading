@@ -306,3 +306,83 @@ describe("executeAction idempotency-key wiring", () => {
     });
   });
 });
+
+// Configured PM entry floor transport (2026-09-24): the value comes from the
+// spec (never from the model's action), reaches BOTH the quote and the open,
+// including zero, and an absent policy leaves both bodies without the key.
+describe("configured PM entry floor transport", () => {
+  const pmAction: ProposedAction = {
+    type: "pm_open",
+    source: "kalshi",
+    slug: "event",
+    outcomeExternalMarketId: "yes",
+    stakeMusd: 25,
+  };
+  const quoteBody = async (policy?: { pmMinEntryProbabilityPct?: number }) => {
+    const pmQuote = vi.fn(async () => okData({ eligible: true }));
+    const client = { pmQuote } as unknown as CoinRithmClient;
+    await fetchQuote(client, pmAction, emptyObservation(), trace, policy);
+    return pmQuote.mock.calls[0]![0] as Record<string, unknown>;
+  };
+  const openBody = async (
+    action: ProposedAction,
+    policy?: { pmMinEntryProbabilityPct?: number },
+  ) => {
+    const openPmPosition = vi.fn(async () => okData({ positionId: 7 }));
+    const client = { openPmPosition } as unknown as CoinRithmClient;
+    await executeAction(
+      client,
+      action,
+      emptyObservation(),
+      trace,
+      "pm-1",
+      undefined,
+      policy,
+    );
+    return openPmPosition.mock.calls[0]![0] as Record<string, unknown>;
+  };
+
+  it("sends the configured floor on both requests, including zero", async () => {
+    for (const floor of [20, 0]) {
+      expect(
+        (await quoteBody({ pmMinEntryProbabilityPct: floor }))
+          .minEntryProbabilityPct,
+      ).toBe(floor);
+      expect(
+        (await openBody(pmAction, { pmMinEntryProbabilityPct: floor }))
+          .minEntryProbabilityPct,
+      ).toBe(floor);
+    }
+  });
+
+  it("omits the key entirely when no floor is configured", async () => {
+    for (const policy of [
+      undefined,
+      {},
+      { pmMinEntryProbabilityPct: undefined },
+    ]) {
+      expect("minEntryProbabilityPct" in (await quoteBody(policy))).toBe(false);
+      expect(
+        "minEntryProbabilityPct" in (await openBody(pmAction, policy)),
+      ).toBe(false);
+    }
+  });
+
+  it("a model-supplied action field can never set or override the floor", async () => {
+    const tampered = {
+      ...pmAction,
+      minEntryProbabilityPct: 5,
+    } as unknown as ProposedAction;
+    expect(
+      (await openBody(tampered, { pmMinEntryProbabilityPct: 20 }))
+        .minEntryProbabilityPct,
+    ).toBe(20);
+    expect("minEntryProbabilityPct" in (await openBody(tampered))).toBe(false);
+    const pmQuote = vi.fn(async () => okData({ eligible: true }));
+    const client = { pmQuote } as unknown as CoinRithmClient;
+    await fetchQuote(client, tampered, emptyObservation(), trace);
+    expect(
+      "minEntryProbabilityPct" in (pmQuote.mock.calls[0]![0] as object),
+    ).toBe(false);
+  });
+});
