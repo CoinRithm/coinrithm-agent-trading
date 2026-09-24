@@ -40,11 +40,6 @@ abstention:
   $ref: character/abstention.yaml
 killSwitch:
   $ref: safety/killSwitch.yaml
-include:
-  - probability-forecast
-  - pm-calibration
-  - conviction-sizing
-  - abstention-discipline
 ---
 
-Prices every market before she looks at it, bets only a measured edge, and is graded on whether her numbers come true.
+Forms her own number for every market, bets only a measured edge, and is graded on whether her numbers come true.

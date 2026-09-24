@@ -12,10 +12,19 @@
 import { ResolveIssue } from "./types.js";
 
 // Direction in which a cap becomes MORE restrictive.
-//   "lower" — a smaller number is tighter (leverage, margins, counts, loss caps)
+//   "lower" — a smaller number is tighter (leverage, margins, write counts)
+//   "lower_zero_off" — a smaller POSITIVE number is tighter and 0 means no cap
+//            (maxTradesPerDay, maxDailyLossMusd: the runner treats 0 as off),
+//            so 0 -> 100 tightens and 100 -> 0 widens. Negative or non-finite
+//            values are never a legal tightening.
 //   "higher" — a larger number is tighter (a confidence FLOOR)
 //   "true"  — true is tighter (requireStopLoss)
-export type CapDirection = "lower" | "higher" | "true";
+export type CapDirection = "lower" | "lower_zero_off" | "higher" | "true";
+
+// 0 is "no cap" for lower_zero_off; every other value compares as itself.
+const zeroOffLimit = (n: number): number => (n === 0 ? Infinity : n);
+const isZeroOffValue = (v: unknown): v is number =>
+  typeof v === "number" && Number.isFinite(v) && v >= 0;
 
 // risk.* hard caps a tactic module may tighten.
 export const RISK_CAPS: Record<string, CapDirection> = {
@@ -27,9 +36,9 @@ export const RISK_CAPS: Record<string, CapDirection> = {
 
 // limits.* throughput/spend caps a tactic module may tighten.
 export const LIMIT_CAPS: Record<string, CapDirection> = {
-  maxTradesPerDay: "lower",
+  maxTradesPerDay: "lower_zero_off",
   maxWritesPerCycle: "lower",
-  maxDailyLossMusd: "lower",
+  maxDailyLossMusd: "lower_zero_off",
   maxOpenMarginMusd: "lower",
 };
 
@@ -43,6 +52,10 @@ export function isAtLeastAsRestrictive(
     // true is tighter than false. candidate must not be LESS strict than base.
     // legal: base=false→candidate any; base=true→candidate must be true.
     return base === true ? candidate === true : true;
+  }
+  if (dir === "lower_zero_off") {
+    if (!isZeroOffValue(candidate) || !isZeroOffValue(base)) return false;
+    return zeroOffLimit(candidate) <= zeroOffLimit(base);
   }
   if (typeof candidate !== "number" || typeof base !== "number") {
     // a non-numeric cap candidate where a number is expected is not a legal
@@ -59,6 +72,11 @@ export function mostRestrictive(
   b: unknown,
 ): unknown {
   if (dir === "true") return a === true || b === true ? true : false;
+  if (dir === "lower_zero_off") {
+    if (!isZeroOffValue(a)) return b;
+    if (!isZeroOffValue(b)) return a;
+    return zeroOffLimit(a) <= zeroOffLimit(b) ? a : b;
+  }
   if (typeof a !== "number") return b;
   if (typeof b !== "number") return a;
   return dir === "lower" ? Math.min(a, b) : Math.max(a, b);

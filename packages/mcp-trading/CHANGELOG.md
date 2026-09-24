@@ -14,6 +14,12 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
   inspection; expose the same snapshot builder to engine consumers.
 - Add `run --expect-definition` to reject a changed baseline before model or
   account access. The digest is not a full replay record or broker adapter.
+- Hosted validation accepts `limits.maxDailyLossMusd: 0` as no daily loss cap,
+  matching the runner and the hosted API; negative and non-finite values are
+  still rejected.
+- Tactic cap merges treat 0 as unlimited for `maxTradesPerDay` and
+  `maxDailyLossMusd`: a tactic may tighten 0 to a positive cap but can no
+  longer turn a positive cap into 0. Writes and margins keep lower-is-tighter.
 
 ## 0.7.13
 

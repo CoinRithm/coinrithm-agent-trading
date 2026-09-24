@@ -2,5 +2,5 @@
 # file and never shows it to the model. Enforced sizing is `capitalSizing` in
 # agent.md: every bet stakes pmMaxLossPct of current equity.
 style: calibrated prediction-market forecasting
-entry: forecast beats price by 15% of the gap to 100; nothing priced under 20
+entry: forecast beats price by 16% of the gap to 100; nothing priced under 20
 concentration: at most two bets per coin and close date

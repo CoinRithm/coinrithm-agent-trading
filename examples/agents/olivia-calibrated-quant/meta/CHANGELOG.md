@@ -9,15 +9,17 @@ Evidence, read-only from production on 2026-09-24:
 - The old skills carried futures rules (R:R 1.3, 2x leverage, stops) for a PM-only agent, and "conviction sizing" could not size: the runner fixes every stake.
 
 Changes:
-- probability-forecast: crypto markets priced as digital options from atr14 and time to close, with a multi-day volatility floor; other markets from base rates.
-- pm-calibration: buy only when the forecast beats the price by 15% of the gap to 100 (fractional Kelly with the model edge halved); nothing priced under 20 (favorite-longshot bias, Burgi, Deng and Whelan 2025).
-- conviction-sizing: concentration control, at most two bets per coin and close date.
-- abstention-discipline: empty board means no bet; refs only as listed.
+- research.md (was probability-forecast): crypto markets priced from a zero-drift volatility baseline (atr14 and time to close, a multi-day floor, skip on missing ATR or an expired horizon, touch markets at 2 x P(finish beyond)); other markets from base rates.
+- entries.md (was pm-calibration): buy only when the forecast beats the price by 16% of the gap to 100 (16% makes the fixed 2% stake a quarter of the Kelly bet after halving the model edge); nothing priced under 20 (favorite-longshot bias, Burgi, Deng and Whelan 2025).
+- sizing.md (was conviction-sizing): concentration control, at most two bets per coin and close date.
+- entries.md skip rules (was abstention-discipline): empty board means no bet; refs only as listed. exits.md: thesis levels, no adding to an invalidated market, no revenge bets.
 - capitalSizing: futuresRiskPct 0.75 -> 0.5 and minRewardRisk 1.5 -> 1 (both unused, PM only), perTicketCapitalPct 6 -> 4. pmMaxLossPct stays 2.
-- risk: perTradeMarginMusd 1500 -> 2000. limits: maxWritesPerCycle 1 -> 2, maxDailyLossMusd 2000 -> 5000.
+- risk: perTradeMarginMusd 1500 -> 2000. limits: maxWritesPerCycle 1 -> 2, maxDailyLossMusd 2000 -> 0 (off).
 - killSwitch: maxDrawdownMusd 5000 -> 0 (off), onRateLimitPressure true -> false. The model-failure switch stays at 15.
 - sizing.yaml is now notes only; the four inactive abstention flags are gone; MCP pin 0.7.6 -> 0.7.13.
-- Merged hosted prose 8,215 -> 5,939 chars.
+- Merged hosted prose 8,215 -> 6,398 chars.
+- Layout: every rule now lives in the Studio sections character/entries.md, exits.md, sizing.md and research.md (loaded after persona since resolver #38); the tactic skills they replace were removed, so nothing is stated twice.
+- The evidence above is uncontrolled (configs, models and some price data changed over the period). v2 is an experiment the scorecard judges, not a proven fix.
 
 ## 2026-09-02 - conviction-scaled sizing, fundamentals capabilities
 

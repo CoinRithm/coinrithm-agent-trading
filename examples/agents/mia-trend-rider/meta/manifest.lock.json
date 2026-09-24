@@ -1,29 +1,26 @@
 {
-  "configHash": "sha256:a2b9ac15f7999ac492405fa39350989a9c3539694ddd7c5d1048ca9c50595ca7",
+  "configHash": "sha256:4195af4d926f895e4335eccb2a00242f8edffa9462d5a634159352dba4c7382e",
   "contentHashes": {
-    "agent.md": "sha256:4010b62318bbb3427242ecc385e5c83eaded4d9e737953b95f366dd47be893f0",
+    "agent.md": "sha256:050cd2281d298304b4103a2469dc82417998448da65cd2fc228ec83641246dcd",
     "character/abstention.yaml": "sha256:8c7e78658c35687ec8ad8759f3bcea04525548467b70573f618dc8215adefde2",
+    "character/entries.md": "sha256:49f36a0d11c44c15965b48e06f3dbdf88c70775c1874c2f8743a10927e6aea21",
+    "character/exits.md": "sha256:e6632dfa9f5daa7b780569a1ca18f09f5140ce882d47ff4cf3620b53744059b2",
     "character/guards.md": "sha256:49e979fb08a33b21cc9621f718661e212757cfe7b1ff0aa981485b4a9f86cf72",
-    "character/limits.yaml": "sha256:76ff14c67e06d303883ce4a3f3becb9871c49385b77efe42b644dcb3c64b5f47",
+    "character/limits.yaml": "sha256:563f9dd016d4ba5d53af20d50570e1e264c6a6112ee1b3eea33fd4b09d504333",
     "character/persona.md": "sha256:6dda86c0af08b6edefb30eab12263bc32646045f3fbb440b5a3a886e02122a05",
+    "character/research.md": "sha256:dffca8c84c9c980a2c9511fb97f1216abe65ee3bfe002afda2ea83582e9fee5b",
     "character/risk.yaml": "sha256:dee84206e168cf0e98d227cbc5ff36a73b59a09424d7a5c9549330110776044d",
+    "character/sizing.md": "sha256:58228dfe2577800dd5016da7ec5324f76f4aca04a62bd00ace10bdfac5c3d232",
     "character/sizing.yaml": "sha256:6e54354190108bbf52de440dcc3db6a086cd0e8bf9ca96df801755224b37e15a",
-    "character/skills/momentum-confirmation.md": "sha256:b1afe3501951f378ace3808edcece516667c2376d20ce8250fb8cda45f13f931",
-    "character/skills/pullback-entry.md": "sha256:f5545589512cf8dd8f9ea3b5d0e51a14247cd5e4355572d30a07cdc0549f9624",
-    "character/skills/trail-the-winner.md": "sha256:ea7d6ef13b2905cd21e3d51087f7d0c05ccba4916abbc194d6d382964f5075d0",
-    "character/thesis.md": "sha256:def2dc671df22cb28a5aa800dbd7d3f5224da337f18445d2b8d5fe3ce522305e",
+    "character/thesis.md": "sha256:566ef933d3353f9b6d13bac702d4cc55059a63a86095e474591c78ceda688eb2",
     "functionality/coinrithm.yaml": "sha256:15acfa177a70c640fe1c7a6ea6288dbf37256d95c6152bea1872a28398f4a406",
-    "journal/notes.md": "sha256:8d7b6c995d7c451af5185ed9d9502e147937a9d4fc253744a0dcc39cfa07d30b",
+    "journal/notes.md": "sha256:931fe973205d1b9c10789e1d00c9b55cd945604623bc43479d29e3c84f50be7c",
     "runtime.yaml": "sha256:bf074f710fa3edd8858ab7d682b3151b1571d725119790e5a80cef33ad3f92a2",
     "safety/killSwitch.yaml": "sha256:e33291a87d7a0a006a0c911ddea1cd4eab35dc0020720e7703c2c57d6e778004"
   },
   "indicatorVersion": "coinrithm.indicators.v1",
   "provenance": {
-    "includeOrder": [
-      "momentum-confirmation",
-      "pullback-entry",
-      "trail-the-winner"
-    ],
+    "includeOrder": [],
     "mergeOrder": [
       "agent.md",
       "runtime.yaml",
@@ -32,11 +29,12 @@
       "character/limits.yaml",
       "character/abstention.yaml",
       "safety/killSwitch.yaml",
-      "character/skills/momentum-confirmation.md",
-      "character/skills/pullback-entry.md",
-      "character/skills/trail-the-winner.md",
       "character/thesis.md",
       "character/persona.md",
+      "character/entries.md",
+      "character/exits.md",
+      "character/sizing.md",
+      "character/research.md",
       "journal/notes.md",
       "character/guards.md",
       "functionality/coinrithm.yaml"
@@ -47,7 +45,6 @@
       "capitalSizing": "agent.md",
       "description": "agent.md",
       "functionality": "functionality/coinrithm.yaml",
-      "include": "agent.md",
       "killSwitch": "safety/killSwitch.yaml",
       "limits": "character/limits.yaml",
       "mode": "runtime.yaml",
@@ -81,11 +78,6 @@
       "version": "equity_fraction_v1"
     },
     "description": "Trend-following CoinRithm paper-futures agent. She trades only in the direction of the 7-day and 24-hour trend, enters on pullbacks, sets a stop about one day's move away and trails winners for days.",
-    "include": [
-      "momentum-confirmation",
-      "pullback-entry",
-      "trail-the-winner"
-    ],
     "killSwitch": {
       "maxConsecutiveModelFailures": 15,
       "maxConsecutiveRejects": 0,
@@ -93,7 +85,7 @@
       "onRateLimitPressure": false
     },
     "limits": {
-      "maxDailyLossMusd": 5000,
+      "maxDailyLossMusd": 0,
       "maxOpenMarginMusd": 24000,
       "maxTradesPerDay": 0,
       "maxWritesPerCycle": 2
@@ -174,7 +166,7 @@
       "onRateLimitPressure": false
     },
     "limits": {
-      "maxDailyLossMusd": 5000,
+      "maxDailyLossMusd": 0,
       "maxOpenMarginMusd": 24000,
       "maxTradesPerDay": 1000000,
       "maxWritesPerCycle": 2

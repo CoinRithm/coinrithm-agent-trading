@@ -19,18 +19,22 @@ follow-through in a day as a range again.
 - Attention and momentum predict crypto returns: Liu and Tsyvinski (2021),
   *Risks and Returns of Cryptocurrency*, Review of Financial Studies.
 
-**His own evidence.** From 08-20 to 09-09, 22 trades on discovered coins, all
+**What motivated v2.** From 08-20 to 09-09, 22 trades on discovered coins, all
 ranked outside the top 100, lost 5,195 mUSD and ended his run on 09-04, while
-his prediction-market bets made +5,131. Version 2 keeps discovery but only for
-top-100 coins with 50M of daily volume. Details in [meta/CHANGELOG.md](meta/CHANGELOG.md).
+his prediction-market bets made +5,131. These are uncontrolled observations
+(configs, models and some price data changed over the period), so v2 is an
+experiment the scorecard will judge. The rank and volume floor and the
+prediction-market floors are instructions to the model; the runner does not
+enforce them. Details in [meta/CHANGELOG.md](meta/CHANGELOG.md).
 
-**Dials you can edit in plain words.**
+**Dials you can edit in plain words** (the Studio shows each section as a tab).
 
 | What | Where |
 | --- | --- |
-| Break rule (20-bar close, daily alignment, chase limit) | `character/skills/breakout.md` |
-| Quality filter (coil 5 x atr14, chaos 8 x atr14) | `character/skills/volatility-expansion.md` |
-| Exit (level stop, 2R target, 1-day time stop) | `character/thesis.md` |
+| Break rule (20-bar close, daily alignment, chase limit) and coil filter | `character/entries.md` |
+| Exit (level stop, 2R target, 1-day time stop) | `character/exits.md` |
+| What sizing he controls | `character/sizing.md` |
+| Research and prediction-market pricing | `character/research.md` |
 | Risk per trade, ticket and total capital | `capitalSizing` in `agent.md` |
 | Caps (leverage, ticket, positions, daily loss) | `character/risk.yaml`, `character/limits.yaml` |
 | Safety switches (0 means off) | `safety/killSwitch.yaml` |

@@ -1,31 +1,26 @@
 {
-  "configHash": "sha256:deff02c86f1689bc4cb33fa8dabb643ea74b541bdbce8f7a017fbba30c71e3a6",
+  "configHash": "sha256:6acc7350f9ca6a50f950364b65ad72f18c49604b7eb803d47394de0b1ab24dc2",
   "contentHashes": {
-    "agent.md": "sha256:c7945a22905b9520e5490d566e2e7ac0673ecbf60c6adc81b6c02b21db534c98",
+    "agent.md": "sha256:c671c7b04b5e14b3f86ca86cc7d7d6e726722fdb14d4b4dfa65aa6875ead7059",
     "character/abstention.yaml": "sha256:8c7e78658c35687ec8ad8759f3bcea04525548467b70573f618dc8215adefde2",
+    "character/entries.md": "sha256:cbc2cb3ae82cacd89336f8c3cfede0d8ab193523ca3e8fa90f6f4a0941e8d90b",
+    "character/exits.md": "sha256:3838993cc25db158aeadaba414a3cdd34c14b9a11d1159bd917ca382b2c6b9c4",
     "character/guards.md": "sha256:68d7b8342f38f42d329ecc588ad9499a4d3ba28b8d53463763adee43cbd83890",
-    "character/limits.yaml": "sha256:1d6760675e426241587f100220386b6cd9b80d24ece04bf4f9746b792e5a9e41",
+    "character/limits.yaml": "sha256:fc7b15b80ddb396bd310f20cdcf48d4e991d9c353fc906dad7a2daf0a1fb9949",
     "character/persona.md": "sha256:5cbd78beb2c5f63dea1ccf45f841597071a61e1c16c241d04a9f93c9bf8118dd",
+    "character/research.md": "sha256:dab6888411679f7e852b623fa8fa800e810169e12ab98fa5c34af3b49edb0090",
     "character/risk.yaml": "sha256:4df994565f4bc2fa92fbcaf5b063049939bdaa446d264440169d75c632b82ee5",
-    "character/sizing.yaml": "sha256:22e42ca63d694834b31eae8cf110a830b8c9db3a50c2cdeaa80607e02530a4c0",
-    "character/skills/abstention-discipline.md": "sha256:567eedfbfea2a86954ea8ad5c77522bdd3c7c866aa1c3a2adafdd03afe6ce484",
-    "character/skills/conviction-sizing.md": "sha256:766275cf30d988f3aeab840254a7f5917541fe340eb3ca6c169f4f88df865574",
-    "character/skills/pm-calibration.md": "sha256:50f5087f9794c36ddc9997dc3f37488ec2a11a837a31ace94df618ee7296d637",
-    "character/skills/probability-forecast.md": "sha256:c4e4f245b4d63d68a452196bebe80e8b388cd41bca6bcb646ed31ca6fa24632a",
-    "character/thesis.md": "sha256:f8be1b1d8f67bf3c874b3abcce542955a8388d9d2b230caaa6f60638f0c6c437",
+    "character/sizing.md": "sha256:0b952047fea0bb754aa3837788c37cfbf9d4d2a0724c10e82f957a43f0148615",
+    "character/sizing.yaml": "sha256:f75f1c5bc2e7543b75464dd8b9d804bb794689e13a2f80906521d9489ae9a6be",
+    "character/thesis.md": "sha256:8baa8a3c56ab1bee81599341f003b1daa513a044e837b8328014dd27a342c202",
     "functionality/coinrithm.yaml": "sha256:15acfa177a70c640fe1c7a6ea6288dbf37256d95c6152bea1872a28398f4a406",
-    "journal/notes.md": "sha256:8a688f0334cd29927de380ec3636ae56d2b431b26e455f1eeeb96216a9392317",
+    "journal/notes.md": "sha256:9e68ea4275b3f0129968b55ea9ede8a929ad73b76548f986d3ed0e22a3fab315",
     "runtime.yaml": "sha256:a2dde8ea84ccfc8be5e4b731f3cb77b6ffa67b74fc778649a2990ea287b11013",
     "safety/killSwitch.yaml": "sha256:c61212e23a152cd747b957b0aad5f2360aee7ba306d6b3ef23fb18e03d33f71b"
   },
   "indicatorVersion": "coinrithm.indicators.v1",
   "provenance": {
-    "includeOrder": [
-      "probability-forecast",
-      "pm-calibration",
-      "conviction-sizing",
-      "abstention-discipline"
-    ],
+    "includeOrder": [],
     "mergeOrder": [
       "agent.md",
       "runtime.yaml",
@@ -34,12 +29,12 @@
       "character/limits.yaml",
       "character/abstention.yaml",
       "safety/killSwitch.yaml",
-      "character/skills/probability-forecast.md",
-      "character/skills/pm-calibration.md",
-      "character/skills/conviction-sizing.md",
-      "character/skills/abstention-discipline.md",
       "character/thesis.md",
       "character/persona.md",
+      "character/entries.md",
+      "character/exits.md",
+      "character/sizing.md",
+      "character/research.md",
       "journal/notes.md",
       "character/guards.md",
       "functionality/coinrithm.yaml"
@@ -50,7 +45,6 @@
       "capitalSizing": "agent.md",
       "description": "agent.md",
       "functionality": "functionality/coinrithm.yaml",
-      "include": "agent.md",
       "killSwitch": "safety/killSwitch.yaml",
       "limits": "character/limits.yaml",
       "mode": "runtime.yaml",
@@ -83,12 +77,6 @@
       "version": "equity_fraction_v1"
     },
     "description": "Calibration-first CoinRithm paper PREDICTION-MARKET agent. She prices crypto markets with a volatility model and other markets from base rates, bets only when her number clears a Kelly-derived edge threshold, and never buys longshots. Prediction markets are her only venue.",
-    "include": [
-      "probability-forecast",
-      "pm-calibration",
-      "conviction-sizing",
-      "abstention-discipline"
-    ],
     "killSwitch": {
       "maxConsecutiveModelFailures": 15,
       "maxConsecutiveRejects": 0,
@@ -96,7 +84,7 @@
       "onRateLimitPressure": false
     },
     "limits": {
-      "maxDailyLossMusd": 5000,
+      "maxDailyLossMusd": 0,
       "maxOpenMarginMusd": 4500,
       "maxTradesPerDay": 0,
       "maxWritesPerCycle": 2
@@ -129,7 +117,7 @@
     },
     "sizing": {
       "concentration": "at most two bets per coin and close date",
-      "entry": "forecast beats price by 15% of the gap to 100; nothing priced under 20",
+      "entry": "forecast beats price by 16% of the gap to 100; nothing priced under 20",
       "style": "calibrated prediction-market forecasting"
     },
     "spec": "coinrithm.agent.v1",
@@ -173,7 +161,7 @@
       "onRateLimitPressure": false
     },
     "limits": {
-      "maxDailyLossMusd": 5000,
+      "maxDailyLossMusd": 0,
       "maxOpenMarginMusd": 4500,
       "maxTradesPerDay": 1000000,
       "maxWritesPerCycle": 2

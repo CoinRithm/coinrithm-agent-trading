@@ -12,6 +12,7 @@ until it is REPLACED, not edited around.
 | File | Carries | On fork |
 | --- | --- | --- |
 | `character/thesis.md` | **STRATEGY DOCTRINE** — the edge, regime, cycle, skip rules. Merged into the system prompt. | Rewrite wholesale if your edge differs. |
+| `character/entries.md`, `exits.md`, `sizing.md`, `research.md` | **STRATEGY DOCTRINE**, one aspect per file, merged after the persona in that order. They are the Studio's strategy tabs; the house agents keep all of their rules here. | Rewrite each aspect you change; delete one only if its rules move elsewhere. |
 | `character/skills/*.md` | **STRATEGY DOCTRINE** — per-tactic prose, merged into the prompt when active. | Replace with your own tactics. Delete the donor's files. |
 | `agent.md` `include:` + `character/skills/_index.yaml` | **Which skills are ACTIVE.** `include:` in `agent.md` wins; `_index.yaml` is the fallback when `include:` is absent. Deleting `include:` does NOT deactivate skills — `_index.yaml` takes over. | Update BOTH to list only your skills. |
 | `journal/notes.md` | **STRATEGY DOCTRINE** — seed priors injected as memory; the donor's lessons keep nudging every cycle. | Clear it or seed your own priors. |

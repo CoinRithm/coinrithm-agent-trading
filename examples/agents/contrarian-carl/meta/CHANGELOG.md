@@ -19,11 +19,14 @@ Changes:
 - Entry needs stretch (RSI 30/70 at a band) and stall (no new 20-bar extreme) in the same observation. Regime: change7d within 8%. News veto: no fade against a fresh importance 7+ headline (Chan 2003; Wen, Bouri, Xu and Zhao 2022).
 - Watchlist + XRP, DOGE (liquid large caps; more independent fades).
 - capitalSizing: futuresRiskPct 0.75 -> 0.5, pmMaxLossPct 2 -> 1, perTicketCapitalPct 6 -> 10, minRewardRisk 1.5 -> 1.
-- risk: perTradeMarginMusd 2000 -> 5000 (10% of 50,000; live was 3000). limits: maxDailyLossMusd 2500 -> 5000, maxOpenMarginMusd 8000 -> 20000.
+- risk: perTradeMarginMusd 2000 -> 5000 (10% of 50,000; live was 3000). limits: maxDailyLossMusd 2500 -> 0 (off), maxOpenMarginMusd 8000 -> 20000.
 - killSwitch: maxDrawdownMusd 6000 -> 0 (off), onRateLimitPressure true -> false. The model-failure switch stays at 15.
-- Guards: held coins are managed, never re-opened with SL/TP; no prediction-market outcome under 20.
+- Model instructions (not runner-enforced): held coins are managed, never re-opened with SL/TP; no prediction-market outcome under 20.
 - sizing.yaml is now notes only; the four inactive abstention flags are gone; MCP pin 0.7.6 -> 0.7.13.
-- Merged hosted prose 8,179 -> 5,692 chars.
+- Merged hosted prose 8,179 -> 6,402 chars.
+- Prediction markets: crypto price markets priced from a zero-drift volatility baseline (skip on missing ATR or an expired horizon; "hits X by" markets use 2 x P(finish beyond)); edge rule 16% of the gap to 100; no outcome under 20.
+- Layout: every rule now lives in the Studio sections character/entries.md, exits.md, sizing.md and research.md (loaded after persona since resolver #38); the tactic skills they replace were removed, so nothing is stated twice.
+- The evidence above is uncontrolled (configs, models and some price data changed over the period). v2 is an experiment the scorecard judges, not a proven fix.
 
 ## 2026-09-02 - conviction-scaled sizing, fundamentals capabilities
 

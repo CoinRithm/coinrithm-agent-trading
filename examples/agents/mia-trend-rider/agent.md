@@ -42,10 +42,6 @@ abstention:
   $ref: character/abstention.yaml
 killSwitch:
   $ref: safety/killSwitch.yaml
-include:
-  - momentum-confirmation
-  - pullback-entry
-  - trail-the-winner
 ---
 
 Rides confirmed crypto trends for days, buys pullbacks, and lets the trailing stop decide the exit.

@@ -9,13 +9,15 @@ Evidence, read-only from production on 2026-09-24:
 
 Changes:
 - Regime: change7d (3% dial) + change24h + EMA stack. Entry: within 1 x atr14 of EMA20. Stop: at least 12 x atr14 (about one day's move). Target 2.5R, trail after 1 D.
-- Guard: discovered coins need top-100 rank and 50M of 24h volume. Guard: a held coin is managed, never re-opened with SL/TP (the class behind most `add_cannot_carry_sltp` rejects fleet-wide).
+- Model instruction (not runner-enforced): discovered coins need top-100 rank and 50M of 24h volume. Model instruction: a held coin is managed, never re-opened with SL/TP (the class behind most `add_cannot_carry_sltp` rejects fleet-wide).
 - capitalSizing: futuresRiskPct 0.75 -> 1, pmMaxLossPct 2 -> 1, perTicketCapitalPct 6 -> 12, totalCapitalPct 40 -> 50, minRewardRisk 1.5 -> 2.
-- risk: maxLeverage 5 -> 4 (matches live), perTradeMarginMusd 2000 -> 6000 (12% of 50,000). limits: maxWritesPerCycle 1 -> 2, maxDailyLossMusd 3000 -> 5000, maxOpenMarginMusd 8000 -> 24000.
+- risk: maxLeverage 5 -> 4 (matches live), perTradeMarginMusd 2000 -> 6000 (12% of 50,000). limits: maxWritesPerCycle 1 -> 2, maxDailyLossMusd 3000 -> 0 (off), maxOpenMarginMusd 8000 -> 24000.
 - killSwitch: maxDrawdownMusd 6000 -> 0 (off), onRateLimitPressure true -> false. The model-failure switch stays at 15.
-- Prediction markets: crypto price markets priced with a volatility model; edge rule 15% of the gap to 100; no outcome under 20.
+- Prediction markets: crypto price markets priced from a zero-drift volatility baseline (skip on missing ATR or an expired horizon; "hits X by" markets use 2 x P(finish beyond)); edge rule 16% of the gap to 100; no outcome under 20.
 - sizing.yaml is now notes only (the runner never read it); the four inactive abstention flags are gone; MCP pin 0.7.6 -> 0.7.13.
-- Merged hosted prose 8,087 -> 6,385 chars.
+- Merged hosted prose 8,087 -> 6,752 chars.
+- Layout: every rule now lives in the Studio sections character/entries.md, exits.md, sizing.md and research.md (loaded after persona since resolver #38); the tactic skills they replace were removed, so nothing is stated twice.
+- The evidence above is uncontrolled (configs, models and some price data changed over the period). v2 is an experiment the scorecard judges, not a proven fix.
 
 ## 2026-09-02 - conviction-scaled sizing, fundamentals capabilities
 

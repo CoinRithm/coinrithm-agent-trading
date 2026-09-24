@@ -1,27 +1,26 @@
 {
-  "configHash": "sha256:359197e853c20525a1a0a40d19314bbcb21210f240941b2662e60caea4348097",
+  "configHash": "sha256:8a654fdbe77723291fb04b1291dafb5aad8b4c721517fabc5c220f69d816eeca",
   "contentHashes": {
-    "agent.md": "sha256:53367fae47cb60fb96cf42b59c9536c5f5b3638e650a821e1fbe3dbc354c00a1",
+    "agent.md": "sha256:d4e883f121e4e0f0f5d913a322614af8757cc6888ae4473c85164d882f559e81",
     "character/abstention.yaml": "sha256:8af8788902fe47d64870cf1020886ac32265d9fc0d6438ee518e399e81f00794",
+    "character/entries.md": "sha256:cf92d3c9ed9aae7ec13e45d89e5caa3a84a13d76d495017a3e426a2f656bcd4e",
+    "character/exits.md": "sha256:9c0a27d523b00ef47b0612f6735b127951940a4282052214633aaf877aa3c28b",
     "character/guards.md": "sha256:7a77444fbb1bb2458f35ff87dc01f35b40357d2e92c4c5d55fa47ad13464059b",
-    "character/limits.yaml": "sha256:079942f6f69dba6bc00192c0760b7852fe40786ff2b633b4e09eb079e62ce9e8",
+    "character/limits.yaml": "sha256:c8c8d701066e626a1f72a010430d77cf088a028cedf94a6ac5cc9ba7758e3abd",
     "character/persona.md": "sha256:844ac37341cffd374515b3c8770fd0ee7294d88251489b23d2d21843a74550a8",
+    "character/research.md": "sha256:da0b0c0fbc95b40ad5d217c6ea4778bb1ea2014778a6cf65406574a401ce13ce",
     "character/risk.yaml": "sha256:b23b16326c3f65d7b669100c38b3cd9ddadef6ab73f95e63b0cac4c58c97fb72",
+    "character/sizing.md": "sha256:422937f058a565c170691020c15fcfa98784b7016b2ed770a1eacf3b97d59d01",
     "character/sizing.yaml": "sha256:94c2b2a83e043ee10012060d15f476dbec02c86b9ed29536c1e4500412ac0e98",
-    "character/skills/blowoff-fade.md": "sha256:afea4dbf7e1067421a1e04e281b1b239174baac4c7c53ddfd74325d8fdc9ebae",
-    "character/skills/oversold-bounce.md": "sha256:576aff937e673eeea11bded859a2f75d965b9f2783c3159f4c52ebdeecc4019b",
-    "character/thesis.md": "sha256:f37a42c911450fe921a6e88b8c837e3ea03cab7eeaf0bffe5030e11cf40213d9",
+    "character/thesis.md": "sha256:dd59fe96aaabcf8c0925ed486085771ba6ba1fa3851a546864c28774552658c1",
     "functionality/coinrithm.yaml": "sha256:15acfa177a70c640fe1c7a6ea6288dbf37256d95c6152bea1872a28398f4a406",
-    "journal/notes.md": "sha256:658a64912391aa81e8a200f17319dec9d380779688fed8182a5ff11ff68874c5",
+    "journal/notes.md": "sha256:bd3180d67b8c4e6a38797a0a35bf43aef7bcee92b74150e02f674b21b113be06",
     "runtime.yaml": "sha256:a2dde8ea84ccfc8be5e4b731f3cb77b6ffa67b74fc778649a2990ea287b11013",
     "safety/killSwitch.yaml": "sha256:e33291a87d7a0a006a0c911ddea1cd4eab35dc0020720e7703c2c57d6e778004"
   },
   "indicatorVersion": "coinrithm.indicators.v1",
   "provenance": {
-    "includeOrder": [
-      "oversold-bounce",
-      "blowoff-fade"
-    ],
+    "includeOrder": [],
     "mergeOrder": [
       "agent.md",
       "runtime.yaml",
@@ -30,10 +29,12 @@
       "character/limits.yaml",
       "character/abstention.yaml",
       "safety/killSwitch.yaml",
-      "character/skills/oversold-bounce.md",
-      "character/skills/blowoff-fade.md",
       "character/thesis.md",
       "character/persona.md",
+      "character/entries.md",
+      "character/exits.md",
+      "character/sizing.md",
+      "character/research.md",
       "journal/notes.md",
       "character/guards.md",
       "functionality/coinrithm.yaml"
@@ -44,7 +45,6 @@
       "capitalSizing": "agent.md",
       "description": "agent.md",
       "functionality": "functionality/coinrithm.yaml",
-      "include": "agent.md",
       "killSwitch": "safety/killSwitch.yaml",
       "limits": "character/limits.yaml",
       "mode": "runtime.yaml",
@@ -77,10 +77,6 @@
       "version": "equity_fraction_v1"
     },
     "description": "Mean-reversion CoinRithm paper-futures agent. He fades stretched 5-minute moves that have no news behind them, targets the mean at 2x leverage, and gives every fade four hours to work.",
-    "include": [
-      "oversold-bounce",
-      "blowoff-fade"
-    ],
     "killSwitch": {
       "maxConsecutiveModelFailures": 15,
       "maxConsecutiveRejects": 0,
@@ -88,7 +84,7 @@
       "onRateLimitPressure": false
     },
     "limits": {
-      "maxDailyLossMusd": 5000,
+      "maxDailyLossMusd": 0,
       "maxOpenMarginMusd": 20000,
       "maxTradesPerDay": 0,
       "maxWritesPerCycle": 2
@@ -169,7 +165,7 @@
       "onRateLimitPressure": false
     },
     "limits": {
-      "maxDailyLossMusd": 5000,
+      "maxDailyLossMusd": 0,
       "maxOpenMarginMusd": 20000,
       "maxTradesPerDay": 1000000,
       "maxWritesPerCycle": 2

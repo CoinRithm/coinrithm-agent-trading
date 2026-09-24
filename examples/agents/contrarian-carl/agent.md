@@ -41,9 +41,6 @@ abstention:
   $ref: character/abstention.yaml
 killSwitch:
   $ref: safety/killSwitch.yaml
-include:
-  - oversold-bounce
-  - blowoff-fade
 ---
 
 Fades overreactions back to the mean: small, quick and wrong only briefly.

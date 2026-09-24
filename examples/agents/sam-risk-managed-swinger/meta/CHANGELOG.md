@@ -10,12 +10,15 @@ Evidence, read-only from production on 2026-09-24:
 Changes:
 - Entry: pullback to within 1 x atr14 of EMA50 with change24h beyond 1% and the EMA stack agreeing, RSI in a cool-off band; skip flat and parabolic days.
 - Exit: stop at least 6 x atr14 past the swing; target 2R+; half closed at 1.5R with the stop to entry; the rest trailed 1.5R; time stop 2,880 minutes. Storm rule: no entries while atr14 is above 0.6% of price (Moreira and Muir 2017).
-- Guards: held coins are managed, never re-opened with SL/TP; no prediction-market outcome under 20.
+- Model instructions (not runner-enforced): held coins are managed, never re-opened with SL/TP; no prediction-market outcome under 20.
 - capitalSizing: pmMaxLossPct 2 -> 1, perTicketCapitalPct 6 -> 12, totalCapitalPct 40 -> 50. futuresRiskPct stays 0.75 and minRewardRisk rises 1.5 -> 2.
-- risk: perTradeMarginMusd 2500 -> 6000 (live was 3000). limits: maxWritesPerCycle 1 -> 2, maxDailyLossMusd 3000 -> 5000, maxOpenMarginMusd 10000 -> 24000.
+- risk: perTradeMarginMusd 2500 -> 6000 (live was 3000). limits: maxWritesPerCycle 1 -> 2, maxDailyLossMusd 3000 -> 0 (off), maxOpenMarginMusd 10000 -> 24000.
 - killSwitch: maxDrawdownMusd 7500 -> 0 (off), onRateLimitPressure true -> false. The model-failure switch stays at 15.
 - sizing.yaml is now notes only; the four inactive abstention flags are gone; MCP pin 0.7.6 -> 0.7.13.
-- Merged hosted prose 7,581 -> 5,356 chars.
+- Merged hosted prose 7,581 -> 6,031 chars.
+- Prediction markets: crypto price markets priced from a zero-drift volatility baseline (skip on missing ATR or an expired horizon; "hits X by" markets use 2 x P(finish beyond)); edge rule 16% of the gap to 100; no outcome under 20.
+- Layout: every rule now lives in the Studio sections character/entries.md, exits.md, sizing.md and research.md (loaded after persona since resolver #38); the tactic skills they replace were removed, so nothing is stated twice.
+- The evidence above is uncontrolled (configs, models and some price data changed over the period). v2 is an experiment the scorecard judges, not a proven fix.
 
 ## 2026-09-02 - conviction-scaled sizing, fundamentals capabilities
 

@@ -285,10 +285,12 @@ export function validateSkill(
           "skill_limits_writes",
           "limits.maxWritesPerCycle must be a positive number",
         );
-      if (!isPosNum(l.maxDailyLossMusd))
+      // 0 = no daily loss cap: the runner only enforces a positive value and
+      // the hosted API already accepts 0..50,000, so hosted validation must too.
+      if (!isNonNegNum(l.maxDailyLossMusd))
         add(
           "skill_limits_loss",
-          "limits.maxDailyLossMusd must be a positive number",
+          "limits.maxDailyLossMusd must be a number >= 0 (0 = no daily loss cap)",
         );
       if (!isPosNum(l.maxOpenMarginMusd))
         add(

@@ -18,19 +18,23 @@ move away (12 x atr14), targets 2.5x the stop and trails winners for days.
 - Sizing from stop distance is volatility targeting: Moreira and Muir (2017),
   *Volatility-Managed Portfolios*, Journal of Finance.
 
-**Her own evidence.** From 08-20 to 09-11, discovered coins ranked outside the
+**What motivated v2.** From 08-20 to 09-11, discovered coins ranked outside the
 top 100 lost 7,643 mUSD over 38 trades (four liquidations on price jumps of
 about 40%), while top-100 discoveries made +1,332 and watchlist trades were
-flat. Version 2 keeps the trend engine and removes that tail. Details in
+flat. These are uncontrolled observations (configs, models and some price data
+changed over the period), so v2 is an experiment the scorecard will judge, not
+a proven fix. The rank and volume floor and the prediction-market floors are
+instructions to the model; the runner does not enforce them. Details in
 [meta/CHANGELOG.md](meta/CHANGELOG.md).
 
-**Dials you can edit in plain words.**
+**Dials you can edit in plain words** (the Studio shows each section as a tab).
 
 | What | Where |
 | --- | --- |
-| Regime filter (weekly threshold 3%) | `character/skills/momentum-confirmation.md` |
-| Entry (pullback zone 1 x atr14) | `character/skills/pullback-entry.md` |
-| Exit (stop 12 x atr14, target 2.5x, trail) | `character/skills/trail-the-winner.md` |
+| Regime filter (weekly threshold 3%) and pullback entry | `character/entries.md` |
+| Exit (stop 12 x atr14, target 2.5x, trail) | `character/exits.md` |
+| What sizing she controls | `character/sizing.md` |
+| Research and prediction-market pricing | `character/research.md` |
 | Risk per trade, ticket and total capital | `capitalSizing` in `agent.md` |
 | Caps (leverage, ticket, positions, daily loss) | `character/risk.yaml`, `character/limits.yaml` |
 | Safety switches (0 means off) | `safety/killSwitch.yaml` |

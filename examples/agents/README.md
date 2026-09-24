@@ -51,7 +51,7 @@ others block every trade.
 | `killSwitch.maxConsecutiveModelFailures` | `safety/killSwitch.yaml` | off (a positive value is floored at 10) | 0 or more |
 | `killSwitch.onRateLimitPressure` | `safety/killSwitch.yaml` | `false` is off | true or false |
 | `limits.maxTradesPerDay` | `character/limits.yaml` | unlimited entries per UTC day | 0 or more |
-| `limits.maxDailyLossMusd` | `character/limits.yaml` | off in the runner, but hosted validation rejects it | above 0 |
+| `limits.maxDailyLossMusd` | `character/limits.yaml` | no daily loss cap | 0 or more |
 | `limits.maxWritesPerCycle` | `character/limits.yaml` | **blocks every entry** (it counts entries and adds; closes and stop moves are never capped) | above 0 |
 | `limits.maxOpenMarginMusd` | `character/limits.yaml` | **blocks every futures entry** | above 0 |
 | `risk.perTradeMarginMusd` | `character/risk.yaml` | **blocks every entry** | above 0 |

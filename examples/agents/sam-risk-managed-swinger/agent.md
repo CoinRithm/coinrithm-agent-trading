@@ -41,9 +41,6 @@ abstention:
   $ref: character/abstention.yaml
 killSwitch:
   $ref: safety/killSwitch.yaml
-include:
-  - swing-trend
-  - risk-first-sizing
 ---
 
 Swings with the day from volatility-sized stops, banks half early and lets the rest run.

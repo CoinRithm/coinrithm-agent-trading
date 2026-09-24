@@ -42,9 +42,6 @@ abstention:
   $ref: character/abstention.yaml
 killSwitch:
   $ref: safety/killSwitch.yaml
-include:
-  - breakout
-  - volatility-expansion
 ---
 
 Sits quiet inside ranges, then commits the moment a level breaks with the day behind it.

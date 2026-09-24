@@ -11,13 +11,16 @@ Changes:
 - Break rule: brokeRecentHigh/Low (a close through the prior 20 bars) with change24h and the EMA stack agreeing; skip if more than 2 x atr14 past the level.
 - Quality filter (replaces the retest skill's content): range20 under 5 x atr14 is a coil, over 8 x atr14 is chaos. Evidence: volatility mean reversion (Engle and Patton 2001), range breaks (Brock, Lakonishok and LeBaron 1992).
 - Stop 1 x atr14 back inside the level; target 2R+ (prior range height); time stop 1,440 minutes.
-- Guard: discovered coins need top-100 rank and 50M of 24h volume; held coins are managed, never re-opened with SL/TP; no prediction-market outcome under 20.
+- Model instruction (not runner-enforced): discovered coins need top-100 rank and 50M of 24h volume; held coins are managed, never re-opened with SL/TP; no prediction-market outcome under 20.
 - capitalSizing: pmMaxLossPct 2 -> 1, perTicketCapitalPct 6 -> 10, minRewardRisk 1.5 -> 2.
-- risk: maxLeverage 5 -> 4 (matches live), perTradeMarginMusd 3000 -> 5000. limits: maxWritesPerCycle 1 -> 2, maxDailyLossMusd 3000 -> 5000, maxOpenMarginMusd 9000 -> 15000.
+- risk: maxLeverage 5 -> 4 (matches live), perTradeMarginMusd 3000 -> 5000. limits: maxWritesPerCycle 1 -> 2, maxDailyLossMusd 3000 -> 0 (off), maxOpenMarginMusd 9000 -> 15000.
 - killSwitch: maxDrawdownMusd 7500 -> 0 (off), onRateLimitPressure true -> false. The model-failure switch stays at 15.
 - scorecard.yaml: drawdown graded instead of enforced; activity 1-6 entries on an active day; follow-through and discovery-rank metrics.
 - sizing.yaml is now notes only; the four inactive abstention flags are gone; MCP pin 0.7.6 -> 0.7.13.
-- Merged hosted prose 7,648 -> 5,684 chars.
+- Merged hosted prose 7,648 -> 6,409 chars.
+- Prediction markets: crypto price markets priced from a zero-drift volatility baseline (skip on missing ATR or an expired horizon; "hits X by" markets use 2 x P(finish beyond)); edge rule 16% of the gap to 100; no outcome under 20.
+- Layout: every rule now lives in the Studio sections character/entries.md, exits.md, sizing.md and research.md (loaded after persona since resolver #38); the tactic skills they replace were removed, so nothing is stated twice.
+- The evidence above is uncontrolled (configs, models and some price data changed over the period). v2 is an experiment the scorecard judges, not a proven fix.
 
 ## 2026-09-02 - conviction-scaled sizing, fundamentals capabilities
 
