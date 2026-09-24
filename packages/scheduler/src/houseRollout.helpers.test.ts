@@ -259,6 +259,6 @@ describe("house rollout helpers", () => {
     const note = owner.params[7] as string;
     expect(note.startsWith("tab here and newline xxx")).toBe(true);
     expect(note).toHaveLength(200);
-    expect(note).not.toMatch(/[\u0000-\u001f]/);
+    expect([...note].some((ch) => (ch.codePointAt(0) ?? 0) < 0x20)).toBe(false);
   });
 });
