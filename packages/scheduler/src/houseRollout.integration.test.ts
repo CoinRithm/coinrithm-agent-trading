@@ -8,9 +8,21 @@ import {
   it,
 } from "vitest";
 import { Pool, type PoolClient } from "pg";
+import {
+  cpSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { buildSpec, loadAgent } from "@coinrithm/mcp-trading/engine";
 import { migrate, recordCycle } from "./db.js";
 import {
   contentHash,
+  defaultLoadBundle,
   readFleetActivity,
   runHouseRollout,
   type LoadedBundle,
@@ -343,4 +355,77 @@ describe.skipIf(!databaseUrl)("house rollout on PostgreSQL", () => {
     });
     expect(await countRevisions(id)).toBe(0);
   });
+
+  it.each([0, 17])(
+    "round-trips an actual house bundle's daily trade cap %s through the loader and persisted spec",
+    async (dailyCap) => {
+      const { id } = await insertHouse("active", null);
+      const fixture = mkdtempSync(
+        join(tmpdir(), "coinrithm-house-rollout-cap-"),
+      );
+      try {
+        const source = fileURLToPath(
+          new URL("../../../examples/agents/mia-trend-rider", import.meta.url),
+        );
+        cpSync(source, fixture, { recursive: true });
+        const limitsPath = join(fixture, "character/limits.yaml");
+        const limits = readFileSync(limitsPath, "utf8");
+        expect(limits).toMatch(/^maxTradesPerDay: 0\b/m);
+        writeFileSync(
+          limitsPath,
+          limits.replace(
+            /^maxTradesPerDay: 0\b/m,
+            `maxTradesPerDay: ${dailyCap}`,
+          ),
+        );
+        const compiled = loadAgent(fixture, "hosted");
+        expect(compiled.spec.limits.maxTradesPerDay).toBe(
+          dailyCap === 0 ? 1_000_000 : dailyCap,
+        );
+        const loaded = defaultLoadBundle(fixture);
+        expect(
+          (loaded.spec.limits as { maxTradesPerDay: number }).maxTradesPerDay,
+        ).toBe(dailyCap);
+        const actualPlan = plan(false);
+        actualPlan.entries[0]!.bundlePath = fixture;
+        await runHouseRollout(
+          savepointPool(),
+          actualPlan,
+          { apply: true, schedulerStopped: true },
+          { transaction, fleetActivity: QUIET },
+        );
+        const { rows } = await client.query<{
+          spec: Record<string, unknown>;
+          prose: string;
+          model_provider: string;
+          model_name: string;
+        }>(
+          "SELECT spec, prose, model_provider, model_name FROM agent_runtime.agents WHERE id = $1",
+          [id],
+        );
+        const stored = rows[0]!;
+        expect(
+          (stored.spec.limits as { maxTradesPerDay: number }).maxTradesPerDay,
+        ).toBe(dailyCap);
+        expect(stored.spec.capabilities).toEqual(
+          expect.arrayContaining(["indicators"]),
+        );
+        expect(stored.spec.capitalSizing).toEqual(compiled.spec.capitalSizing);
+        expect(stored.spec.model).toEqual(liveModel);
+        expect([stored.model_provider, stored.model_name]).toEqual([
+          "nvidia",
+          "nano",
+        ]);
+        expect(stored.prose).toBe(compiled.body);
+        // Recompiling persisted policy retains existing runtime normalization.
+        const runtimeSpec = buildSpec(stored.spec);
+        expect(runtimeSpec.limits.maxTradesPerDay).toBe(
+          compiled.spec.limits.maxTradesPerDay,
+        );
+        expect(runtimeSpec.capitalSizing).toEqual(compiled.spec.capitalSizing);
+      } finally {
+        rmSync(fixture, { recursive: true, force: true });
+      }
+    },
+  );
 });

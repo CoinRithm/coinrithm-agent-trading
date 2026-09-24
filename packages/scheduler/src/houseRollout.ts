@@ -207,12 +207,24 @@ export interface RolloutOptions {
  * capability union scripts/seed-house-agents.mjs applies to house agents, so a
  * rollout never silently removes computed indicators from a house agent. */
 export function defaultLoadBundle(bundlePath: string): LoadedBundle {
-  const { spec, body } = loadAgent(bundlePath, "hosted");
+  const { spec, body, raw } = loadAgent(bundlePath, "hosted");
   const declared: unknown = (spec as { capabilities?: unknown }).capabilities;
   const existing = Array.isArray(declared) ? (declared as string[]) : [];
   const capabilities = Array.from(new Set([...existing, HOUSE_CAPABILITY]));
+  // The engine uses a finite sentinel for unlimited daily trades internally.
+  // Persist the author's explicit zero so API/template consumers retain the
+  // off contract instead of clamping that sentinel to a positive daily cap.
+  const rawLimits = raw.limits as { maxTradesPerDay?: unknown } | undefined;
+  const limits =
+    rawLimits?.maxTradesPerDay === 0
+      ? { ...spec.limits, maxTradesPerDay: 0 }
+      : spec.limits;
   return {
-    spec: { ...(spec as unknown as Record<string, unknown>), capabilities },
+    spec: {
+      ...(spec as unknown as Record<string, unknown>),
+      capabilities,
+      limits,
+    },
     prose: body,
   };
 }

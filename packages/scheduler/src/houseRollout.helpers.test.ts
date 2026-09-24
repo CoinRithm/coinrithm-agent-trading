@@ -7,9 +7,14 @@ import type { Pool, PoolClient } from "pg";
 vi.mock("@coinrithm/mcp-trading/engine", () => ({
   loadAgent: vi.fn((path: string) => {
     if (path === "with-caps")
-      return { spec: { capabilities: ["news", "indicators"] }, body: "p" };
-    if (path === "bad-caps") return { spec: { capabilities: "x" }, body: "p" };
-    return { spec: {}, body: "prose only" };
+      return {
+        spec: { capabilities: ["news", "indicators"] },
+        body: "p",
+        raw: {},
+      };
+    if (path === "bad-caps")
+      return { spec: { capabilities: "x" }, body: "p", raw: {} };
+    return { spec: {}, body: "prose only", raw: {} };
   }),
 }));
 
