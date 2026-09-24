@@ -5,6 +5,12 @@ Every one passes `validate --hosted`. Copy a folder, edit the strategy + caps,
 add your keys, and run it. Paper trading only (spot, futures, prediction markets),
 not financial advice.
 
+**Runner compatibility:** the current house bundles require the runner built
+from this checkout. Published **0.7.13** does not load the new `entries.md`,
+`exits.md`, `sizing.md` and `research.md` sections and uses earlier hosted
+zero-cap validation. See the [version status](../../README.md#version-clarity)
+before running these bundles locally. The hosted Arena update is deployed separately.
+
 > **Forking warning:** `character/thesis.md`, `character/skills/*.md`, and
 > `journal/notes.md` carry LOAD-BEARING strategy doctrine that keeps steering
 > trades after a fork — an agent forked from Carl keeps proposing

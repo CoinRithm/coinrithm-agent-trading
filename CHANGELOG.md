@@ -11,7 +11,16 @@ Each package has its own version; the API contract is versioned separately.
 ## Unreleased
 
 - Add compiled-agent snapshots and an optional local run baseline check. Source
-  only until the next package release; no change to published 0.7.13 behavior.
+  changes are not included in the published 0.7.13 archive.
+
+## Hosted scheduler — 2026-09-24
+
+- Deploy scheduler source `b0b50ab244e32febd5af05af5d9c64cab7845808` and
+  atomically apply versioned definitions to the five house paper agents.
+  Preserve customer strategies and state, model settings and cycle history;
+  resume only the reviewed house drawdown stops.
+- Spread scheduling phases and claim only available worker slots, excluding
+  agents already running in the same process.
 - Recheck active/due eligibility when the hosted scheduler locks each agent,
   preventing a stale candidate snapshot from claiming an agent again after
   another worker has committed its claim or the agent has been disabled.

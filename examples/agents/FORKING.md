@@ -9,6 +9,10 @@ until it is REPLACED, not edited around.
 
 ## The file map
 
+The four strategy-section files below require the unreleased runner source;
+published **0.7.13** does not load them. Check the
+[bundle compatibility note](./README.md) before running a current house fork locally.
+
 | File | Carries | On fork |
 | --- | --- | --- |
 | `character/thesis.md` | **STRATEGY DOCTRINE** — the edge, regime, cycle, skip rules. Merged into the system prompt. | Rewrite wholesale if your edge differs. |
