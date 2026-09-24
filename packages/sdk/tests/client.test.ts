@@ -14,6 +14,7 @@ describe("TypeScript SDK request contract", () => {
       stakeMusd: 25,
       forecastProbability: 42,
       bankrollMusd: 1000,
+      minEntryProbabilityPct: 0.125,
     };
     const response: components["schemas"]["PmQuoteResponse"] = {
       entryProbability: 40,
@@ -36,6 +37,82 @@ describe("TypeScript SDK request contract", () => {
     };
     expect(response.edgeSizing?.suggestedStakeMusd).toBeNull();
     expect(open.thesis).toBe("Inflation cools");
+    expect(request.minEntryProbabilityPct).toBe(0.125);
+
+    const omitted: components["schemas"]["PmQuoteRequest"] = {
+      source: "kalshi",
+      slug: "fixture",
+      outcomeExternalMarketId: "yes",
+      side: "yes",
+      stakeMusd: 25,
+    };
+    expect(omitted.minEntryProbabilityPct).toBeUndefined();
+
+    const zero: components["schemas"]["PmOpenRequest"] = {
+      source: "kalshi",
+      slug: "fixture",
+      outcomeExternalMarketId: "yes",
+      side: "yes",
+      stakeMusd: 25,
+      idempotencyKey: "fixture-zero",
+      minEntryProbabilityPct: 0,
+    };
+    expect(zero.minEntryProbabilityPct).toBe(0);
+  });
+
+  it("serializes the optional PM entry floor without dropping zero", async () => {
+    const transport = vi.fn<typeof fetch>().mockImplementation(
+      async () =>
+        new Response("{}", {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+    );
+    const client = createClient({ apiKey: "fixture", fetch: transport });
+
+    await client.POST("/api/agent/pm/quote", {
+      body: {
+        source: "kalshi",
+        slug: "fixture",
+        outcomeExternalMarketId: "yes",
+        side: "yes",
+        stakeMusd: 10,
+      },
+    });
+    await client.POST("/api/agent/pm/quote", {
+      body: {
+        source: "kalshi",
+        slug: "fixture",
+        outcomeExternalMarketId: "yes",
+        side: "yes",
+        stakeMusd: 10,
+        minEntryProbabilityPct: 0,
+      },
+    });
+    await client.POST("/api/agent/pm/open", {
+      body: {
+        source: "kalshi",
+        slug: "fixture",
+        outcomeExternalMarketId: "yes",
+        side: "yes",
+        stakeMusd: 10,
+        idempotencyKey: "fixture-floor",
+        minEntryProbabilityPct: 12.5,
+      },
+    });
+
+    expect(transport).toHaveBeenCalledTimes(3);
+    expect(
+      await (transport.mock.calls[0][0] as Request).json(),
+    ).not.toHaveProperty("minEntryProbabilityPct");
+    expect(await (transport.mock.calls[1][0] as Request).json()).toHaveProperty(
+      "minEntryProbabilityPct",
+      0,
+    );
+    expect(await (transport.mock.calls[2][0] as Request).json()).toHaveProperty(
+      "minEntryProbabilityPct",
+      12.5,
+    );
   });
 
   it("exposes prediction-market lifecycle, prior quote, and winner fields", () => {

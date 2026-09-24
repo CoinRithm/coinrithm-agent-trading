@@ -31,6 +31,9 @@ class PmQuoteRequest:
         forecast_probability (float | Unset): Optional own probability that the chosen side wins (0-100 exclusive). Used
             only for advisory edge sizing; never changes stakeMusd.
         bankroll_musd (float | Unset): Optional bankroll in mUSD for the advisory suggested stake.
+        min_entry_probability_pct (float | Unset): Optional finite minimum chosen-side entry probability in percentage
+            points before fees (0-100 inclusive). When present, the fresh quote must meet this configured risk floor;
+            omitted preserves prior behavior.
         agent_trace (AgentTraceMetadata | Unset): Optional private trace metadata supplied by a user-run agent.
             CoinRithm
             stores only this structured summary; do not send chain-of-thought,
@@ -44,6 +47,7 @@ class PmQuoteRequest:
     side: PmQuoteRequestSide | Unset = PmQuoteRequestSide.YES
     forecast_probability: float | Unset = UNSET
     bankroll_musd: float | Unset = UNSET
+    min_entry_probability_pct: float | Unset = UNSET
     agent_trace: AgentTraceMetadata | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -63,6 +67,8 @@ class PmQuoteRequest:
         forecast_probability = self.forecast_probability
 
         bankroll_musd = self.bankroll_musd
+
+        min_entry_probability_pct = self.min_entry_probability_pct
 
         agent_trace: dict[str, Any] | Unset = UNSET
         if not isinstance(self.agent_trace, Unset):
@@ -84,6 +90,8 @@ class PmQuoteRequest:
             field_dict["forecastProbability"] = forecast_probability
         if bankroll_musd is not UNSET:
             field_dict["bankrollMusd"] = bankroll_musd
+        if min_entry_probability_pct is not UNSET:
+            field_dict["minEntryProbabilityPct"] = min_entry_probability_pct
         if agent_trace is not UNSET:
             field_dict["agentTrace"] = agent_trace
 
@@ -113,6 +121,8 @@ class PmQuoteRequest:
 
         bankroll_musd = d.pop("bankrollMusd", UNSET)
 
+        min_entry_probability_pct = d.pop("minEntryProbabilityPct", UNSET)
+
         _agent_trace = d.pop("agentTrace", UNSET)
         agent_trace: AgentTraceMetadata | Unset
         if isinstance(_agent_trace, Unset):
@@ -128,6 +138,7 @@ class PmQuoteRequest:
             side=side,
             forecast_probability=forecast_probability,
             bankroll_musd=bankroll_musd,
+            min_entry_probability_pct=min_entry_probability_pct,
             agent_trace=agent_trace,
         )
 

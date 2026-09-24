@@ -9,6 +9,12 @@ OpenAPI contract that drives the hosted MCP at `mcp.coinrithm.com`.
   CoinRithm API key (`crk_live_…`), sent as a bearer token.
 - The API is paper-only: no real funds ever move.
 
+## Unreleased
+
+- PM quote and open requests accept optional `min_entry_probability_pct`, a
+  chosen-side entry probability floor in percentage points before fees. It is
+  omitted by default; `0` is a valid explicit value.
+
 Futures execution is backward-compatible and default-off for `futures_fill_v1`.
 When enabled, a new open pins the model; adds and user closes follow the
 existing position's pinned model, with modeled adverse costs embedded in the

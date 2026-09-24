@@ -14,9 +14,19 @@ def test_pm_quote_optional_advisory_fields_round_trip() -> None:
         side=PmQuoteRequestSide.NO,
         forecast_probability=42,
         bankroll_musd=1000,
+        min_entry_probability_pct=0.125,
     )
     assert request.to_dict()["forecastProbability"] == 42
     assert request.to_dict()["bankrollMusd"] == 1000
+    assert request.to_dict()["minEntryProbabilityPct"] == 0.125
+
+    omitted = PmQuoteRequest(
+        source="kalshi",
+        slug="fixture",
+        outcome_external_market_id="yes",
+        stake_musd=25,
+    )
+    assert "minEntryProbabilityPct" not in omitted.to_dict()
 
     response = PmQuoteResponse.from_dict(
         {
@@ -43,9 +53,11 @@ def test_pm_open_thesis_and_forecast_are_optional() -> None:
         idempotency_key="fixture-1",
         forecast_probability=42,
         thesis="Inflation cools",
+        min_entry_probability_pct=0,
     )
     assert request.to_dict()["forecastProbability"] == 42
     assert request.to_dict()["thesis"] == "Inflation cools"
+    assert request.to_dict()["minEntryProbabilityPct"] == 0
     assert "thesis" not in PmOpenRequest(
         source="kalshi",
         slug="fixture",

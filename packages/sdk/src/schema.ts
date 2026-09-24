@@ -1307,7 +1307,10 @@ export interface paths {
          * @description Never mutates state. Returns entry probability, share estimate, max
          *     payout, eligibility, and freshness for a binary market outcome. Pass
          *     `side: "no"` to quote backing the NO side (default is yes). Requires
-         *     scope `read`. `stakeMusd` must be > 0 (min to OPEN is 10).
+         *     scope `read`. `stakeMusd` must be > 0 (min to OPEN is 10). An optional
+         *     `minEntryProbabilityPct` applies a configured risk floor to the fresh
+         *     chosen-side quote; it is a finite probability in percentage points
+         *     before fees, with no default. Invalid values return 400.
          */
         post: operations["pmQuote"];
         delete?: never;
@@ -1486,7 +1489,12 @@ export interface paths {
          * @description Requires scope `trade:pm`. Enabled now (server-flag gated — returns 403
          *     "PM mock trading is not enabled" only if later disabled). Binary outcomes
          *     only; pass `side: "no"` to back the NO side (default yes).
-         *     `idempotencyKey` is REQUIRED. `stakeMusd` must be >= 10.
+         *     `idempotencyKey` is REQUIRED. `stakeMusd` must be >= 10. An optional
+         *     `minEntryProbabilityPct` is a finite chosen-side entry probability
+         *     floor in percentage points before fees (0-100 inclusive). The server
+         *     rechecks it against a fresh quote inside the entry transaction before
+         *     inserting the wallet transfer or position; invalid values return 400
+         *     and a failed check returns 422 `mock_entry_blocked`.
          */
         post: operations["openPmPosition"];
         delete?: never;
@@ -3825,16 +3833,19 @@ export interface components {
             forecastProbability?: number;
             /** @description Optional bankroll in mUSD for the advisory suggested stake. */
             bankrollMusd?: number;
+            /** @description Optional finite minimum chosen-side entry probability in percentage points before fees (0-100 inclusive). When present, the fresh quote must meet this configured risk floor; omitted preserves prior behavior. */
+            minEntryProbabilityPct?: number;
             agentTrace?: components["schemas"]["AgentTraceMetadata"];
         };
         PmQuoteResponse: {
             eligible?: boolean;
+            /** @description Eligibility reason codes, including entry_below_floor when the optional minimum entry probability is not met and entry_price_unavailable when the quoted probability is unusable. */
             blockReasons?: string[];
             /** @example outcome_probability */
             fillBasis?: string;
             /** @enum {string} */
             side?: "yes" | "no";
-            /** @description 0..100 */
+            /** @description Fresh chosen-side entry probability in percentage points (0-100), or null when unavailable; this is the value checked against minEntryProbabilityPct. */
             entryProbability?: number | null;
             sharesEstimate?: number | null;
             maxPayout?: number | null;
@@ -3889,6 +3900,8 @@ export interface components {
             idempotencyKey: string;
             /** @description Optional own probability that the chosen side wins (0-100 exclusive). */
             forecastProbability?: number;
+            /** @description Optional finite minimum chosen-side entry probability in percentage points before fees (0-100 inclusive); omitted preserves prior behavior. */
+            minEntryProbabilityPct?: number;
             /** @description Optional one-line decision thesis. */
             thesis?: string;
             agentTrace?: components["schemas"]["AgentTraceMetadata"];
