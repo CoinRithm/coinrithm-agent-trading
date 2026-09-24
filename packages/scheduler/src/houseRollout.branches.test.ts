@@ -166,7 +166,7 @@ describe("house rollout: remaining branches", () => {
   it("applies a resume-only plan: no revision, no spec write, just the resume", async () => {
     const stopped = base({
       status: "disabled",
-      disabled_reason: "drawdown 12 >= 10",
+      disabled_reason: "drawdown 12.00 >= 10",
     });
     const d = db({ rows: [stopped] });
     const result = await runHouseRollout(

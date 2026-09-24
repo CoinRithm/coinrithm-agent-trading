@@ -179,7 +179,7 @@ describe("house rollout helpers", () => {
       reasons: ["a cycle was recorded 5 s ago (window 360 s)"],
     });
     expect(withBoth.message).toBe(
-      "house rollout rejected: mia-trend-rider (x), scheduler not quiescent (a cycle was recorded 5 s ago (window 360 s))",
+      "house rollout rejected: mia-trend-rider (x), database activity markers present (a cycle was recorded 5 s ago (window 360 s))",
     );
     const entriesOnly = new HouseRolloutRejected([
       entry({ decision: "apply", reasons: [] }),
