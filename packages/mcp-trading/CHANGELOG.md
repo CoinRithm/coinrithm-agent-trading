@@ -7,6 +7,9 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
 ## Unreleased
 
+- Preflight futures protection updates against observed side, mark and liquidation
+  prices, including retained triggers. Reject known invalid end-states with an
+  actionable reason before a write; the API remains authoritative as prices move.
 - Retain candle timestamps and compact coverage/interval evidence alongside
   indicators, separately from market-price freshness. Missing timestamps stay
   unknown; nominal five-minute cadence does not imply current or regular bars.

@@ -162,6 +162,74 @@ function deps(
 }
 
 describe("runner lifecycle and failure boundaries", () => {
+  it.each([false, true])(
+    "checks observed short protection before execution (mark moves after validation: %s)",
+    async (markMoved) => {
+      const client = baseClient({
+        futuresPositions: async () =>
+          okData({
+            positions: [
+              {
+                id: 7,
+                status: "open",
+                side: "short",
+                symbol: "BTC",
+                entryPrice: 86000,
+                markPrice: 85000,
+                liquidationPrice: 100000,
+                stopLossPrice: 88000,
+                takeProfitPrice: 80500,
+                marginMusd: 50,
+              },
+            ],
+          }),
+        setFuturesSlTp: vi.fn(async () => ({
+          ok: false,
+          status: 422,
+          data: {
+            error: "sl_tp_invalid",
+            blockReasons: ["stop_loss_not_above_mark"],
+          },
+        })),
+      });
+      const d = deps(
+        { live: true },
+        client,
+        provider({
+          decision: "act",
+          actions: [
+            {
+              type: "futures_set_sltp",
+              positionId: 7,
+              stopLossPrice: markMoved ? 85500 : 84100,
+              takeProfitPrice: 80500,
+            },
+          ],
+        }),
+      );
+      const result = await runCycle(d);
+      expect(result.writeAttempted).toBe(1);
+      expect(result.writeAccepted).toBe(markMoved ? 1 : 0);
+      if (markMoved) {
+        expect(client.setFuturesSlTp).toHaveBeenCalledTimes(1);
+        expect(result.planned[0]).toMatchObject({
+          accepted: true,
+          executed: false,
+          result: { error: "sl_tp_invalid" },
+        });
+      } else {
+        expect(client.setFuturesSlTp).not.toHaveBeenCalled();
+        expect(result.planned[0]).toMatchObject({
+          accepted: false,
+          code: "stop_loss_not_above_mark",
+          reason: expect.stringContaining("observed mark 85000"),
+        });
+      }
+      expect(d.state.writesToday).toBe(0);
+      expect(d.state.journal ?? []).toEqual([]);
+    },
+  );
+
   it("does not send an otherwise valid opening when the explicit entry predicate fails", async () => {
     const client = baseClient({
       trades: async () =>

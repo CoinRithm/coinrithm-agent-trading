@@ -453,6 +453,128 @@ describe("validateAction", () => {
     ).toBe("sltp_no_op");
   });
 
+  describe("stop updates against the observed position", () => {
+    function protectionContext(side: "long" | "short") {
+      return ctx({
+        observation: {
+          ...observation,
+          openPositions: [
+            {
+              venue: "futures",
+              id: 7,
+              side,
+              markPrice: 100,
+              entryPrice: side === "long" ? 80 : 120,
+              liquidationPrice: side === "long" ? 60 : 140,
+              stopLossPrice: side === "long" ? 90 : 110,
+              takeProfitPrice: side === "long" ? 130 : 70,
+            },
+          ],
+        },
+      });
+    }
+    it.each([
+      ["short", "stopLossPrice", 99, "stop_loss_not_above_mark"],
+      ["short", "stopLossPrice", 100, "stop_loss_not_above_mark"],
+      ["short", "stopLossPrice", 100 + 5e-9, "stop_loss_not_above_mark"],
+      ["long", "stopLossPrice", 101, "stop_loss_not_below_mark"],
+      ["long", "stopLossPrice", 100 - 5e-9, "stop_loss_not_below_mark"],
+      ["short", "stopLossPrice", 140 - 5e-9, "stop_loss_not_below_liquidation"],
+      ["long", "stopLossPrice", 60 + 5e-9, "stop_loss_not_above_liquidation"],
+      ["long", "takeProfitPrice", 100 + 5e-9, "take_profit_not_above_mark"],
+      ["short", "takeProfitPrice", 100 - 5e-9, "take_profit_not_below_mark"],
+      ["long", "stopLossPrice", 0, "invalid_stop_loss_price"],
+      ["short", "takeProfitPrice", -1, "invalid_take_profit_price"],
+    ] as const)("rejects %s %s=%s as %s", (side, field, value, code) => {
+      const action: ProposedAction = {
+        type: "futures_set_sltp",
+        positionId: 7,
+        stopLossPrice: side === "long" ? 90 : 110,
+        takeProfitPrice: side === "long" ? 130 : 70,
+        [field]: value,
+      };
+      const result = validateAction(action, protectionContext(side));
+      expect(result).toMatchObject({ valid: false, code });
+      expect(result.reason).toContain("position 7");
+    });
+    it.each(["long", "short"] as const)(
+      "allows a profitable %s trailing stop using mark, not entry",
+      (side) => {
+        expect(
+          validateAction(
+            {
+              type: "futures_set_sltp",
+              positionId: 7,
+              stopLossPrice: side === "long" ? 95 : 105,
+            },
+            protectionContext(side),
+          ).valid,
+        ).toBe(true);
+      },
+    );
+    it.each([undefined, null])(
+      "validates a retained stop when the action passes %s",
+      (stopLossPrice) => {
+        const current = protectionContext("short");
+        current.observation.openPositions[0].stopLossPrice = 99;
+        expect(
+          validateAction(
+            {
+              type: "futures_set_sltp",
+              positionId: 7,
+              stopLossPrice,
+              takeProfitPrice: 80,
+            },
+            current,
+          ).code,
+        ).toBe("stop_loss_not_above_mark");
+      },
+    );
+    it("validates a retained target as part of the requested end-state", () => {
+      const current = protectionContext("long");
+      current.observation.openPositions[0].takeProfitPrice = 99;
+      expect(
+        validateAction(
+          {
+            type: "futures_set_sltp",
+            positionId: 7,
+            stopLossPrice: 95,
+          },
+          current,
+        ).code,
+      ).toBe("take_profit_not_above_mark");
+    });
+    it("defers unavailable price/side comparisons to the API without blocking legacy protection", () => {
+      expect(
+        validateAction(
+          {
+            type: "futures_set_sltp",
+            positionId: 7,
+            stopLossPrice: 95,
+          },
+          ctx({ observation: obsWithPos }),
+        ).valid,
+      ).toBe(true);
+    });
+    it("keeps known mark checks when liquidation is missing and never applies them to closes", () => {
+      const current = protectionContext("short");
+      current.observation.openPositions[0].liquidationPrice = undefined;
+      expect(
+        validateAction(
+          {
+            type: "futures_set_sltp",
+            positionId: 7,
+            stopLossPrice: 99,
+          },
+          current,
+        ).code,
+      ).toBe("stop_loss_not_above_mark");
+      expect(
+        validateAction({ type: "futures_close", positionId: 7 }, current).valid,
+      ).toBe(true);
+    });
+  });
+
   it("rejects acting on the same position twice in one cycle", () => {
     expect(
       validateAction(
