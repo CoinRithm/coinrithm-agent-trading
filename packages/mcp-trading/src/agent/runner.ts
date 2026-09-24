@@ -531,6 +531,14 @@ async function runCycleCore(
   const provenance = buildRunnerProvenance(spec);
   state.cyclesRun += 1;
   rollDay(state);
+  // Old state did not identify which route failed. Carrying that count into
+  // a replacement model can request a hold on its very first error.
+  if (
+    state.consecutivePermanentModelErrors &&
+    !state.permanentModelErrorRoute
+  ) {
+    state.consecutivePermanentModelErrors = 0;
+  }
   const runId = state.runId;
   const decisionId = makeDecisionId(state.cyclesRun);
   const captureBase = { runId, decisionId, spec, mergedProse, state };
@@ -919,16 +927,23 @@ async function runCycleCore(
       // for what deserves them: revoked credentials, drawdown, kill-switch,
       // user action. Transient errors reset the permanent streak.
       if (isPermanentModelError(res.error)) {
+        const failureRoute = {
+          provider: route?.effectiveProvider ?? providerName,
+          model: route?.effectiveModel ?? spec.model?.name ?? "unknown",
+        };
+        const previousRoute = state.permanentModelErrorRoute;
+        const sameRoute =
+          previousRoute?.provider === failureRoute.provider &&
+          previousRoute?.model === failureRoute.model;
         state.consecutivePermanentModelErrors =
-          (state.consecutivePermanentModelErrors ?? 0) + 1;
+          (sameRoute ? (state.consecutivePermanentModelErrors ?? 0) : 0) + 1;
+        state.permanentModelErrorRoute = failureRoute;
         if (
           state.consecutivePermanentModelErrors >=
           PERMANENT_MODEL_ERROR_THRESHOLD
         ) {
           const hold = {
-            provider:
-              route?.effectiveProvider ?? spec.model?.provider ?? "unknown",
-            model: route?.effectiveModel ?? spec.model?.name ?? "unknown",
+            ...failureRoute,
             error: res.error.slice(0, 200),
           };
           saveState(stateFile, state);
@@ -951,6 +966,7 @@ async function runCycleCore(
         }
       } else {
         state.consecutivePermanentModelErrors = 0;
+        delete state.permanentModelErrorRoute;
       }
       saveState(stateFile, state);
       log(`model error: ${res.error}`);
@@ -967,6 +983,10 @@ async function runCycleCore(
         ...observationReceipt,
       };
     }
+    // A returned model response proves availability even if its decision JSON
+    // is invalid. Output validation keeps its own failure counter below.
+    state.consecutivePermanentModelErrors = 0;
+    delete state.permanentModelErrorRoute;
     const parsed = parseDecision(res.text);
     if (!parsed.ok) {
       state.consecutiveModelFailures += 1;
@@ -989,7 +1009,6 @@ async function runCycleCore(
       };
     }
     state.consecutiveModelFailures = 0;
-    state.consecutivePermanentModelErrors = 0;
     decision = parsed.decision;
   }
   // Reasoning captured for the Arena terminal (keystone transparency): the

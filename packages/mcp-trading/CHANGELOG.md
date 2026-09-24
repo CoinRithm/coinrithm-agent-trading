@@ -7,6 +7,11 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
 ## Unreleased
 
+- Scope permanent model-error streaks to the attempted provider/model. Discard
+  legacy unattributed streaks and reset availability failures on a successful
+  provider response, including malformed decisions. Old-route failures cannot
+  request an early hold on a replacement model; agent risk limits are unchanged.
+
 - Preflight futures protection updates against observed side, mark and liquidation
   prices, including retained triggers. Reject known invalid end-states with an
   actionable reason before a write; the API remains authoritative as prices move.

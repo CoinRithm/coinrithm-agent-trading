@@ -1404,6 +1404,128 @@ describe("runCycle private input evidence", () => {
   });
 });
 
+describe("permanent model failures belong to their attempted route", () => {
+  it.each([
+    undefined,
+    { provider: "groq", model: "replacement-model" },
+    { provider: "nvidia", model: "retired-model" },
+  ])(
+    "does not charge an old or unattributed streak to a replacement route: %j",
+    async (oldRoute) => {
+      const d = deps({}, baseClient(), {
+        label: "replacement",
+        decide: async () => ({ ok: false, error: "HTTP 404 model_not_found" }),
+      });
+      d.spec.model = { provider: "nvidia", name: "replacement-model" };
+      d.state.consecutivePermanentModelErrors = 3;
+      d.state.permanentModelErrorRoute = oldRoute;
+
+      for (let count = 1; count <= 3; count++) {
+        const result = await runCycle(d);
+        expect(d.state.consecutivePermanentModelErrors).toBe(count);
+        expect(d.state.permanentModelErrorRoute).toEqual({
+          provider: "nvidia",
+          model: "replacement-model",
+        });
+        expect(d.state.disabled).toBe(false);
+        if (count < 3) expect(result.providerHold).toBeUndefined();
+        else
+          expect(result.providerHold).toMatchObject({
+            provider: "nvidia",
+            model: "replacement-model",
+          });
+      }
+    },
+  );
+
+  it("attributes a failed fallback to its effective route rather than the configured model", async () => {
+    const d = deps({}, baseClient(), {
+      label: "router",
+      decide: async () => ({
+        ok: false,
+        error: "HTTP 404 model_not_found",
+        route: {
+          policyVersion: "test",
+          profile: "fast",
+          reason: "capacity_fallback",
+          effectiveProvider: "nvidia",
+          effectiveModel: "fallback-model",
+          attempts: [
+            {
+              provider: "nvidia",
+              model: "fallback-model",
+              outcome: "failed",
+              failureClass: "permanent",
+              latencyMs: 1,
+            },
+          ],
+        },
+      }),
+    });
+    d.spec.model = { provider: "groq", name: "retired-model" };
+    d.state.consecutivePermanentModelErrors = 3;
+    d.state.permanentModelErrorRoute = {
+      provider: "groq",
+      model: "retired-model",
+    };
+    const result = await runCycle(d);
+    expect(result.providerHold).toBeUndefined();
+    expect(d.state.consecutivePermanentModelErrors).toBe(1);
+    expect(d.state.permanentModelErrorRoute).toEqual({
+      provider: "nvidia",
+      model: "fallback-model",
+    });
+  });
+
+  it("ends an availability-error streak even when a successful response has invalid decision JSON", async () => {
+    const d = deps({}, baseClient(), {
+      label: "responding",
+      decide: async () => ({ ok: true, text: "not a decision" }),
+    });
+    d.spec.model = { provider: "nvidia", name: "available-model" };
+    d.state.consecutivePermanentModelErrors = 2;
+    d.state.permanentModelErrorRoute = {
+      provider: "nvidia",
+      model: "available-model",
+    };
+    const result = await runCycle(d);
+    expect(result).toMatchObject({
+      decisionType: "model_error",
+      modelFailed: true,
+    });
+    expect(d.state.consecutiveModelFailures).toBe(1);
+    expect(d.state.consecutivePermanentModelErrors).toBe(0);
+    expect(d.state.permanentModelErrorRoute).toBeUndefined();
+    expect(result.providerHold).toBeUndefined();
+    expect(d.state.disabled).toBe(false);
+
+    d.provider = {
+      label: "failed",
+      decide: async () => ({ ok: false, error: "HTTP 410 model unavailable" }),
+    };
+    expect((await runCycle(d)).providerHold).toBeUndefined();
+    expect(d.state.consecutivePermanentModelErrors).toBe(1);
+  });
+
+  it("clears an unattributed legacy count even when the cycle makes no provider call", async () => {
+    const d = deps({}, baseClient(), {
+      label: "local-capacity",
+      decide: async () => ({
+        ok: false,
+        deferred: true,
+        error: "capacity unavailable",
+      }),
+    });
+    d.state.consecutivePermanentModelErrors = 3;
+    d.state.consecutiveModelFailures = 2;
+    const result = await runCycle(d);
+    expect(result.llmCallMade).toBe(false);
+    expect(d.state.consecutivePermanentModelErrors).toBe(0);
+    expect(d.state.consecutiveModelFailures).toBe(2);
+    expect(d.state.disabled).toBe(false);
+  });
+});
+
 describe("runCycle", () => {
   it("does not consume debounce or model-failure state when every route is capacity-deferred", async () => {
     const deferred: Provider = {
@@ -1521,6 +1643,10 @@ describe("runCycle", () => {
       d.spec.killSwitch.maxConsecutiveModelFailures = 15;
       d.state.consecutiveModelFailures = 14;
       d.state.consecutivePermanentModelErrors = 2;
+      d.state.permanentModelErrorRoute = {
+        provider: d.spec.model.provider,
+        model: d.spec.model.name!,
+      };
 
       for (let cycle = 0; cycle < 2; cycle++) {
         const result = await runCycle(d);
@@ -1606,6 +1732,10 @@ describe("runCycle", () => {
         fetchFn,
       );
       d.state.consecutivePermanentModelErrors = 2;
+      d.state.permanentModelErrorRoute = {
+        provider: d.spec.model.provider,
+        model: d.spec.model.name!,
+      };
       const result = await runCycle(d);
       expect(result).toMatchObject({
         decision: "skip",
