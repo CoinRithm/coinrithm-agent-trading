@@ -39,6 +39,13 @@ registry verification is recorded here after the upload.
 
 ## Hosted scheduler — 2026-09-24
 
+- Deploy source `c374e782a87d01ee3b7a2fbff304ac6e6edb7123` to the scheduler
+  (2672) and hosted MCP (2673). Both use the 0.7.14 engine; the scheduler health
+  check and MCP health, initialization, public-data and missing-key checks pass,
+  with zero restarts at verification. Casa remains active with its strategy,
+  model and key preserved. The mixed-route failure regression is covered by
+  tests; no provider failures were injected into production. npm/PyPI publication
+  remains pending separately.
 - Move shared, unpinned user agents that are active or stopped as
   `model_unavailable`, and whose owner-matched CoinRithm key exists and is not
   revoked, off the obsolete hosted Groq route onto the living NVIDIA models at
