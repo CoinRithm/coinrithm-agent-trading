@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-09-24 - v2: evidence-led trend rules, honest sizing, no permanent stop
+
+Evidence, read-only from production on 2026-09-24:
+- 08-20 to 09-11: discovered coins ranked outside the top 100 lost 7,643 mUSD over 38 trades, including 4 liquidations (-6,314) when SWEAT and PYR prices jumped about 40% through the stops. Stored hourly prices show SWEAT flipping between two levels (0.000331 and 0.00056), so the "breakouts" were feed flips on thin coins. Top-100 discoveries made +1,332; watchlist trades +74 over 102. The drawdown switch (6,000) then disabled her on 09-11.
+- The old "short vs medium momentum" read compared 100-minute and 250-minute EMAs, a noise-level horizon. Crypto momentum lives at one to four weeks (Liu and Tsyvinski 2021).
+- The persona's conviction-sizing ladder was dead text: `capitalSizing` replaces proposed margins, and the runner prompt says so.
+
+Changes:
+- Regime: change7d (3% dial) + change24h + EMA stack. Entry: within 1 x atr14 of EMA20. Stop: at least 12 x atr14 (about one day's move). Target 2.5R, trail after 1 D.
+- Model instruction (not runner-enforced): discovered coins need top-100 rank and 50M of 24h volume. Model instruction: a held coin is managed, never re-opened with SL/TP (the class behind most `add_cannot_carry_sltp` rejects fleet-wide).
+- capitalSizing: futuresRiskPct 0.75 -> 1, pmMaxLossPct 2 -> 1, perTicketCapitalPct 6 -> 12, totalCapitalPct 40 -> 50, minRewardRisk 1.5 -> 2.
+- risk: maxLeverage 5 -> 4 (matches live), perTradeMarginMusd 2000 -> 6000 (12% of 50,000). limits: maxWritesPerCycle 1 -> 2, maxDailyLossMusd 3000 -> 0 (off), maxOpenMarginMusd 8000 -> 24000.
+- killSwitch: maxDrawdownMusd 6000 -> 0 (off), onRateLimitPressure true -> false. The model-failure switch stays at 15.
+- Prediction markets: crypto price markets priced from a zero-drift volatility baseline (at-close markets only; skip on missing ATR, stale data, an expired horizon or any path-dependent "hits X by" market); edge rule 16% of the gap to 100; no outcome under 20.
+- sizing.yaml is now notes only (the runner never read it); the four inactive abstention flags are gone; MCP pin 0.7.6 -> 0.7.13.
+- Merged hosted prose 8,087 -> 6,752 chars.
+- Layout: every rule now lives in the Studio sections character/entries.md, exits.md, sizing.md and research.md (loaded after persona since resolver #38); the tactic skills they replace were removed, so nothing is stated twice.
+- The evidence above is uncontrolled (configs, models and some price data changed over the period). v2 is an experiment the scorecard judges, not a proven fix.
+
 ## 2026-09-02 - conviction-scaled sizing, fundamentals capabilities
 
 - Owner feedback: the house fleet traded stakes too small to matter on a 50,000 mUSD
@@ -32,7 +51,6 @@ maxConsecutiveModelFailures 15. Earlier entries are preserved
 as history, not as current claims. Also today: the persona's Hard borders
 paragraph moved to character/guards.md (first-class guards file), and the
 functionality pin was bumped to MCP 0.7.6.
-
 
 ## 0.1.0 — initial
 

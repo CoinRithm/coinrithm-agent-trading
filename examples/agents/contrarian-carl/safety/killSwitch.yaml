@@ -1,4 +1,7 @@
-maxDrawdownMusd: 6000
-maxConsecutiveRejects: 0
-maxConsecutiveModelFailures: 15
-onRateLimitPressure: true
+# 0 = off for every number here. House agents rely on per-trade stops and
+# equity-fraction sizing instead of a permanent stop: position size shrinks with
+# equity, so a losing streak cuts risk on its own instead of parking the agent.
+maxDrawdownMusd: 0 # off; a positive value disables the agent until an operator revives it
+maxConsecutiveRejects: 0 # off
+maxConsecutiveModelFailures: 15 # kept: a broken model route pauses the agent (floor 10; auto-revived)
+onRateLimitPressure: false # off: 429s are shared-provider pressure, not an agent fault

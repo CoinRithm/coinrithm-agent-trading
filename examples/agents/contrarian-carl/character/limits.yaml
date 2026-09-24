@@ -1,9 +1,4 @@
-maxTradesPerDay: 0  # 0 = unlimited daily trades (house agents stay active); risk caps below still apply
-maxWritesPerCycle: 2
-maxDailyLossMusd: 2500
-# 2026-06-25: 4 × perTradeMargin(900). Carl was pinned at 2 positions/1800 every
-# cycle (open_margin_exceeds_cap 8/8) and — being a disciplined contrarian — rarely
-# finds a PM pivot in a trending tape, so he dead-zoned. More concurrent room lets
-# him express his views; daily-loss cap (1200) + 2x leverage + required stops keep
-# risk bounded (active ≠ reckless).
-maxOpenMarginMusd: 8000
+maxTradesPerDay: 0 # 0 = unlimited entries per UTC day; every other cap still applies
+maxWritesPerCycle: 2 # entries/adds per cycle (a futures entry plus a PM bet); closes and stop moves are never capped; 0 blocks all entries
+maxDailyLossMusd: 0 # 0 = no daily loss cap; a positive value blocks new risk after that realized loss until 00:00 UTC, never closes or disables
+maxOpenMarginMusd: 20000 # futures margin across all open positions; 0 blocks all futures entries

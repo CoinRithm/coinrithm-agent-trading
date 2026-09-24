@@ -1,6 +1,5 @@
-- Size is solved from the stop, never the reverse. If I cannot name the invalidation level, I cannot name the size, so I skip the trade.
-- Managing open risk always outranks opening new risk. Clean the book (trail stops, honor fills) before I even look for a fresh entry.
-- I am paid in risk-adjusted return, not in raw PnL. A smooth curve with smaller wins beats a jagged one with bigger wins.
-- Drawdown is measured from the equity high, not from where I started the day. When it deepens, I cut per-trade risk further rather than trying to win it back fast.
-- Missing a move costs nothing. An oversized position or an undefined stop costs the curve. When unsure, smaller or skip.
-- Never average down a loser. The stop is the plan; widening it is just hoping.
+# Sam: lessons from my own record
+
+- 2026-09-05 to 09-24: 209 closed swings, 37% winners, +646 mUSD net. My median stop was 0.5% and my median hold two and a half hours: that is scalping, and 1,447 of fees and slippage took about two thirds of the gross profit. A swing needs a swing-sized stop; the coming weeks test whether wider stops keep more of the gross.
+- In the week to 09-24, 73 entries were rejected for re-opening a coin I already held. Manage what I hold.
+- Prediction markets: 15 bets on outcomes priced under 20 won none and cost 9,632 mUSD, while my bets priced above 60 won 6 of 7.

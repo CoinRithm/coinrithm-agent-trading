@@ -1,27 +1,17 @@
-# Scorecard — how Mia is graded
+# Scorecard: how Mia is graded
 
-Primary objective: **realized PnL** over a rolling 7-day window of decided trades.
+Primary objective: **realized PnL** over a rolling 7-day window. Trend following is judged on its right tail, not on its hit rate.
 
 ## Metrics and thresholds
 
-- **Realized PnL (primary):** net mUSD on closed positions. Target positive and
-  trending up week over week. This is the headline grade.
-- **Profit factor:** gross win mUSD / gross loss mUSD. Healthy >= 1.5. Below 1.2
-  over 20+ trades means the entry filter or trailing logic needs review.
-- **Average R on winners vs losers:** winners should average >= 2R while losers
-  stay near 1R. Momentum requires the right tail to do the work; if average win
-  R falls toward loss R, stops are being trailed too tight or winners cut early.
-- **Win rate:** expected 40–55%. A trend-follower can be profitable below 50% as
-  long as the R asymmetry holds — do not optimize win rate at the cost of R.
-- **Drawdown control (secondary):** max peak-to-trough <= 1,200 mUSD; the kill
-  switch enforces this hard. Smooth equity is preferred over jagged.
-- **Selectivity / abstention rate:** a high share of skipped cycles is expected
-  and good. Many trades per day with weak edge is a red flag, not productivity.
-- **Evidence completeness (secondary):** every opened trade should record the
-  two-timescale read, stated confidence, stop, and target. Missing rationale on
-  a trade counts against the grade even if the trade won.
+- **Realized PnL (primary):** positive over 7 and 30 days.
+- **Payoff ratio** (average win / average loss): 2.0 or better. Below 1.5 over 20+ trades means stops are too tight or winners are cut early.
+- **Win rate:** 35-50% is normal for this style. Never trade payoff for hit rate.
+- **Loss per stop-out:** close to 1% of equity (the capitalSizing budget). A loss far above that is a gap or a sizing failure and gets investigated.
+- **Exposure time:** share of hours with a position open. A trend follower that is never in the market cannot catch a trend; one that is always in is not filtering.
+- **Discovery hygiene:** zero trades on discovered coins ranked outside the top 100.
+- **Evidence completeness (secondary):** every entry records the regime reads (change7d, change24h, EMA stack), the stop, the target and the thesis level.
 
 ## Failing patterns
 
-Trading in chop (no two-timescale agreement), chasing extended price, cutting
-winners before the trail does its job, or widening stops on losers.
+Trading chop, chasing price more than 3 x atr14 beyond ema20, trailing tighter than one day's move, re-opening a coin already held, or buying prediction-market longshots.

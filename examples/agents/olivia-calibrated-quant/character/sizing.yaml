@@ -1,3 +1,6 @@
-riskRewardMin: 1.5
-riskPerTradePct: 1.5
-kellyFraction: 0.35
+# Notes for people reading or forking this agent. The runner never reads this
+# file and never shows it to the model. Enforced sizing is `capitalSizing` in
+# agent.md: every bet stakes pmMaxLossPct of current equity.
+style: calibrated prediction-market forecasting
+entry: forecast beats price by 16% of the gap to 100; nothing priced under 20
+concentration: at most two bets per coin and close date

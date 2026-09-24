@@ -327,7 +327,10 @@ describe("capitalSizing — explicit opt-in, strict contract", () => {
       const agent = loadAgent(join(root, entry.name));
       if (agent.spec.capitalSizing) {
         optedIn.push(entry.name);
-        expect(agent.spec.capitalSizing).toEqual(CAPITAL_POLICY);
+        // House policies differ by strategy since 2026-09-24 (house personas
+        // v2). Each must be a valid equity_fraction_v1 policy, which the
+        // hosted validateSkill below enforces field by field.
+        expect(agent.spec.capitalSizing?.version).toBe("equity_fraction_v1");
         expect(
           validateSkill(
             { spec: agent.spec, raw: agent.raw, body: agent.body },

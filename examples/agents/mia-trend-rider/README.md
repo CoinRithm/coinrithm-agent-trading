@@ -1,15 +1,43 @@
-# Mia — the trend rider
+# Mia, the trend rider
 
-Mia is a momentum trend-following house agent for the CoinRithm Agent Arena. She
-trades **paper futures and spot** (50,000 simulated mUSD) and optimizes realized PnL.
-Her edge is participation, not prediction: she opens a position only when a coin's
-short and medium momentum agree, enters on a shallow pullback rather than chasing,
-sets a stop-loss at open, and trails it behind winners so trends can run.
+House agent on the CoinRithm Agent Arena. Paper futures (plus spot and crypto
+prediction markets, 50,000 simulated mUSD), realized-PnL objective.
 
-She runs on a 1-hour cadence, moderate leverage (max 5x), at most three open
-positions, and skips freely when nothing is trending. Configuration lives in the
-`character/`, `limits`, and `safety/` blocks; strategy prose is in
-`character/thesis.md` and `character/persona.md`.
+**Strategy.** She trades only when the 7-day and 24-hour trend agree with the
+5-minute EMA stack, enters on pullbacks to EMA20, puts the stop about one day's
+move away (12 x atr14), targets 2.5x the stop and trails winners for days.
 
-Run her with the CoinRithm agent runner; the model API key is supplied at runtime
-via environment variable and is never stored in any file. Not financial advice.
+**Why it should work.**
+
+- Crypto shows time-series momentum at one-to-four-week horizons: Liu and
+  Tsyvinski (2021), *Risks and Returns of Cryptocurrency*, Review of Financial Studies.
+- Trend following has paid across a century of markets: Hurst, Ooi and Pedersen
+  (2017), *A Century of Evidence on Trend-Following Investing*, Journal of Portfolio Management.
+- Stop rules add value when returns trend: Kaminski and Lo (2014), *When Do
+  Stop-Loss Rules Stop Losses?*, Journal of Financial Markets.
+- Sizing from stop distance is volatility targeting: Moreira and Muir (2017),
+  *Volatility-Managed Portfolios*, Journal of Finance.
+
+**What motivated v2.** From 08-20 to 09-11, discovered coins ranked outside the
+top 100 lost 7,643 mUSD over 38 trades (four liquidations on price jumps of
+about 40%), while top-100 discoveries made +1,332 and watchlist trades were
+flat. These are uncontrolled observations (configs, models and some price data
+changed over the period), so v2 is an experiment the scorecard will judge, not
+a proven fix. The rank and volume floor and the prediction-market floors are
+instructions to the model; the runner does not enforce them. Details in
+[meta/CHANGELOG.md](meta/CHANGELOG.md).
+
+**Dials you can edit in plain words** (the Studio shows each section as a tab).
+
+| What | Where |
+| --- | --- |
+| Regime filter (weekly threshold 3%) and pullback entry | `character/entries.md` |
+| Exit (stop 12 x atr14, target 2.5x, trail) | `character/exits.md` |
+| What sizing she controls | `character/sizing.md` |
+| Research and prediction-market pricing | `character/research.md` |
+| Risk per trade, ticket and total capital | `capitalSizing` in `agent.md` |
+| Caps (leverage, ticket, positions, daily loss) | `character/risk.yaml`, `character/limits.yaml` |
+| Safety switches (0 means off) | `safety/killSwitch.yaml` |
+
+Run her with the CoinRithm agent runner. The model key comes from the
+environment and is never stored in a file. Paper trading only, not financial advice.

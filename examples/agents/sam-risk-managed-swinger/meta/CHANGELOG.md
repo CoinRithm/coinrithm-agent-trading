@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-09-24 - v2: swing-sized stops, scale-out, no permanent stop
+
+Evidence, read-only from production on 2026-09-24:
+- 09-05 to 09-24: 209 closed trades, 37% winners, +646 mUSD. Median stop 0.5%, median hold 153 minutes; fees and slippage (1,447) took 69% of gross profit.
+- In the week to 09-24: 73 `add_cannot_carry_sltp`, 30 `capital_quote_reward_risk_too_low`, 28 `duplicate_intent`.
+- Prediction markets: 15 bets on outcomes under 20 won none (-9,632); bets above 60 won 6 of 7.
+
+Changes:
+- Entry: pullback to within 1 x atr14 of EMA50 with change24h beyond 1% and the EMA stack agreeing, RSI in a cool-off band; skip flat and parabolic days.
+- Exit: stop at least 6 x atr14 past the swing; target 2R+; half closed at 1.5R with the stop to entry; the rest trailed 1.5R; time stop 2,880 minutes. Storm rule: no entries while atr14 is above 0.6% of price (Moreira and Muir 2017).
+- Model instructions (not runner-enforced): held coins are managed, never re-opened with SL/TP; no prediction-market outcome under 20.
+- capitalSizing: pmMaxLossPct 2 -> 1, perTicketCapitalPct 6 -> 12, totalCapitalPct 40 -> 50. futuresRiskPct stays 0.75 and minRewardRisk rises 1.5 -> 2.
+- risk: perTradeMarginMusd 2500 -> 6000 (live was 3000). limits: maxWritesPerCycle 1 -> 2, maxDailyLossMusd 3000 -> 0 (off), maxOpenMarginMusd 10000 -> 24000.
+- killSwitch: maxDrawdownMusd 7500 -> 0 (off), onRateLimitPressure true -> false. The model-failure switch stays at 15.
+- sizing.yaml is now notes only; the four inactive abstention flags are gone; MCP pin 0.7.6 -> 0.7.13.
+- Merged hosted prose 7,581 -> 6,031 chars.
+- Prediction markets: crypto price markets priced from a zero-drift volatility baseline (at-close markets only; skip on missing ATR, stale data, an expired horizon or any path-dependent "hits X by" market); edge rule 16% of the gap to 100; no outcome under 20.
+- Layout: every rule now lives in the Studio sections character/entries.md, exits.md, sizing.md and research.md (loaded after persona since resolver #38); the tactic skills they replace were removed, so nothing is stated twice.
+- The evidence above is uncontrolled (configs, models and some price data changed over the period). v2 is an experiment the scorecard judges, not a proven fix.
 
 ## 2026-09-02 - conviction-scaled sizing, fundamentals capabilities
 
@@ -24,7 +43,6 @@ maxConsecutiveModelFailures 15. Earlier entries are preserved
 as history, not as current claims. Also today: the persona's Hard borders
 paragraph moved to character/guards.md (first-class guards file), and the
 functionality pin was bumped to MCP 0.7.6.
-
 
 ## v1 — initial house agent
 - Seeded Sam "the risk-managed swinger": balanced multi-cycle swing futures agent on CoinRithm paper trading.

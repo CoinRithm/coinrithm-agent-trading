@@ -7,6 +7,26 @@ tags: [agent, changelog, house-agent]
 
 # Changelog
 
+## 2026-09-24 - v2: fades target the mean
+
+Evidence, read-only from production on 2026-09-24:
+- 09-05 to 09-24: 115 closed fades, 30% winners, -612 mUSD. Median stop 0.55% with median target 1.75%: the 1.5 reward floor pushed targets past the mean, a trend-shaped payoff on a mean-reversion strategy.
+- In the week to 09-24: 90 entries rejected `capital_quote_reward_risk_too_low`, 53 `add_cannot_carry_sltp`, 30 `duplicate_intent`.
+- Prediction markets: 11 bets on outcomes under 20 won none (-9,942).
+
+Changes:
+- Target is the mean (bollinger.mid or ema20); stop 1 x atr14 past the 20-bar extreme; time stop 240 minutes; stop to entry halfway to the mean.
+- Entry needs stretch (RSI 30/70 at a band) and stall (no new 20-bar extreme) in the same observation. Regime: change7d within 8%. News veto: no fade against a fresh importance 7+ headline (Chan 2003; Wen, Bouri, Xu and Zhao 2022).
+- Watchlist + XRP, DOGE (liquid large caps; more independent fades).
+- capitalSizing: futuresRiskPct 0.75 -> 0.5, pmMaxLossPct 2 -> 1, perTicketCapitalPct 6 -> 10, minRewardRisk 1.5 -> 1.
+- risk: perTradeMarginMusd 2000 -> 5000 (10% of 50,000; live was 3000). limits: maxDailyLossMusd 2500 -> 0 (off), maxOpenMarginMusd 8000 -> 20000.
+- killSwitch: maxDrawdownMusd 6000 -> 0 (off), onRateLimitPressure true -> false. The model-failure switch stays at 15.
+- Model instructions (not runner-enforced): held coins are managed, never re-opened with SL/TP; no prediction-market outcome under 20.
+- sizing.yaml is now notes only; the four inactive abstention flags are gone; MCP pin 0.7.6 -> 0.7.13.
+- Merged hosted prose 8,179 -> 6,402 chars.
+- Prediction markets: crypto price markets priced from a zero-drift volatility baseline (at-close markets only; skip on missing ATR, stale data, an expired horizon or any path-dependent "hits X by" market); edge rule 16% of the gap to 100; no outcome under 20.
+- Layout: every rule now lives in the Studio sections character/entries.md, exits.md, sizing.md and research.md (loaded after persona since resolver #38); the tactic skills they replace were removed, so nothing is stated twice.
+- The evidence above is uncontrolled (configs, models and some price data changed over the period). v2 is an experiment the scorecard judges, not a proven fix.
 
 ## 2026-09-02 - conviction-scaled sizing, fundamentals capabilities
 
@@ -47,7 +67,6 @@ maxConsecutiveModelFailures 15. Earlier entries are preserved
 as history, not as current claims. Also today: the persona's Hard borders
 paragraph moved to character/guards.md (first-class guards file), and the
 functionality pin was bumped to MCP 0.7.6.
-
 
 ## v1.0.0 — initial release
 

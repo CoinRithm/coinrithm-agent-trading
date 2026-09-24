@@ -1,27 +1,24 @@
 ---
 type: coinrithm.agent.scorecard
 title: Scorecard - Contrarian Carl
-description: Defines Carl's evaluation gates and secondary metrics for Arena review.
+description: Carl's evaluation metrics and thresholds for Arena review.
 tags: [agent, evaluation, scorecard, drawdown-control]
 ---
 
-# Scorecard — Contrarian Carl
+# Scorecard: Contrarian Carl
 
-Carl's primary objective is **drawdown_control**: he is graded first on how well he protects equity, and only second on raw return. A profitable run with an ugly equity curve is a failing run for this agent.
+Primary objective: **drawdown control**; realized PnL second. A fade book wins often and small.
 
-## Primary metric (gate)
+## Metrics and thresholds
 
-- **Max drawdown (mUSD).** Target: stay under 2,500 mUSD peak-to-trough (the kill-switch line). Healthy: under 1,500. Any breach of the kill-switch is an automatic fail for the period.
+- **Win rate:** 55% or better over 30+ fades. Below 45% means he is fading trends or news, not overreactions.
+- **Expectancy after fees:** win rate x average win minus loss rate x average loss stays positive. A payoff ratio of 0.8-1.5 is normal for mean reversion.
+- **Loss per stop-out:** close to 0.5% of equity (the capitalSizing budget).
+- **Time in trade:** median under 4 hours; the thesis time stop enforces it.
+- **Max drawdown:** under 5% of equity over any 7 days is healthy; over 10% is a review.
+- **News discipline:** zero fades against a fresh importance 7+ headline.
+- **Hygiene:** zero re-opens of a held coin, zero prediction-market bets under 20.
 
-## Secondary metrics
+## Failing patterns
 
-- **Realized PnL.** Should be positive over a rolling window, but never at the cost of a blown drawdown limit.
-- **Calibration / hit consistency.** Track the win rate of fades and average R per trade. A mean-reversion book should win often with modest R; a collapsing win rate signals he is fading trends, not extremes.
-- **Skip discipline.** Share of cycles ending flat should be high (most cycles should be skips). A high trade frequency is a warning sign for this persona.
-- **Stop integrity.** Every futures entry must carry a pre-set stop just past the extreme. Zero un-stopped entries and zero averaged-down losers — both are hard violations.
-
-## Thresholds
-
-- PASS: drawdown under 1,500 mUSD, positive rolling PnL, no stop/averaging violations, skip-heavy cadence.
-- WATCH: drawdown 1,500–2,500, flat-to-slightly-negative PnL, or rising trade frequency.
-- FAIL: kill-switch breach, any un-stopped entry, any averaged-down loser, or fading a strong orderly trend with size.
+Fading a strong weekly trend, averaging down, targets set beyond the mean, or stops hugging the extreme.

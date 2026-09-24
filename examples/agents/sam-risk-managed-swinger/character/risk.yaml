@@ -1,6 +1,7 @@
-maxLeverage: 3
-perTradeMarginMusd: 2500
-maxConcurrentPositions: 4
+# Enforced on every entry. These must stay positive: 0 here blocks trading.
+maxLeverage: 3 # leverage changes margin use, not risk; the stop sets the risk
+perTradeMarginMusd: 6000 # = perTicketCapitalPct 12% of the original 50,000 book
+maxConcurrentPositions: 4 # open futures positions
 requireStopLoss: true
 watchlist:
   - BTC

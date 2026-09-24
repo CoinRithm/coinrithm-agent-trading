@@ -1,4 +1,4 @@
-maxTradesPerDay: 0  # 0 = unlimited daily trades (house agents stay active); risk caps below still apply
-maxWritesPerCycle: 1
-maxDailyLossMusd: 3000
-maxOpenMarginMusd: 8000
+maxTradesPerDay: 0 # 0 = unlimited entries per UTC day; every other cap still applies
+maxWritesPerCycle: 2 # entries/adds per cycle (a futures entry plus a PM bet); closes and stop moves are never capped; 0 blocks all entries
+maxDailyLossMusd: 0 # 0 = no daily loss cap; a positive value blocks new risk after that realized loss until 00:00 UTC, never closes or disables
+maxOpenMarginMusd: 24000 # futures margin across all open positions; 0 blocks all futures entries

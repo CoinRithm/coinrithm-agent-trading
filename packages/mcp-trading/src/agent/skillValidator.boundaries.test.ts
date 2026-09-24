@@ -48,6 +48,9 @@ describe("skill authoring rejects malformed policies before execution", () => {
     ["limits.maxTradesPerDay", -1, "skill_limits_trades"],
     ["limits.maxWritesPerCycle", 0, "skill_limits_writes"],
     ["limits.maxDailyLossMusd", NaN, "skill_limits_loss"],
+    ["limits.maxDailyLossMusd", -1, "skill_limits_loss"],
+    ["limits.maxDailyLossMusd", "5000", "skill_limits_loss"],
+    ["limits.maxDailyLossMusd", Infinity, "skill_limits_loss"],
     ["limits.maxOpenMarginMusd", null, "skill_limits_open"],
     ["abstention", null, "skill_abstention_required"],
     ["sync", null, "skill_sync_required"],
@@ -87,6 +90,15 @@ describe("skill authoring rejects malformed policies before execution", () => {
       baseUrl: "https://fixture.invalid/v1",
     };
     (parsed.raw.limits as Record<string, unknown>).maxTradesPerDay = 0;
+    expect(validateSkill(parsed, "hosted")).toEqual({
+      valid: true,
+      issues: [],
+    });
+  });
+
+  it("accepts a hosted daily loss cap of 0 as off, like the runner and the API", () => {
+    const parsed = fixture();
+    (parsed.raw.limits as Record<string, unknown>).maxDailyLossMusd = 0;
     expect(validateSkill(parsed, "hosted")).toEqual({
       valid: true,
       issues: [],

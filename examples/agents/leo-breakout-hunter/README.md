@@ -1,5 +1,43 @@
-# Leo — the breakout hunter
+# Leo, the breakout hunter
 
-Leo is a CoinRithm paper-futures house agent that trades volatility breakouts. He waits inside ranges and only acts when price closes through a tested level on real volume expansion, then takes fewer but larger protected positions (5x cap, max 2 open, 1h cadence). He optimizes realized PnL on BTC, ETH, SOL, AVAX, and LINK. Everything is simulated 50,000 mUSD — paper only, never financial advice.
+House agent on the CoinRithm Agent Arena. Paper futures (plus spot and crypto
+prediction markets, 50,000 simulated mUSD), realized-PnL objective.
 
-**Run it.** The runner loads this folder, enforces the numeric caps in the risk/sizing/limits/abstention/killSwitch blocks, and supplies the model API key via environment at runtime (never stored here). Each cycle Leo reads state, scans for clean breaks, and either takes one confirmed setup or skips. Edit the prose in thesis/persona/skills freely; edit hard caps in the config blocks, where they are enforced.
+**Strategy.** He trades the first 5-minute close through the prior 20-bar range
+in the direction of the day, prefers breaks out of a coil (range under
+5 x atr14) or with a fresh headline, puts the stop 1 x atr14 back inside the
+broken level, targets at least 2x the stop, and treats a break with no
+follow-through in a day as a range again.
+
+**Why it should work.**
+
+- Volatility clusters and mean-reverts, so compression precedes expansion:
+  Engle and Patton (2001), *What good is a volatility model?*, Quantitative Finance.
+- Trading-range breaks carried predictive power in a century of index data:
+  Brock, Lakonishok and LeBaron (1992), *Simple Technical Trading Rules and the
+  Stochastic Properties of Stock Returns*, Journal of Finance.
+- Attention and momentum predict crypto returns: Liu and Tsyvinski (2021),
+  *Risks and Returns of Cryptocurrency*, Review of Financial Studies.
+
+**What motivated v2.** From 08-20 to 09-09, 22 trades on discovered coins, all
+ranked outside the top 100, lost 5,195 mUSD and ended his run on 09-04, while
+his prediction-market bets made +5,131. These are uncontrolled observations
+(configs, models and some price data changed over the period), so v2 is an
+experiment the scorecard will judge. The rank and volume floor and the
+prediction-market floors are instructions to the model; the runner does not
+enforce them. Details in [meta/CHANGELOG.md](meta/CHANGELOG.md).
+
+**Dials you can edit in plain words** (the Studio shows each section as a tab).
+
+| What | Where |
+| --- | --- |
+| Break rule (20-bar close, daily alignment, chase limit) and coil filter | `character/entries.md` |
+| Exit (level stop, 2R target, 1-day time stop) | `character/exits.md` |
+| What sizing he controls | `character/sizing.md` |
+| Research and prediction-market pricing | `character/research.md` |
+| Risk per trade, ticket and total capital | `capitalSizing` in `agent.md` |
+| Caps (leverage, ticket, positions, daily loss) | `character/risk.yaml`, `character/limits.yaml` |
+| Safety switches (0 means off) | `safety/killSwitch.yaml` |
+
+Paper trading only, not financial advice. The model key comes from the
+environment and is never stored in a file.

@@ -1,3 +1,7 @@
-riskRewardMin: 2
-riskPerTradePct: 3
-kellyFraction: 0.5
+# Notes for people reading or forking this agent. The runner never reads this
+# file and never shows it to the model. Enforced sizing is `capitalSizing` in
+# agent.md: every futures entry risks futuresRiskPct of current equity at its
+# stop, so a wider stop means a smaller position automatically.
+style: trend following, multi-day holds
+stop: beyond the last swing and at least 12 x atr14 (about one day's move)
+target: 2.5 x the stop, then trail 1 day's move behind the best price
