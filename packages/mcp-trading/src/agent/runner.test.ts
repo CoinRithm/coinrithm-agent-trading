@@ -1405,6 +1405,58 @@ describe("runCycle private input evidence", () => {
 });
 
 describe("permanent model failures belong to their attempted route", () => {
+  it("holds the permanent failure route without changing last-call metering after a capacity fallback", async () => {
+    const d = deps({}, baseClient(), {
+      label: "router",
+      decide: async () => ({
+        ok: false,
+        error: "provider HTTP 404 model_not_found",
+        route: {
+          policyVersion: "test",
+          profile: "fast",
+          reason: "capacity_fallback",
+          effectiveProvider: "nvidia",
+          effectiveModel: "capacity-model",
+          attempts: [
+            {
+              provider: "groq",
+              model: "retired-model",
+              outcome: "failed",
+              failureClass: "permanent",
+              error: "provider HTTP 404 model_not_found",
+              latencyMs: 1,
+            },
+            {
+              provider: "nvidia",
+              model: "capacity-model",
+              outcome: "failed",
+              failureClass: "capacity",
+              error: "provider HTTP 429",
+              latencyMs: 1,
+            },
+          ],
+        },
+      }),
+    });
+    d.state.consecutivePermanentModelErrors = 2;
+    d.state.permanentModelErrorRoute = {
+      provider: "groq",
+      model: "retired-model",
+    };
+    const result = await runCycle(d);
+    expect(result).toMatchObject({
+      llmCallMade: true,
+      effectiveProvider: "nvidia",
+      effectiveModel: "capacity-model",
+      providerHold: { provider: "groq", model: "retired-model" },
+    });
+    expect(d.state.consecutivePermanentModelErrors).toBe(3);
+    expect(d.state.permanentModelErrorRoute).toEqual({
+      provider: "groq",
+      model: "retired-model",
+    });
+  });
+
   it.each([
     undefined,
     { provider: "groq", model: "replacement-model" },

@@ -1,5 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import type { DecideResult, Provider } from "@coinrithm/mcp-trading/engine";
+import {
+  newState,
+  runCycle,
+  type CoinRithmClient,
+  type DecideResult,
+  type Provider,
+} from "@coinrithm/mcp-trading/engine";
+import { parseSkill } from "@coinrithm/mcp-trading/dist/agent/skill.js";
+import { renderFolderOfOne } from "@coinrithm/mcp-trading/dist/agent/templates.js";
 import {
   NEMOTRON_NANO,
   NEMOTRON_SUPER,
@@ -35,6 +43,113 @@ function harness(results: DecideResult[], unavailable = new Set<string>()) {
   }));
   return { hooks, observe, release, buildProvider };
 }
+
+describe("routed failure attribution in the real runner", () => {
+  it.each(["404-429", "429-404", "404-deferred"])(
+    "%s holds the model that returned the permanent error and preserves actual-call metering",
+    async (sequence) => {
+      const permanent: DecideResult = {
+        ok: false,
+        error: "provider HTTP 404 model_not_found test-credential",
+        status: 404,
+      };
+      const capacity: DecideResult = {
+        ok: false,
+        error: "provider HTTP 429 rate limited",
+        status: 429,
+      };
+      const responses =
+        sequence === "404-deferred"
+          ? [permanent]
+          : sequence === "404-429"
+            ? [permanent, capacity]
+            : [capacity, permanent];
+      const h = harness([...responses, ...responses, ...responses]);
+      h.hooks.sanitizeError = (error) =>
+        error.replaceAll("test-credential", "***");
+      if (sequence === "404-deferred") {
+        h.hooks.acquire = vi.fn(async (route) =>
+          route.model === "model-b"
+            ? { ok: false, scope: "route", error: "local capacity unavailable" }
+            : { ok: true, lease: route.model },
+        );
+      }
+      const provider = new RoutedProvider(
+        "fast",
+        [
+          { provider: "nvidia", model: "model-a", keyRef: "test-a" },
+          { provider: "nvidia", model: "model-b", keyRef: "test-b" },
+        ],
+        false,
+        h.buildProvider,
+        h.hooks,
+      );
+      const spec = parseSkill(
+        renderFolderOfOne("fixture", "conservative"),
+      ).spec;
+      spec.model = { provider: "nvidia", name: "model-a" };
+      spec.risk.watchlist = ["BTC"];
+      spec.triggerPolicy = {
+        mode: "always",
+        skipLlmWhenNoTrigger: false,
+        alwaysManageOpenPositions: true,
+        maxLlmCallsPerHour: 0,
+        debounceMinutes: 0,
+        pmEvalCooldownMinutes: 0,
+      };
+      const okData = (data: unknown) => ({ ok: true, status: 200, data });
+      const client = {
+        me: async () => okData({ scopes: ["read", "trade:futures"] }),
+        portfolio: async () =>
+          okData({ equity: { totalUsd: 50000, availableUsd: 1000 } }),
+        wallet: async () => okData({ usdt: { available: 1000 } }),
+        futuresPositions: async () => okData({ positions: [] }),
+        trades: async () => okData({ asOf: "T1", trades: [] }),
+        resolve: async () =>
+          okData({ match: { coinId: "1", name: "Bitcoin" } }),
+        market: async () =>
+          okData({
+            price: { usd: 67000, change1h: 1, change24h: 2 },
+            observation: { freshness: { status: "fresh" } },
+          }),
+      } as unknown as CoinRithmClient;
+      const state = newState("failure-attribution-fixture");
+      const failedModel = sequence === "429-404" ? "model-b" : "model-a";
+      const meteredModel = sequence === "404-deferred" ? "model-a" : "model-b";
+      for (let cycle = 1; cycle <= 3; cycle++) {
+        const result = await runCycle({
+          client,
+          provider,
+          spec,
+          state,
+          mergedProse: "fixture",
+          live: false,
+        });
+        expect(result).toMatchObject({
+          modelFailed: true,
+          llmCallMade: true,
+          effectiveProvider: "nvidia",
+          effectiveModel: meteredModel,
+          skipReason: expect.stringContaining("model_not_found ***"),
+        });
+        expect(state.consecutivePermanentModelErrors).toBe(cycle);
+        expect(state.permanentModelErrorRoute).toEqual({
+          provider: "nvidia",
+          model: failedModel,
+        });
+        if (cycle < 3) expect(result.providerHold).toBeUndefined();
+        else
+          expect(result.providerHold).toMatchObject({
+            provider: "nvidia",
+            model: failedModel,
+          });
+      }
+      expect(h.buildProvider).toHaveBeenCalledTimes(
+        sequence === "404-deferred" ? 3 : 6,
+      );
+    },
+  );
+});
 
 describe("route policy", () => {
   it("preserves BYO verbatim with exactly one route", () => {

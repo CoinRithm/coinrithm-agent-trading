@@ -11,6 +11,8 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
   legacy unattributed streaks and reset availability failures on a successful
   provider response, including malformed decisions. Old-route failures cannot
   request an early hold on a replacement model; agent risk limits are unchanged.
+- Attribute a routed permanent-error hold to the attempt that produced the error,
+  even when a later fallback is rate-limited; keep actual-call metering unchanged.
 
 - Preflight futures protection updates against observed side, mark and liquidation
   prices, including retained triggers. Reject known invalid end-states with an
