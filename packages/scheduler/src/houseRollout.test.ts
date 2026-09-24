@@ -193,11 +193,14 @@ describe("house rollout: contract pins", () => {
   it("recognises only the runtime's two drawdown stop strings", () => {
     expect(DRAWDOWN_STOP_RE.test("drawdown 6064.25 >= 6000")).toBe(true);
     expect(DRAWDOWN_STOP_RE.test("equity drawdown >= 6000")).toBe(true);
-    expect(DRAWDOWN_STOP_RE.test("drawdown 12 >= 10.5")).toBe(true);
+    expect(DRAWDOWN_STOP_RE.test("drawdown 12.00 >= 10.5")).toBe(true);
     for (const s of [
       "provider error discussing drawdown",
       "model_unavailable: drawdown 1 >= 2",
       "drawdown 6064.25 >= 6000 (manual)",
+      "equity drawdown 6064.25 >= 6000",
+      "drawdown >= 6000",
+      "drawdown 12 >= 10.5",
       "setup: bad config",
       "kill-switch",
       "",
@@ -254,7 +257,7 @@ describe("house rollout: dry run", () => {
     expect(db.queries.some((q) => q.sql.includes("FOR UPDATE"))).toBe(false);
   });
 
-  it("carries the live spec.model pin into the new spec and only uses the bundle's when none is live", async () => {
+  it("preserves the live spec.model pin and also preserves an absent model declaration", async () => {
     const withPin = liveRow();
     let db = fakeDb({ rows: [withPin] });
     let result = await runHouseRollout(
@@ -291,11 +294,9 @@ describe("house rollout: dry run", () => {
           q.sql.includes("UPDATE agent_runtime.agents") &&
           q.sql.includes("SET spec"),
       )!;
-    expect(JSON.parse(update2.params[1] as string).model).toEqual(
-      nextBundle.spec.model,
-    );
+    expect(JSON.parse(update2.params[1] as string)).not.toHaveProperty("model");
     expect(result.entries[0]!.liveModelPreserved).toBe(false);
-    expect(result.entries[0]!.changedSpecKeys).toContain("model");
+    expect(result.entries[0]!.changedSpecKeys).not.toContain("model");
   });
 
   it("rejects when the live configuration drifted from the reviewed baseline", async () => {

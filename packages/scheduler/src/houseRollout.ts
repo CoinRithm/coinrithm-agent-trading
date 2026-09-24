@@ -14,13 +14,11 @@
 //     intended drawdown stop is resumed only when the reviewed config
 //     switches that policy off (maxDrawdownMusd = 0), by clearing the
 //     disabled flag and reason alone;
-//   - apply requires the scheduler to be STOPPED: the operator asserts it
-//     (--scheduler-stopped) and the script verifies quiescence from the
-//     database (no cycle recorded, no live capacity lease, no house claim
-//     inside the window). The claim lock visible on next_run_at is only a
-//     tripwire: with a 360 s lock and a 240 s cadence it shows for 120 s,
-//     with a cadence of 360 s or more it never shows, so its absence proves
-//     nothing;
+//   - apply requires the operator to stop ALL scheduler instances, verify no
+//     workers remain, and keep them stopped through the transaction. Passing
+//     --scheduler-stopped attests to that external verification. Database
+//     activity markers are additional vetoes, never proof of process safety:
+//     an expired lease or claim timestamp cannot prove a worker has stopped;
 //   - never calls seed-house-agents; no user agent is ever selected.
 import { createHash } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
@@ -40,8 +38,8 @@ export type HouseHandle = (typeof HOUSE_ROSTER)[number]["handle"];
 /** Capability the house seed adds on top of every bundle (observe() TA). */
 export const HOUSE_CAPABILITY = "indicators";
 
-/** Quiescence window: RUN_LOCK_SECONDS and the capacity lease TTL, the
- * longest a claimed cycle can be in flight before the runtime abandons it. */
+/** Conservative recent-activity window matching the claim/lease TTL.
+ * TTL expiry does not terminate a worker or verify scheduler shutdown. */
 export const DEFAULT_QUIESCENCE_SECONDS = 360;
 
 /** The two strings the runtime writes for an intended drawdown stop:
@@ -49,7 +47,7 @@ export const DEFAULT_QUIESCENCE_SECONDS = 360;
  * Anything else (a provider error that mentions drawdown, a setup failure)
  * is not a drawdown policy stop and is never resumed here. */
 export const DRAWDOWN_STOP_RE =
-  /^(equity )?drawdown( \d+(\.\d+)?)? >= \d+(\.\d+)?$/;
+  /^(?:equity drawdown|drawdown \d+\.\d{2}) >= \d+(?:\.\d+)?$/;
 
 // ---------------------------------------------------------------------------
 // Backend revision contract, ported verbatim from
@@ -137,10 +135,11 @@ export interface QuiescenceEvidence {
   windowSeconds: number;
   /** Seconds since the newest agent_cycles row fleet-wide, null when none. */
   lastCycleAgeSeconds: number | null;
-  /** provider_capacity_leases rows still unexpired (a model call in flight). */
+  /** Unexpired capacity markers; their absence does not prove no calls remain. */
   activeLeases: number;
   /** House handles claimed inside the window or with a visible claim lock. */
   houseActivity: string[];
+  /** No database activity marker in this window; NOT proof of shutdown. */
   quiet: boolean;
   reasons: string[];
 }
@@ -163,7 +162,9 @@ export class HouseRolloutRejected extends Error {
           .filter((e) => e.decision === "reject")
           .map((e) => `${e.handle} (${e.reasons.join("; ")})`),
         ...(quiescence && !quiescence.quiet
-          ? [`scheduler not quiescent (${quiescence.reasons.join("; ")})`]
+          ? [
+              `database activity markers present (${quiescence.reasons.join("; ")})`,
+            ]
           : []),
       ].join(", ")}`,
     );
@@ -195,7 +196,9 @@ export interface RolloutDeps {
 
 export interface RolloutOptions {
   apply: boolean;
-  /** Operator assertion that the scheduler is stopped; required for apply. */
+  /** Required operator attestation: ALL scheduler instances and workers were
+   * verified stopped and will remain stopped through the transaction. This
+   * process verification cannot be derived from the database markers. */
   schedulerStopped?: boolean;
   quiescenceSeconds?: number;
 }
@@ -237,9 +240,8 @@ interface AgentDbRow {
 
 // claim_lock_visible: claimDueAgents pushes next_run_at to now()+GREATEST(
 // cadence, RUN_LOCK_SECONDS) at claim time and the completion reschedule lands
-// at most one cadence away, so "further than one cadence out" means a claim
-// happened within (lock - cadence) seconds. It is evidence when true and
-// nothing when false.
+// at most one cadence away. A farther timestamp is a conservative tripwire,
+// not a process-liveness signal; absence cannot prove no worker remains.
 const AGENT_ROW_SQL = `SELECT id, handle, owner_user_id, is_house, status, disabled_reason,
           model_provider, model_name, cadence_seconds, spec, prose, created_at,
           EXTRACT(EPOCH FROM (now() - last_run_at)) AS last_run_age_seconds,
@@ -302,12 +304,11 @@ export function validatePlan(plan: RolloutPlan): void {
 }
 
 // ---------------------------------------------------------------------------
-// Quiescence (the real guarantee for apply)
+// Database activity tripwires (additional vetoes, never shutdown verification)
 // ---------------------------------------------------------------------------
 
-/** Fleet-wide evidence a scheduler is running: the newest recorded cycle
- * (a live fleet records one every few seconds) and unexpired capacity
- * leases (a shared-key model call in flight). */
+/** Fleet-wide activity markers. A stalled worker can outlive every marker;
+ * these checks cannot replace external all-instance shutdown verification. */
 export async function readFleetActivity(
   client: PoolClient,
 ): Promise<FleetActivity> {
@@ -435,12 +436,11 @@ async function evaluateEntry(
   if (bundle) {
     // The house runs on the live spec.model pin (update-house-models.mjs),
     // not on the bundle's public default; carry the live pin over.
-    const liveModel = current.spec.model;
-    const nextSpec: Record<string, unknown> =
-      liveModel !== undefined
-        ? { ...bundle.spec, model: liveModel }
-        : { ...bundle.spec };
-    report.liveModelPreserved = liveModel !== undefined;
+    const nextSpec: Record<string, unknown> = { ...bundle.spec };
+    const hasLiveModel = Object.hasOwn(current.spec, "model");
+    if (hasLiveModel) nextSpec.model = current.spec.model;
+    else delete nextSpec.model;
+    report.liveModelPreserved = hasLiveModel;
     if (
       (nextSpec.model as { provider?: unknown } | undefined)?.provider ===
       "mechanical"
@@ -669,7 +669,7 @@ export async function runHouseRollout(
     throw new Error("quiescenceSeconds must be a positive number");
   if (opts.apply && opts.schedulerStopped !== true)
     throw new Error(
-      "apply requires the scheduler to be stopped: stop it, wait out the quiescence window, then pass --scheduler-stopped",
+      "apply requires the scheduler to be stopped: stop ALL instances, verify no workers remain, keep them stopped through the transaction, then attest with --scheduler-stopped. Database activity windows cannot verify shutdown.",
     );
   const loadBundle = deps.loadBundle ?? defaultLoadBundle;
   const fleetActivity = deps.fleetActivity ?? readFleetActivity;
@@ -716,8 +716,8 @@ export async function runHouseRollout(
       reports,
       windowSeconds,
     );
-    // All or nothing: one rejected entry, or a scheduler that is not
-    // verifiably stopped, rolls the whole plan back.
+    // All or nothing: one rejected entry or any recent-activity marker vetoes
+    // the plan. A quiet result does not verify the operator's shutdown claim.
     if (reports.some((r) => r.decision === "reject") || !evidence.quiet)
       throw new HouseRolloutRejected(reports, evidence);
     for (const { report, row, next } of evaluated) {

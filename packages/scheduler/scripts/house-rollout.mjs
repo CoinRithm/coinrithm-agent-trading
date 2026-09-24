@@ -4,13 +4,15 @@
 //       print each house agent's live contentHash/status for writing a plan
 //   DATABASE_URL=... node scripts/house-rollout.mjs --plan plan.json
 //       review: evaluate every entry, write nothing, exit 1 on any rejection;
-//       also reports whether the scheduler looks quiescent
+//       also reports recent database activity markers, not process liveness
 //   DATABASE_URL=... node scripts/house-rollout.mjs --plan plan.json --apply --scheduler-stopped
 //       apply all entries in one transaction (any rejection rolls back).
-//       Stop the scheduler first (Coolify), wait out the quiescence window
-//       (360 s by default, --quiescence-seconds N to change), then apply;
-//       restart the scheduler afterwards. The script re-verifies quiescence
-//       from the database and refuses otherwise.
+//       Stop ALL scheduler instances first (Coolify), verify no workers remain,
+//       and keep them stopped through the transaction. --scheduler-stopped
+//       attests to that external verification. The script additionally vetoes
+//       recent DB activity (360 s by default, --quiescence-seconds N to change).
+//       Quiet timestamps/expired leases do NOT prove process shutdown.
+//       Restart the scheduler afterwards.
 //
 // plan.json: { "version": "personas-v2", "entries": [ { "handle": "...",
 //   "bundlePath": "examples/agents/<handle>", "expectedContentHash": "<sha256>",
@@ -39,7 +41,8 @@ const value = (name) => {
 };
 
 const pool = new pg.Pool({ connectionString: reqEnv("DATABASE_URL") });
-const age = (s) => (s === null || s === undefined ? "never" : `${Math.round(s)} s ago`);
+const age = (s) =>
+  s === null || s === undefined ? "never" : `${Math.round(s)} s ago`;
 const printEntries = (entries) => {
   for (const e of entries) {
     console.log(
@@ -56,7 +59,7 @@ const printEntries = (entries) => {
 };
 const printQuiescence = (q) => {
   console.log(
-    `scheduler ${q.quiet ? "QUIESCENT" : "ACTIVE"} (window ${q.windowSeconds} s): last cycle ${age(q.lastCycleAgeSeconds)}; unexpired leases ${q.activeLeases}; house activity ${q.houseActivity.join(", ") || "none"}`,
+    `DB activity markers ${q.quiet ? "QUIET" : "PRESENT"} (window ${q.windowSeconds} s; does not verify scheduler shutdown): last cycle ${age(q.lastCycleAgeSeconds)}; unexpired leases ${q.activeLeases}; house activity ${q.houseActivity.join(", ") || "none"}`,
   );
   for (const r of q.reasons) console.log(`             ! ${r}`);
 };
@@ -80,7 +83,7 @@ try {
   const schedulerStopped = flag("--scheduler-stopped");
   if (apply && !schedulerStopped) {
     console.log(
-      "refusing: --apply requires --scheduler-stopped (stop the scheduler, wait out the quiescence window, retry)",
+      "refusing: --apply requires --scheduler-stopped (stop ALL scheduler instances, verify no workers remain, and keep them stopped through the transaction)",
     );
     process.exit(2);
   }
