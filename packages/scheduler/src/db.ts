@@ -439,6 +439,9 @@ export async function claimDueAgents(
       // Without this, a large house/user fleet that became due first could fill
       // every batch indefinitely while a one-agent owner waited behind it.
       // The outer query locks ONLY agent rows; provider-circuit reads stay cheap.
+      // Recheck eligibility on the row being locked: the materialized due list
+      // can predate a concurrent claim or pause. PostgreSQL re-evaluates these
+      // predicates against that transaction's updated row before returning it.
       `WITH due AS MATERIALIZED (
          SELECT a.id,
                 row_number() OVER (
@@ -463,6 +466,7 @@ export async function claimDueAgents(
                 due.tenant_position, a.next_run_at
            FROM due
            JOIN agent_runtime.agents a ON a.id = due.id
+          WHERE a.status = 'active' AND a.next_run_at <= now()
           ORDER BY due.tenant_position, a.next_run_at, a.id
           LIMIT $1
           FOR UPDATE OF a SKIP LOCKED

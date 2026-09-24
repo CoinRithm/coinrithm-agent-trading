@@ -332,6 +332,78 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
     expect(await claimDueAgents(pool, 2)).toEqual([]);
   });
 
+  it.each(["claimed", "disabled"])(
+    "rechecks eligibility after an agent is %s between the due snapshot and the row lock",
+    async (interleave) => {
+      const id = await addAgent("claim-snapshot-fixture");
+      const barrierOwner = await pool.connect();
+      const delayedClient = await pool.connect();
+      const barrierKey = 1975326401;
+      const { rows: pids } = await delayedClient.query<{ pid: number }>(
+        "SELECT pg_backend_pid() AS pid",
+      );
+      const pid = pids[0]!.pid;
+      await barrierOwner.query("SELECT pg_advisory_lock($1, $2)", [
+        barrierKey,
+        id,
+      ]);
+      const gatedPool = {
+        connect: async () => ({
+          query: (sql: string, params?: unknown[]) =>
+            delayedClient.query(
+              sql.startsWith("WITH due AS MATERIALIZED")
+                ? sql.replace(
+                    "SELECT a.id,",
+                    `SELECT pg_advisory_xact_lock(${barrierKey}, ${id}) AS snapshot_barrier, a.id,`,
+                  )
+                : sql,
+              params,
+            ),
+          release: () => delayedClient.release(),
+        }),
+      } as unknown as Pool;
+      // The volatile target expression runs after the due snapshot is taken,
+      // but before picked acquires the row lock. No production SQL changes are
+      // needed to deterministically exercise this READ COMMITTED interleaving.
+      const delayedClaim = claimDueAgents(gatedPool, 2);
+      try {
+        let waiting = false;
+        for (let attempt = 0; attempt < 100 && !waiting; attempt++) {
+          const { rows } = await pool.query<{ waiting: boolean }>(
+            "SELECT EXISTS (SELECT 1 FROM pg_locks WHERE pid = $1 AND locktype = 'advisory' AND NOT granted) AS waiting",
+            [pid],
+          );
+          waiting = rows[0]!.waiting;
+          if (!waiting) await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+        expect(waiting).toBe(true);
+        if (interleave === "claimed") {
+          const winner = await claimDueAgents(pool, 2);
+          expect(winner.map((agent) => agent.id)).toEqual([id]);
+        } else {
+          await pool.query(
+            "UPDATE agent_runtime.agents SET status = 'disabled' WHERE id = $1",
+            [id],
+          );
+        }
+        await barrierOwner.query("SELECT pg_advisory_unlock($1, $2)", [
+          barrierKey,
+          id,
+        ]);
+        // The stale CTE still contains id, but the committed current row is no
+        // longer eligible. Recheck both scheduling and active status under lock.
+        expect(await delayedClaim).toEqual([]);
+      } finally {
+        await barrierOwner.query("SELECT pg_advisory_unlock($1, $2)", [
+          barrierKey,
+          id,
+        ]);
+        barrierOwner.release();
+        await delayedClaim.catch(() => {});
+      }
+    },
+  );
+
   it("keeps owner counts, costs and persisted state isolated", async () => {
     const id = await addAgent("owner-one");
     const otherId = await addAgent("owner-two", 202);
