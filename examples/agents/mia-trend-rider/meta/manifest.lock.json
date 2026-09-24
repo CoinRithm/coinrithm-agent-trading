@@ -1,21 +1,21 @@
 {
-  "configHash": "sha256:75432e5c4a82dd2cb37053f5a910fe5406684dd13db415eda0059476dcc17527",
+  "configHash": "sha256:a2b9ac15f7999ac492405fa39350989a9c3539694ddd7c5d1048ca9c50595ca7",
   "contentHashes": {
-    "agent.md": "sha256:b1269f235e0e7cf2cd3e3dc17e34170c1808a5c2825e983fffd2a8aed2f569e1",
-    "character/abstention.yaml": "sha256:1cab79fa86e06acf1b5852ea18ce266fdf9feb12f65a3968b4d343549654ad97",
-    "character/guards.md": "sha256:febb786d46ee05cc582e0a10861eb42cc792740907d69f451fae761485f1d10d",
-    "character/limits.yaml": "sha256:1220f884de24f7598829d0387da6e60fbe0aa304c3a744e6109cfdee639fa92c",
-    "character/persona.md": "sha256:5d6827abf02c6bde5fb8e42c96b930eabd502f1fa0fd1b2683610b70d227c956",
-    "character/risk.yaml": "sha256:dce958ed83ef8007fdf3b4d8f31df871f70178fd05c856b7ce609074cd5c321e",
-    "character/sizing.yaml": "sha256:f7749d399c6213c4f149d61a896fc6e19d60b199f749ab2d2cd0f45ab31824e6",
-    "character/skills/momentum-confirmation.md": "sha256:99c73e3d0a5b32f227e072ccd0eddbbb8967a7b29c54fe5c2afe9cef0e7b484d",
-    "character/skills/pullback-entry.md": "sha256:14e834069e598e8f504520d80088eb1079b1da4b4774c57c91908df1489d80e3",
-    "character/skills/trail-the-winner.md": "sha256:04c98de42a5343a7dbdf226513788c560ec0cede62a0cd2e8cbac89ee1fecc58",
-    "character/thesis.md": "sha256:ef72808806202235af0e128bab7e7527ec826942a07745aac17c00c8e7b25eb0",
-    "functionality/coinrithm.yaml": "sha256:3be2bc043fd06c1ae969dae7d93f11e0e6cc5fd7535292e5bd209142c1a9355c",
-    "journal/notes.md": "sha256:c21152ce8732c2e2134973aef4007729f65281144e7a52dadd7d4cc92ebb21d8",
+    "agent.md": "sha256:4010b62318bbb3427242ecc385e5c83eaded4d9e737953b95f366dd47be893f0",
+    "character/abstention.yaml": "sha256:8c7e78658c35687ec8ad8759f3bcea04525548467b70573f618dc8215adefde2",
+    "character/guards.md": "sha256:49e979fb08a33b21cc9621f718661e212757cfe7b1ff0aa981485b4a9f86cf72",
+    "character/limits.yaml": "sha256:76ff14c67e06d303883ce4a3f3becb9871c49385b77efe42b644dcb3c64b5f47",
+    "character/persona.md": "sha256:6dda86c0af08b6edefb30eab12263bc32646045f3fbb440b5a3a886e02122a05",
+    "character/risk.yaml": "sha256:dee84206e168cf0e98d227cbc5ff36a73b59a09424d7a5c9549330110776044d",
+    "character/sizing.yaml": "sha256:6e54354190108bbf52de440dcc3db6a086cd0e8bf9ca96df801755224b37e15a",
+    "character/skills/momentum-confirmation.md": "sha256:b1afe3501951f378ace3808edcece516667c2376d20ce8250fb8cda45f13f931",
+    "character/skills/pullback-entry.md": "sha256:f5545589512cf8dd8f9ea3b5d0e51a14247cd5e4355572d30a07cdc0549f9624",
+    "character/skills/trail-the-winner.md": "sha256:ea7d6ef13b2905cd21e3d51087f7d0c05ccba4916abbc194d6d382964f5075d0",
+    "character/thesis.md": "sha256:def2dc671df22cb28a5aa800dbd7d3f5224da337f18445d2b8d5fe3ce522305e",
+    "functionality/coinrithm.yaml": "sha256:15acfa177a70c640fe1c7a6ea6288dbf37256d95c6152bea1872a28398f4a406",
+    "journal/notes.md": "sha256:8d7b6c995d7c451af5185ed9d9502e147937a9d4fc253744a0dcc39cfa07d30b",
     "runtime.yaml": "sha256:bf074f710fa3edd8858ab7d682b3151b1571d725119790e5a80cef33ad3f92a2",
-    "safety/killSwitch.yaml": "sha256:36ffa7dda4c1e3df1ff4730bc796fb671bce72019f1cd2b7130db512280df6f0"
+    "safety/killSwitch.yaml": "sha256:e33291a87d7a0a006a0c911ddea1cd4eab35dc0020720e7703c2c57d6e778004"
   },
   "indicatorVersion": "coinrithm.indicators.v1",
   "provenance": {
@@ -44,6 +44,7 @@
     "sources": {
       "abstention": "character/abstention.yaml",
       "capabilities": "agent.md",
+      "capitalSizing": "agent.md",
       "description": "agent.md",
       "functionality": "functionality/coinrithm.yaml",
       "include": "agent.md",
@@ -63,18 +64,23 @@
   },
   "resolvedConfig": {
     "abstention": {
-      "minConfidence": 0.5,
-      "onInsufficientBalance": true,
-      "onMissingQuote": true,
-      "onStaleData": true,
-      "onWeakSignal": true
+      "minConfidence": 0.5
     },
     "capabilities": [
       "indicators",
       "news",
       "universe_scan"
     ],
-    "description": "Momentum trend-following CoinRithm paper-futures agent that trades only when short and medium momentum agree, trails stops behind price, and optimizes realized PnL.",
+    "capitalSizing": {
+      "cashReservePct": 20,
+      "futuresRiskPct": 1,
+      "minRewardRisk": 2,
+      "perTicketCapitalPct": 12,
+      "pmMaxLossPct": 1,
+      "totalCapitalPct": 50,
+      "version": "equity_fraction_v1"
+    },
+    "description": "Trend-following CoinRithm paper-futures agent. She trades only in the direction of the 7-day and 24-hour trend, enters on pullbacks, sets a stop about one day's move away and trails winners for days.",
     "include": [
       "momentum-confirmation",
       "pullback-entry",
@@ -83,14 +89,14 @@
     "killSwitch": {
       "maxConsecutiveModelFailures": 15,
       "maxConsecutiveRejects": 0,
-      "maxDrawdownMusd": 6000,
-      "onRateLimitPressure": true
+      "maxDrawdownMusd": 0,
+      "onRateLimitPressure": false
     },
     "limits": {
-      "maxDailyLossMusd": 3000,
-      "maxOpenMarginMusd": 8000,
+      "maxDailyLossMusd": 5000,
+      "maxOpenMarginMusd": 24000,
       "maxTradesPerDay": 0,
-      "maxWritesPerCycle": 1
+      "maxWritesPerCycle": 2
     },
     "mode": "self-host",
     "model": {
@@ -109,7 +115,7 @@
     "risk": {
       "maxConcurrentPositions": 4,
       "maxLeverage": 4,
-      "perTradeMarginMusd": 2000,
+      "perTradeMarginMusd": 6000,
       "requireStopLoss": true,
       "watchlist": [
         "BTC",
@@ -120,9 +126,9 @@
       ]
     },
     "sizing": {
-      "kellyFraction": 0.5,
-      "riskPerTradePct": 3,
-      "riskRewardMin": 2
+      "stop": "beyond the last swing and at least 12 x atr14 (about one day's move)",
+      "style": "trend following, multi-day holds",
+      "target": "2.5 x the stop, then trail 1 day's move behind the best price"
     },
     "spec": "coinrithm.agent.v1",
     "sync": {
@@ -151,18 +157,27 @@
       "news",
       "universe_scan"
     ],
-    "description": "Momentum trend-following CoinRithm paper-futures agent that trades only when short and medium momentum agree, trails stops behind price, and optimizes realized PnL.",
+    "capitalSizing": {
+      "cashReservePct": 20,
+      "futuresRiskPct": 1,
+      "minRewardRisk": 2,
+      "perTicketCapitalPct": 12,
+      "pmMaxLossPct": 1,
+      "totalCapitalPct": 50,
+      "version": "equity_fraction_v1"
+    },
+    "description": "Trend-following CoinRithm paper-futures agent. She trades only in the direction of the 7-day and 24-hour trend, enters on pullbacks, sets a stop about one day's move away and trails winners for days.",
     "killSwitch": {
       "maxConsecutiveModelFailures": 15,
       "maxConsecutiveRejects": 0,
-      "maxDrawdownMusd": 6000,
-      "onRateLimitPressure": true
+      "maxDrawdownMusd": 0,
+      "onRateLimitPressure": false
     },
     "limits": {
-      "maxDailyLossMusd": 3000,
-      "maxOpenMarginMusd": 8000,
+      "maxDailyLossMusd": 5000,
+      "maxOpenMarginMusd": 24000,
       "maxTradesPerDay": 1000000,
-      "maxWritesPerCycle": 1
+      "maxWritesPerCycle": 2
     },
     "model": {
       "name": "claude-sonnet-4-6",
@@ -181,7 +196,7 @@
       "blocklist": [],
       "maxConcurrentPositions": 4,
       "maxLeverage": 4,
-      "perTradeMarginMusd": 2000,
+      "perTradeMarginMusd": 6000,
       "requireStopLoss": true,
       "watchlist": [
         "BTC",

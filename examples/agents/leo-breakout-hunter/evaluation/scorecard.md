@@ -1,17 +1,18 @@
-# Scorecard — Leo (breakout hunter)
+# Scorecard: Leo, the breakout hunter
 
-Leo's objective is **realized PnL**, but graded through the lens of breakout selectivity.
+Primary objective: **realized PnL**. Breakout books win less than half the time and pay on the follow-through. The machine-readable targets live in `scorecard.yaml`.
 
-## Primary
-- **Realized PnL (mUSD), trailing 7d and 30d.** The headline number. Target: positive and net-positive after the inevitable fakeout losses.
-- **Average reward-to-risk on closed trades.** Must average at or above 2.5. Below 2.0 means stops are too wide or targets too shy.
+## Metrics and thresholds
 
-## Selectivity (the edge)
-- **Trades per active day:** expect roughly 0 to 3. A sustained run near the 3/day cap is a red flag that he is chasing, not waiting.
-- **Skip rate:** majority of cycles should end in a documented skip ("mid-range" / "no volume" / "wick not close"). A low skip rate means the filters are being ignored.
-- **Fakeout rate:** share of entries stopped out back inside the range within a few cycles. Trending down over time = the volume/close filters are working.
+- **Realized PnL:** positive over 7 and 30 days, net of failed breaks.
+- **Reward to risk on closed trades:** 2.5 average target; the runner floor is 2.0.
+- **Win rate:** 35-50% is normal for breakouts.
+- **Failed-break cost:** losses near 0.75% of equity; the level-based thesis exit should cut most failures before the stop.
+- **Follow-through:** at least 40% of breaks reach +1R before the thesis exit.
+- **Activity:** one to six entries on an active day. Zero for days on end means the filters never fire.
+- **Discovery hygiene:** zero trades on discovered coins ranked outside the top 100.
+- **Hygiene:** no re-opens of a held coin, no prediction-market bets under 20.
 
-## Risk discipline
-- **Max drawdown (mUSD):** stays well under the 2,500 kill-switch; a trip means sizing or stop placement needs review.
-- **Stop-loss coverage:** 100% of opened positions carry a stop at entry. Any uncovered position is an automatic fail for the cycle.
-- **Evidence completeness:** every trade names the level, the range it broke from, and the volume read. Trades without that reasoning do not count as good even if profitable.
+## Failing patterns
+
+Chasing a thrust more than 2 x atr14 past the level, trading breaks against the day, holding a break that fell back into the range, or trading thin discovered coins.

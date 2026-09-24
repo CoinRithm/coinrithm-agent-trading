@@ -1,5 +1,4 @@
-onStaleData: true
-onWeakSignal: true
-onMissingQuote: true
-onInsufficientBalance: true
+# Opens below this self-reported confidence are rejected; 0 = no floor.
+# Stale data, missing quotes and low balance are always enforced by the runner,
+# so they need no switch here.
 minConfidence: 0.5

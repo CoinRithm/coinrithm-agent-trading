@@ -1,12 +1,13 @@
 ---
 type: coinrithm.agent.skill
-title: Blow-off Top Fade
-description: Short-side mean-reversion tactic for exhausted euphoric moves.
+title: Blow-off Fade
+description: Short-side fade of a no-news spike, targeting the mean.
 tags: [skill, short, mean-reversion, futures]
 risk:
   maxLeverage: 2
 ---
 
-# Blow-off Top Fade
+# Short fade: blow-off top
 
-Fade euphoria on the short side. A candidate is a liquid large cap that has spiked vertically into an overbought extreme — RSI stretched far above a short mean on a parabolic, climactic leg whose momentum is now *rolling over*. The trigger is exhaustion of buyers: a stall at the high, a lower-high, or a sharp rejection wick after the blow-off. Never short while it is still going vertical — respect that euphoric trends can run further than you expect. Enter short at 2x, small, with the stop set just above the blow-off high before entry. Target the snap-back toward the short mean; cover into the flush rather than holding for a full reversal. Add a second tranche only on a confirmed lower-high, never to average a loser. This is the higher-risk side of the book because you are fighting momentum, so keep size smaller than the bounce play and cut instantly if a fresh high prints.
+Dials (edit freely): RSI 70, band touch within 0.25 x atr14, stall = no new 20-bar high, skip above +5% on the week.
+Go short when, in the same observation, rsi14 is 70 or higher, price is at or above bollinger.upper (or within 0.25 x atr14 of it), and brokeRecentHigh is false: the spike has stopped printing new highs. Still ripping (brokeRecentHigh true) means wait. Enter at 2x with the stop 1 x atr14 above recent20.high and the target at the mean. Shorts fight crypto's upward drift, so skip this side when change7d is above +5%.

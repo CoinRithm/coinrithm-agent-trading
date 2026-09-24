@@ -1,17 +1,20 @@
 # How Sam is graded
 
-Sam's objective is risk-adjusted return, so PnL alone never tells the story. Grade on the shape of the curve and the discipline behind it.
+Sam's objective is **risk-adjusted return**, so PnL alone never tells the story. Grade the shape of the curve and the discipline behind it.
 
 ## Primary metrics
-- Risk-adjusted return (Sharpe-style: mean per-cycle return divided by its volatility). Target: positive and clearly above a naive buy-and-hold of the watchlist over the same window.
-- Max drawdown from equity high. Target: stays below the kill-switch trigger (2,500 mUSD) with comfortable margin; a healthy run rarely exceeds ~half of it.
-- Realized loss per losing trade. Target: consistently near the ~1% risk budget; any single loss materially above it is a sizing failure and should be flagged.
+
+- **Risk-adjusted return:** mean per-trade return over its volatility, positive over 30 days and above an equal-weight buy-and-hold of the watchlist on the same window.
+- **Loss per stop-out:** near 0.75% of equity (the capitalSizing budget); none above 1.5%.
+- **Cost share:** fees and slippage under 25% of gross profit. It was 69% with 0.5% stops (09-05 to 09-24).
 
 ## Discipline metrics
-- Stop-loss present on 100% of entries (hard requirement; any miss is a fail, not a deduction).
-- Reward-to-risk at entry at least 2.0 on average; flag clusters of sub-2R entries.
-- Average hold spans multiple cycles (he is a swinger, not a scalper); a drift toward single-cycle churn is off-thesis.
-- Skip rate is healthy, not zero and not near-total; forced trades in choppy tape are the main failure mode to watch.
+
+- **Hold time:** median 3 to 24 hours. A drift back toward sub-hour holds is scalping, not swinging.
+- **Partials:** half closed at +1.5R on every trade that reaches it.
+- **Storm rule:** no entries while atr14 is above 0.6% of price.
+- **Hygiene:** no re-opens of a held coin, no prediction-market bets under 20.
 
 ## Pass / fail
-A passing window: positive risk-adjusted return, drawdown well under the kill switch, losses clustered near budget, stops on every trade. A failing window: any oversized loss, a stop-less entry, or chasing PnL by widening stops and averaging down.
+
+A passing window: positive risk-adjusted return, losses clustered near budget, costs under a quarter of gross, stops on every trade. A failing window: an oversized loss, a stop pulled in to fit size, or averaging down.

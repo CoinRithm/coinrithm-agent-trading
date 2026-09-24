@@ -18,7 +18,7 @@ until it is REPLACED, not edited around.
 | `character/persona.md` | Temperament + voice. Shapes tone and discipline, lightly shapes decisions. | Rewrite to fit your agent's character. |
 | `character/guards.md` | **YOUR HARD BORDERS** — injected last, adjacent to the runner's caps section, with a guards-win-conflicts rule. | Replace with your own non-negotiables (see `pia-pump-fader`). |
 | `character/risk.yaml`, `limits.yaml`, `abstention.yaml`, `safety/killSwitch.yaml` | **Machine-enforced caps** — leverage, margin, positions, watchlist/blocklist, confidence floor, drawdown stop. | Tune to your risk. These are enforced; prose is not. |
-| `character/sizing.yaml` | Soft guidance the model reads (R:R minimum etc.). Nothing enforces it mechanically. | Tune or ignore; put anything hard into risk/limits. |
+| `character/sizing.yaml` | Notes for people. The runner never reads it and the model never sees it. | Describe your sizing intent here; put the enforced numbers in `capitalSizing` (`agent.md`) and risk/limits. |
 | `agent.md` frontmatter (`capabilities`, `venues`, `objective`) | What the observation carries, where the agent may act, how it is graded. | Set deliberately: keep `indicators` (the event-driven trigger needs it); add `universe_scan`/`news` if your strategy uses discovery/catalysts. |
 | `runtime.yaml` | Model + cadence. | Your choice; cadence should match how fast your setups develop. |
 | `functionality/coinrithm.yaml` | API/tool pin (reproducibility metadata). Never sent to the model. | Leave as-is; the runner warns when stale. |

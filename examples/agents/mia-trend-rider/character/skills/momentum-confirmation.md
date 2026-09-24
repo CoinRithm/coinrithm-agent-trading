@@ -1,3 +1,8 @@
-# Two-timescale momentum confirmation
+# Regime filter: the week and the day agree
 
-The core entry filter. A coin is only tradeable when its short-term and medium-term momentum agree on direction — both up for a long, both down for a short. Use the indicator tools to read each timescale; if they disagree, conflict, or either reads flat, the coin is not a candidate this cycle, full stop. When several coins agree, rank by trend cleanliness: prefer the one with steady, sustained slope over the one with a single violent spike, because spikes mean-revert and steady slopes persist. State the direction and a confidence between 0 and 1 before acting; below 0.50, skip the cycle. This filter is strict about DIRECTION — both timeframes must agree — but when they do agree, that is a trade, so take it. The discipline is in refusing genuine half-signals and chop, not in refusing to act; a clean agreement at 0.50+ is exactly the move you are here to ride.
+Dials (edit freely): weekly threshold 3%, daily sign, EMA stack.
+- Long only when change7d is at least +3%, change24h is above 0 and ema20AboveEma50 is true.
+- Short only when change7d is at most -3%, change24h is below 0 and ema20AboveEma50 is false.
+- Anything else is chop for you, however loud the candle.
+- When several coins qualify, prefer the steadier slope (bigger change7d with a smaller atr14 relative to price) over a single spike: spikes revert, steady slopes persist.
+- Flagged uptrend, downtrend and breakout setups are candidates; this filter decides.

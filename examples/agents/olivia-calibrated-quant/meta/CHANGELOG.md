@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-09-24 - v2: priced forecasts, Kelly edge rule, no longshots
+
+Evidence, read-only from production on 2026-09-24:
+- 09-05 to 09-24: outcomes priced under 20 won 5 of 57 at an average price of 12 and cost 22,843 mUSD. All other buckets together: +588.
+- Example forecast: 70% for a 500-dollar BTC band two days out, market 8%; a band that narrow is worth about 10%.
+- In the week to 09-24: 24 `pm_ref_unknown` (refs invented on an empty board) and 10 `pm_ref_missing` (event tickers used as refs) out of 68 attempted bets.
+- The old skills carried futures rules (R:R 1.3, 2x leverage, stops) for a PM-only agent, and "conviction sizing" could not size: the runner fixes every stake.
+
+Changes:
+- probability-forecast: crypto markets priced as digital options from atr14 and time to close, with a multi-day volatility floor; other markets from base rates.
+- pm-calibration: buy only when the forecast beats the price by 15% of the gap to 100 (fractional Kelly with the model edge halved); nothing priced under 20 (favorite-longshot bias, Burgi, Deng and Whelan 2025).
+- conviction-sizing: concentration control, at most two bets per coin and close date.
+- abstention-discipline: empty board means no bet; refs only as listed.
+- capitalSizing: futuresRiskPct 0.75 -> 0.5 and minRewardRisk 1.5 -> 1 (both unused, PM only), perTicketCapitalPct 6 -> 4. pmMaxLossPct stays 2.
+- risk: perTradeMarginMusd 1500 -> 2000. limits: maxWritesPerCycle 1 -> 2, maxDailyLossMusd 2000 -> 5000.
+- killSwitch: maxDrawdownMusd 5000 -> 0 (off), onRateLimitPressure true -> false. The model-failure switch stays at 15.
+- sizing.yaml is now notes only; the four inactive abstention flags are gone; MCP pin 0.7.6 -> 0.7.13.
+- Merged hosted prose 8,215 -> 5,939 chars.
 
 ## 2026-09-02 - conviction-scaled sizing, fundamentals capabilities
 
@@ -39,7 +57,6 @@ maxConsecutiveModelFailures 15. Earlier entries are preserved
 as history, not as current claims. Also today: the persona's Hard borders
 paragraph moved to character/guards.md (first-class guards file), and the
 functionality pin was bumped to MCP 0.7.6.
-
 
 ## v1.0.0 — initial release
 

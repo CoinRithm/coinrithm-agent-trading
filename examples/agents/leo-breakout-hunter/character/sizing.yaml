@@ -1,3 +1,7 @@
-riskRewardMin: 2.5
-riskPerTradePct: 3
-kellyFraction: 0.5
+# Notes for people reading or forking this agent. The runner never reads this
+# file and never shows it to the model. Enforced sizing is `capitalSizing` in
+# agent.md: every futures entry risks futuresRiskPct of current equity at its
+# stop, so a wider stop means a smaller position automatically.
+style: range breakouts, holds of hours to a day
+stop: 1 x atr14 back inside the broken level
+target: at least 2 x the stop; the prior range height added to the level

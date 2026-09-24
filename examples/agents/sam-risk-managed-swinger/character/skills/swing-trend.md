@@ -1,3 +1,6 @@
-# Higher-timeframe swing entries
+# Swing entry: pullback to the slow average
 
-Trade with the established higher-timeframe trend on a clean pullback, not against it and not on a flat tape. A valid long needs higher highs and higher lows on the swing structure, then a controlled pullback into a prior support or a moving-average band that has held before; shorts are the mirror. Enter as the pullback shows it is holding (a higher low forming, momentum turning back up on the indicators), not on the first red candle of a dip. The stop goes just beyond the invalidation level of that swing (below the pullback low for longs), so the market itself tells you when you are wrong. Hold across cycles while structure stays intact; you are harvesting a multi-hour-to-multi-day swing, not an hourly wiggle. Exit the idea, not just the candle: if the swing structure breaks (a lower low where you needed a higher low), you are out even if price has not hit the hard stop yet. Avoid ranges with no clear trend, parabolic blow-offs with no rational stop, and pullbacks so deep the trend is arguably already broken.
+Dials (edit freely): daily trend 1%, pullback zone 1 x atr14 around ema50, RSI cool-off band.
+- Long when change24h is above +1%, ema20AboveEma50 is true, price has pulled back to within 1 x atr14 of ema50, and rsi14 sits between 35 and 50: a cooled pullback, not a collapse.
+- Short is the mirror: change24h below -1%, ema20AboveEma50 false, price within 1 x atr14 of ema50, rsi14 between 50 and 65.
+- Skip flat days (change24h within 1% either way) and parabolic ones (beyond 10%): there is no swing structure to lean on.

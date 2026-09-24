@@ -1,3 +1,8 @@
-# Trail the stop, let winners run
+# Exit: a wide stop, a big target, a trailed winner
 
-Exits are managed by the stop, not by guesswork. After a position moves in your favor, ratchet the stop-loss up behind price (for longs) or down (for shorts) so that accumulated profit is protected while the trade stays open to capture more of the trend. Never widen a stop to give a loser room — momentum that has turned against you is the signal to be out, and the original stop stands. Take-profit sits at least 2R away, but the trailing stop is what usually ends a winning trade, allowing the occasional large trend to pay for several small losers. Each cycle, poll trades to see what stops, take-profits, or liquidations fired while you were away, and reconcile against what actually happened rather than what you expected. This asymmetry — small bounded losses, a few trailed winners that run — is the entire realized-PnL engine.
+Dials: D = 12 x atr14 (about one day's move), target 2.5 x the stop, trail 1 D.
+- Stop: beyond the last swing extreme and at least 1 D from entry. Tighter stops only pay the noise.
+- Target: at least 2.5 x the stop distance; the runner rejects anything under 2.
+- Thesis: priceBelow (long) or priceAbove (short) at the swing level your stop hides behind. Leave out the time stop, or set it to 20160 minutes or more: a time stop also closes winners.
+- After +1 D, move the stop to entry. After +2 D, trail it 1 D behind the best price with futures_set_sltp. Never widen a stop.
+- If the regime filter flips against an open position, tighten its stop to 0.5 D instead of closing at market.

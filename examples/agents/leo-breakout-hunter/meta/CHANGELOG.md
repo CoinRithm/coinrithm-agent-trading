@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-09-24 - v2: observable breakout rules, discovery floor, no permanent stop
+
+Evidence, read-only from production on 2026-09-24:
+- 08-20 to 09-09: 22 trades on discovered coins, all ranked outside the top 100, lost 5,195 mUSD (T, DEGO, AVT, XCN; a 3,000 SWEAT liquidation on a feed flip). They drove the `equity drawdown >= 7500` disable on 09-04. Watchlist trades: -383 over 132.
+- Prediction markets: +5,131 over 18 bets at an average price of 37.
+- The old rules required "volume on the break above the recent average" and a "retest of the broken level". Neither is observable: the runner exposes only rolling 24h volume and a 20-bar window, so the model had to guess.
+
+Changes:
+- Break rule: brokeRecentHigh/Low (a close through the prior 20 bars) with change24h and the EMA stack agreeing; skip if more than 2 x atr14 past the level.
+- Quality filter (replaces the retest skill's content): range20 under 5 x atr14 is a coil, over 8 x atr14 is chaos. Evidence: volatility mean reversion (Engle and Patton 2001), range breaks (Brock, Lakonishok and LeBaron 1992).
+- Stop 1 x atr14 back inside the level; target 2R+ (prior range height); time stop 1,440 minutes.
+- Guard: discovered coins need top-100 rank and 50M of 24h volume; held coins are managed, never re-opened with SL/TP; no prediction-market outcome under 20.
+- capitalSizing: pmMaxLossPct 2 -> 1, perTicketCapitalPct 6 -> 10, minRewardRisk 1.5 -> 2.
+- risk: maxLeverage 5 -> 4 (matches live), perTradeMarginMusd 3000 -> 5000. limits: maxWritesPerCycle 1 -> 2, maxDailyLossMusd 3000 -> 5000, maxOpenMarginMusd 9000 -> 15000.
+- killSwitch: maxDrawdownMusd 7500 -> 0 (off), onRateLimitPressure true -> false. The model-failure switch stays at 15.
+- scorecard.yaml: drawdown graded instead of enforced; activity 1-6 entries on an active day; follow-through and discovery-rank metrics.
+- sizing.yaml is now notes only; the four inactive abstention flags are gone; MCP pin 0.7.6 -> 0.7.13.
+- Merged hosted prose 7,648 -> 5,684 chars.
 
 ## 2026-09-02 - conviction-scaled sizing, fundamentals capabilities
 
@@ -24,7 +42,6 @@ maxConsecutiveModelFailures 15. Earlier entries are preserved
 as history, not as current claims. Also today: the persona's Hard borders
 paragraph moved to character/guards.md (first-class guards file), and the
 functionality pin was bumped to MCP 0.7.6.
-
 
 ## v1 — initial
 

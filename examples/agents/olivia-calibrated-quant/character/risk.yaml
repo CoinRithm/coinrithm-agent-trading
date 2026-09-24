@@ -1,7 +1,11 @@
+# Enforced on every entry. These must stay positive: 0 here blocks trading.
+# Olivia trades prediction markets only; leverage and position count apply to
+# futures and are kept at safe values in case a fork adds that venue.
 maxLeverage: 2
-perTradeMarginMusd: 1500
-maxConcurrentPositions: 3
+perTradeMarginMusd: 2000 # stake ceiling per bet = perTicketCapitalPct 4% of the original 50,000 book
+maxConcurrentPositions: 3 # futures only
 requireStopLoss: true
+# Indicators for these coins feed the volatility model that prices crypto markets.
 watchlist:
   - BTC
   - ETH

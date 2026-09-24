@@ -1,30 +1,30 @@
 {
-  "configHash": "sha256:1a61eabad9450dbe70860b5b17d8b2ab597301c4d6f5078faf7f41f2665507e5",
+  "configHash": "sha256:deff02c86f1689bc4cb33fa8dabb643ea74b541bdbce8f7a017fbba30c71e3a6",
   "contentHashes": {
-    "agent.md": "sha256:edfd1193c0c44686d8528dbdcc7cc4591df612eb8999a1996398edd6d19f6a97",
-    "character/abstention.yaml": "sha256:1cab79fa86e06acf1b5852ea18ce266fdf9feb12f65a3968b4d343549654ad97",
-    "character/guards.md": "sha256:f48ecfd2c8fa7f60976765ed15f93c8bc302b543fc28497d9f18978d7f152f20",
-    "character/limits.yaml": "sha256:85311ec7d1363c2675ee6c62e69cfa271811d8a4a2299bc49861c053e65dcd84",
-    "character/persona.md": "sha256:5a18fec40b1ba3630fa2f03a3d4f567cec65a3a4a84ebdec2d683aa0dc3792e6",
-    "character/risk.yaml": "sha256:052d983637a38cf2779fefe09db79679d4d1f8e046b76bf65218a1e83cd0a84d",
-    "character/sizing.yaml": "sha256:349fef12690e9a33158a16a4a96d08afa0cc53d576da582329300d02f6d67356",
-    "character/skills/abstention-discipline.md": "sha256:5f0597ea01f2a435aa6e136dfcd3180c77dcab391e231a7928c72a4ac248c1a2",
-    "character/skills/conviction-sizing.md": "sha256:954a508e0de5e66baa6689a21ddece5768e1ef56a1853d4e013c6bbc1fa025e9",
-    "character/skills/pm-calibration.md": "sha256:4e379e285c65e33936264b2a19b9ff398b0f1f84ed345a604be1fa2401bb52d4",
-    "character/skills/probability-forecast.md": "sha256:83dfaf2a0b3528292d55ea5449afa9f78b995c79885bb64f92ddc27013de5192",
-    "character/thesis.md": "sha256:f6e243a0ab6f663f637d46a6cbdfa26ea1006e3371073501fdde8878b17085a2",
-    "functionality/coinrithm.yaml": "sha256:3be2bc043fd06c1ae969dae7d93f11e0e6cc5fd7535292e5bd209142c1a9355c",
-    "journal/notes.md": "sha256:33eaeb5e127a2bd5ae38ce620655c948536e0be1243f44b439349b67a7d9b2fc",
+    "agent.md": "sha256:c7945a22905b9520e5490d566e2e7ac0673ecbf60c6adc81b6c02b21db534c98",
+    "character/abstention.yaml": "sha256:8c7e78658c35687ec8ad8759f3bcea04525548467b70573f618dc8215adefde2",
+    "character/guards.md": "sha256:68d7b8342f38f42d329ecc588ad9499a4d3ba28b8d53463763adee43cbd83890",
+    "character/limits.yaml": "sha256:1d6760675e426241587f100220386b6cd9b80d24ece04bf4f9746b792e5a9e41",
+    "character/persona.md": "sha256:5cbd78beb2c5f63dea1ccf45f841597071a61e1c16c241d04a9f93c9bf8118dd",
+    "character/risk.yaml": "sha256:4df994565f4bc2fa92fbcaf5b063049939bdaa446d264440169d75c632b82ee5",
+    "character/sizing.yaml": "sha256:22e42ca63d694834b31eae8cf110a830b8c9db3a50c2cdeaa80607e02530a4c0",
+    "character/skills/abstention-discipline.md": "sha256:567eedfbfea2a86954ea8ad5c77522bdd3c7c866aa1c3a2adafdd03afe6ce484",
+    "character/skills/conviction-sizing.md": "sha256:766275cf30d988f3aeab840254a7f5917541fe340eb3ca6c169f4f88df865574",
+    "character/skills/pm-calibration.md": "sha256:50f5087f9794c36ddc9997dc3f37488ec2a11a837a31ace94df618ee7296d637",
+    "character/skills/probability-forecast.md": "sha256:c4e4f245b4d63d68a452196bebe80e8b388cd41bca6bcb646ed31ca6fa24632a",
+    "character/thesis.md": "sha256:f8be1b1d8f67bf3c874b3abcce542955a8388d9d2b230caaa6f60638f0c6c437",
+    "functionality/coinrithm.yaml": "sha256:15acfa177a70c640fe1c7a6ea6288dbf37256d95c6152bea1872a28398f4a406",
+    "journal/notes.md": "sha256:8a688f0334cd29927de380ec3636ae56d2b431b26e455f1eeeb96216a9392317",
     "runtime.yaml": "sha256:a2dde8ea84ccfc8be5e4b731f3cb77b6ffa67b74fc778649a2990ea287b11013",
-    "safety/killSwitch.yaml": "sha256:4b1cba4d03ddcaab74fb31623fe30ea2ef85545ca6e3d5f695e95e2708b20dc5"
+    "safety/killSwitch.yaml": "sha256:c61212e23a152cd747b957b0aad5f2360aee7ba306d6b3ef23fb18e03d33f71b"
   },
   "indicatorVersion": "coinrithm.indicators.v1",
   "provenance": {
     "includeOrder": [
       "probability-forecast",
+      "pm-calibration",
       "conviction-sizing",
-      "abstention-discipline",
-      "pm-calibration"
+      "abstention-discipline"
     ],
     "mergeOrder": [
       "agent.md",
@@ -35,9 +35,9 @@
       "character/abstention.yaml",
       "safety/killSwitch.yaml",
       "character/skills/probability-forecast.md",
+      "character/skills/pm-calibration.md",
       "character/skills/conviction-sizing.md",
       "character/skills/abstention-discipline.md",
-      "character/skills/pm-calibration.md",
       "character/thesis.md",
       "character/persona.md",
       "journal/notes.md",
@@ -47,6 +47,7 @@
     "sources": {
       "abstention": "character/abstention.yaml",
       "capabilities": "agent.md",
+      "capitalSizing": "agent.md",
       "description": "agent.md",
       "functionality": "functionality/coinrithm.yaml",
       "include": "agent.md",
@@ -66,34 +67,39 @@
   },
   "resolvedConfig": {
     "abstention": {
-      "minConfidence": 0.5,
-      "onInsufficientBalance": true,
-      "onMissingQuote": true,
-      "onStaleData": true,
-      "onWeakSignal": true
+      "minConfidence": 0.5
     },
     "capabilities": [
       "indicators",
       "news"
     ],
-    "description": "A calibration-first CoinRithm paper PREDICTION-MARKET agent. She prices each market with an explicit probability and stakes only where her estimate beats the market's implied odds by a clear margin, sized to conviction. Prediction markets are her only venue — calibration is the whole game.",
+    "capitalSizing": {
+      "cashReservePct": 20,
+      "futuresRiskPct": 0.5,
+      "minRewardRisk": 1,
+      "perTicketCapitalPct": 4,
+      "pmMaxLossPct": 2,
+      "totalCapitalPct": 40,
+      "version": "equity_fraction_v1"
+    },
+    "description": "Calibration-first CoinRithm paper PREDICTION-MARKET agent. She prices crypto markets with a volatility model and other markets from base rates, bets only when her number clears a Kelly-derived edge threshold, and never buys longshots. Prediction markets are her only venue.",
     "include": [
       "probability-forecast",
+      "pm-calibration",
       "conviction-sizing",
-      "abstention-discipline",
-      "pm-calibration"
+      "abstention-discipline"
     ],
     "killSwitch": {
       "maxConsecutiveModelFailures": 15,
       "maxConsecutiveRejects": 0,
-      "maxDrawdownMusd": 5000,
-      "onRateLimitPressure": true
+      "maxDrawdownMusd": 0,
+      "onRateLimitPressure": false
     },
     "limits": {
-      "maxDailyLossMusd": 2000,
+      "maxDailyLossMusd": 5000,
       "maxOpenMarginMusd": 4500,
       "maxTradesPerDay": 0,
-      "maxWritesPerCycle": 1
+      "maxWritesPerCycle": 2
     },
     "mode": "self-host",
     "model": {
@@ -112,7 +118,7 @@
     "risk": {
       "maxConcurrentPositions": 3,
       "maxLeverage": 2,
-      "perTradeMarginMusd": 1500,
+      "perTradeMarginMusd": 2000,
       "requireStopLoss": true,
       "watchlist": [
         "BTC",
@@ -122,9 +128,9 @@
       ]
     },
     "sizing": {
-      "kellyFraction": 0.35,
-      "riskPerTradePct": 1.5,
-      "riskRewardMin": 1.5
+      "concentration": "at most two bets per coin and close date",
+      "entry": "forecast beats price by 15% of the gap to 100; nothing priced under 20",
+      "style": "calibrated prediction-market forecasting"
     },
     "spec": "coinrithm.agent.v1",
     "sync": {
@@ -150,18 +156,27 @@
       "indicators",
       "news"
     ],
-    "description": "A calibration-first CoinRithm paper PREDICTION-MARKET agent. She prices each market with an explicit probability and stakes only where her estimate beats the market's implied odds by a clear margin, sized to conviction. Prediction markets are her only venue — calibration is the whole game.",
+    "capitalSizing": {
+      "cashReservePct": 20,
+      "futuresRiskPct": 0.5,
+      "minRewardRisk": 1,
+      "perTicketCapitalPct": 4,
+      "pmMaxLossPct": 2,
+      "totalCapitalPct": 40,
+      "version": "equity_fraction_v1"
+    },
+    "description": "Calibration-first CoinRithm paper PREDICTION-MARKET agent. She prices crypto markets with a volatility model and other markets from base rates, bets only when her number clears a Kelly-derived edge threshold, and never buys longshots. Prediction markets are her only venue.",
     "killSwitch": {
       "maxConsecutiveModelFailures": 15,
       "maxConsecutiveRejects": 0,
-      "maxDrawdownMusd": 5000,
-      "onRateLimitPressure": true
+      "maxDrawdownMusd": 0,
+      "onRateLimitPressure": false
     },
     "limits": {
-      "maxDailyLossMusd": 2000,
+      "maxDailyLossMusd": 5000,
       "maxOpenMarginMusd": 4500,
       "maxTradesPerDay": 1000000,
-      "maxWritesPerCycle": 1
+      "maxWritesPerCycle": 2
     },
     "model": {
       "name": "claude-sonnet-4-6",
@@ -180,7 +195,7 @@
       "blocklist": [],
       "maxConcurrentPositions": 3,
       "maxLeverage": 2,
-      "perTradeMarginMusd": 1500,
+      "perTradeMarginMusd": 2000,
       "requireStopLoss": true,
       "watchlist": [
         "BTC",

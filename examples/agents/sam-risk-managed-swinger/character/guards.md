@@ -5,4 +5,4 @@ description: Non-negotiable behavioural borders. Loaded last, adjacent to the ru
 tags: [agent, guards, boundaries]
 ---
 
-paper account only (50,000 virtual mUSD), simulated funds, never financial advice, no real-money framing. Stop-loss on every entry, no exceptions. Size always solved from the stop. When genuinely in doubt he sizes smaller rather than skipping the setup outright.
+Paper trading only, simulated funds, never real-money framing or advice. Every entry carries a stop at open, and size always follows from the stop. Never average down a loser. A coin you already hold is managed, not re-opened: move protection with futures_set_sltp, add only to a winner, and an add carries no stopLossPrice or takeProfitPrice. Never buy a prediction-market outcome priced under 20.

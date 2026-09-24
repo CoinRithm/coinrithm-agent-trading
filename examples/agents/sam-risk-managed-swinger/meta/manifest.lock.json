@@ -1,20 +1,20 @@
 {
-  "configHash": "sha256:3c91943e64b50a8ba44543e0c2d35c12509ffa235c5aecde4a2b7e973af5aba6",
+  "configHash": "sha256:a15c062cc2821360978380da1729e9271c7db6df548f7668cf8ce15daf817d48",
   "contentHashes": {
-    "agent.md": "sha256:a200327c459c920037b35d2768116db879e6585b3ff0fd5593b3fb7a9ca0a1a8",
-    "character/abstention.yaml": "sha256:24df02b20cbc240248cc7888962a8194ecefa41cd52b56aa22cce2111ee939a8",
-    "character/guards.md": "sha256:317dfc5e4b43b2fb76c9e307b8008c1dd00e2d04e86a91c39be6f16f5013bb2a",
-    "character/limits.yaml": "sha256:eedc0d10455aaab8405096b874985853e39241a65ebaa60f0a96b166d617abfb",
-    "character/persona.md": "sha256:7b55d6dcb25ef7cd3da167a33cac547e51e29209ec359848bf12d6f338eae597",
-    "character/risk.yaml": "sha256:37f59d6fe8e2bfa300a69fa044e588fe0c41a822ccd5277ee75b2f9b3795b871",
-    "character/sizing.yaml": "sha256:595f02654b082962262967171d334b4ffa56bc17f93908b052908ed7b4bdfbc0",
-    "character/skills/risk-first-sizing.md": "sha256:03c06e062f75fecd35d27f4807aa4f6e0939d81efbb687b712474ebcf5ddbbeb",
-    "character/skills/swing-trend.md": "sha256:31118cff53207e23bf97a6673862f16b8e97d61ed40011d072d980b3c60c4b24",
-    "character/thesis.md": "sha256:3280d0bf58e5e61eeb344fcd3c9583633ad837813257a15a9b47b4a4f3fd42b4",
-    "functionality/coinrithm.yaml": "sha256:3be2bc043fd06c1ae969dae7d93f11e0e6cc5fd7535292e5bd209142c1a9355c",
-    "journal/notes.md": "sha256:2121bfae825526a158b97e5cc58658476543cb51db05df341f10315502fbb411",
+    "agent.md": "sha256:fa0e69163688fcb9f4a04bc012e6c4cff3ad6fdc87b25fd58fbc1183327f6a1d",
+    "character/abstention.yaml": "sha256:8af8788902fe47d64870cf1020886ac32265d9fc0d6438ee518e399e81f00794",
+    "character/guards.md": "sha256:84eb29096329596caf739a2654bd62dc4dd6004fd8805c5121d944d28c9365b3",
+    "character/limits.yaml": "sha256:76ff14c67e06d303883ce4a3f3becb9871c49385b77efe42b644dcb3c64b5f47",
+    "character/persona.md": "sha256:04dd96237a2c12ffb381f1b1732aead1796d8620ca7e3e4fc3c78c69263d210f",
+    "character/risk.yaml": "sha256:22b185154ae042970e2a7e47fff2cf7a39e05d39f7980620e9c039b7b7b3f517",
+    "character/sizing.yaml": "sha256:d0b0ae4700099d6eb05e7f7546ae3228508cff731e49792d9a996c83229d8160",
+    "character/skills/risk-first-sizing.md": "sha256:5a1c0b0e930d165de7739a20675a194a423ff37e9a7593dc4be28f3d01825c7c",
+    "character/skills/swing-trend.md": "sha256:c06a757292d357b9dd18506163edd958c550b832e52a3752ae39aeddfddf79b9",
+    "character/thesis.md": "sha256:b8189cd03a770ce59cd4af4f5e7648727d953d4f5cf650bb70a74fd95806bd34",
+    "functionality/coinrithm.yaml": "sha256:15acfa177a70c640fe1c7a6ea6288dbf37256d95c6152bea1872a28398f4a406",
+    "journal/notes.md": "sha256:20df5e037f5acccedd76b72701b8e5e8199e17a79efe79aa0f443d5b06714b09",
     "runtime.yaml": "sha256:bf074f710fa3edd8858ab7d682b3151b1571d725119790e5a80cef33ad3f92a2",
-    "safety/killSwitch.yaml": "sha256:c73792585fb648aa23b9fa9378b2f62b9af024fad17d4e43d7c10e574c233ea4"
+    "safety/killSwitch.yaml": "sha256:e33291a87d7a0a006a0c911ddea1cd4eab35dc0020720e7703c2c57d6e778004"
   },
   "indicatorVersion": "coinrithm.indicators.v1",
   "provenance": {
@@ -41,6 +41,7 @@
     "sources": {
       "abstention": "character/abstention.yaml",
       "capabilities": "agent.md",
+      "capitalSizing": "agent.md",
       "description": "agent.md",
       "functionality": "functionality/coinrithm.yaml",
       "include": "agent.md",
@@ -60,17 +61,22 @@
   },
   "resolvedConfig": {
     "abstention": {
-      "minConfidence": 0.52,
-      "onInsufficientBalance": true,
-      "onMissingQuote": true,
-      "onStaleData": true,
-      "onWeakSignal": true
+      "minConfidence": 0.52
     },
     "capabilities": [
       "indicators",
       "news"
     ],
-    "description": "Risk-managed swing futures agent that holds positions across cycles, sizes from stop distance, and optimizes risk-adjusted return on CoinRithm paper trading.",
+    "capitalSizing": {
+      "cashReservePct": 20,
+      "futuresRiskPct": 0.75,
+      "minRewardRisk": 2,
+      "perTicketCapitalPct": 12,
+      "pmMaxLossPct": 1,
+      "totalCapitalPct": 50,
+      "version": "equity_fraction_v1"
+    },
+    "description": "Volatility-managed swing CoinRithm paper-futures agent. He trades pullbacks to EMA50 in the direction of the day, sets stops from volatility, banks half at 1.5R and trails the rest for up to two days.",
     "include": [
       "swing-trend",
       "risk-first-sizing"
@@ -78,14 +84,14 @@
     "killSwitch": {
       "maxConsecutiveModelFailures": 15,
       "maxConsecutiveRejects": 0,
-      "maxDrawdownMusd": 7500,
-      "onRateLimitPressure": true
+      "maxDrawdownMusd": 0,
+      "onRateLimitPressure": false
     },
     "limits": {
-      "maxDailyLossMusd": 3000,
-      "maxOpenMarginMusd": 10000,
+      "maxDailyLossMusd": 5000,
+      "maxOpenMarginMusd": 24000,
       "maxTradesPerDay": 0,
-      "maxWritesPerCycle": 1
+      "maxWritesPerCycle": 2
     },
     "mode": "self-host",
     "model": {
@@ -104,7 +110,7 @@
     "risk": {
       "maxConcurrentPositions": 4,
       "maxLeverage": 3,
-      "perTradeMarginMusd": 2500,
+      "perTradeMarginMusd": 6000,
       "requireStopLoss": true,
       "watchlist": [
         "BTC",
@@ -114,9 +120,9 @@
       ]
     },
     "sizing": {
-      "kellyFraction": 0.4,
-      "riskPerTradePct": 2,
-      "riskRewardMin": 2
+      "stop": "beyond the pullback's swing extreme and at least 6 x atr14",
+      "style": "volatility-managed swings, holds of hours to two days",
+      "target": "at least 2 x the stop; half banked at 1.5R, the rest trailed"
     },
     "spec": "coinrithm.agent.v1",
     "sync": {
@@ -144,18 +150,27 @@
       "indicators",
       "news"
     ],
-    "description": "Risk-managed swing futures agent that holds positions across cycles, sizes from stop distance, and optimizes risk-adjusted return on CoinRithm paper trading.",
+    "capitalSizing": {
+      "cashReservePct": 20,
+      "futuresRiskPct": 0.75,
+      "minRewardRisk": 2,
+      "perTicketCapitalPct": 12,
+      "pmMaxLossPct": 1,
+      "totalCapitalPct": 50,
+      "version": "equity_fraction_v1"
+    },
+    "description": "Volatility-managed swing CoinRithm paper-futures agent. He trades pullbacks to EMA50 in the direction of the day, sets stops from volatility, banks half at 1.5R and trails the rest for up to two days.",
     "killSwitch": {
       "maxConsecutiveModelFailures": 15,
       "maxConsecutiveRejects": 0,
-      "maxDrawdownMusd": 7500,
-      "onRateLimitPressure": true
+      "maxDrawdownMusd": 0,
+      "onRateLimitPressure": false
     },
     "limits": {
-      "maxDailyLossMusd": 3000,
-      "maxOpenMarginMusd": 10000,
+      "maxDailyLossMusd": 5000,
+      "maxOpenMarginMusd": 24000,
       "maxTradesPerDay": 1000000,
-      "maxWritesPerCycle": 1
+      "maxWritesPerCycle": 2
     },
     "model": {
       "name": "claude-sonnet-4-6",
@@ -174,7 +189,7 @@
       "blocklist": [],
       "maxConcurrentPositions": 4,
       "maxLeverage": 3,
-      "perTradeMarginMusd": 2500,
+      "perTradeMarginMusd": 6000,
       "requireStopLoss": true,
       "watchlist": [
         "BTC",

@@ -3,6 +3,7 @@ risk:
   maxLeverage: 4
 ---
 
-# Compression then expansion timing
+# Quality filter: break out of a coil, not out of chaos
 
-Breakouts are highest quality when they erupt out of contraction. Favor coins where the recent range has been tightening and volatility has been falling — a coiled spring — over coins already swinging wildly, where a 'break' is just more noise. Prefer the retest entry when available: after the initial break, the best risk is when price comes back to kiss the broken level and holds it, confirming the level flipped from resistance to support (or vice versa). That retest gives a tighter, better-defined stop. Because momentum can overshoot on the break itself, this skill tightens leverage to 4x to leave room for a volatile first pull-back without being liquidated. Skip entirely when volatility is already elevated and directionless, or when the would-be break is happening into a level with no prior structure to retest.
+Dials (edit freely): coil under 5 x atr14, chaos over 8 x atr14, daily move 2%.
+Measure range20 = recent20.high - recent20.low against atr14. Under 5 x atr14 the coin was coiling and the break is a real release: take it. Over 8 x atr14 the coin was already running; a new high there is late momentum with a far stop, so skip unless a fresh importance 7+ headline backs it. In between, take the break only when change24h is beyond 2% in the break direction.

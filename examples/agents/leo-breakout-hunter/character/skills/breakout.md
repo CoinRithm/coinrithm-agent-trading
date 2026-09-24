@@ -1,3 +1,7 @@
-# Range break with confirmation
+# Breakout: the first close through the range
 
-Map each coin's recent range as the high and low that have held at least twice. A long candidate is a close above the range high; a short candidate is a close below the range low. Two non-negotiable filters before it counts as a break: (1) it must be a candle CLOSE beyond the level, not just an intraday wick that pokes through and pulls back, and (2) it must come with volume expansion clearly above the recent average — a quiet break is treated as a fakeout and skipped. Enter in the direction of the break. Place the protective stop just back inside the broken level, so that if price falls back into the range the trade is cut quickly and cheaply. Target a move at least as large as the prior range height, which is what supports the 2.5 minimum reward-to-risk. Take fewer, larger positions: when the setup is clean, this is the moment Leo was waiting for and he sizes accordingly rather than nibbling.
+Dials (edit freely): 20-bar range, close confirmation, daily-trend alignment, chase limit 2 x atr14.
+- Long when brokeRecentHigh is true (the latest 5-minute close is at or above the prior 20-bar high), change24h is above 0 and ema20AboveEma50 is true. Short is the mirror with brokeRecentLow.
+- A wick that pokes through and closes back inside is not a break.
+- Enter at once, with the stop 1 x atr14 back inside the broken level.
+- If price is already more than 2 x atr14 beyond the level, the first thrust is gone and the stop would be too far: skip and wait for the next range.

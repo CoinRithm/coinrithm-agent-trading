@@ -1,9 +1,9 @@
 ---
 spec: coinrithm.agent.v1
 name: Mia
-description: Momentum trend-following CoinRithm paper-futures agent that trades
-  only when short and medium momentum agree, trails stops behind price, and
-  optimizes realized PnL.
+description: Trend-following CoinRithm paper-futures agent. She trades only in
+  the direction of the 7-day and 24-hour trend, enters on pullbacks, sets a stop
+  about one day's move away and trails winners for days.
 extends:
   - runtime.yaml
 venues:
@@ -24,14 +24,16 @@ capabilities:
   - universe_scan
 sizing:
   $ref: character/sizing.yaml
+# Enforced sizing. The runner replaces proposed margins and stakes with these
+# fractions of current equity. Percentages must be in (0, 100]; minRewardRisk >= 1.
 capitalSizing:
   version: equity_fraction_v1
-  futuresRiskPct: 0.75
-  pmMaxLossPct: 2
-  perTicketCapitalPct: 6
-  totalCapitalPct: 40
-  cashReservePct: 20
-  minRewardRisk: 1.5
+  futuresRiskPct: 1 # loss at the stop, % of equity, per futures entry
+  pmMaxLossPct: 1 # stake per prediction-market bet, % of equity
+  perTicketCapitalPct: 12 # margin ceiling per entry, % of equity
+  totalCapitalPct: 50 # all open margin and stakes together, % of equity
+  cashReservePct: 20 # cash never committed, % of equity
+  minRewardRisk: 2 # fee-inclusive target/stop floor; trend payoffs need 2R+
 risk:
   $ref: character/risk.yaml
 limits:
@@ -46,6 +48,4 @@ include:
   - trail-the-winner
 ---
 
-Rides confirmed crypto trends on the hour, trails her stops, and lets winners run.
-
-Strategy in [character/thesis.md](character/thesis.md); temperament in [character/persona.md](character/persona.md); tactics under [character/skills/](character/skills).
+Rides confirmed crypto trends for days, buys pullbacks, and lets the trailing stop decide the exit.

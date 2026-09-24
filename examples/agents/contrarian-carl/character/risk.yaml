@@ -1,9 +1,14 @@
-maxLeverage: 2
-perTradeMarginMusd: 2000
-maxConcurrentPositions: 4 # 2026-06-25: was 2; Carl was pinned at cap every cycle (see limits.yaml)
+# Enforced on every entry. These must stay positive: 0 here blocks trading.
+maxLeverage: 2 # leverage changes margin use, not risk; the stop sets the risk
+perTradeMarginMusd: 5000 # = perTicketCapitalPct 10% of the original 50,000 book
+maxConcurrentPositions: 4 # open futures positions
 requireStopLoss: true
+# Liquid large caps only: overreactions revert fastest where books are deep.
+# XRP and DOGE (2026-09-24) add breadth: more independent fades at the same skill.
 watchlist:
   - BTC
   - ETH
   - SOL
+  - XRP
+  - DOGE
   - LINK

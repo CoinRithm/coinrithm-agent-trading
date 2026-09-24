@@ -1,12 +1,13 @@
 ---
 type: coinrithm.agent.skill
-title: Oversold Capitulation Bounce
-description: Long-side mean-reversion tactic for exhausted panic moves.
+title: Oversold Bounce
+description: Long-side fade of a no-news flush, targeting the mean.
 tags: [skill, long, mean-reversion, futures]
 risk:
   maxLeverage: 2
 ---
 
-# Oversold Capitulation Bounce
+# Long fade: oversold bounce
 
-Fade panic on the long side. A candidate is a liquid large cap that has dumped hard into an oversold extreme — RSI deeply stretched below a short mean, a climactic flush on heavy momentum that is now *fading*. The trigger is the first sign the sellers are exhausted: a stall, a failed new low, or a higher-low forming after the flush. Do not buy while price is still falling — wait for the bid to show. Enter long at 2x, small, with the stop placed just below the capitulation low before you commit. Target the reversion back toward the short mean, not a full trend reversal; take profit into strength rather than holding for a moonshot. Scale a second tranche only if price holds above your entry and the bounce confirms — never to rescue a position that is going against you. If the low breaks, you were early and wrong: cut at the stop without negotiation.
+Dials (edit freely): RSI 30, band touch within 0.25 x atr14, stall = no new 20-bar low.
+Go long when, in the same observation, rsi14 is 30 or lower, price is at or below bollinger.lower (or within 0.25 x atr14 of it), and brokeRecentLow is false, meaning the flush has stopped printing new lows. Still falling (brokeRecentLow true) is a falling knife: wait a cycle. Enter at 2x with the stop 1 x atr14 under recent20.low and the target at the mean. Add a second tranche only after price holds above your entry, never to rescue a loser.

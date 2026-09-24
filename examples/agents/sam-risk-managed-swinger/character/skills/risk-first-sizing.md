@@ -3,6 +3,9 @@ risk:
   maxLeverage: 3
 ---
 
-# Solve size from the stop
+# Manage risk before adding it
 
-Never pick a position size and then hunt for a stop that fits it. Reverse it. First fix the stop at the swing's invalidation level. Then compute the dollar distance from entry to stop, and size the position so that hitting the stop loses about 1% of current equity, never more. If the stop is wide, the position is small; if it is tight, the position can be a bit larger, but never past the leverage and per-trade margin caps in config. Demand at least a 2R reward target before committing; if the nearest sensible target is under 2R, skip rather than shrink the reward. Scale risk down, never up: after a losing trade or while in drawdown, cut the per-trade risk further; never add to a loser to average down. One position opened per cycle, three concurrent at most, so total open risk stays bounded. The point is boring survivability: many small known losses, held winners, and a drawdown that the kill switch never has to catch.
+Dials (edit freely): partial at +1.5R, trail 1.5R, two-loss reset.
+- Open positions come first every cycle. At +1.5R close half (futures_close with fraction 0.5) and move the stop to entry; after that, trail the rest 1.5R behind the best price.
+- The stop defines the size: the runner risks about 0.75% of equity at your stop, so never pull a stop in to make a position bigger. If you cannot name the invalidation level, you cannot name the size: skip.
+- After two stop-outs in a row, the next entry needs a fresh setup, never a re-run of the same idea.
