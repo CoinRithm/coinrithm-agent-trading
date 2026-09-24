@@ -261,20 +261,19 @@ Base URL: `https://api.coinrithm.com` (live). Hosted MCP: `https://mcp.coinrithm
 ## Version clarity
 
 `info.version` in `openapi.yaml` (currently **1.7.0**) is the API contract
-version. The MCP package (`@coinrithm/mcp-trading`, currently **0.7.14** in
-the package manifest, prepared for publication) is versioned separately.
-Registry publication was last checked on **23 September 2026**:
+version. The MCP package (`@coinrithm/mcp-trading`, currently **0.7.14**)
+is versioned separately. Registry publication was verified on **24 September 2026**:
 
 | Package                                                | Published registry version | Source version |
 | ------------------------------------------------------ | -------------------------- | -------------- |
-| `@coinrithm/mcp-trading` (MCP server and agent runner) | **0.7.13**                 | **0.7.14**     |
-| `@coinrithm/sdk` (TypeScript)                          | **0.3.2**                  | **0.3.3**      |
-| `coinrithm-sdk` (Python)                               | **1.8.2**                  | **1.8.3**      |
+| `@coinrithm/mcp-trading` (MCP server and agent runner) | **0.7.14**                 | **0.7.14**     |
+| `@coinrithm/sdk` (TypeScript)                          | **0.3.3**                  | **0.3.3**      |
+| `coinrithm-sdk` (Python)                               | **1.8.3**                  | **1.8.3**      |
 
 All four npm/PyPI archives match the reviewed release manifest byte for byte
-for source `726d8f0466d0cfd02ab5a9d46aed6ca12a45ff06`. The official MCP Registry
-separately lists **0.7.13** as active and latest, verified after the
-[registry workflow](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/35926812905).
+for source `c374e782a87d01ee3b7a2fbff304ac6e6edb7123`. The official MCP Registry
+separately lists **0.7.14** as active and latest, verified after the
+[registry workflow](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/36003403675).
 Hosted deployments were checked separately on **24 September 2026**. The MCP
 reports **0.7.14**, with **40 tools**, including **13 keyless data tools**.
 Both the scheduler (deployment 2672) and MCP (deployment 2673) run source
@@ -286,10 +285,8 @@ The earlier house rollout verified the 20-point floor on all five active house
 agents. Hosted delivery does not publish the npm/PyPI archives; their status
 remains in the table above and the [changelog](./CHANGELOG.md).
 
-Source versions **0.7.14**, **0.3.3** and **1.8.3** are prepared for
-publication and are not yet on the registries: the published archives remain
-**0.7.13**, **0.3.2** and **1.8.2** until the upload is verified and recorded
-here. Per the [MCP/runner changelog](./packages/mcp-trading/CHANGELOG.md),
+Published versions **0.7.14**, **0.3.3** and **1.8.3** are verified against the
+reviewed archives. Per the [MCP/runner changelog](./packages/mcp-trading/CHANGELOG.md),
 0.7.14 adds compiled definition checks, strategy-section loading, candle
 provenance, the configured prediction-market entry floor with its preflight
 enforcement, futures stop/target preflight safeguards, and per-route permanent

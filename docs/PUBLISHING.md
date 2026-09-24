@@ -5,7 +5,7 @@ MCP Registry are delivered separately. Current publication status is in the
 [README](../README.md#version-clarity); package changes are in the
 [changelog](../CHANGELOG.md).
 
-## Verified delivery — 23 September 2026
+## Previous verified delivery — 23 September 2026
 
 | Registry | Package                  | Version  | Files                                                                |
 | -------- | ------------------------ | -------- | -------------------------------------------------------------------- |
@@ -23,7 +23,7 @@ downloaded packages passed the existing Node and Python smoke checks. The
 commands below record the upload procedure; a subsequent release must use its
 own reviewed versions and filenames, because these versions are immutable.
 
-## Prepared, not published: 24 September 2026
+## Verified delivery — 24 September 2026
 
 | Registry | Package                  | Version  | Files                                                                |
 | -------- | ------------------------ | -------- | -------------------------------------------------------------------- |
@@ -31,11 +31,14 @@ own reviewed versions and filenames, because these versions are immutable.
 | npm      | `@coinrithm/sdk`         | `0.3.3`  | `coinrithm-sdk-0.3.3.tgz`                                            |
 | PyPI     | `coinrithm-sdk`          | `1.8.3`  | `coinrithm_sdk-1.8.3-py3-none-any.whl`, `coinrithm_sdk-1.8.3.tar.gz` |
 
-These archives and their `release-manifest.json` are packed once from the
-reviewed release source and kept in the reviewed artifact directory. They are
-not published until the registry downloads are verified and this page, the
-README and the changelog record that verification. The commands below use
-these versions.
+All four registry downloads match the reviewed manifest for release source
+`c374e782a87d01ee3b7a2fbff304ac6e6edb7123`, including npm integrity. The uploads
+used the reviewed archives without repacking. The commands below document this
+completed upload; do not upload these immutable versions again.
+
+Clean-install Node/Python checks passed. The GitHub release is published, and
+the official MCP Registry lists **0.7.14** as active and latest after the
+[registry workflow](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/36003403675).
 
 ## Before uploading
 
@@ -55,11 +58,12 @@ npm view @coinrithm/sdk@0.3.3 version dist.integrity --registry=https://registry
 python -m pip index versions coinrithm-sdk
 ```
 
-An npm `E404` for one of these exact versions means that target is not published.
-If Python 1.8.3 appears in the version list, verify its files before uploading.
+An npm `E404` can also occur while an accepted upload is still processing.
+Check the original upload result and allow propagation before retrying. If a
+target version already exists, verify its files instead of uploading again.
 
-As verified on 23 September 2026, the registry versions are MCP 0.7.13,
-TypeScript 0.3.2 and Python 1.8.2. The API reference follows the current contract;
+As verified on 24 September 2026, the registry versions are MCP 0.7.14,
+TypeScript 0.3.3 and Python 1.8.3. The API reference follows the current contract;
 its runnable examples are pinned to these published SDK versions.
 
 ## Upload the exact archives
