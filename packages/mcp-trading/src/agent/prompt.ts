@@ -190,7 +190,8 @@ export function buildSystemPrompt(
     ...(spec.capabilities.includes("indicators")
       ? [
           "",
-          "## Signals — each watch entry may carry `indicators` (computed from 5-minute candles)",
+          "## Signals — each watch entry may carry `indicators` (nominal five-minute candles)",
+          "- `indicatorContext` reports accepted candle counts, source `asOf` and intervalStatus (regular/irregular/unknown); compare its asOf with observation.asOf for age. /market freshness is separate. nominalIntervalSeconds=300 does not prove fresh, continuous candles. Missing timestamps are unknown; stale, future-dated or irregular candles do not establish a current five-minute signal. `recent15` describes only recent spacing; Wilder atr14 also retains earlier history, so recent regularity does not erase older gaps.",
           "- rsi14: momentum (>70 overbought, <30 oversold); ema20 & ema50: trend; atr14: volatility (size stops off it); bollinger {upper,mid,lower}; recent20 {high,low}: breakout levels.",
           "- boolean reads: aboveEma20, ema20AboveEma50 (uptrend when both true), brokeRecentHigh (breakout), brokeRecentLow (breakdown).",
           "- a null field = not enough data; ignore it. These INFORM your decision; they never widen a cap.",

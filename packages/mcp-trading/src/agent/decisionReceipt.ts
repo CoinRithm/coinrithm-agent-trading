@@ -215,6 +215,34 @@ export function buildDecisionInputRecord(
       "sentimentBullishPct",
     ]),
     freshness: freshness(r.freshness),
+    ...(r.indicatorContext
+      ? {
+          indicatorContext: {
+            range: code(obj(r.indicatorContext).range, ["1D"]),
+            asOf: sourceTimestamp(obj(r.indicatorContext).asOf) ?? null,
+            intervalStatus: code(obj(r.indicatorContext).intervalStatus, [
+              "regular",
+              "irregular",
+              "unknown",
+            ]),
+            ...numeric(obj(r.indicatorContext), [
+              "nominalIntervalSeconds",
+              "barCount",
+              "timestampedBarCount",
+              "checkedIntervalCount",
+              "irregularIntervalCount",
+              "maxGapSeconds",
+            ]),
+            recent15: {
+              ...numeric(obj(obj(r.indicatorContext).recent15), ["barCount"]),
+              intervalStatus: code(
+                obj(obj(r.indicatorContext).recent15).intervalStatus,
+                ["regular", "irregular", "unknown"],
+              ),
+            },
+          },
+        }
+      : {}),
     indicators: {
       ...numeric(obj(r.indicators), [
         "asOfClose",
@@ -419,6 +447,7 @@ const LIST_KEYS: Record<string, string[]> = {
     "sentimentBullishPct",
     "freshness",
     "indicators",
+    "indicatorContext",
     "fundamentals",
   ],
   futuresPositions: [
@@ -464,6 +493,19 @@ const LIST_KEYS: Record<string, string[]> = {
   universeMovers: ["symbol", "change24hPct", "priceUsd"],
 };
 const NESTED_KEYS: Record<string, string[]> = {
+  indicatorContext: [
+    "range",
+    "asOf",
+    "nominalIntervalSeconds",
+    "barCount",
+    "timestampedBarCount",
+    "checkedIntervalCount",
+    "irregularIntervalCount",
+    "maxGapSeconds",
+    "intervalStatus",
+    "recent15",
+  ],
+  recent15: ["barCount", "intervalStatus"],
   freshness: ["status", "ageSeconds", "asOf", "basis"],
   quality: [
     "decisionEligible",
@@ -515,6 +557,9 @@ function validRow(value: unknown, keys: string[]): boolean {
     if (key === "asOf" || key === "assessedAt" || key === "openedAt")
       return sourceTimestamp(v) === v;
     if (key === "basis") return code(v, FRESHNESS_BASES) !== null;
+    if (key === "range") return code(v, ["1D"]) !== null;
+    if (key === "intervalStatus")
+      return code(v, ["regular", "irregular", "unknown"]) !== null;
     if (key === "policyVersion")
       return typeof v === "string" && /^pm-quality-\d{1,3}$/.test(v);
     if (key === "warningReasons" || key === "blockReasons") {
