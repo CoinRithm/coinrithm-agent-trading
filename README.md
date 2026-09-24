@@ -278,11 +278,11 @@ separately lists **0.7.13** as active and latest, verified after the
 Hosted deployments were checked separately on **24 September 2026**. The MCP
 reports **0.7.13**, with **40 tools**, including **13 keyless data tools**, at
 source `ff8b0443e62d0c1ca4920d23b811b44d4e11acc8` (deployment 2661).
-The scheduler deployment target is `5af316777f585cbdef466ecd62b979783a7bb7e2`
-(deployment 2665); production verification is pending. The five house paper
-agent definitions are versioned in source; production apply verification is
-pending. Existing customer strategies and recorded paper history remain
-preserved by the reviewed rollout plan.
+The scheduler runs `5af316777f585cbdef466ecd62b979783a7bb7e2` (deployment
+2665); its exact image is healthy with zero restarts. The five house paper
+agent definitions are versioned in source; live application of the new floor
+remains pending verification. Existing customer strategies and recorded paper
+history remain preserved by the reviewed rollout plan.
 
 Current source includes changes marked **Unreleased** in the
 [MCP/runner changelog](./packages/mcp-trading/CHANGELOG.md), including compiled
@@ -290,7 +290,7 @@ definition checks, strategy-section loading, candle provenance, and the
 configured prediction-market entry floor with its preflight enforcement. They
 are not included in the published **0.7.13** archive even though the source
 manifest has not yet been bumped. Package publication and hosted deployments
-are separate; the floor is source/hosted rollout work pending production
+are separate; the live house application of the floor remains pending
 verification, not a claim about the published archive.
 
 The published SDKs include whale-wallet summary/detail reads, the house-only
