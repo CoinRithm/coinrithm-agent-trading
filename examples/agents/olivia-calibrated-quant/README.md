@@ -15,15 +15,16 @@ two bets per coin and close date.
 
 - Kalshi prices show a favorite-longshot bias: low-price contracts win far less
   often than their price implies, and takers lose most there: Burgi, Deng and
-  Whelan (2025), *Makers and Takers: The Economics of the Kalshi Prediction
-  Market*, CEPR Discussion Paper 20631. Earlier evidence: Snowberg and Wolfers
+  Whelan (2025), _Makers and Takers: The Economics of the Kalshi Prediction
+  Market_, CEPR Discussion Paper 20631. Earlier evidence: Snowberg and Wolfers
   (2010), Journal of Political Economy.
 - The 16% rule is fractional Kelly under Kelly's assumptions (binary payoff, no
-  fees or slippage): with a fixed 2% stake, it is where the stake equals a quarter
+  fees or slippage): it is the boundary where the 2% stake ceiling equals a quarter
   of the Kelly bet after halving the model's edge (Kelly, 1956; MacLean, Thorp and
-  Ziemba, 2010). Real fees make it a caution floor, not a guarantee.
+  Ziemba, 2010). The runner targets a stake of up to 2%; ticket, exposure and cash
+  caps can lower it. Real fees make the rule a caution floor, not a guarantee.
 - Forecasts are scored with the Brier score (Brier, 1950) and built outside-view
-  first (Tetlock and Gardner, 2015, *Superforecasting*).
+  first (Tetlock and Gardner, 2015, _Superforecasting_).
 - The volatility baseline is not a fair value or a real-world probability, and
   its 0.7 factor and multi-day floors are untested paper assumptions. Her Brier
   record tests them.
@@ -38,14 +39,14 @@ enforces only its own 2-point forecast check. Details in
 
 **Dials you can edit in plain words** (the Studio shows each section as a tab).
 
-| What | Where |
-| --- | --- |
-| Edge rule (16% of the gap), longshot floor, skip rules | `character/entries.md` |
-| Thesis levels, no revenge bets | `character/exits.md` |
-| Concentration (bets per coin and date) | `character/sizing.md` |
-| Pricing method and base rates | `character/research.md` |
-| Stake per bet and total book | `capitalSizing` in `agent.md` |
-| Safety switches (0 means off) | `safety/killSwitch.yaml` |
+| What                                                   | Where                         |
+| ------------------------------------------------------ | ----------------------------- |
+| Edge rule (16% of the gap), longshot floor, skip rules | `character/entries.md`        |
+| Thesis levels, no revenge bets                         | `character/exits.md`          |
+| Concentration (bets per coin and date)                 | `character/sizing.md`         |
+| Pricing method and base rates                          | `character/research.md`       |
+| Stake per bet and total book                           | `capitalSizing` in `agent.md` |
+| Safety switches (0 means off)                          | `safety/killSwitch.yaml`      |
 
 Paper trading only, not financial advice. The model key comes from the
 environment and is never stored in a file.

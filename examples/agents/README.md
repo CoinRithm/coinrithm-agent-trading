@@ -23,14 +23,14 @@ These are CoinRithm's own **house agents** (the ones on the public
 (the CoinRithm pin), `journal/` (memory), `evaluation/` (scorecard + Arena
 opt-in), and `meta/` (changelog + frozen `manifest.lock.json`).
 
-| Agent | Strategy | Risk at stop | Max lev | Objective | Cadence (self-host) |
-| --- | --- | --- | --- | --- | --- |
-| [`mia-trend-rider/`](./mia-trend-rider) | Trend rider: trades with the 7-day and 24-hour trend, buys pullbacks, stop about one day's move, trails winners for days | 1% of equity | 4x | realized PnL | 1h |
-| [`contrarian-carl/`](./contrarian-carl) | Contrarian: fades no-news overreactions back to the mean, four-hour time stop | 0.5% | 2x | drawdown control | 4h |
-| [`leo-breakout-hunter/`](./leo-breakout-hunter) | Breakout hunter: first close through the 20-bar range with the day, prefers coils, cuts failed breaks at the level | 0.75% | 4x | realized PnL | 1h |
-| [`olivia-calibrated-quant/`](./olivia-calibrated-quant) | Calibrated quant: prediction markets only, prices every market first, Kelly-derived edge rule, no longshots | 2% stake per bet | n/a | calibration | 4h |
-| [`sam-risk-managed-swinger/`](./sam-risk-managed-swinger) | Risk-managed swinger: pullbacks to EMA50 with the day, volatility-set stops, half banked at 1.5R | 0.75% | 3x | risk-adjusted | 1h |
-| [`pia-pump-fader/`](./pia-pump-fader) | Pump fader: universe_scan discovery + news catalyst checks, shorts only CONFIRMED exhaustion after an abnormal pump; the capabilities + boundary-configuration reference | fixed margin | 2x | risk-adjusted (adherence-gated) | 10m |
+| Agent                                                     | Strategy                                                                                                                                                                 | Modeled stop-risk target / stake | Max lev | Objective                       | Cadence (self-host) |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- | ------- | ------------------------------- | ------------------- |
+| [`mia-trend-rider/`](./mia-trend-rider)                   | Trend rider: trades with the 7-day and 24-hour trend, buys pullbacks, stop about one day's move, trails winners for days                                                 | 1% of equity                     | 4x      | realized PnL                    | 1h                  |
+| [`contrarian-carl/`](./contrarian-carl)                   | Contrarian: fades no-news overreactions back to the mean, four-hour time stop                                                                                            | 0.5%                             | 2x      | drawdown control                | 4h                  |
+| [`leo-breakout-hunter/`](./leo-breakout-hunter)           | Breakout hunter: first close through the 20-bar range with the day, prefers coils, cuts failed breaks at the level                                                       | 0.75%                            | 4x      | realized PnL                    | 1h                  |
+| [`olivia-calibrated-quant/`](./olivia-calibrated-quant)   | Calibrated quant: prediction markets only, prices every market first, Kelly-derived edge rule, no longshots                                                              | Up to 2% stake per bet           | n/a     | calibration                     | 4h                  |
+| [`sam-risk-managed-swinger/`](./sam-risk-managed-swinger) | Risk-managed swinger: pullbacks to EMA50 with the day, volatility-set stops, half banked at 1.5R                                                                         | 0.75%                            | 3x      | risk-adjusted                   | 1h                  |
+| [`pia-pump-fader/`](./pia-pump-fader)                     | Pump fader: universe_scan discovery + news catalyst checks, shorts only CONFIRMED exhaustion after an abnormal pump; the capabilities + boundary-configuration reference | fixed margin                     | 2x      | risk-adjusted (adherence-gated) | 10m                 |
 
 Each is the **same format** dialed to a different personality: the strategy
 prose, the hard caps, the sizing policy, the abstention threshold, the
@@ -44,35 +44,38 @@ the research behind its edge and the evidence from its own record, and its
 Checked against the runner source on 2026-09-24. Some zeros switch a limit off;
 others block every trade.
 
-| Knob | File | 0 means | Hosted rule |
-| --- | --- | --- | --- |
-| `killSwitch.maxDrawdownMusd` | `safety/killSwitch.yaml` | off | 0 or more |
-| `killSwitch.maxConsecutiveRejects` | `safety/killSwitch.yaml` | off | 0 or more |
-| `killSwitch.maxConsecutiveModelFailures` | `safety/killSwitch.yaml` | off (a positive value is floored at 10) | 0 or more |
-| `killSwitch.onRateLimitPressure` | `safety/killSwitch.yaml` | `false` is off | true or false |
-| `limits.maxTradesPerDay` | `character/limits.yaml` | unlimited entries per UTC day | 0 or more |
-| `limits.maxDailyLossMusd` | `character/limits.yaml` | no daily loss cap | 0 or more |
-| `limits.maxWritesPerCycle` | `character/limits.yaml` | **blocks every entry** (it counts entries and adds; closes and stop moves are never capped) | above 0 |
-| `limits.maxOpenMarginMusd` | `character/limits.yaml` | **blocks every futures entry** | above 0 |
-| `risk.perTradeMarginMusd` | `character/risk.yaml` | **blocks every entry** | above 0 |
-| `risk.maxConcurrentPositions` | `character/risk.yaml` | **blocks every futures entry** | above 0 |
-| `abstention.minConfidence` | `character/abstention.yaml` | no confidence floor | 0 to 1 |
-| `capitalSizing.cashReservePct` | `agent.md` | no cash reserve | 0 to under 100 |
-| `capitalSizing.minRewardRisk` | `agent.md` | not allowed | 1 or more |
-| other `capitalSizing` percentages | `agent.md` | not allowed | above 0, up to 100 |
+| Knob                                     | File                        | 0 means                                                                                     | Hosted rule        |
+| ---------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------- | ------------------ |
+| `killSwitch.maxDrawdownMusd`             | `safety/killSwitch.yaml`    | off                                                                                         | 0 or more          |
+| `killSwitch.maxConsecutiveRejects`       | `safety/killSwitch.yaml`    | off                                                                                         | 0 or more          |
+| `killSwitch.maxConsecutiveModelFailures` | `safety/killSwitch.yaml`    | off (a positive value is floored at 10)                                                     | 0 or more          |
+| `killSwitch.onRateLimitPressure`         | `safety/killSwitch.yaml`    | `false` is off                                                                              | true or false      |
+| `limits.maxTradesPerDay`                 | `character/limits.yaml`     | unlimited entries per UTC day                                                               | 0 or more          |
+| `limits.maxDailyLossMusd`                | `character/limits.yaml`     | no daily loss cap                                                                           | 0 or more          |
+| `limits.maxWritesPerCycle`               | `character/limits.yaml`     | **blocks every entry** (it counts entries and adds; closes and stop moves are never capped) | above 0            |
+| `limits.maxOpenMarginMusd`               | `character/limits.yaml`     | **blocks every futures entry**                                                              | above 0            |
+| `risk.perTradeMarginMusd`                | `character/risk.yaml`       | **blocks every entry**                                                                      | above 0            |
+| `risk.maxConcurrentPositions`            | `character/risk.yaml`       | **blocks every futures entry**                                                              | above 0            |
+| `abstention.minConfidence`               | `character/abstention.yaml` | no confidence floor                                                                         | 0 to 1             |
+| `capitalSizing.cashReservePct`           | `agent.md`                  | no cash reserve                                                                             | 0 to under 100     |
+| `capitalSizing.minRewardRisk`            | `agent.md`                  | not allowed                                                                                 | 1 or more          |
+| other `capitalSizing` percentages        | `agent.md`                  | not allowed                                                                                 | above 0, up to 100 |
 
 `character/sizing.yaml` holds notes for people; the runner never reads it. The
-enforced sizing is `capitalSizing` in `agent.md`: each futures entry risks
-`futuresRiskPct` of current equity at its stop and each prediction-market bet
-stakes `pmMaxLossPct`, whatever size the model proposes. A wider stop therefore
-means a smaller position, not a bigger loss.
+enforced sizing is `capitalSizing` in `agent.md`: the runner targets a modeled
+futures loss at the stop of `futuresRiskPct` of current equity and a prediction-market
+stake of up to `pmMaxLossPct`, replacing the size the model proposes. Ticket,
+exposure and cash caps can lower the position or stake. A wider stop reduces the
+modeled position; costs, gaps and liquidation can change the actual loss. Leverage
+changes margin use and liquidation exposure, so the modeled risk-at-stop target
+is not a guaranteed loss limit.
 
 ## Starter examples
 
-| Folder | What it shows |
-| --- | --- |
-| [`momentum-futures/`](./momentum-futures) | **Folder-of-one** — the smallest valid agent: a single `agent.md`. What `coinrithm-agent new` produces. |
-| [`momentum-futures-decomposed/`](./momentum-futures-decomposed) | The **ejected** form of the same agent — split into files, resolves to the identical spec. |
+| Folder                                                          | What it shows                                                                                           |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| [`momentum-futures/`](./momentum-futures)                       | **Folder-of-one** — the smallest valid agent: a single `agent.md`. What `coinrithm-agent new` produces. |
+| [`momentum-futures-decomposed/`](./momentum-futures-decomposed) | The **ejected** form of the same agent — split into files, resolves to the identical spec.              |
 
 ## Try one (no keys needed for these three)
 

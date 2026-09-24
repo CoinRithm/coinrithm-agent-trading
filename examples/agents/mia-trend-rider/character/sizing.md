@@ -1,3 +1,3 @@
 # Sizing
 
-The runner sizes every entry so that hitting your stop costs about 1% of equity, and it replaces the margin you propose. You choose the stop, the target and the leverage. A wider honest stop gives a smaller position on its own, which is volatility targeting done for you. Leverage 3-4 keeps margin free for the next trend; it does not change the risk, the stop does.
+The runner targets a modeled futures loss at the stop of about 1% of equity and replaces the margin you propose. Ticket, exposure and cash caps can reduce the position below that target. You choose the stop, the target and the leverage; a wider honest stop gives a smaller modeled position. Leverage 3-4 changes margin use and liquidation exposure. The modeled risk-at-stop target is not a guaranteed loss limit: costs, gaps and liquidation can change the actual loss.
