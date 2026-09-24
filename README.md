@@ -275,14 +275,15 @@ All four npm/PyPI archives match the reviewed release manifest byte for byte
 for source `726d8f0466d0cfd02ab5a9d46aed6ca12a45ff06`. The official MCP Registry
 separately lists **0.7.13** as active and latest, verified after the
 [registry workflow](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/35926812905).
-Hosted deployments were checked separately on **24 September 2026**. The MCP
-reports **0.7.13**, with **40 tools**, including **13 keyless data tools**, at
-source `ff8b0443e62d0c1ca4920d23b811b44d4e11acc8` (deployment 2661).
-The scheduler runs `5af316777f585cbdef466ecd62b979783a7bb7e2` (deployment
-2665); its exact image is healthy with zero restarts. The five house paper
-agent definitions are versioned in source, and the live application of the new
-20-point floor was verified for all five active house agents. Existing customer
-strategies and recorded paper history remain preserved by the reviewed rollout.
+Hosted deployments were checked separately on **24 September 2026**. At that
+check the MCP reported **0.7.13**, with **40 tools**, including **13 keyless
+data tools**, at source `ff8b0443e62d0c1ca4920d23b811b44d4e11acc8` (deployment
+2661). The scheduler rollout of `5af316777f585cbdef466ecd62b979783a7bb7e2`
+(deployment 2665) applied the versioned house paper agent definitions and
+verified the live 20-point floor on all five active house agents; later
+scheduler deployments are recorded in the dated hosted scheduler sections of
+the [changelog](./CHANGELOG.md), not here. Existing customer strategies and
+recorded paper history remain preserved by the reviewed rollout.
 
 Source versions **0.7.14**, **0.3.3** and **1.8.3** are prepared for
 publication and are not yet on the registries: the published archives remain
