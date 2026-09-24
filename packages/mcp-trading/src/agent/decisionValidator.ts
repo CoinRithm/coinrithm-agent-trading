@@ -6,6 +6,7 @@
 import {
   AgentSpec,
   Observation,
+  OpenPosition,
   ProposedAction,
   QuoteEvidence,
   ValidationResult,
@@ -56,6 +57,69 @@ const PM_MIN_FORECAST_EDGE_POINTS = (() => {
 })();
 
 const PM_MIN_STAKE_MUSD = 10; // server minimum prediction-market stake
+
+// Match backend-v2 validateSlTpPrices, including its boundary tolerance. This
+// preflight uses observed evidence only; the API still checks a fresh mark and
+// locked position at execution. Older observations can omit these prices.
+const TRIGGER_PRICE_EPS = 1e-8;
+function validateTriggerUpdate(
+  action: Extract<ProposedAction, { type: "futures_set_sltp" }>,
+  pos: OpenPosition,
+): ValidationResult {
+  // executeAction omits null as well as undefined; neither clears a trigger in
+  // this runner. Check the resulting state, including retained protection.
+  const sl = action.stopLossPrice ?? pos.stopLossPrice;
+  const tp = action.takeProfitPrice ?? pos.takeProfitPrice;
+  const positive = (value: number | undefined): value is number =>
+    typeof value === "number" && Number.isFinite(value) && value > 0;
+  if (sl != null && !positive(sl))
+    return fail(
+      "invalid_stop_loss_price",
+      `position ${pos.id}: stop loss must be finite and positive`,
+    );
+  if (tp != null && !positive(tp))
+    return fail(
+      "invalid_take_profit_price",
+      `position ${pos.id}: take profit must be finite and positive`,
+    );
+  if (pos.side !== "long" && pos.side !== "short") return ok();
+  const long = pos.side === "long";
+  const mark = pos.markPrice;
+  const liq = pos.liquidationPrice;
+  if (sl != null) {
+    if (
+      positive(mark) &&
+      (long ? sl >= mark - TRIGGER_PRICE_EPS : sl <= mark + TRIGGER_PRICE_EPS)
+    ) {
+      return fail(
+        long ? "stop_loss_not_below_mark" : "stop_loss_not_above_mark",
+        `position ${pos.id}: ${pos.side} effective stop ${sl} must be ${long ? "below" : "above"} observed mark ${mark}; omitted triggers keep their existing values`,
+      );
+    }
+    if (
+      positive(liq) &&
+      (long ? sl <= liq + TRIGGER_PRICE_EPS : sl >= liq - TRIGGER_PRICE_EPS)
+    ) {
+      return fail(
+        long
+          ? "stop_loss_not_above_liquidation"
+          : "stop_loss_not_below_liquidation",
+        `position ${pos.id}: ${pos.side} effective stop ${sl} must be ${long ? "above" : "below"} observed liquidation ${liq}; omitted triggers keep their existing values`,
+      );
+    }
+  }
+  if (
+    tp != null &&
+    positive(mark) &&
+    (long ? tp <= mark + TRIGGER_PRICE_EPS : tp >= mark - TRIGGER_PRICE_EPS)
+  ) {
+    return fail(
+      long ? "take_profit_not_above_mark" : "take_profit_not_below_mark",
+      `position ${pos.id}: ${pos.side} effective take profit ${tp} must be ${long ? "above" : "below"} observed mark ${mark}; omitted triggers keep their existing values`,
+    );
+  }
+  return ok();
+}
 
 // Entry budgets are exposure budgets, not emergency-action budgets. Closing a
 // futures position, updating its protection, cancelling an order, or selling
@@ -387,6 +451,7 @@ export function validateAction(
           "futures_set_sltp must set at least one positive stopLossPrice or takeProfitPrice",
         );
       }
+      return validateTriggerUpdate(action, pos);
     }
     return ok();
   }

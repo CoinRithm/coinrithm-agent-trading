@@ -10,6 +10,8 @@ Each package has its own version; the API contract is versioned separately.
 
 ## Unreleased
 
+- Reject futures stop/target updates that conflict with observed position prices
+  before sending them; retain the API's final execution-time validation.
 - Add compiled-agent snapshots and an optional local run baseline check. Source
   changes are not included in the published 0.7.13 archive.
 
