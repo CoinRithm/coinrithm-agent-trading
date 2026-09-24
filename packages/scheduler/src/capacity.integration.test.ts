@@ -16,6 +16,8 @@ import {
   costByOwnerSince,
   recordCycle,
   reviveDisabledAgents,
+  migrateHouseAgentsOffGroq,
+  migrateAgentsOffEolModels,
 } from "./db.js";
 
 // Opt-in real SQL regression tests against a disposable LOCAL database only.
@@ -426,6 +428,175 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
     expect(await agentCountByOwner(pool, 999)).toBe(0);
     expect(await costByOwnerSince(pool, 101, new Date(0))).toBe(0.25);
     expect(await costByOwnerSince(pool, 999, new Date(0))).toBe(0);
+  });
+
+  // 2026-09-24: a45-casa, a SHARED unpinned user agent stranded on the obsolete
+  // hosted Groq route (recorded provider HTTP 404), was stopped as
+  // model_unavailable and reachable by neither boot migration (de-Groq was
+  // house-only, the EOL remap is nvidia-only). The de-Groq migration also checks
+  // the owner-matched CoinRithm ApiKey of a shared row (a backend-owned public
+  // table; the scheduler runs as postgres in production). The test database
+  // only carries what the scheduler migrates, so a minimal ApiKey table with
+  // the three columns the predicate reads is created here.
+  const APIKEY_DDL = `CREATE TABLE IF NOT EXISTS "ApiKey" (
+    id integer PRIMARY KEY,
+    "userId" integer NOT NULL,
+    "revokedAt" timestamptz
+  )`;
+  async function addGroqAgent(
+    handle: string,
+    over: {
+      model?: string;
+      status?: string;
+      reason?: string | null;
+      byo?: boolean;
+      pinned?: boolean;
+      house?: boolean;
+      /** ApiKey row for the a<id>- prefix: valid, revoked, none, or another owner's. */
+      key?: "valid" | "revoked" | "missing" | "other-owner";
+    } = {},
+  ) {
+    await pool.query(APIKEY_DDL);
+    const keyId = Number((handle.match(/^a(\d+)-/) ?? [])[1] ?? NaN);
+    if (Number.isFinite(keyId)) {
+      await pool.query('DELETE FROM "ApiKey" WHERE id = $1', [keyId]);
+      const key = over.key ?? "valid";
+      if (key !== "missing")
+        await pool.query(
+          'INSERT INTO "ApiKey" (id, "userId", "revokedAt") VALUES ($1, $2, $3)',
+          [
+            keyId,
+            key === "other-owner" ? 202 : 101,
+            key === "revoked" ? new Date() : null,
+          ],
+        );
+    }
+    const { rows } = await pool.query(
+      `INSERT INTO agent_runtime.agents
+        (handle, display_name, owner_user_id, status, disabled_reason, is_house, live, cadence_seconds,
+         model_provider, model_name, spec, prose, coinrithm_key_enc, brain_key_enc)
+       VALUES ($1, $1, 101, $2, $3, $4, false, 600, 'groq', $5, $6::jsonb, '', 'fixture-unused', $7)
+       RETURNING id`,
+      [
+        handle,
+        over.status ?? "disabled",
+        over.reason === undefined
+          ? "model_unavailable: provider HTTP 404"
+          : over.reason,
+        over.house ?? false,
+        over.model ?? "llama-3.1-8b-instant",
+        JSON.stringify(over.pinned ? { pinnedModel: true } : {}),
+        over.byo ? "fixture-byo-key" : null,
+      ],
+    );
+    return Number(rows[0].id);
+  }
+  const agentRow = async (id: number) =>
+    (
+      await pool.query(
+        `SELECT status, disabled_reason, model_provider, model_name,
+                (next_run_at <= now()) AS due
+           FROM agent_runtime.agents WHERE id = $1`,
+        [id],
+      )
+    ).rows[0];
+
+  it("boot migrations move a shared unpinned Groq agent with a valid key to a living NVIDIA model and revive its model_unavailable stop, protecting every other class", async () => {
+    const casa = await addGroqAgent("a9001-casa");
+    const bigCasa = await addGroqAgent("a9002-casa-70b", {
+      model: "llama-3.1-70b-versatile",
+    });
+    const activeShared = await addGroqAgent("a9003-active-shared", {
+      status: "active",
+      reason: null,
+    });
+    const houseRow = await addGroqAgent("house-groq", {
+      house: true,
+      status: "active",
+      reason: null,
+    });
+    const byo = await addGroqAgent("a9004-byo", { byo: true });
+    const pinned = await addGroqAgent("a9005-pinned", { pinned: true });
+    const paused = await addGroqAgent("a9006-paused", {
+      status: "paused",
+      reason: null,
+    });
+    const drawdown = await addGroqAgent("a9007-risk-stopped", {
+      reason: "equity drawdown >= 2500",
+    });
+    // Reason class only: a key_invalid stop with a still-valid key is simply
+    // not in the active / model_unavailable classes, so it is untouched.
+    const keyInvalidReason = await addGroqAgent("a9008-key-invalid-reason", {
+      reason: "key_invalid: CoinRithm key rejected (HTTP 401)",
+    });
+    // Actual key state: model_unavailable stops whose CoinRithm key IS revoked,
+    // whose key row is missing, or whose key belongs to another user.
+    const revokedKey = await addGroqAgent("a9009-revoked-key", {
+      key: "revoked",
+    });
+    const missingKey = await addGroqAgent("a9010-missing-key", {
+      key: "missing",
+    });
+    const otherOwnerKey = await addGroqAgent("a9011-other-owner", {
+      key: "other-owner",
+    });
+
+    // Boot order: de-Groq first, then the NVIDIA EOL remap + revive.
+    expect(await migrateHouseAgentsOffGroq(pool)).toBe(4);
+    const [remapped, revived] = await migrateAgentsOffEolModels(pool);
+    expect(remapped).toBe(0);
+    expect(revived).toBe(2);
+
+    expect(await agentRow(casa)).toMatchObject({
+      status: "active",
+      disabled_reason: null,
+      model_provider: "nvidia",
+      model_name: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+      due: true,
+    });
+    expect(await agentRow(bigCasa)).toMatchObject({
+      status: "active",
+      disabled_reason: null,
+      model_provider: "nvidia",
+      model_name: "nvidia/nemotron-3-super-120b-a12b",
+    });
+    expect(await agentRow(activeShared)).toMatchObject({
+      status: "active",
+      model_provider: "nvidia",
+      model_name: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+    });
+    expect(await agentRow(houseRow)).toMatchObject({
+      status: "active",
+      model_provider: "nvidia",
+    });
+    // Protected: owner-provided key, explicit pin, user pause, risk stop, a
+    // key_invalid reason, and model_unavailable stops whose CoinRithm key is
+    // revoked, missing or another user's keep BOTH their Groq selection and
+    // their state, and therefore never reach the nvidia-only revive step.
+    for (const [id, status, reason] of [
+      [byo, "disabled", "model_unavailable: provider HTTP 404"],
+      [pinned, "disabled", "model_unavailable: provider HTTP 404"],
+      [paused, "paused", null],
+      [drawdown, "disabled", "equity drawdown >= 2500"],
+      [
+        keyInvalidReason,
+        "disabled",
+        "key_invalid: CoinRithm key rejected (HTTP 401)",
+      ],
+      [revokedKey, "disabled", "model_unavailable: provider HTTP 404"],
+      [missingKey, "disabled", "model_unavailable: provider HTTP 404"],
+      [otherOwnerKey, "disabled", "model_unavailable: provider HTTP 404"],
+    ] as const) {
+      expect(await agentRow(id)).toMatchObject({
+        status,
+        disabled_reason: reason,
+        model_provider: "groq",
+        model_name: "llama-3.1-8b-instant",
+      });
+    }
+    // Idempotent: a second boot changes nothing.
+    expect(await migrateHouseAgentsOffGroq(pool)).toBe(0);
+    expect(await migrateAgentsOffEolModels(pool)).toEqual([0, 0]);
   });
 
   it("revives only recoverable failures and retains risk stops and daily counters", async () => {

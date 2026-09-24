@@ -543,6 +543,36 @@ describe("migrateAgentsOffEolModels — NVIDIA 2026-08-26 EOL event", () => {
     expect(sql).not.toContain("meta/llama-3.1-70b-instruct");
     expect(sql).not.toContain("llama-3.3-nemotron-super-49b-v1");
     expect(sql).toContain("is_house = true");
+  });
+
+  it("de-Groq also reaches shared unpinned user rows that are active or stopped as model_unavailable, nothing else (2026-09-24)", async () => {
+    const query = vi.fn().mockResolvedValue({ rowCount: 1, rows: [] });
+    const pool = { query } as unknown as Pool;
+    await migrateHouseAgentsOffGroq(pool);
+    const [sql] = query.mock.calls[0] as [string, unknown[]];
+    expect(sql).toContain("model_provider = 'groq'");
+    // Same scope as every automatic model migration: no BYO key, not pinned.
+    expect(sql).toContain("brain_key_enc IS NULL");
+    expect(sql).toContain(
+      "(spec->'pinnedModel') IS DISTINCT FROM 'true'::jsonb",
+    );
+    // House rows as before, plus shared rows that can actually be repaired:
+    // active ones and the ones already stopped because the model is gone.
+    expect(sql).toContain("is_house = true");
+    expect(sql).toContain("OR ((a.status = 'active'");
+    expect(sql).toContain(
+      "OR (a.status = 'disabled' AND a.disabled_reason ILIKE 'model_unavailable%')",
+    );
+    // Paused, drawdown-stopped and key_invalid shared rows are not named, so
+    // they are untouched: they cannot run until their owner acts anyway.
+    expect(sql).not.toContain("'paused'");
+    expect(sql).not.toContain("drawdown");
+    expect(sql).not.toContain("key_invalid");
+    // Shared rows must have an owner-matched, unrevoked CoinRithm key; house
+    // rows have no ApiKey and keep the old path.
+    expect(sql).toContain('FROM "ApiKey" k');
+    expect(sql).toContain('k."userId" = a.owner_user_id');
+    expect(sql).toContain('k."revokedAt" IS NULL');
     expect(sql).toContain("brain_key_enc IS NULL");
     expect(sql).toContain(
       "(spec->'pinnedModel') IS DISTINCT FROM 'true'::jsonb",

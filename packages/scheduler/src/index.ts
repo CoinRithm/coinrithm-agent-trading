@@ -31,7 +31,7 @@ async function main(): Promise<void> {
   const deGroqed = await migrateHouseAgentsOffGroq(pool);
   if (deGroqed > 0)
     console.log(
-      `[scheduler] de-Groq: moved ${deGroqed} house agent(s) off Groq -> NVIDIA (free 6k TPM can't fit our prompt)`,
+      `[scheduler] de-Groq: moved ${deGroqed} hosted agent(s) off Groq -> NVIDIA (house rows plus shared unpinned rows that are active or stopped as model_unavailable)`,
     );
   const [remapped, revived] = await migrateAgentsOffEolModels(pool);
   if (remapped > 0 || revived > 0)
