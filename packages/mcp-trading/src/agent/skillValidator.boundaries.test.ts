@@ -84,12 +84,15 @@ describe("skill authoring rejects malformed policies before execution", () => {
       expect(validateSkill(parsed, "hosted").valid).toBe(true);
       expect(buildSpec(parsed.raw).risk.pmMinEntryProbabilityPct).toBe(floor);
     }
+    // A malformed explicit value is preserved as written so hosted validation
+    // rejects it; it never becomes "absent = no floor".
     const garbage = fixture();
     (garbage.raw.risk as Record<string, unknown>).pmMinEntryProbabilityPct =
       "20";
-    expect(
-      buildSpec(garbage.raw).risk.pmMinEntryProbabilityPct,
-    ).toBeUndefined();
+    expect(buildSpec(garbage.raw).risk.pmMinEntryProbabilityPct).toBe(
+      "20" as never,
+    );
+    expect(validateSkill(garbage, "hosted").valid).toBe(false);
   });
 
   it("requires a self-host model while permitting the hosted default", () => {

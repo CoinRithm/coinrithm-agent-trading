@@ -642,12 +642,29 @@ export function validateAction(
     // discovery-price fallback: with a floor set and no finite quoted
     // probability the open is rejected, never waved through.
     const entryFloor = spec.risk.pmMinEntryProbabilityPct;
-    if (typeof entryFloor === "number" && Number.isFinite(entryFloor)) {
+    if (entryFloor !== undefined) {
+      // A present-but-invalid floor never silently means "no floor".
+      if (
+        typeof entryFloor !== "number" ||
+        !Number.isFinite(entryFloor) ||
+        entryFloor < 0 ||
+        entryFloor > 100
+      ) {
+        return fail(
+          "pm_entry_floor_invalid",
+          `risk.pmMinEntryProbabilityPct ${JSON.stringify(entryFloor)} is not a number between 0 and 100`,
+        );
+      }
       const market = ctx.quote.entryProbability;
-      if (typeof market !== "number" || !Number.isFinite(market)) {
+      if (
+        typeof market !== "number" ||
+        !Number.isFinite(market) ||
+        market < 0 ||
+        market > 100
+      ) {
         return fail(
           "pm_entry_price_unavailable",
-          `entry floor ${entryFloor}pt is set but the quote carries no market probability for the chosen outcome`,
+          `entry floor ${entryFloor}pt is set but the quote carries no usable market probability for the chosen outcome (${JSON.stringify(market ?? null)})`,
         );
       }
       if (market + 1e-9 < entryFloor) {

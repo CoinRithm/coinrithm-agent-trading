@@ -629,6 +629,10 @@ export class CoinRithmClient {
       stakeMusd: number;
       forecastProbability?: number;
       bankrollMusd?: number;
+      // Optional CONFIGURED entry floor (risk.pmMinEntryProbabilityPct, 0..100
+      // points): the server reports entry_below_floor / entry_price_unavailable
+      // when the chosen side's raw entry probability does not clear it.
+      minEntryProbabilityPct?: number;
     } & { agentTrace?: AgentTrace },
     apiKey?: string,
   ) {
@@ -716,6 +720,11 @@ export class CoinRithmClient {
       // the chosen side wins. Recorded separately from the market price for the
       // agent's public calibration record. Omit if not forecasting.
       forecastProbability?: number;
+      // Optional CONFIGURED entry floor (risk.pmMinEntryProbabilityPct, 0..100
+      // points): the server re-checks it inside its locked open transaction and
+      // blocks the open (422 mock_entry_blocked, entry_below_floor) before any
+      // wallet or position mutation. Never a model-generated field.
+      minEntryProbabilityPct?: number;
       thesis?: string;
       // Optional SELF-REPORTED provenance (WHAT RAN). Sending it (even {}) makes the
       // artifact schemaVersion 2. The server stamps policy versions + providerVerified.

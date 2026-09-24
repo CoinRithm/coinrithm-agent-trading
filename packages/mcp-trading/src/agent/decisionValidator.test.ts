@@ -819,6 +819,30 @@ describe("validateAction", () => {
       ).code,
     ).toBe("pm_entry_below_floor");
   });
+  it("fails closed on a quoted probability outside 0..100 and on an invalid floor", () => {
+    for (const market of [-1, 100.5, Number.NaN]) {
+      expect(
+        validateAction(
+          goodPm,
+          ctx({
+            spec: flooredSpec,
+            observation: obsWithPm,
+            quote: pmQuoteAt(market, 50),
+          }),
+        ).code,
+      ).toBe("pm_entry_price_unavailable");
+    }
+    const malformed = {
+      ...allSpec,
+      risk: { ...allSpec.risk, pmMinEntryProbabilityPct: "20" as never },
+    };
+    expect(
+      validateAction(
+        goodPm,
+        ctx({ spec: malformed, observation: obsWithPm, quote: pmQuoteAt(96) }),
+      ).code,
+    ).toBe("pm_entry_floor_invalid");
+  });
   it("fails closed when the floor is set but the quote has no market probability", () => {
     const r = validateAction(
       goodPm,
