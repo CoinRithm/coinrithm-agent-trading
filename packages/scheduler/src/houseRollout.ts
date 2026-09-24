@@ -1,20 +1,26 @@
-// House persona rollout (owner 2026-09-23, Codex 53215). Applies REVIEWED
-// persona bundles to the five house agents and nothing else, dry-run by
-// default, root applies:
+// House persona rollout (owner 2026-09-23, Codex 53215/53228). Applies
+// REVIEWED persona bundles to the five house agents and nothing else,
+// dry-run by default, root applies:
 //   - exact identities: handle + owner + is_house, never a mechanical provider;
 //   - validated hosted spec/prose input (loadAgent "hosted" throws on drift);
 //   - compare-and-swap: the live row must still hash to the reviewed
 //     baseline, or the entry is rejected and nothing is written;
-//   - the outgoing configuration is recorded as a revision (backend
-//     agent_revisions contract and hash, backfilled baseline when the agent
-//     has no history) in the SAME transaction as the new revision and the
-//     agents update; no pruning, no deletion;
+//   - the live configuration is recorded as a revision (backend
+//     agent_revisions contract and hash; a baseline captured NOW when the
+//     agent has no history) in the SAME transaction as the new revision and
+//     the agents update; no pruning, no deletion;
 //   - models, keys, cadence, books, counters, PnL and history are never
-//     touched; an intended drawdown stop is resumed only when the reviewed
-//     config switches that policy off (maxDrawdownMusd = 0), by clearing the
+//     touched; the live spec.model pin is carried into the new spec; an
+//     intended drawdown stop is resumed only when the reviewed config
+//     switches that policy off (maxDrawdownMusd = 0), by clearing the
 //     disabled flag and reason alone;
-//   - a cycle in flight (claim-time run lock) rejects the entry: drain the
-//     scheduler, then apply;
+//   - apply requires the scheduler to be STOPPED: the operator asserts it
+//     (--scheduler-stopped) and the script verifies quiescence from the
+//     database (no cycle recorded, no live capacity lease, no house claim
+//     inside the window). The claim lock visible on next_run_at is only a
+//     tripwire: with a 360 s lock and a 240 s cadence it shows for 120 s,
+//     with a cadence of 360 s or more it never shows, so its absence proves
+//     nothing;
 //   - never calls seed-house-agents; no user agent is ever selected.
 import { createHash } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
@@ -33,6 +39,17 @@ export type HouseHandle = (typeof HOUSE_ROSTER)[number]["handle"];
 
 /** Capability the house seed adds on top of every bundle (observe() TA). */
 export const HOUSE_CAPABILITY = "indicators";
+
+/** Quiescence window: RUN_LOCK_SECONDS and the capacity lease TTL, the
+ * longest a claimed cycle can be in flight before the runtime abandons it. */
+export const DEFAULT_QUIESCENCE_SECONDS = 360;
+
+/** The two strings the runtime writes for an intended drawdown stop:
+ * state.ts `drawdown <dd> >= <max>` and runner.ts `equity drawdown >= <max>`.
+ * Anything else (a provider error that mentions drawdown, a setup failure)
+ * is not a drawdown policy stop and is never resumed here. */
+export const DRAWDOWN_STOP_RE =
+  /^(equity )?drawdown( \d+(\.\d+)?)? >= \d+(\.\d+)?$/;
 
 // ---------------------------------------------------------------------------
 // Backend revision contract, ported verbatim from
@@ -103,24 +120,52 @@ export interface EntryReport {
   nextHash: string | null;
   proseChars: number | null;
   changedSpecKeys: string[];
+  /** The live spec.model pin was carried into the new spec (the bundle's
+   * model block is not what the house runs on). */
+  liveModelPreserved: boolean;
   status: string | null;
   disabledReason: string | null;
+  /** Seconds since the last claim of this row, null when never claimed. */
+  lastRunAgeSeconds: number | null;
+  /** next_run_at further out than one cadence: a claim happened recently.
+   * A tripwire only; false proves nothing (see the header). */
+  claimLockVisible: boolean;
   resume: { requested: boolean; eligible: boolean; reason: string };
+}
+
+export interface QuiescenceEvidence {
+  windowSeconds: number;
+  /** Seconds since the newest agent_cycles row fleet-wide, null when none. */
+  lastCycleAgeSeconds: number | null;
+  /** provider_capacity_leases rows still unexpired (a model call in flight). */
+  activeLeases: number;
+  /** House handles claimed inside the window or with a visible claim lock. */
+  houseActivity: string[];
+  quiet: boolean;
+  reasons: string[];
 }
 
 export interface RolloutResult {
   plan: string;
   applied: boolean;
   entries: EntryReport[];
+  quiescence: QuiescenceEvidence;
 }
 
 export class HouseRolloutRejected extends Error {
-  constructor(public readonly entries: EntryReport[]) {
+  constructor(
+    public readonly entries: EntryReport[],
+    public readonly quiescence: QuiescenceEvidence | null = null,
+  ) {
     super(
-      `house rollout rejected: ${entries
-        .filter((e) => e.decision === "reject")
-        .map((e) => `${e.handle} (${e.reasons.join("; ")})`)
-        .join(", ")}`,
+      `house rollout rejected: ${[
+        ...entries
+          .filter((e) => e.decision === "reject")
+          .map((e) => `${e.handle} (${e.reasons.join("; ")})`),
+        ...(quiescence && !quiescence.quiet
+          ? [`scheduler not quiescent (${quiescence.reasons.join("; ")})`]
+          : []),
+      ].join(", ")}`,
     );
     this.name = "HouseRolloutRejected";
   }
@@ -131,6 +176,11 @@ export interface LoadedBundle {
   prose: string;
 }
 
+export interface FleetActivity {
+  lastCycleAgeSeconds: number | null;
+  activeLeases: number;
+}
+
 export interface RolloutDeps {
   /** Bundle reader; defaults to the engine's hosted loader + house capability. */
   loadBundle?: (bundlePath: string) => LoadedBundle;
@@ -139,10 +189,15 @@ export interface RolloutDeps {
     pool: Pool,
     op: (client: PoolClient) => Promise<T>,
   ) => Promise<T>;
+  /** Fleet-wide activity reader; defaults to the real cycle + lease queries. */
+  fleetActivity?: (client: PoolClient) => Promise<FleetActivity>;
 }
 
 export interface RolloutOptions {
   apply: boolean;
+  /** Operator assertion that the scheduler is stopped; required for apply. */
+  schedulerStopped?: boolean;
+  quiescenceSeconds?: number;
 }
 
 /** The engine's hosted loader (validation, drift, prose limit) plus the same
@@ -176,15 +231,19 @@ interface AgentDbRow {
   spec: Record<string, unknown> | null;
   prose: string;
   created_at: Date;
-  run_locked: boolean;
+  last_run_age_seconds: string | number | null;
+  claim_lock_visible: boolean;
 }
 
-// run_locked: claimDueAgents pushes next_run_at to now()+GREATEST(cadence,
-// RUN_LOCK_SECONDS) while a cycle runs and the completion reschedule lands at
-// most one cadence away, so "further than one cadence out" means in flight.
+// claim_lock_visible: claimDueAgents pushes next_run_at to now()+GREATEST(
+// cadence, RUN_LOCK_SECONDS) at claim time and the completion reschedule lands
+// at most one cadence away, so "further than one cadence out" means a claim
+// happened within (lock - cadence) seconds. It is evidence when true and
+// nothing when false.
 const AGENT_ROW_SQL = `SELECT id, handle, owner_user_id, is_house, status, disabled_reason,
           model_provider, model_name, cadence_seconds, spec, prose, created_at,
-          (next_run_at > now() + make_interval(secs => cadence_seconds)) AS run_locked
+          EXTRACT(EPOCH FROM (now() - last_run_at)) AS last_run_age_seconds,
+          (next_run_at > now() + make_interval(secs => cadence_seconds)) AS claim_lock_visible
      FROM agent_runtime.agents
     WHERE handle = $1`;
 
@@ -196,6 +255,12 @@ function rowState(row: AgentDbRow): AgentConfigState {
     modelProvider: row.model_provider,
     modelName: row.model_name,
   };
+}
+
+function ageSeconds(v: string | number | null | undefined): number | null {
+  if (v === null || v === undefined) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
 }
 
 function changedTopLevelKeys(
@@ -237,6 +302,63 @@ export function validatePlan(plan: RolloutPlan): void {
 }
 
 // ---------------------------------------------------------------------------
+// Quiescence (the real guarantee for apply)
+// ---------------------------------------------------------------------------
+
+/** Fleet-wide evidence a scheduler is running: the newest recorded cycle
+ * (a live fleet records one every few seconds) and unexpired capacity
+ * leases (a shared-key model call in flight). */
+export async function readFleetActivity(
+  client: PoolClient,
+): Promise<FleetActivity> {
+  const { rows: cycles } = await client.query<{ age: string | number | null }>(
+    `SELECT EXTRACT(EPOCH FROM (now() - max(ts))) AS age FROM agent_runtime.agent_cycles`,
+  );
+  const { rows: leases } = await client.query<{ n: string | number }>(
+    `SELECT count(*) AS n FROM agent_runtime.provider_capacity_leases
+      WHERE expires_at > clock_timestamp()`,
+  );
+  return {
+    lastCycleAgeSeconds: ageSeconds(cycles[0]?.age),
+    activeLeases: Number(leases[0]?.n ?? 0),
+  };
+}
+
+function judgeQuiescence(
+  fleet: FleetActivity,
+  entries: EntryReport[],
+  windowSeconds: number,
+): QuiescenceEvidence {
+  const reasons: string[] = [];
+  if (
+    fleet.lastCycleAgeSeconds !== null &&
+    fleet.lastCycleAgeSeconds < windowSeconds
+  )
+    reasons.push(
+      `a cycle was recorded ${Math.round(fleet.lastCycleAgeSeconds)} s ago (window ${windowSeconds} s)`,
+    );
+  if (fleet.activeLeases > 0)
+    reasons.push(`${fleet.activeLeases} capacity lease(s) still unexpired`);
+  const houseActivity = entries
+    .filter(
+      (e) =>
+        e.claimLockVisible ||
+        (e.lastRunAgeSeconds !== null && e.lastRunAgeSeconds < windowSeconds),
+    )
+    .map((e) => e.handle);
+  if (houseActivity.length > 0)
+    reasons.push(`house claim inside the window: ${houseActivity.join(", ")}`);
+  return {
+    windowSeconds,
+    lastCycleAgeSeconds: fleet.lastCycleAgeSeconds,
+    activeLeases: fleet.activeLeases,
+    houseActivity,
+    quiet: reasons.length === 0,
+    reasons,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Evaluation (shared by dry-run and apply)
 // ---------------------------------------------------------------------------
 
@@ -266,8 +388,11 @@ async function evaluateEntry(
     nextHash: null,
     proseChars: bundle ? bundle.prose.length : null,
     changedSpecKeys: [],
+    liveModelPreserved: false,
     status: null,
     disabledReason: null,
+    lastRunAgeSeconds: null,
+    claimLockVisible: false,
     resume: { requested: entry.resume === true, eligible: false, reason: "" },
   };
   if (loadError)
@@ -285,6 +410,8 @@ async function evaluateEntry(
   report.agentId = Number(row.id);
   report.status = row.status;
   report.disabledReason = row.disabled_reason;
+  report.lastRunAgeSeconds = ageSeconds(row.last_run_age_seconds);
+  report.claimLockVisible = row.claim_lock_visible === true;
   if (row.is_house !== true) report.reasons.push("row is not a house agent");
   if (Number(row.owner_user_id) !== roster.owner)
     report.reasons.push(
@@ -292,9 +419,9 @@ async function evaluateEntry(
     );
   if (row.model_provider === "mechanical")
     report.reasons.push("mechanical provider is not a persona agent");
-  if (row.run_locked)
+  if (report.claimLockVisible)
     report.reasons.push(
-      "cycle in flight (run lock active); drain the scheduler and retry",
+      "claim lock visible on next_run_at: a cycle was claimed recently; stop the scheduler and wait out the window",
     );
 
   const current = rowState(row);
@@ -306,12 +433,19 @@ async function evaluateEntry(
 
   let next: AgentConfigState | null = null;
   if (bundle) {
-    const nextSpec = bundle.spec;
+    // The house runs on the live spec.model pin (update-house-models.mjs),
+    // not on the bundle's public default; carry the live pin over.
+    const liveModel = current.spec.model;
+    const nextSpec: Record<string, unknown> =
+      liveModel !== undefined
+        ? { ...bundle.spec, model: liveModel }
+        : { ...bundle.spec };
+    report.liveModelPreserved = liveModel !== undefined;
     if (
       (nextSpec.model as { provider?: unknown } | undefined)?.provider ===
       "mechanical"
     )
-      report.reasons.push("bundle declares a mechanical provider");
+      report.reasons.push("spec declares a mechanical provider");
     next = {
       prose: bundle.prose,
       spec: nextSpec,
@@ -329,8 +463,8 @@ async function evaluateEntry(
     if (row.status !== "disabled") {
       report.resume.reason = `agent is ${row.status}, nothing to resume`;
       report.reasons.push("resume requested but the agent is not disabled");
-    } else if (!/drawdown/i.test(row.disabled_reason ?? "")) {
-      report.resume.reason = `stop reason is not a drawdown policy: ${row.disabled_reason ?? "none"}`;
+    } else if (!DRAWDOWN_STOP_RE.test(row.disabled_reason ?? "")) {
+      report.resume.reason = `stop reason is not the drawdown kill switch format: ${row.disabled_reason ?? "none"}`;
       report.reasons.push("resume requested for a non-drawdown stop");
     } else if (!next || !maxDrawdownOff(next.spec)) {
       report.resume.reason =
@@ -409,12 +543,15 @@ async function insertRevision(
 }
 
 /** Mirrors backend ensureCurrentRecorded: the live configuration is durably a
- * revision before anything overwrites it (baseline dated from the agent's
- * birth when it has no history; a recovered row when the open revision no
- * longer matches the live row). */
+ * revision before anything overwrites it. With no history the row is a
+ * system_backfill baseline dated from the agent's birth (the backend's own
+ * convention); its note states that it was captured now and that the earlier
+ * chronology is not recorded. With an open revision that no longer matches
+ * the live row, a system_recovered row records what was actually running. */
 async function ensureCurrentRecorded(
   client: PoolClient,
   row: AgentDbRow,
+  planVersion: string,
 ): Promise<"baseline" | "recovered" | "unchanged"> {
   const agentId = Number(row.id);
   const live = rowState(row);
@@ -433,7 +570,9 @@ async function ensureCurrentRecorded(
     const hasHistory = (max[0]?.max ?? null) != null;
     await insertRevision(client, agentId, live, {
       author: hasHistory ? "system_recovered" : "system_backfill",
-      changeNote: null,
+      changeNote: hasHistory
+        ? `live configuration captured by house rollout ${planVersion} before it was replaced`
+        : `baseline captured by house rollout ${planVersion} at apply time; the earlier configuration chronology is not recorded`,
       createdByUserId: null,
       isBaseline: !hasHistory,
       createdAt: hasHistory ? null : row.created_at,
@@ -450,7 +589,7 @@ async function ensureCurrentRecorded(
   if (openHash === contentHash(live)) return "unchanged";
   await insertRevision(client, agentId, live, {
     author: "system_recovered",
-    changeNote: null,
+    changeNote: `live configuration captured by house rollout ${planVersion} before it was replaced (open revision ${open[0].revision} did not match the row)`,
     createdByUserId: null,
     isBaseline: false,
     createdAt: null,
@@ -477,7 +616,7 @@ async function applyEntry(
 ): Promise<void> {
   const agentId = Number(row.id);
   const roster = HOUSE_ROSTER.find((h) => h.handle === entry.handle)!;
-  await ensureCurrentRecorded(client, row);
+  await ensureCurrentRecorded(client, row, plan.version);
   await insertRevision(client, agentId, next, {
     author: "owner",
     changeNote: normalizeChangeNote(
@@ -525,7 +664,15 @@ export async function runHouseRollout(
   deps: RolloutDeps = {},
 ): Promise<RolloutResult> {
   validatePlan(plan);
+  const windowSeconds = opts.quiescenceSeconds ?? DEFAULT_QUIESCENCE_SECONDS;
+  if (!(Number.isFinite(windowSeconds) && windowSeconds > 0))
+    throw new Error("quiescenceSeconds must be a positive number");
+  if (opts.apply && opts.schedulerStopped !== true)
+    throw new Error(
+      "apply requires the scheduler to be stopped: stop it, wait out the quiescence window, then pass --scheduler-stopped",
+    );
   const loadBundle = deps.loadBundle ?? defaultLoadBundle;
+  const fleetActivity = deps.fleetActivity ?? readFleetActivity;
   const staged: Staged[] = plan.entries.map((entry) => {
     try {
       return { entry, bundle: loadBundle(entry.bundlePath), loadError: null };
@@ -546,22 +693,33 @@ export async function runHouseRollout(
       const entries: EntryReport[] = [];
       for (const s of staged)
         entries.push((await evaluateEntry(client, s, false)).report);
+      const quiescence = judgeQuiescence(
+        await fleetActivity(client),
+        entries,
+        windowSeconds,
+      );
       await client.query("ROLLBACK");
-      return { plan: plan.version, applied: false, entries };
+      return { plan: plan.version, applied: false, entries, quiescence };
     } finally {
       client.release();
     }
   }
 
   const transaction = deps.transaction ?? maintenanceTransaction;
-  const entries = await transaction(pool, async (client) => {
+  const { entries, quiescence } = await transaction(pool, async (client) => {
     const evaluated = [];
     for (const s of staged)
       evaluated.push(await evaluateEntry(client, s, true));
     const reports = evaluated.map((e) => e.report);
-    // All or nothing: one rejected entry rolls the whole plan back.
-    if (reports.some((r) => r.decision === "reject"))
-      throw new HouseRolloutRejected(reports);
+    const evidence = judgeQuiescence(
+      await fleetActivity(client),
+      reports,
+      windowSeconds,
+    );
+    // All or nothing: one rejected entry, or a scheduler that is not
+    // verifiably stopped, rolls the whole plan back.
+    if (reports.some((r) => r.decision === "reject") || !evidence.quiet)
+      throw new HouseRolloutRejected(reports, evidence);
     for (const { report, row, next } of evaluated) {
       if (!row) continue;
       const entry = plan.entries.find((e) => e.handle === report.handle)!;
@@ -569,9 +727,9 @@ export async function runHouseRollout(
         await applyEntry(client, plan, entry, row, next);
       if (report.resume.eligible) await resumeEntry(client, row);
     }
-    return reports;
+    return { entries: reports, quiescence: evidence };
   });
-  return { plan: plan.version, applied: true, entries };
+  return { plan: plan.version, applied: true, entries, quiescence };
 }
 
 /** Current live state of every house agent, for writing a plan's expected
@@ -583,7 +741,8 @@ export async function readHouseState(pool: Pool): Promise<
     status: string | null;
     disabledReason: string | null;
     contentHash: string | null;
-    runLocked: boolean | null;
+    lastRunAgeSeconds: number | null;
+    claimLockVisible: boolean | null;
   }>
 > {
   const out = [];
@@ -596,7 +755,8 @@ export async function readHouseState(pool: Pool): Promise<
       status: row?.status ?? null,
       disabledReason: row?.disabled_reason ?? null,
       contentHash: row ? contentHash(rowState(row)) : null,
-      runLocked: row?.run_locked ?? null,
+      lastRunAgeSeconds: row ? ageSeconds(row.last_run_age_seconds) : null,
+      claimLockVisible: row?.claim_lock_visible ?? null,
     });
   }
   return out;

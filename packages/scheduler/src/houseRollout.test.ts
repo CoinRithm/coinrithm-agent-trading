@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Pool, PoolClient } from "pg";
 import {
+  DRAWDOWN_STOP_RE,
   HOUSE_ROSTER,
   HouseRolloutRejected,
   contentHash,
@@ -39,12 +40,19 @@ type Row = {
   spec: Record<string, unknown>;
   prose: string;
   created_at: Date;
-  run_locked: boolean;
+  last_run_age_seconds: number | null;
+  claim_lock_visible: boolean;
 };
 
+const liveModel = {
+  provider: "nvidia",
+  name: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+  baseUrl: null,
+};
 const liveSpec = {
   killSwitch: { maxDrawdownMusd: 6000, maxConsecutiveRejects: 5 },
   capabilities: ["indicators"],
+  model: liveModel,
 };
 const liveRow = (over: Partial<Row> = {}): Row => ({
   id: "3",
@@ -59,7 +67,8 @@ const liveRow = (over: Partial<Row> = {}): Row => ({
   spec: liveSpec,
   prose: "Old persona prose.",
   created_at: new Date("2026-08-01T00:00:00.000Z"),
-  run_locked: false,
+  last_run_age_seconds: 4000,
+  claim_lock_visible: false,
   ...over,
 });
 const liveHash = (row: Row) =>
@@ -71,15 +80,18 @@ const liveHash = (row: Row) =>
     modelName: row.model_name,
   });
 
+// The bundle carries the public default model block; the house never runs it.
 const nextBundle: LoadedBundle = {
   spec: {
     killSwitch: { maxDrawdownMusd: 0, maxConsecutiveRejects: 5 },
     capabilities: ["indicators"],
+    model: { provider: "anthropic", name: "claude-sonnet-4-6" },
   },
   prose: "New persona prose, reviewed.",
 };
 
-/** Fake database: rows by handle, optional open revision, recorded queries. */
+/** Fake database: rows by handle, optional open revision, fleet activity,
+ * recorded queries. Quiet fleet unless told otherwise. */
 function fakeDb(opts: {
   rows: Row[];
   openRevision?: {
@@ -90,6 +102,8 @@ function fakeDb(opts: {
     model_name: string;
   } | null;
   maxRevision?: number | null;
+  lastCycleAgeSeconds?: number | null;
+  activeLeases?: number;
 }) {
   const queries: Array<{ sql: string; params: unknown[] }> = [];
   let revisionCounter = opts.maxRevision ?? 0;
@@ -102,6 +116,10 @@ function fakeDb(opts: {
       const row = opts.rows.find((r) => r.handle === params[0]);
       return { rows: row ? [row] : [], rowCount: row ? 1 : 0 };
     }
+    if (sql.includes("FROM agent_runtime.agent_cycles"))
+      return { rows: [{ age: opts.lastCycleAgeSeconds ?? null }] };
+    if (sql.includes("FROM agent_runtime.provider_capacity_leases"))
+      return { rows: [{ n: String(opts.activeLeases ?? 0) }] };
     if (
       sql.includes("FROM agent_runtime.agent_revisions") &&
       sql.includes("ended_at IS NULL")
@@ -150,6 +168,7 @@ const plan = (
   ],
 });
 const loadBundle = () => nextBundle;
+const APPLY = { apply: true, schedulerStopped: true } as const;
 
 describe("house rollout: contract pins", () => {
   it("hashes exactly like backend-v2 revisionWrite (pinned vector)", () => {
@@ -171,6 +190,21 @@ describe("house rollout: contract pins", () => {
     ]);
   });
 
+  it("recognises only the runtime's two drawdown stop strings", () => {
+    expect(DRAWDOWN_STOP_RE.test("drawdown 6064.25 >= 6000")).toBe(true);
+    expect(DRAWDOWN_STOP_RE.test("equity drawdown >= 6000")).toBe(true);
+    expect(DRAWDOWN_STOP_RE.test("drawdown 12 >= 10.5")).toBe(true);
+    for (const s of [
+      "provider error discussing drawdown",
+      "model_unavailable: drawdown 1 >= 2",
+      "drawdown 6064.25 >= 6000 (manual)",
+      "setup: bad config",
+      "kill-switch",
+      "",
+    ])
+      expect(DRAWDOWN_STOP_RE.test(s)).toBe(false);
+  });
+
   it("rejects plans that name a non-house handle, a duplicate, or a bad hash", () => {
     expect(() => validatePlan(plan({ handle: "a94-1fgent" }))).toThrow(
       /not a house/,
@@ -188,8 +222,8 @@ describe("house rollout: contract pins", () => {
 });
 
 describe("house rollout: dry run", () => {
-  it("reports the decision, hashes and changed keys and writes nothing", async () => {
-    const db = fakeDb({ rows: [liveRow()] });
+  it("reports the decision, hashes, changed keys and quiescence and writes nothing", async () => {
+    const db = fakeDb({ rows: [liveRow()], lastCycleAgeSeconds: 12 });
     const result = await runHouseRollout(
       db.pool,
       plan(),
@@ -203,10 +237,65 @@ describe("house rollout: dry run", () => {
     expect(entry!.currentHash).toBe(liveHash(liveRow()));
     expect(entry!.nextHash).not.toBe(entry!.currentHash);
     expect(entry!.changedSpecKeys).toEqual(["killSwitch"]);
+    expect(entry!.liveModelPreserved).toBe(true);
     expect(entry!.proseChars).toBe(nextBundle.prose.length);
+    expect(entry!.lastRunAgeSeconds).toBe(4000);
+    expect(entry!.claimLockVisible).toBe(false);
+    // A running scheduler shows up in the dry run so the operator stops it.
+    expect(result.quiescence).toMatchObject({
+      windowSeconds: 360,
+      lastCycleAgeSeconds: 12,
+      activeLeases: 0,
+      quiet: false,
+    });
+    expect(result.quiescence.reasons.join(" ")).toMatch(/recorded 12 s ago/);
     expect(db.writes()).toEqual([]);
     // Row reads in dry run never lock.
     expect(db.queries.some((q) => q.sql.includes("FOR UPDATE"))).toBe(false);
+  });
+
+  it("carries the live spec.model pin into the new spec and only uses the bundle's when none is live", async () => {
+    const withPin = liveRow();
+    let db = fakeDb({ rows: [withPin] });
+    let result = await runHouseRollout(
+      db.pool,
+      plan({ expectedContentHash: liveHash(withPin) }),
+      APPLY,
+      { loadBundle, transaction: db.transaction },
+    );
+    const update = db
+      .writes()
+      .find(
+        (q) =>
+          q.sql.includes("UPDATE agent_runtime.agents") &&
+          q.sql.includes("SET spec"),
+      )!;
+    expect(JSON.parse(update.params[1] as string).model).toEqual(liveModel);
+    expect(result.entries[0]!.liveModelPreserved).toBe(true);
+    expect(result.entries[0]!.changedSpecKeys).not.toContain("model");
+
+    const { model: _dropped, ...specWithoutModel } = liveSpec;
+    void _dropped;
+    const noPin = liveRow({ spec: specWithoutModel });
+    db = fakeDb({ rows: [noPin] });
+    result = await runHouseRollout(
+      db.pool,
+      plan({ expectedContentHash: liveHash(noPin) }),
+      APPLY,
+      { loadBundle, transaction: db.transaction },
+    );
+    const update2 = db
+      .writes()
+      .find(
+        (q) =>
+          q.sql.includes("UPDATE agent_runtime.agents") &&
+          q.sql.includes("SET spec"),
+      )!;
+    expect(JSON.parse(update2.params[1] as string).model).toEqual(
+      nextBundle.spec.model,
+    );
+    expect(result.entries[0]!.liveModelPreserved).toBe(false);
+    expect(result.entries[0]!.changedSpecKeys).toContain("model");
   });
 
   it("rejects when the live configuration drifted from the reviewed baseline", async () => {
@@ -225,12 +314,12 @@ describe("house rollout: dry run", () => {
     );
   });
 
-  it("rejects the wrong owner, a non-house row, a mechanical provider and a running claim", async () => {
+  it("rejects the wrong owner, a non-house row, a mechanical provider and a visible claim lock", async () => {
     for (const [over, reason] of [
       [{ owner_user_id: "99" }, /not the house owner/],
       [{ is_house: false }, /not a house agent/],
       [{ model_provider: "mechanical" }, /mechanical/],
-      [{ run_locked: true }, /cycle in flight/],
+      [{ claim_lock_visible: true }, /claim lock visible/],
     ] as const) {
       const row = liveRow(over);
       const db = fakeDb({ rows: [row] });
@@ -277,7 +366,7 @@ describe("house rollout: dry run", () => {
     expect(result.entries[0]!.decision).toBe("noop");
   });
 
-  it("judges resume eligibility from the stop reason and the reviewed drawdown policy", async () => {
+  it("judges resume eligibility from the exact stop format and the reviewed drawdown policy", async () => {
     const stopped = liveRow({
       status: "disabled",
       disabled_reason: "drawdown 6064.25 >= 6000",
@@ -293,6 +382,18 @@ describe("house rollout: dry run", () => {
       requested: true,
       eligible: true,
     });
+
+    const equityStop = liveRow({
+      status: "disabled",
+      disabled_reason: "equity drawdown >= 6000",
+    });
+    const eligible2 = await runHouseRollout(
+      fakeDb({ rows: [equityStop] }).pool,
+      plan({ expectedContentHash: liveHash(equityStop), resume: true }),
+      { apply: false },
+      { loadBundle },
+    );
+    expect(eligible2.entries[0]!.resume.eligible).toBe(true);
 
     const keepsPolicy = await runHouseRollout(
       fakeDb({ rows: [stopped] }).pool,
@@ -310,19 +411,22 @@ describe("house rollout: dry run", () => {
       /without an off drawdown policy/,
     );
 
-    const setupStop = liveRow({
-      status: "disabled",
-      disabled_reason: "setup: bad config",
-    });
-    const wrongReason = await runHouseRollout(
-      fakeDb({ rows: [setupStop] }).pool,
-      plan({ expectedContentHash: liveHash(setupStop), resume: true }),
-      { apply: false },
-      { loadBundle },
-    );
-    expect(wrongReason.entries[0]!.reasons.join(" ")).toMatch(
-      /non-drawdown stop/,
-    );
+    for (const reason of [
+      "setup: bad config",
+      "provider error discussing drawdown",
+    ]) {
+      const other = liveRow({ status: "disabled", disabled_reason: reason });
+      const wrongReason = await runHouseRollout(
+        fakeDb({ rows: [other] }).pool,
+        plan({ expectedContentHash: liveHash(other), resume: true }),
+        { apply: false },
+        { loadBundle },
+      );
+      expect(wrongReason.entries[0]!.decision).toBe("reject");
+      expect(wrongReason.entries[0]!.reasons.join(" ")).toMatch(
+        /non-drawdown stop/,
+      );
+    }
 
     const notRequested = await runHouseRollout(
       fakeDb({ rows: [stopped] }).pool,
@@ -340,18 +444,93 @@ describe("house rollout: dry run", () => {
 });
 
 describe("house rollout: apply", () => {
-  it("records the outgoing baseline, the new revision and the spec/prose update in order, touching nothing else", async () => {
-    const row = liveRow();
-    const db = fakeDb({ rows: [row] });
+  it("refuses to apply without the operator's scheduler-stopped assertion, before touching the database", async () => {
+    const db = fakeDb({ rows: [liveRow()] });
+    await expect(
+      runHouseRollout(
+        db.pool,
+        plan(),
+        { apply: true },
+        { loadBundle, transaction: db.transaction },
+      ),
+    ).rejects.toThrow(/requires the scheduler to be stopped/);
+    expect(db.queries).toEqual([]);
+  });
+
+  it.each([
+    [{ lastCycleAgeSeconds: 45 }, /recorded 45 s ago/],
+    [{ activeLeases: 2 }, /2 capacity lease/],
+  ])(
+    "rolls back when the fleet is still active: %j",
+    async (activity, reason) => {
+      const db = fakeDb({ rows: [liveRow()], ...activity });
+      await expect(
+        runHouseRollout(db.pool, plan(), APPLY, {
+          loadBundle,
+          transaction: db.transaction,
+        }),
+      ).rejects.toSatisfy(
+        (e: unknown) =>
+          e instanceof HouseRolloutRejected &&
+          e.quiescence !== null &&
+          !e.quiescence.quiet &&
+          reason.test(e.quiescence.reasons.join(" ")),
+      );
+      expect(db.writes()).toEqual([]);
+    },
+  );
+
+  it("rolls back when a house row was claimed inside the window", async () => {
+    const recent = liveRow({ last_run_age_seconds: 200 });
+    const db = fakeDb({ rows: [recent] });
+    await expect(
+      runHouseRollout(
+        db.pool,
+        plan({ expectedContentHash: liveHash(recent) }),
+        APPLY,
+        { loadBundle, transaction: db.transaction },
+      ),
+    ).rejects.toThrow(/house claim inside the window: mia-trend-rider/);
+    expect(db.writes()).toEqual([]);
+    // The same row is fine once the window has passed.
+    const old = liveRow({ last_run_age_seconds: 361 });
+    const db2 = fakeDb({ rows: [old], lastCycleAgeSeconds: 361 });
+    const result = await runHouseRollout(
+      db2.pool,
+      plan({ expectedContentHash: liveHash(old) }),
+      APPLY,
+      { loadBundle, transaction: db2.transaction },
+    );
+    expect(result.applied).toBe(true);
+    expect(result.quiescence.quiet).toBe(true);
+  });
+
+  it("honours a custom quiescence window", async () => {
+    const db = fakeDb({ rows: [liveRow()], lastCycleAgeSeconds: 100 });
     const result = await runHouseRollout(
       db.pool,
       plan(),
-      { apply: true },
-      {
-        loadBundle,
-        transaction: db.transaction,
-      },
+      { ...APPLY, quiescenceSeconds: 90 },
+      { loadBundle, transaction: db.transaction },
     );
+    expect(result.quiescence).toMatchObject({ windowSeconds: 90, quiet: true });
+    await expect(
+      runHouseRollout(
+        db.pool,
+        plan(),
+        { ...APPLY, quiescenceSeconds: 0 },
+        { loadBundle, transaction: db.transaction },
+      ),
+    ).rejects.toThrow(/positive number/);
+  });
+
+  it("records the outgoing baseline, the new revision and the spec/prose update in order, touching nothing else", async () => {
+    const row = liveRow();
+    const db = fakeDb({ rows: [row] });
+    const result = await runHouseRollout(db.pool, plan(), APPLY, {
+      loadBundle,
+      transaction: db.transaction,
+    });
     expect(result.applied).toBe(true);
     expect(result.entries[0]!.decision).toBe("apply");
     // The row was locked for the write.
@@ -359,7 +538,8 @@ describe("house rollout: apply", () => {
       true,
     );
     const writes = db.writes();
-    // 1) no history -> baseline of the LIVE state dated from the agent's birth
+    // 1) no history -> baseline of the LIVE state, dated like the backend's
+    //    own backfill, with a note that says when it was really captured
     const baseline = writes.find(
       (q) =>
         q.sql.includes("INSERT INTO agent_runtime.agent_revisions") &&
@@ -368,6 +548,9 @@ describe("house rollout: apply", () => {
     expect(baseline).toBeTruthy();
     expect(baseline.params[1]).toBe(row.prose);
     expect(baseline.params[6]).toBe(liveHash(row));
+    expect(baseline.params[7]).toBe(
+      "baseline captured by house rollout personas-v2 at apply time; the earlier configuration chronology is not recorded",
+    );
     expect(baseline.params[10]).toBe(true); // is_baseline
     expect(baseline.params[11]).toEqual(row.created_at);
     // 2) the new revision: owner-authored by the house owner, hashed like the backend
@@ -391,7 +574,7 @@ describe("house rollout: apply", () => {
     expect(update.sql).not.toMatch(/model_|cadence|key_enc|status|next_run_at/);
     expect(update.params).toEqual([
       3,
-      JSON.stringify(nextBundle.spec),
+      JSON.stringify({ ...nextBundle.spec, model: liveModel }),
       nextBundle.prose,
     ]);
     expect(writes.indexOf(next)).toBeLessThan(writes.indexOf(update));
@@ -414,19 +597,23 @@ describe("house rollout: apply", () => {
       },
       maxRevision: 4,
     });
-    await runHouseRollout(
-      db.pool,
-      plan(),
-      { apply: true },
-      { loadBundle, transaction: db.transaction },
-    );
-    const authors = db
+    await runHouseRollout(db.pool, plan(), APPLY, {
+      loadBundle,
+      transaction: db.transaction,
+    });
+    const inserts = db
       .writes()
       .filter((q) =>
         q.sql.includes("INSERT INTO agent_runtime.agent_revisions"),
-      )
-      .map((q) => q.params[8]);
-    expect(authors).toEqual(["system_recovered", "owner"]);
+      );
+    expect(inserts.map((q) => q.params[8])).toEqual([
+      "system_recovered",
+      "owner",
+    ]);
+    expect(inserts[0]!.params[7]).toMatch(
+      /captured by house rollout personas-v2 before it was replaced \(open revision 4 did not match the row\)/,
+    );
+    expect(inserts[0]!.params[10]).toBe(false);
   });
 
   it("resumes an intended drawdown stop by clearing the flag and reason only", async () => {
@@ -438,7 +625,7 @@ describe("house rollout: apply", () => {
     await runHouseRollout(
       db.pool,
       plan({ expectedContentHash: liveHash(stopped), resume: true }),
-      { apply: true },
+      APPLY,
       { loadBundle, transaction: db.transaction },
     );
     const writes = db.writes();
@@ -475,12 +662,10 @@ describe("house rollout: apply", () => {
       ],
     };
     await expect(
-      runHouseRollout(
-        db.pool,
-        twoEntries,
-        { apply: true },
-        { loadBundle, transaction: db.transaction },
-      ),
+      runHouseRollout(db.pool, twoEntries, APPLY, {
+        loadBundle,
+        transaction: db.transaction,
+      }),
     ).rejects.toBeInstanceOf(HouseRolloutRejected);
     expect(db.writes()).toEqual([]);
   });

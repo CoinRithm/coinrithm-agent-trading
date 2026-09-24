@@ -8,9 +8,10 @@ import {
   it,
 } from "vitest";
 import { Pool, type PoolClient } from "pg";
-import { migrate } from "./db.js";
+import { migrate, recordCycle } from "./db.js";
 import {
   contentHash,
+  readFleetActivity,
   runHouseRollout,
   type LoadedBundle,
   type RolloutPlan,
@@ -19,7 +20,10 @@ import {
 // Real SQL regression test for the rollout against the disposable LOCAL
 // database only (same contract as capacity.integration.test.ts). Everything
 // runs on one client inside a transaction (savepoints stand in for the
-// script's own BEGIN/COMMIT), so nothing leaks to the shared tables.
+// script's own BEGIN/COMMIT), so nothing leaks to the shared tables, and the
+// setup never takes a lock on agent_runtime.agents while other test files
+// are claiming: the boot migration only runs when the schema is absent and
+// the revisions table carries no foreign key here.
 const databaseUrl = process.env.CAPACITY_TEST_DATABASE_URL;
 if (process.env.CI && !databaseUrl) {
   throw new Error(
@@ -29,11 +33,12 @@ if (process.env.CI && !databaseUrl) {
 
 // agent_revisions is owned by backend-v2 (src/database/215_agent_revisions.sql)
 // and is not part of the scheduler's boot migrations; the columns and the
-// one-open-window index below mirror that file for the test database.
+// one-open-window index below mirror that file for the test database (the
+// foreign key to agents is left out on purpose, see above).
 const REVISIONS_DDL = `
 CREATE TABLE IF NOT EXISTS agent_runtime.agent_revisions (
   id                     BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  agent_id               BIGINT NOT NULL REFERENCES agent_runtime.agents(id) ON DELETE CASCADE,
+  agent_id               BIGINT NOT NULL,
   revision               INTEGER NOT NULL,
   prose                  TEXT NOT NULL,
   spec                   JSONB NOT NULL,
@@ -56,6 +61,8 @@ CREATE TABLE IF NOT EXISTS agent_runtime.agent_revisions (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS agent_revisions_one_open_idx
   ON agent_runtime.agent_revisions (agent_id) WHERE ended_at IS NULL;`;
+
+const QUIET = async () => ({ lastCycleAgeSeconds: null, activeLeases: 0 });
 
 describe.skipIf(!databaseUrl)("house rollout on PostgreSQL", () => {
   let pool: Pool;
@@ -105,7 +112,10 @@ describe.skipIf(!databaseUrl)("house rollout on PostgreSQL", () => {
       );
     }
     pool = new Pool({ connectionString: databaseUrl });
-    await migrate(pool);
+    const { rows } = await pool.query<{ present: string | null }>(
+      "SELECT to_regclass('agent_runtime.agents')::text AS present",
+    );
+    if (!rows[0]?.present) await migrate(pool);
     await pool.query(REVISIONS_DDL);
   });
   afterAll(async () => {
@@ -120,19 +130,26 @@ describe.skipIf(!databaseUrl)("house rollout on PostgreSQL", () => {
     client.release();
   });
 
+  const liveModel = { provider: "nvidia", name: "nano", baseUrl: null };
   const liveSpec = {
     killSwitch: { maxDrawdownMusd: 6000 },
     capabilities: ["indicators"],
+    model: liveModel,
   };
-  async function insertHouse(status: string, disabledReason: string | null) {
+  async function insertHouse(
+    status: string,
+    disabledReason: string | null,
+    lastRunAt: "old" | "recent" = "old",
+  ) {
     const { rows } = await client.query<{ id: string; created_at: Date }>(
       `INSERT INTO agent_runtime.agents
          (owner_user_id, handle, display_name, status, disabled_reason, is_house, cadence_seconds,
-          model_provider, model_name, spec, prose, coinrithm_key_enc, next_run_at)
+          model_provider, model_name, spec, prose, coinrithm_key_enc, next_run_at, last_run_at)
        VALUES (57, 'mia-trend-rider', 'Mia', $1, $2, true, 180, 'nvidia', 'nano',
-               $3::jsonb, 'Old persona prose.', 'enc', now() + interval '60 seconds')
+               $3::jsonb, 'Old persona prose.', 'enc', now() + interval '60 seconds',
+               CASE WHEN $4 = 'recent' THEN now() - interval '30 seconds' ELSE now() - interval '2 hours' END)
        RETURNING id, created_at`,
-      [status, disabledReason, JSON.stringify(liveSpec)],
+      [status, disabledReason, JSON.stringify(liveSpec), lastRunAt],
     );
     const id = Number(rows[0]!.id);
     await client.query(
@@ -151,7 +168,11 @@ describe.skipIf(!databaseUrl)("house rollout on PostgreSQL", () => {
       modelName: "nano",
     });
   const bundle: LoadedBundle = {
-    spec: { killSwitch: { maxDrawdownMusd: 0 }, capabilities: ["indicators"] },
+    spec: {
+      killSwitch: { maxDrawdownMusd: 0 },
+      capabilities: ["indicators"],
+      model: { provider: "anthropic", name: "claude-sonnet-4-6" },
+    },
     prose: "New persona prose.",
   };
   const plan = (resume: boolean): RolloutPlan => ({
@@ -165,8 +186,17 @@ describe.skipIf(!databaseUrl)("house rollout on PostgreSQL", () => {
       },
     ],
   });
+  const countRevisions = async (id: number) =>
+    Number(
+      (
+        await client.query<{ n: string }>(
+          "SELECT count(*) AS n FROM agent_runtime.agent_revisions WHERE agent_id = $1",
+          [id],
+        )
+      ).rows[0]!.n,
+    );
 
-  it("applies with a backfilled baseline, a new owner revision, the spec/prose update and a flag-only resume", async () => {
+  it("applies with a backfilled baseline, a new owner revision keeping the live model pin, the spec/prose update and a flag-only resume", async () => {
     const { id, createdAt } = await insertHouse(
       "disabled",
       "drawdown 6064.25 >= 6000",
@@ -174,25 +204,30 @@ describe.skipIf(!databaseUrl)("house rollout on PostgreSQL", () => {
     const result = await runHouseRollout(
       savepointPool(),
       plan(true),
-      { apply: true },
-      {
-        loadBundle: () => bundle,
-        transaction,
-      },
+      { apply: true, schedulerStopped: true },
+      { loadBundle: () => bundle, transaction, fleetActivity: QUIET },
     );
     expect(result.applied).toBe(true);
-    expect(result.entries[0]).toMatchObject({ decision: "apply", agentId: id });
+    expect(result.entries[0]).toMatchObject({
+      decision: "apply",
+      agentId: id,
+      liveModelPreserved: true,
+      claimLockVisible: false,
+    });
+    expect(result.entries[0]!.lastRunAgeSeconds).toBeGreaterThan(7000);
+    expect(result.quiescence.quiet).toBe(true);
 
     const { rows: revisions } = await client.query<{
       revision: number;
       author: string;
       is_baseline: boolean;
       content_hash: string;
+      change_note: string | null;
       created_at: Date;
       ended_at: Date | null;
       created_by_user_id: string | null;
     }>(
-      `SELECT revision, author, is_baseline, content_hash, created_at, ended_at, created_by_user_id
+      `SELECT revision, author, is_baseline, content_hash, change_note, created_at, ended_at, created_by_user_id
          FROM agent_runtime.agent_revisions WHERE agent_id = $1 ORDER BY revision`,
       [id],
     );
@@ -203,6 +238,9 @@ describe.skipIf(!databaseUrl)("house rollout on PostgreSQL", () => {
       ],
     );
     expect(revisions[0]!.content_hash).toBe(liveHash());
+    expect(revisions[0]!.change_note).toMatch(
+      /baseline captured by house rollout personas-v2 at apply time; the earlier configuration chronology is not recorded/,
+    );
     expect(revisions[0]!.created_at.getTime()).toBe(createdAt.getTime());
     expect(revisions[0]!.ended_at).not.toBeNull();
     expect(revisions[1]!.ended_at).toBeNull();
@@ -234,7 +272,7 @@ describe.skipIf(!databaseUrl)("house rollout on PostgreSQL", () => {
       cadence_seconds: 180,
       due_now: true,
     });
-    expect(agents[0]!.spec).toEqual(bundle.spec);
+    expect(agents[0]!.spec).toEqual({ ...bundle.spec, model: liveModel });
 
     const { rows: state } = await client.query<{
       state: Record<string, unknown>;
@@ -253,22 +291,11 @@ describe.skipIf(!databaseUrl)("house rollout on PostgreSQL", () => {
       savepointPool(),
       plan(false),
       { apply: false },
-      {
-        loadBundle: () => bundle,
-      },
+      { loadBundle: () => bundle, fleetActivity: QUIET },
     );
     expect(dry.applied).toBe(false);
     expect(dry.entries[0]!.decision).toBe("apply");
-    const countRevisions = async () =>
-      Number(
-        (
-          await client.query<{ n: string }>(
-            "SELECT count(*) AS n FROM agent_runtime.agent_revisions WHERE agent_id = $1",
-            [id],
-          )
-        ).rows[0]!.n,
-      );
-    expect(await countRevisions()).toBe(0);
+    expect(await countRevisions(id)).toBe(0);
 
     await client.query(
       "UPDATE agent_runtime.agents SET prose = 'edited since review' WHERE id = $1",
@@ -278,18 +305,42 @@ describe.skipIf(!databaseUrl)("house rollout on PostgreSQL", () => {
       runHouseRollout(
         savepointPool(),
         plan(false),
-        { apply: true },
-        {
-          loadBundle: () => bundle,
-          transaction,
-        },
+        { apply: true, schedulerStopped: true },
+        { loadBundle: () => bundle, transaction, fleetActivity: QUIET },
       ),
     ).rejects.toThrow(/differs from the reviewed baseline/);
-    expect(await countRevisions()).toBe(0);
+    expect(await countRevisions(id)).toBe(0);
     const { rows } = await client.query<{ prose: string }>(
       "SELECT prose FROM agent_runtime.agents WHERE id = $1",
       [id],
     );
     expect(rows[0]!.prose).toBe("edited since review");
+  });
+
+  it("the real fleet reader sees a fresh cycle and a recent house claim, and both roll the apply back", async () => {
+    const { id } = await insertHouse("active", null, "recent");
+    // recordCycle only needs .query; run it on this transaction's client.
+    await recordCycle(client as unknown as Pool, id, { decision: "skip" });
+    const fleet = await readFleetActivity(client);
+    expect(fleet.lastCycleAgeSeconds).not.toBeNull();
+    expect(fleet.lastCycleAgeSeconds!).toBeLessThan(60);
+    expect(fleet.activeLeases).toBeGreaterThanOrEqual(0);
+    await expect(
+      runHouseRollout(
+        savepointPool(),
+        plan(false),
+        { apply: true, schedulerStopped: true },
+        { loadBundle: () => bundle, transaction },
+      ),
+    ).rejects.toSatisfy((e: unknown) => {
+      const r = e as { quiescence?: { quiet: boolean; reasons: string[] } };
+      const text = r.quiescence?.reasons.join(" ") ?? "";
+      return (
+        r.quiescence?.quiet === false &&
+        /a cycle was recorded \d+ s ago/.test(text) &&
+        /house claim inside the window: mia-trend-rider/.test(text)
+      );
+    });
+    expect(await countRevisions(id)).toBe(0);
   });
 });
