@@ -160,11 +160,23 @@ export async function migrate(pool: Pool): Promise<void> {
   });
 }
 
-// Idempotent safety migration: move any HOUSE agent off Groq onto NVIDIA. Groq's
-// free 6k-TPM tier counts our ~6.5k-token prompt as OVER budget, so a Groq house
-// agent 413s every cycle (Olivia). Groq stays a BYO option — a user's own key has
-// its own quota — this only de-Groqs the HOUSE fleet, automatically on boot, so the
-// fix never waits on a manual re-seed. No-op once no house agent is on Groq.
+// Idempotent safety migration: move agents off the hosted Groq lane onto NVIDIA.
+// Groq's free 6k-TPM tier counts our ~6.5k-token prompt as OVER budget, so a
+// Groq house agent 413s every cycle (Olivia). The shared hosted Groq route is
+// obsolete: a45-casa's recorded stop is a provider HTTP 404 on
+// llama-3.1-8b-instant, and the hosted API no longer offers a Groq model, so
+// nothing repairs such a row by itself. Groq stays a BYO option — a user's own
+// key has its own quota — so this only touches rows inside
+// AUTOMATIC_MODEL_MIGRATION_SCOPE (no BYO key, not pinned): every house row as
+// before, plus (2026-09-24) SHARED user rows that are active or already stopped
+// as model_unavailable AND whose owner-matched CoinRithm ApiKey exists and is
+// not revoked (a revoked key would only turn a model stop into a key stop).
+// Paused and risk/key-stopped shared rows are deliberately left alone: they
+// cannot run until their owner acts, and if they then hit the dead provider
+// they stop as model_unavailable and this migration repairs them on the next
+// boot. Runs before migrateAgentsOffEolModels on boot, whose revive step
+// reactivates the model_unavailable rows it just remapped; a row this
+// migration skips stays on groq and is therefore outside that nvidia-only step.
 // (Targets updated 2026-08-26: the previous targets were themselves EOL'd by
 // NVIDIA — see EOL_MODEL_SUCCESSORS.)
 // Match the runtime's exact pin semantics: only JSON boolean true pins a model.
@@ -176,17 +188,25 @@ const AUTOMATIC_MODEL_MIGRATION_SCOPE =
 
 export async function migrateHouseAgentsOffGroq(pool: Pool): Promise<number> {
   const { rowCount } = await pool.query(
-    `UPDATE agent_runtime.agents
+    `UPDATE agent_runtime.agents AS a
         SET model_provider = 'nvidia',
             model_name = CASE
-              WHEN model_name ILIKE '%70b%' OR model_name ILIKE '%versatile%'
+              WHEN a.model_name ILIKE '%70b%' OR a.model_name ILIKE '%versatile%'
                 THEN 'nvidia/nemotron-3-super-120b-a12b'
               ELSE 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning'
             END,
             model_base_url = NULL,
             updated_at = now()
-      WHERE is_house = true AND model_provider = 'groq'
-        AND ${AUTOMATIC_MODEL_MIGRATION_SCOPE}`,
+      WHERE a.model_provider = 'groq'
+        AND ${AUTOMATIC_MODEL_MIGRATION_SCOPE}
+        AND (a.is_house = true
+             OR ((a.status = 'active'
+                  OR (a.status = 'disabled' AND a.disabled_reason ILIKE 'model_unavailable%'))
+                 AND EXISTS (
+                   SELECT 1 FROM "ApiKey" k
+                    WHERE k.id = NULLIF(substring(a.handle FROM '^a([0-9]+)-'), '')::int
+                      AND k."userId" = a.owner_user_id
+                      AND k."revokedAt" IS NULL)))`,
   );
   return rowCount ?? 0;
 }

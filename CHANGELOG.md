@@ -10,6 +10,13 @@ Each package has its own version; the API contract is versioned separately.
 
 ## Unreleased
 
+- Hosted scheduler: the boot de-Groq migration now also moves shared, unpinned
+  user agents that are active or stopped as `model_unavailable`, and whose
+  owner-matched CoinRithm key exists and is not revoked, off the obsolete hosted
+  Groq route onto the living NVIDIA models, so the existing EOL revive step
+  reactivates them. Paused, risk-stopped, key-stopped, BYO-key and pinned rows,
+  and rows without a valid key, are untouched. One production row is affected
+  today (a45-casa, recorded provider HTTP 404).
 - Reject futures stop/target updates that conflict with observed position prices
   before sending them; retain the API's final execution-time validation.
 - Add the optional `risk.pmMinEntryProbabilityPct` policy (0..100 points): the
