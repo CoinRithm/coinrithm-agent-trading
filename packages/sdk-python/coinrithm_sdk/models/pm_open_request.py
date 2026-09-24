@@ -29,6 +29,8 @@ class PmOpenRequest:
         side (PmOpenRequestSide | Unset): Side of the binary outcome to back (default yes). Default:
             PmOpenRequestSide.YES.
         forecast_probability (float | Unset): Optional own probability that the chosen side wins (0-100 exclusive).
+        min_entry_probability_pct (float | Unset): Optional finite minimum chosen-side entry probability in percentage
+            points before fees (0-100 inclusive); omitted preserves prior behavior.
         thesis (str | Unset): Optional one-line decision thesis.
         agent_trace (AgentTraceMetadata | Unset): Optional private trace metadata supplied by a user-run agent.
             CoinRithm
@@ -54,6 +56,7 @@ class PmOpenRequest:
     idempotency_key: str
     side: PmOpenRequestSide | Unset = PmOpenRequestSide.YES
     forecast_probability: float | Unset = UNSET
+    min_entry_probability_pct: float | Unset = UNSET
     thesis: str | Unset = UNSET
     agent_trace: AgentTraceMetadata | Unset = UNSET
     provenance: DecisionProvenanceReport | Unset = UNSET
@@ -75,6 +78,8 @@ class PmOpenRequest:
             side = self.side.value
 
         forecast_probability = self.forecast_probability
+
+        min_entry_probability_pct = self.min_entry_probability_pct
 
         thesis = self.thesis
 
@@ -101,6 +106,8 @@ class PmOpenRequest:
             field_dict["side"] = side
         if forecast_probability is not UNSET:
             field_dict["forecastProbability"] = forecast_probability
+        if min_entry_probability_pct is not UNSET:
+            field_dict["minEntryProbabilityPct"] = min_entry_probability_pct
         if thesis is not UNSET:
             field_dict["thesis"] = thesis
         if agent_trace is not UNSET:
@@ -135,6 +142,8 @@ class PmOpenRequest:
 
         forecast_probability = d.pop("forecastProbability", UNSET)
 
+        min_entry_probability_pct = d.pop("minEntryProbabilityPct", UNSET)
+
         thesis = d.pop("thesis", UNSET)
 
         _agent_trace = d.pop("agentTrace", UNSET)
@@ -159,6 +168,7 @@ class PmOpenRequest:
             idempotency_key=idempotency_key,
             side=side,
             forecast_probability=forecast_probability,
+            min_entry_probability_pct=min_entry_probability_pct,
             thesis=thesis,
             agent_trace=agent_trace,
             provenance=provenance,

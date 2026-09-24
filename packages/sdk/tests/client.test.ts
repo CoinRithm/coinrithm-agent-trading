@@ -14,6 +14,7 @@ describe("TypeScript SDK request contract", () => {
       stakeMusd: 25,
       forecastProbability: 42,
       bankrollMusd: 1000,
+      minEntryProbabilityPct: 0.125,
     };
     const response: components["schemas"]["PmQuoteResponse"] = {
       entryProbability: 40,
@@ -36,6 +37,27 @@ describe("TypeScript SDK request contract", () => {
     };
     expect(response.edgeSizing?.suggestedStakeMusd).toBeNull();
     expect(open.thesis).toBe("Inflation cools");
+    expect(request.minEntryProbabilityPct).toBe(0.125);
+
+    const omitted: components["schemas"]["PmQuoteRequest"] = {
+      source: "kalshi",
+      slug: "fixture",
+      outcomeExternalMarketId: "yes",
+      side: "yes",
+      stakeMusd: 25,
+    };
+    expect(omitted.minEntryProbabilityPct).toBeUndefined();
+
+    const zero: components["schemas"]["PmOpenRequest"] = {
+      source: "kalshi",
+      slug: "fixture",
+      outcomeExternalMarketId: "yes",
+      side: "yes",
+      stakeMusd: 25,
+      idempotencyKey: "fixture-zero",
+      minEntryProbabilityPct: 0,
+    };
+    expect(zero.minEntryProbabilityPct).toBe(0);
   });
 
   it("exposes prediction-market lifecycle, prior quote, and winner fields", () => {

@@ -106,7 +106,12 @@ def sync_detailed(
      Requires scope `trade:pm`. Enabled now (server-flag gated — returns 403
     \"PM mock trading is not enabled\" only if later disabled). Binary outcomes
     only; pass `side: \"no\"` to back the NO side (default yes).
-    `idempotencyKey` is REQUIRED. `stakeMusd` must be >= 10.
+    `idempotencyKey` is REQUIRED. `stakeMusd` must be >= 10. An optional
+    `minEntryProbabilityPct` is a finite chosen-side entry probability
+    floor in percentage points before fees (0-100 inclusive). The server
+    rechecks it against a fresh quote inside the entry transaction before
+    inserting the wallet transfer or position; invalid values return 400
+    and a failed check returns 422 `mock_entry_blocked`.
 
     Args:
         body (PmOpenRequest):
@@ -140,7 +145,12 @@ def sync(
      Requires scope `trade:pm`. Enabled now (server-flag gated — returns 403
     \"PM mock trading is not enabled\" only if later disabled). Binary outcomes
     only; pass `side: \"no\"` to back the NO side (default yes).
-    `idempotencyKey` is REQUIRED. `stakeMusd` must be >= 10.
+    `idempotencyKey` is REQUIRED. `stakeMusd` must be >= 10. An optional
+    `minEntryProbabilityPct` is a finite chosen-side entry probability
+    floor in percentage points before fees (0-100 inclusive). The server
+    rechecks it against a fresh quote inside the entry transaction before
+    inserting the wallet transfer or position; invalid values return 400
+    and a failed check returns 422 `mock_entry_blocked`.
 
     Args:
         body (PmOpenRequest):
@@ -169,7 +179,12 @@ async def asyncio_detailed(
      Requires scope `trade:pm`. Enabled now (server-flag gated — returns 403
     \"PM mock trading is not enabled\" only if later disabled). Binary outcomes
     only; pass `side: \"no\"` to back the NO side (default yes).
-    `idempotencyKey` is REQUIRED. `stakeMusd` must be >= 10.
+    `idempotencyKey` is REQUIRED. `stakeMusd` must be >= 10. An optional
+    `minEntryProbabilityPct` is a finite chosen-side entry probability
+    floor in percentage points before fees (0-100 inclusive). The server
+    rechecks it against a fresh quote inside the entry transaction before
+    inserting the wallet transfer or position; invalid values return 400
+    and a failed check returns 422 `mock_entry_blocked`.
 
     Args:
         body (PmOpenRequest):
@@ -201,7 +216,12 @@ async def asyncio(
      Requires scope `trade:pm`. Enabled now (server-flag gated — returns 403
     \"PM mock trading is not enabled\" only if later disabled). Binary outcomes
     only; pass `side: \"no\"` to back the NO side (default yes).
-    `idempotencyKey` is REQUIRED. `stakeMusd` must be >= 10.
+    `idempotencyKey` is REQUIRED. `stakeMusd` must be >= 10. An optional
+    `minEntryProbabilityPct` is a finite chosen-side entry probability
+    floor in percentage points before fees (0-100 inclusive). The server
+    rechecks it against a fresh quote inside the entry transaction before
+    inserting the wallet transfer or position; invalid values return 400
+    and a failed check returns 422 `mock_entry_blocked`.
 
     Args:
         body (PmOpenRequest):

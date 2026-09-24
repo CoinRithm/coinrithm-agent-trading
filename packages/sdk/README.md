@@ -9,6 +9,12 @@ via [`openapi-typescript`](https://github.com/openapi-ts/openapi-typescript) +
 All trading on this surface is **paper only** (virtual mUSD). Nothing touches
 real money. Not financial advice.
 
+## Unreleased
+
+- PM quote and open requests accept optional `minEntryProbabilityPct`, a
+  chosen-side entry probability floor in percentage points before fees. It is
+  omitted by default; `0` is a valid explicit value.
+
 Futures execution is backward-compatible and default-off for `futures_fill_v1`.
 When enabled, a new open pins the model; adds and user closes follow the
 existing position's pinned model, with modeled adverse costs embedded in the

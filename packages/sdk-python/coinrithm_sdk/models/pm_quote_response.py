@@ -29,10 +29,12 @@ class PmQuoteResponse:
     """
     Attributes:
         eligible (bool | Unset):
-        block_reasons (list[str] | Unset):
+        block_reasons (list[str] | Unset): Eligibility reason codes, including entry_below_floor when the optional
+            minimum entry probability is not met and entry_price_unavailable when the quoted probability is unusable.
         fill_basis (str | Unset):
         side (PmQuoteResponseSide | Unset):
-        entry_probability (float | None | Unset): 0..100
+        entry_probability (float | None | Unset): Fresh chosen-side entry probability in percentage points (0-100), or
+            null when unavailable; this is the value checked against minEntryProbabilityPct.
         shares_estimate (float | None | Unset):
         max_payout (float | None | Unset):
         stake_musd (float | Unset):

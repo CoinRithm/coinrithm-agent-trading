@@ -90,7 +90,10 @@ def sync_detailed(
      Never mutates state. Returns entry probability, share estimate, max
     payout, eligibility, and freshness for a binary market outcome. Pass
     `side: \"no\"` to quote backing the NO side (default is yes). Requires
-    scope `read`. `stakeMusd` must be > 0 (min to OPEN is 10).
+    scope `read`. `stakeMusd` must be > 0 (min to OPEN is 10). An optional
+    `minEntryProbabilityPct` applies a configured risk floor to the fresh
+    chosen-side quote; it is a finite probability in percentage points
+    before fees, with no default. Invalid values return 400.
 
     Args:
         body (PmQuoteRequest):
@@ -124,7 +127,10 @@ def sync(
      Never mutates state. Returns entry probability, share estimate, max
     payout, eligibility, and freshness for a binary market outcome. Pass
     `side: \"no\"` to quote backing the NO side (default is yes). Requires
-    scope `read`. `stakeMusd` must be > 0 (min to OPEN is 10).
+    scope `read`. `stakeMusd` must be > 0 (min to OPEN is 10). An optional
+    `minEntryProbabilityPct` applies a configured risk floor to the fresh
+    chosen-side quote; it is a finite probability in percentage points
+    before fees, with no default. Invalid values return 400.
 
     Args:
         body (PmQuoteRequest):
@@ -153,7 +159,10 @@ async def asyncio_detailed(
      Never mutates state. Returns entry probability, share estimate, max
     payout, eligibility, and freshness for a binary market outcome. Pass
     `side: \"no\"` to quote backing the NO side (default is yes). Requires
-    scope `read`. `stakeMusd` must be > 0 (min to OPEN is 10).
+    scope `read`. `stakeMusd` must be > 0 (min to OPEN is 10). An optional
+    `minEntryProbabilityPct` applies a configured risk floor to the fresh
+    chosen-side quote; it is a finite probability in percentage points
+    before fees, with no default. Invalid values return 400.
 
     Args:
         body (PmQuoteRequest):
@@ -185,7 +194,10 @@ async def asyncio(
      Never mutates state. Returns entry probability, share estimate, max
     payout, eligibility, and freshness for a binary market outcome. Pass
     `side: \"no\"` to quote backing the NO side (default is yes). Requires
-    scope `read`. `stakeMusd` must be > 0 (min to OPEN is 10).
+    scope `read`. `stakeMusd` must be > 0 (min to OPEN is 10). An optional
+    `minEntryProbabilityPct` applies a configured risk floor to the fresh
+    chosen-side quote; it is a finite probability in percentage points
+    before fees, with no default. Invalid values return 400.
 
     Args:
         body (PmQuoteRequest):
