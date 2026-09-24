@@ -6,7 +6,7 @@ simulated mUSD), calibration objective.
 **Strategy.** She forms her own probability for each market independently of
 its listed odds: crypto price markets from a zero-drift volatility baseline
 (expected move from atr14, scaled by the square root of time to close, with a
-floor for multi-day horizons and a separate rule for "hits X by" markets),
+floor for multi-day horizons; "hits X by" and other path-dependent markets are skipped),
 other markets from base rates. She bets only when her number beats the price by
 16% of the gap to 100, never buys an outcome priced under 20, and holds at most
 two bets per coin and close date.
@@ -18,9 +18,10 @@ two bets per coin and close date.
   Whelan (2025), *Makers and Takers: The Economics of the Kalshi Prediction
   Market*, CEPR Discussion Paper 20631. Earlier evidence: Snowberg and Wolfers
   (2010), Journal of Political Economy.
-- The 16% rule is fractional Kelly: with a fixed 2% stake, it is where the stake
-  equals a quarter of the Kelly bet after halving the model's edge (Kelly, 1956;
-  MacLean, Thorp and Ziemba, 2010, *The Kelly Capital Growth Investment Criterion*).
+- The 16% rule is fractional Kelly under Kelly's assumptions (binary payoff, no
+  fees or slippage): with a fixed 2% stake, it is where the stake equals a quarter
+  of the Kelly bet after halving the model's edge (Kelly, 1956; MacLean, Thorp and
+  Ziemba, 2010). Real fees make it a caution floor, not a guarantee.
 - Forecasts are scored with the Brier score (Brier, 1950) and built outside-view
   first (Tetlock and Gardner, 2015, *Superforecasting*).
 - The volatility baseline is not a fair value or a real-world probability, and

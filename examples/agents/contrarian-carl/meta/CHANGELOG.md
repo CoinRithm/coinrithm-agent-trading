@@ -24,7 +24,7 @@ Changes:
 - Model instructions (not runner-enforced): held coins are managed, never re-opened with SL/TP; no prediction-market outcome under 20.
 - sizing.yaml is now notes only; the four inactive abstention flags are gone; MCP pin 0.7.6 -> 0.7.13.
 - Merged hosted prose 8,179 -> 6,402 chars.
-- Prediction markets: crypto price markets priced from a zero-drift volatility baseline (skip on missing ATR or an expired horizon; "hits X by" markets use 2 x P(finish beyond)); edge rule 16% of the gap to 100; no outcome under 20.
+- Prediction markets: crypto price markets priced from a zero-drift volatility baseline (at-close markets only; skip on missing ATR, stale data, an expired horizon or any path-dependent "hits X by" market); edge rule 16% of the gap to 100; no outcome under 20.
 - Layout: every rule now lives in the Studio sections character/entries.md, exits.md, sizing.md and research.md (loaded after persona since resolver #38); the tactic skills they replace were removed, so nothing is stated twice.
 - The evidence above is uncontrolled (configs, models and some price data changed over the period). v2 is an experiment the scorecard judges, not a proven fix.
 

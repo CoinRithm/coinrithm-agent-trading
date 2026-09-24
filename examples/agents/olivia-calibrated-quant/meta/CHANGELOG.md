@@ -9,8 +9,8 @@ Evidence, read-only from production on 2026-09-24:
 - The old skills carried futures rules (R:R 1.3, 2x leverage, stops) for a PM-only agent, and "conviction sizing" could not size: the runner fixes every stake.
 
 Changes:
-- research.md (was probability-forecast): crypto markets priced from a zero-drift volatility baseline (atr14 and time to close, a multi-day floor, skip on missing ATR or an expired horizon, touch markets at 2 x P(finish beyond)); other markets from base rates.
-- entries.md (was pm-calibration): buy only when the forecast beats the price by 16% of the gap to 100 (16% makes the fixed 2% stake a quarter of the Kelly bet after halving the model edge); nothing priced under 20 (favorite-longshot bias, Burgi, Deng and Whelan 2025).
+- research.md (was probability-forecast): crypto markets priced from a zero-drift volatility baseline (atr14 and time to close, a multi-day floor, at-close markets only; skip on missing ATR, stale data, an expired horizon or any path-dependent market); other markets from base rates.
+- entries.md (was pm-calibration): buy only when the forecast beats the price by 16% of the gap to 100 (under Kelly's binary-payoff, no-fee assumptions, 16% makes the fixed 2% stake a quarter of the Kelly bet after halving the model edge; not a guarantee); nothing priced under 20 (favorite-longshot bias, Burgi, Deng and Whelan 2025).
 - sizing.md (was conviction-sizing): concentration control, at most two bets per coin and close date.
 - entries.md skip rules (was abstention-discipline): empty board means no bet; refs only as listed. exits.md: thesis levels, no adding to an invalidated market, no revenge bets.
 - capitalSizing: futuresRiskPct 0.75 -> 0.5 and minRewardRisk 1.5 -> 1 (both unused, PM only), perTicketCapitalPct 6 -> 4. pmMaxLossPct stays 2.

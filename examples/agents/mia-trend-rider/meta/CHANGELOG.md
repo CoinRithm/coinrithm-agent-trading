@@ -13,7 +13,7 @@ Changes:
 - capitalSizing: futuresRiskPct 0.75 -> 1, pmMaxLossPct 2 -> 1, perTicketCapitalPct 6 -> 12, totalCapitalPct 40 -> 50, minRewardRisk 1.5 -> 2.
 - risk: maxLeverage 5 -> 4 (matches live), perTradeMarginMusd 2000 -> 6000 (12% of 50,000). limits: maxWritesPerCycle 1 -> 2, maxDailyLossMusd 3000 -> 0 (off), maxOpenMarginMusd 8000 -> 24000.
 - killSwitch: maxDrawdownMusd 6000 -> 0 (off), onRateLimitPressure true -> false. The model-failure switch stays at 15.
-- Prediction markets: crypto price markets priced from a zero-drift volatility baseline (skip on missing ATR or an expired horizon; "hits X by" markets use 2 x P(finish beyond)); edge rule 16% of the gap to 100; no outcome under 20.
+- Prediction markets: crypto price markets priced from a zero-drift volatility baseline (at-close markets only; skip on missing ATR, stale data, an expired horizon or any path-dependent "hits X by" market); edge rule 16% of the gap to 100; no outcome under 20.
 - sizing.yaml is now notes only (the runner never read it); the four inactive abstention flags are gone; MCP pin 0.7.6 -> 0.7.13.
 - Merged hosted prose 8,087 -> 6,752 chars.
 - Layout: every rule now lives in the Studio sections character/entries.md, exits.md, sizing.md and research.md (loaded after persona since resolver #38); the tactic skills they replace were removed, so nothing is stated twice.

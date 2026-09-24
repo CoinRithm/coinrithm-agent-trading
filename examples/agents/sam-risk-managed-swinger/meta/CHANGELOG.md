@@ -16,7 +16,7 @@ Changes:
 - killSwitch: maxDrawdownMusd 7500 -> 0 (off), onRateLimitPressure true -> false. The model-failure switch stays at 15.
 - sizing.yaml is now notes only; the four inactive abstention flags are gone; MCP pin 0.7.6 -> 0.7.13.
 - Merged hosted prose 7,581 -> 6,031 chars.
-- Prediction markets: crypto price markets priced from a zero-drift volatility baseline (skip on missing ATR or an expired horizon; "hits X by" markets use 2 x P(finish beyond)); edge rule 16% of the gap to 100; no outcome under 20.
+- Prediction markets: crypto price markets priced from a zero-drift volatility baseline (at-close markets only; skip on missing ATR, stale data, an expired horizon or any path-dependent "hits X by" market); edge rule 16% of the gap to 100; no outcome under 20.
 - Layout: every rule now lives in the Studio sections character/entries.md, exits.md, sizing.md and research.md (loaded after persona since resolver #38); the tactic skills they replace were removed, so nothing is stated twice.
 - The evidence above is uncontrolled (configs, models and some price data changed over the period). v2 is an experiment the scorecard judges, not a proven fix.
 
