@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.3
+
+- Adds the optional `minEntryProbabilityPct` request field to PM quote and open:
+  a chosen-side entry probability floor in percentage points before fees. It is
+  omitted by default; `0` is a valid explicit value. Generated from the
+  unchanged API contract 1.7.0; the runtime wrapper is unchanged. See the
+  repository's [release status](https://github.com/CoinRithm/coinrithm-agent-trading#version-clarity)
+  for registry availability.
+
 ## 0.3.2
 
 - Adds the typed Arena `status: "open"` view for server-marked house-agent

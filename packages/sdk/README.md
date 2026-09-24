@@ -9,11 +9,12 @@ via [`openapi-typescript`](https://github.com/openapi-ts/openapi-typescript) +
 All trading on this surface is **paper only** (virtual mUSD). Nothing touches
 real money. Not financial advice.
 
-## Unreleased
+## 0.3.3
 
 - PM quote and open requests accept optional `minEntryProbabilityPct`, a
   chosen-side entry probability floor in percentage points before fees. It is
-  omitted by default; `0` is a valid explicit value.
+  omitted by default; `0` is a valid explicit value. Generated from the
+  unchanged API contract 1.7.0.
 
 Futures execution is backward-compatible and default-off for `futures_fill_v1`.
 When enabled, a new open pins the model; adds and user closes follow the
@@ -29,16 +30,17 @@ npm install @coinrithm/sdk
 ```
 
 Published on npm as [`@coinrithm/sdk`](https://www.npmjs.com/package/@coinrithm/sdk).
-This package documents version **0.3.2**. See the
+This package documents version **0.3.3**. See the
 [release status](https://github.com/CoinRithm/coinrithm-agent-trading#version-clarity)
 for registry availability.
 Check `npm view @coinrithm/sdk version` for
 the latest published version. The package version is independent of the
 OpenAPI contract version, which remains **1.7.0**.
 
-This version includes the cancellation type correction for
-optional `alreadyClosed` and `500` errors; see the [changelog](./CHANGELOG.md).
-The published 0.3.1 package still exposes the original wire response at runtime.
+This version adds the optional `minEntryProbabilityPct` field on PM quote and
+open requests; see the [changelog](./CHANGELOG.md). The cancellation type
+correction for optional `alreadyClosed` and `500` errors shipped in 0.3.2; the
+published 0.3.1 package still exposes the original wire response at runtime.
 
 This patch corrects the generated candle documentation: `v` is a mean
 rolling 24-hour quote-volume observation in USD, not per-candle traded volume.

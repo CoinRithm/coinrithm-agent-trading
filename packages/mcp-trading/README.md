@@ -43,14 +43,16 @@ This package ships two binaries:
 
 > **Paper trading only** — virtual funds (50,000 mUSD). Not financial advice.
 
-## Version 0.7.13
+## Version 0.7.14
 
-This patch corrects provider-capacity classification and exports
-`classifyProviderFailure` from the supported engine entry point. Retry counts
-and trading behavior are unchanged. See [CHANGELOG.md](./CHANGELOG.md).
-This version also includes public whale-wallet context and the clarified
-market-price calibration definitions on the 40-tool surface. Check
-`npm view @coinrithm/mcp-trading version` and the
+This release makes a configured prediction-market entry floor executable
+(`risk.pmMinEntryProbabilityPct`: runner preflight plus the API's own re-check
+at execution), preflights futures stop/target updates against observed prices,
+loads the optional strategy sections from local bundles, pins compiled strategy
+definitions (`run --expect-definition`), retains candle timing evidence, and
+scopes permanent model-error streaks to the attempted provider/model. Trading
+limits and retry counts are otherwise unchanged. See [CHANGELOG.md](./CHANGELOG.md).
+Check `npm view @coinrithm/mcp-trading version` and the
 [release status](https://github.com/CoinRithm/coinrithm-agent-trading#version-clarity)
 for registry availability; hosted deployments and npm releases are separate.
 

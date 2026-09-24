@@ -5,8 +5,8 @@ Every one passes `validate --hosted`. Copy a folder, edit the strategy + caps,
 add your keys, and run it. Paper trading only (spot, futures, prediction markets),
 not financial advice.
 
-**Runner compatibility:** the current house bundles require the runner built
-from this checkout. Published **0.7.13** does not load the new `entries.md`,
+**Runner compatibility:** the current house bundles require runner version
+**0.7.14** or the runner built from this checkout. Published **0.7.13** does not load the new `entries.md`,
 `exits.md`, `sizing.md` and `research.md` sections and uses earlier hosted
 zero-cap validation. See the [version status](../../README.md#version-clarity)
 before running these bundles locally. The hosted Arena update is deployed separately.

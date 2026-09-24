@@ -9,8 +9,8 @@ until it is REPLACED, not edited around.
 
 ## The file map
 
-The four strategy-section files below require the unreleased runner source;
-published **0.7.13** does not load them. Check the
+The four strategy-section files below require runner version **0.7.14** or the
+runner source; published **0.7.13** does not load them. Check the
 [bundle compatibility note](./README.md) before running a current house fork locally.
 
 | File | Carries | On fork |

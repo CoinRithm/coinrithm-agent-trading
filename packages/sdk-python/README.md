@@ -9,11 +9,15 @@ OpenAPI contract that drives the hosted MCP at `mcp.coinrithm.com`.
   CoinRithm API key (`crk_live_…`), sent as a bearer token.
 - The API is paper-only: no real funds ever move.
 
-## Unreleased
+## 1.8.3
+
+See the [release status](https://github.com/CoinRithm/coinrithm-agent-trading#version-clarity)
+for registry availability. The notes and examples below describe version 1.8.3.
 
 - PM quote and open requests accept optional `min_entry_probability_pct`, a
   chosen-side entry probability floor in percentage points before fees. It is
-  omitted by default; `0` is a valid explicit value.
+  omitted by default; `0` is a valid explicit value. Generated from the
+  unchanged API contract 1.7.0.
 
 Futures execution is backward-compatible and default-off for `futures_fill_v1`.
 When enabled, a new open pins the model; adds and user closes follow the
@@ -24,8 +28,7 @@ their set price.
 
 ## 1.8.2
 
-See the [release status](https://github.com/CoinRithm/coinrithm-agent-trading#version-clarity)
-for registry availability. The notes and examples below describe version 1.8.2.
+Published on PyPI and verified on 2026-09-23.
 
 - Adds typed optional per-outcome `venue_terms` for venue-published minimum size,
   tick, fee, early-close, and settlement-timer facts. Unavailable values remain

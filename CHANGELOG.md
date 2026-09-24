@@ -8,35 +8,44 @@ Each package has its own version; the API contract is versioned separately.
 [TypeScript history](packages/sdk/CHANGELOG.md) ·
 [Python release notes](packages/sdk-python/README.md)
 
-## Unreleased
+## MCP 0.7.14, TypeScript 0.3.3, Python 1.8.3 (2026-09-24)
 
-- Scope permanent model-error streaks to the attempted provider/model. Discard
-  legacy unattributed streaks and reset availability failures on a successful
-  provider response, including malformed decisions. Old-route failures cannot
-  request an early hold on a replacement model; agent risk limits are unchanged.
-- Attribute a routed permanent-error hold to the attempt that produced the error,
-  even when a later fallback is rate-limited; keep actual-call metering unchanged.
+Prepared for publication from reviewed source; not yet on the registries. The
+registry verification is recorded here after the upload.
 
-- Hosted scheduler: the boot de-Groq migration now also moves shared, unpinned
-  user agents that are active or stopped as `model_unavailable`, and whose
-  owner-matched CoinRithm key exists and is not revoked, off the obsolete hosted
-  Groq route onto the living NVIDIA models, so the existing EOL revive step
-  reactivates them. Paused, risk-stopped, key-stopped, BYO-key and pinned rows,
-  and rows without a valid key, are untouched. One production row is affected
-  today (a45-casa, recorded provider HTTP 404).
-- Reject futures stop/target updates that conflict with observed position prices
-  before sending them; retain the API's final execution-time validation.
 - Add the optional `risk.pmMinEntryProbabilityPct` policy (0..100 points): the
   runner rejects `pm_open` when the chosen outcome's raw market probability at
   entry is below the floor, with a reason that names both numbers. Fees stay
   in the forecast-edge check, so a 19-point outcome fails a 20-point floor even
   when fees lift its cost above 20. Absent keeps today's behaviour; a set floor
   with no quoted probability fails closed. The floor is rendered in the prompt's
-  hard caps.
-- Add compiled-agent snapshots and an optional local run baseline check. Source
-  changes are not included in the published 0.7.13 archive.
+  hard caps. Both SDKs carry the matching optional PM quote/open request field
+  (`minEntryProbabilityPct` in TypeScript, `min_entry_probability_pct` in
+  Python); the API contract stays 1.7.0.
+- Reject futures stop/target updates that conflict with observed position prices
+  before sending them; retain the API's final execution-time validation.
+- Scope permanent model-error streaks to the attempted provider/model. Discard
+  legacy unattributed streaks and reset availability failures on a successful
+  provider response, including malformed decisions. Old-route failures cannot
+  request an early hold on a replacement model; agent risk limits are unchanged.
+- Attribute a routed permanent-error hold to the attempt that produced the error,
+  even when a later fallback is rate-limited; keep actual-call metering unchanged.
+- Add compiled-agent snapshots and an optional local run baseline check
+  (`run --expect-definition`).
+- Load the optional `entries.md`, `exits.md`, `sizing.md` and `research.md`
+  strategy sections from local bundles, retain candle timing evidence with
+  indicators, and treat explicit zero caps as off in hosted validation and
+  tactic merges.
 
 ## Hosted scheduler — 2026-09-24
+
+- Move shared, unpinned user agents that are active or stopped as
+  `model_unavailable`, and whose owner-matched CoinRithm key exists and is not
+  revoked, off the obsolete hosted Groq route onto the living NVIDIA models at
+  boot, so the existing EOL revive step reactivates them. Paused, risk-stopped,
+  key-stopped, BYO-key and pinned rows, and rows without a valid key, are
+  untouched. One production row was affected (a45-casa, recorded provider
+  HTTP 404).
 
 - Deploy scheduler source `b0b50ab244e32febd5af05af5d9c64cab7845808` and
   atomically apply versioned definitions to the five house paper agents.

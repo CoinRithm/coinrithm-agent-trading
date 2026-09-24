@@ -308,8 +308,8 @@ PnL into real holdings, and no external broker adapter is supplied.
 
 Engine consumers can use `buildAgentDefinitionSnapshot(actualSpec, mergedProse)`
 from `@coinrithm/mcp-trading/engine` to freeze their actual compiled inputs. It
-does not recompile a hosted spec or remove platform overrides. This source
-feature is not present in the published 0.7.13 package.
+does not recompile a hosted spec or remove platform overrides. This feature
+ships from package version 0.7.14; it is not present in 0.7.13.
 
 ## Embedding the engine
 
@@ -336,8 +336,8 @@ which an agent may use in `venues:`. Every venue is gated by the same caps:
 notional / PM stake), opens are quote-gated (eligible + fresh), and a `pm_open`
 may only target a market that **discovery surfaced this cycle** (no hallucinated
 markets). Opt in to `risk.pmMinEntryProbabilityPct` (0..100 points) to make a
-prediction-market price floor executable (source/hosted only; **not included in
-the published npm 0.7.13**): the runner's preflight rejects a `pm_open` whose
+prediction-market price floor executable (package version 0.7.14 and later, and
+hosted; **not included in npm 0.7.13**): the runner's preflight rejects a `pm_open` whose
 chosen outcome trades below that market probability (`pm_entry_below_floor`,
 fees not counted, fail-closed without a quoted probability), then sends the
 configured floor with the quote and the open so the API re-checks it at

@@ -261,15 +261,15 @@ Base URL: `https://api.coinrithm.com` (live). Hosted MCP: `https://mcp.coinrithm
 ## Version clarity
 
 `info.version` in `openapi.yaml` (currently **1.7.0**) is the API contract
-version. The MCP package (`@coinrithm/mcp-trading`, currently **0.7.13** in
-the package manifest) is versioned separately. Registry publication was checked on
-**23 September 2026**:
+version. The MCP package (`@coinrithm/mcp-trading`, currently **0.7.14** in
+the package manifest, prepared for publication) is versioned separately.
+Registry publication was last checked on **23 September 2026**:
 
 | Package                                                | Published registry version | Source version |
 | ------------------------------------------------------ | -------------------------- | -------------- |
-| `@coinrithm/mcp-trading` (MCP server and agent runner) | **0.7.13**                 | **0.7.13**     |
-| `@coinrithm/sdk` (TypeScript)                          | **0.3.2**                  | **0.3.2**      |
-| `coinrithm-sdk` (Python)                               | **1.8.2**                  | **1.8.2**      |
+| `@coinrithm/mcp-trading` (MCP server and agent runner) | **0.7.13**                 | **0.7.14**     |
+| `@coinrithm/sdk` (TypeScript)                          | **0.3.2**                  | **0.3.3**      |
+| `coinrithm-sdk` (Python)                               | **1.8.2**                  | **1.8.3**      |
 
 All four npm/PyPI archives match the reviewed release manifest byte for byte
 for source `726d8f0466d0cfd02ab5a9d46aed6ca12a45ff06`. The official MCP Registry
@@ -284,15 +284,16 @@ agent definitions are versioned in source, and the live application of the new
 20-point floor was verified for all five active house agents. Existing customer
 strategies and recorded paper history remain preserved by the reviewed rollout.
 
-Current source includes changes marked **Unreleased** in the
-[MCP/runner changelog](./packages/mcp-trading/CHANGELOG.md), including compiled
-definition checks, strategy-section loading, candle provenance, the configured
-prediction-market entry floor with its preflight enforcement, and source-only
-futures stop/target preflight safeguards. They
-are not included in the published **0.7.13** archive even though the source
-manifest has not yet been bumped. Package publication and hosted deployments
-are separate; these source changes are not a claim about the published
-archive.
+Source versions **0.7.14**, **0.3.3** and **1.8.3** are prepared for
+publication and are not yet on the registries: the published archives remain
+**0.7.13**, **0.3.2** and **1.8.2** until the upload is verified and recorded
+here. Per the [MCP/runner changelog](./packages/mcp-trading/CHANGELOG.md),
+0.7.14 adds compiled definition checks, strategy-section loading, candle
+provenance, the configured prediction-market entry floor with its preflight
+enforcement, futures stop/target preflight safeguards, and per-route permanent
+model-error streaks; the SDK releases add the matching optional entry-floor
+request field. Package publication and hosted deployments are separate; a
+source version is not a claim about a published archive.
 
 The published SDKs include whale-wallet summary/detail reads, the house-only
 open-decision view, optional thesis/advisory fields, venue terms, funding and
