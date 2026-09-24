@@ -262,7 +262,7 @@ Base URL: `https://api.coinrithm.com` (live). Hosted MCP: `https://mcp.coinrithm
 
 `info.version` in `openapi.yaml` (currently **1.7.0**) is the API contract
 version. The MCP package (`@coinrithm/mcp-trading`, currently **0.7.13** in
-source) is versioned separately. Registry publication was checked on
+the package manifest) is versioned separately. Registry publication was checked on
 **23 September 2026**:
 
 | Package                                                | Published registry version | Source version |
@@ -275,10 +275,18 @@ All four npm/PyPI archives match the reviewed release manifest byte for byte
 for source `726d8f0466d0cfd02ab5a9d46aed6ca12a45ff06`. The official MCP Registry
 separately lists **0.7.13** as active and latest, verified after the
 [registry workflow](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/35926812905).
-The hosted MCP reports **0.7.13**, with **40 tools**, including **13 keyless data tools**, at
-source `4b39cd057765f0ab995d0ec4db2cfde665fa4bdd`. The hosted scheduler runs
-`184201069cbf888989870e71243ba725fc98b634`; both were checked separately from
-the registries. Package publication does not change those hosted deployments.
+Hosted deployments were checked separately on **24 September 2026**. The MCP
+reports **0.7.13**, with **40 tools**, including **13 keyless data tools**, at
+source `ff8b0443e62d0c1ca4920d23b811b44d4e11acc8` (deployment 2661).
+The scheduler runs `b0b50ab244e32febd5af05af5d9c64cab7845808` (deployment 2663).
+The five house paper agents have versioned updated definitions; existing
+customer strategies and recorded paper history were preserved.
+
+Current source includes changes marked **Unreleased** in the
+[MCP/runner changelog](./packages/mcp-trading/CHANGELOG.md), including compiled
+definition checks, strategy-section loading and candle provenance. They are
+not included in the published **0.7.13** archive even though the source manifest
+has not yet been bumped. Package publication and hosted deployments are separate.
 
 The published SDKs include whale-wallet summary/detail reads, the house-only
 open-decision view, optional thesis/advisory fields, venue terms, funding and
