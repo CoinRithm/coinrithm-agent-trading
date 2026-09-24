@@ -12,6 +12,11 @@ Each package has its own version; the API contract is versioned separately.
 
 - Add compiled-agent snapshots and an optional local run baseline check. Source
   only until the next package release; no change to published 0.7.13 behavior.
+- Recheck active/due eligibility when the hosted scheduler locks each agent,
+  preventing a stale candidate snapshot from claiming an agent again after
+  another worker has committed its claim or the agent has been disabled.
+- Preserve an explicit zero daily trade cap when loading house rollout bundles;
+  persist the authored off setting rather than the engine's internal sentinel.
 
 ## MCP 0.7.13, TypeScript 0.3.2, Python 1.8.2 — 2026-09-23
 
