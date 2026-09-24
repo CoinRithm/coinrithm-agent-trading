@@ -15,6 +15,7 @@ import {
   NewsItem,
   CoinFundamentals,
   WatchEntry,
+  IndicatorContext,
   AgentTrace,
 } from "./types.js";
 import { asObj, asArr, asNum, asStr } from "./extract.js";
@@ -28,10 +29,10 @@ export interface ObserveOutput {
   skip?: string;
 }
 
-// Candle granularity feeding the indicators: the 1D range = 5-minute candles
-// (~5-min fresh, ~288 bars — ample for EMA50/RSI14/Bollinger20), which suits the
-// short cadence the hosted house agents run on. Probe-verified 2026-06-17.
+// The 1D endpoint nominally returns 288 five-minute bars. Timestamps and gaps
+// are checked separately; requesting this range does not establish freshness.
 const INDICATOR_RANGE = "1D";
+const INDICATOR_INTERVAL_SECONDS = 300;
 
 // `universe_scan` bounds: how many top movers to pull, and how many of those
 // to fully resolve into tradable watch entries (each resolved row costs a
@@ -114,8 +115,52 @@ export function isCalibrationChurnMarket(market: {
 // volume and summing the bars would be wrong by ~288x.
 interface CandleContext {
   indicators: IndicatorSet | null;
+  indicatorContext?: IndicatorContext;
   volume24hUsd?: number;
   volumeMissingVenues?: number;
+}
+
+// The live endpoint's t is Unix seconds. Missing/malformed values (including
+// millisecond epochs) stay unknown; never substitute retrieval time.
+function candleTimestamp(value: unknown): number | undefined {
+  return typeof value === "number" &&
+    Number.isInteger(value) &&
+    value > 0 &&
+    value <= 253_402_300_799
+    ? value
+    : undefined;
+}
+
+function candleIntervals(times: Array<number | undefined>) {
+  let timestampedBarCount = 0;
+  let checkedIntervalCount = 0;
+  let irregularIntervalCount = 0;
+  let maxGapSeconds: number | undefined;
+  for (let i = 0; i < times.length; i++) {
+    const current = times[i];
+    if (current === undefined) continue;
+    timestampedBarCount++;
+    const previous = times[i - 1];
+    if (previous === undefined) continue;
+    const gap = current - previous;
+    checkedIntervalCount++;
+    if (gap !== INDICATOR_INTERVAL_SECONDS) irregularIntervalCount++;
+    maxGapSeconds = Math.max(maxGapSeconds ?? 0, gap);
+  }
+  const intervalStatus: IndicatorContext["intervalStatus"] =
+    irregularIntervalCount > 0
+      ? "irregular"
+      : times.length < 2 || timestampedBarCount !== times.length
+        ? "unknown"
+        : "regular";
+  return {
+    barCount: times.length,
+    timestampedBarCount,
+    checkedIntervalCount,
+    irregularIntervalCount,
+    intervalStatus,
+    ...(maxGapSeconds === undefined ? {} : { maxGapSeconds }),
+  };
 }
 
 // Fetch candles for one coin and reduce them to a compact indicator bundle plus
@@ -139,6 +184,7 @@ async function fetchCandleContext(
   if (!cr.ok) return { indicators: null };
   // Endpoint shape: { candles: [{ t, o, h, l, c, v, vm }] } ascending (oldest first).
   const candles: Candle[] = [];
+  const times: Array<number | undefined> = [];
   let latestVolume: number | undefined;
   let latestVolumeMissingVenues: number | undefined;
   for (const raw of asArr(asObj(cr.data).candles)) {
@@ -150,6 +196,7 @@ async function fetchCandleContext(
     if (open == null || high == null || low == null || close == null) continue;
     const volume = asNum(c.v);
     candles.push({ open, high, low, close, volume: volume ?? undefined });
+    times.push(candleTimestamp(c.t));
     latestVolume = volume != null && volume >= 0 ? volume : undefined;
     const coverage = asNum(c.vm);
     latestVolumeMissingVenues =
@@ -160,8 +207,22 @@ async function fetchCandleContext(
         ? coverage
         : undefined;
   }
+  const latestTime = times.at(-1);
+  const recent = candleIntervals(times.slice(-15));
   return {
     indicators: computeIndicators(candles),
+    indicatorContext: {
+      range: INDICATOR_RANGE,
+      nominalIntervalSeconds: INDICATOR_INTERVAL_SECONDS,
+      ...candleIntervals(times),
+      ...(latestTime === undefined
+        ? {}
+        : { asOf: new Date(latestTime * 1000).toISOString() }),
+      recent15: {
+        barCount: recent.barCount,
+        intervalStatus: recent.intervalStatus,
+      },
+    },
     volume24hUsd: latestVolume,
     volumeMissingVenues: latestVolumeMissingVenues,
   };
@@ -198,6 +259,7 @@ async function enrichFromCandles(
 ): Promise<void> {
   const cc = await fetchCandleContext(client, coinId, trace);
   if (cc.indicators) entry.indicators = cc.indicators;
+  if (cc.indicatorContext) entry.indicatorContext = cc.indicatorContext;
   if (cc.volume24hUsd != null) {
     entry.fundamentals = {
       ...(entry.fundamentals ?? {}),
