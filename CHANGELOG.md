@@ -14,6 +14,8 @@ Each package has its own version; the API contract is versioned separately.
   legacy unattributed streaks and reset availability failures on a successful
   provider response, including malformed decisions. Old-route failures cannot
   request an early hold on a replacement model; agent risk limits are unchanged.
+- Attribute a routed permanent-error hold to the attempt that produced the error,
+  even when a later fallback is rate-limited; keep actual-call metering unchanged.
 
 - Hosted scheduler: the boot de-Groq migration now also moves shared, unpinned
   user agents that are active or stopped as `model_unavailable`, and whose

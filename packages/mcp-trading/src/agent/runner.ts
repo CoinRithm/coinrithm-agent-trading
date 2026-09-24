@@ -927,9 +927,28 @@ async function runCycleCore(
       // for what deserves them: revoked credentials, drawdown, kill-switch,
       // user action. Transient errors reset the permanent streak.
       if (isPermanentModelError(res.error)) {
+        // The router retains the last non-capacity failure even when a later
+        // fallback returns 429. Its effective route still describes the last
+        // actual call for metering, not necessarily the error returned here.
+        const failureAttempt = route?.attempts
+          .slice()
+          .reverse()
+          .find(
+            (attempt) =>
+              attempt.outcome === "failed" &&
+              attempt.failureClass !== "capacity" &&
+              attempt.error === res.error,
+          );
         const failureRoute = {
-          provider: route?.effectiveProvider ?? providerName,
-          model: route?.effectiveModel ?? spec.model?.name ?? "unknown",
+          provider:
+            failureAttempt?.provider ??
+            route?.effectiveProvider ??
+            providerName,
+          model:
+            failureAttempt?.model ??
+            route?.effectiveModel ??
+            spec.model?.name ??
+            "unknown",
         };
         const previousRoute = state.permanentModelErrorRoute;
         const sameRoute =
