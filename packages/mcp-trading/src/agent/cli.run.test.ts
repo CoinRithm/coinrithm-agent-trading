@@ -5,6 +5,7 @@ import {
   readFileSync,
   rmSync,
   writeFileSync,
+  mkdirSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -49,6 +50,54 @@ afterEach(() => {
 });
 
 describe("runner CLI lifecycle", () => {
+  it("keeps strategy sections in the inspected and executed definition when tactic skills are disabled", async () => {
+    mkdirSync(join(folder, "character", "skills"), { recursive: true });
+    const agentFile = join(folder, "agent.md");
+    writeFileSync(
+      agentFile,
+      readFileSync(agentFile, "utf8").replace(
+        "---\n",
+        "---\ninclude: [momentum]\n",
+      ),
+    );
+    writeFileSync(
+      join(folder, "character", "skills", "momentum.md"),
+      "Optional momentum tactic.",
+    );
+    const sections = ["entries", "exits", "sizing", "research"];
+    for (const section of sections) {
+      writeFileSync(
+        join(folder, "character", `${section}.md`),
+        `The ${section} instruction.`,
+      );
+    }
+    vi.stubEnv("COINRITHM_AGENT_DISABLE_SKILLS", "1");
+    const { compiledDefinition } = cmdInspect(folder, true).data as {
+      compiledDefinition: AgentDefinitionSnapshot;
+    };
+    expect(compiledDefinition.mergedProse).not.toContain(
+      "Optional momentum tactic.",
+    );
+    for (const section of sections) {
+      expect(compiledDefinition.mergedProse).toContain(
+        `The ${section} instruction.`,
+      );
+    }
+    expect(
+      await main([
+        "run",
+        folder,
+        "--once",
+        "--expect-definition",
+        compiledDefinition.definitionHash,
+      ]),
+    ).toBe(0);
+    expect(mocks.runLoop.mock.calls[0][0].mergedProse).toBe(
+      compiledDefinition.mergedProse,
+    );
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it("uses the inspected compiled baseline and refuses drift before credentials or account access", async () => {
     const inspected = cmdInspect(folder, true).data as {
       compiledDefinition: AgentDefinitionSnapshot;
