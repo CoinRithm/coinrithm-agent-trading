@@ -67,6 +67,19 @@ describe("private partial decision input record", () => {
       })),
     )!;
     i.observation!.watch[0].indicators = indicators;
+    const indicatorContext = {
+      range: "1D" as const,
+      nominalIntervalSeconds: 300 as const,
+      asOf: "2026-09-24T00:40:00.000Z",
+      barCount: 288,
+      timestampedBarCount: 288,
+      checkedIntervalCount: 287,
+      irregularIntervalCount: 1,
+      intervalStatus: "irregular" as const,
+      maxGapSeconds: 600,
+      recent15: { barCount: 15, intervalStatus: "regular" as const },
+    };
+    i.observation!.watch[0].indicatorContext = indicatorContext;
     i.observation!.universeMovers = [
       {
         symbol: "LSK",
@@ -88,6 +101,7 @@ describe("private partial decision input record", () => {
     const r = buildDecisionInputRecord(i);
     expect(r.projectionVersion).toBe("coinrithm.decision-input-projection.v2");
     expect(r.lists.watch[0].indicators).toEqual(indicators);
+    expect(r.lists.watch[0].indicatorContext).toEqual(indicatorContext);
     expect(r.lists.universeMovers).toEqual([
       { symbol: "LSK", change24hPct: 12.34, priceUsd: 0.75 },
       { symbol: "VTHO", change24hPct: 5.67, priceUsd: 0.001 },
@@ -105,6 +119,21 @@ describe("private partial decision input record", () => {
     );
     expect(JSON.stringify(r)).not.toContain("PRIVATE_NAME");
     expect(sanitizeDecisionInputRecord(r)).toEqual(r);
+    const injected = structuredClone(r);
+    (
+      injected.lists.watch[0].indicatorContext as Record<string, unknown>
+    ).prompt = "PRIVATE_MUST_NOT_PERSIST";
+    expect(sanitizeDecisionInputRecord(injected)).toBeUndefined();
+    const invalidRange = structuredClone(r);
+    (
+      invalidRange.lists.watch[0].indicatorContext as Record<string, unknown>
+    ).range = "PRIVATE_MUST_NOT_PERSIST";
+    expect(sanitizeDecisionInputRecord(invalidRange)).toBeUndefined();
+    const invalidStatus = structuredClone(r);
+    (
+      invalidStatus.lists.watch[0].indicatorContext as Record<string, unknown>
+    ).intervalStatus = "PRIVATE_MUST_NOT_PERSIST";
+    expect(sanitizeDecisionInputRecord(invalidStatus)).toBeUndefined();
     indicators.bollinger!.upper = 999;
     expect(r.lists.watch[0].indicators).not.toEqual(indicators);
   });

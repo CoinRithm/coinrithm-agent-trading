@@ -276,6 +276,26 @@ export interface Freshness {
   basis?: string;
 }
 
+export interface IndicatorContext {
+  range: "1D";
+  // Endpoint cadence, not a promise that all returned bars have this spacing.
+  nominalIntervalSeconds: 300;
+  // Counts refer only to OHLC bars accepted by the indicator calculation.
+  barCount: number;
+  timestampedBarCount: number;
+  checkedIntervalCount: number;
+  irregularIntervalCount: number;
+  intervalStatus: "regular" | "irregular" | "unknown";
+  maxGapSeconds?: number;
+  // Source t of the FINAL accepted bar, never market-price freshness.
+  asOf?: string;
+  // Recent cadence evidence only: Wilder ATR also depends on earlier bars.
+  recent15: {
+    barCount: number;
+    intervalStatus: "regular" | "irregular" | "unknown";
+  };
+}
+
 export interface WatchEntry {
   symbol: string;
   coinId: string | null; // resolved UCID; null if unresolvable
@@ -293,6 +313,7 @@ export interface WatchEntry {
   // from candles when the agent declares the `indicators` capability. Omitted
   // otherwise or when the candle fetch fails/is too sparse.
   indicators?: IndicatorSet;
+  indicatorContext?: IndicatorContext;
   // true = this entry came from the `universe_scan` capability's top-movers
   // sweep, not the spec watchlist. Valid for THIS cycle only; the prompt labels
   // it so the model knows it is a discovered candidate, not a standing holding.
