@@ -144,6 +144,16 @@ export function buildSpec(raw: Record<string, unknown>): AgentSpec {
               risk.entryPredicates as AgentSpec["risk"]["entryPredicates"],
           }
         : {}),
+      // Optional PM entry floor: an absent key stays absent (no floor); an
+      // explicit value is carried AS WRITTEN, malformed or not, so hosted
+      // validation fails closed instead of a typo silently meaning "no floor"
+      // (the same rule entryPredicates follow).
+      ...(risk.pmMinEntryProbabilityPct !== undefined
+        ? {
+            pmMinEntryProbabilityPct:
+              risk.pmMinEntryProbabilityPct as AgentSpec["risk"]["pmMinEntryProbabilityPct"],
+          }
+        : {}),
       maxLeverage: num(risk.maxLeverage, 1),
       perTradeMarginMusd: num(risk.perTradeMarginMusd, 0),
       maxConcurrentPositions: num(risk.maxConcurrentPositions, 0),

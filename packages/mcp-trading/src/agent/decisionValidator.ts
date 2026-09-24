@@ -634,6 +634,55 @@ export function validateAction(
         `quote freshness ${ctx.quote.freshness?.status ?? "missing"} (need fresh)`,
       );
     }
+    // Hard entry-price floor (opt-in, 2026-09-24): compares the CHOSEN
+    // outcome's raw market probability at entry (the quote's entryProbability,
+    // points) with risk.pmMinEntryProbabilityPct. Fees are deliberately left
+    // out: a 19-point outcome fails a 20-point floor even when fees push its
+    // all-in cost above 20 (fees belong to the edge check below). No
+    // discovery-price fallback: with a floor set and no finite quoted
+    // probability the open is rejected, never waved through.
+    const entryFloor = spec.risk.pmMinEntryProbabilityPct;
+    if (entryFloor !== undefined) {
+      // A present-but-invalid floor never silently means "no floor".
+      if (
+        typeof entryFloor !== "number" ||
+        !Number.isFinite(entryFloor) ||
+        entryFloor < 0 ||
+        entryFloor > 100
+      ) {
+        return fail(
+          "pm_entry_floor_invalid",
+          `risk.pmMinEntryProbabilityPct ${JSON.stringify(entryFloor)} is not a number between 0 and 100`,
+        );
+      }
+      const market = ctx.quote.entryProbability;
+      if (
+        typeof market !== "number" ||
+        !Number.isFinite(market) ||
+        market < 0 ||
+        market > 100
+      ) {
+        return fail(
+          "pm_entry_price_unavailable",
+          `entry floor ${entryFloor}pt is set but the quote carries no usable market probability for the chosen outcome (${JSON.stringify(market ?? null)})`,
+        );
+      }
+      if (market + 1e-9 < entryFloor) {
+        const stake = ctx.quote.stakeMusd;
+        const shares = ctx.quote.sharesEstimate;
+        const cost =
+          typeof stake === "number" &&
+          typeof shares === "number" &&
+          stake > 0 &&
+          shares > 0
+            ? ` (fee-inclusive cost ${((stake / shares) * 100).toFixed(1)}pt)`
+            : "";
+        return fail(
+          "pm_entry_below_floor",
+          `market ${market.toFixed(1)}pt is below the ${entryFloor}pt entry floor for the chosen outcome${cost}`,
+        );
+      }
+    }
     // Forecast consistency. By prompt contract forecastProbability is the
     // model's own probability (1-99) that the outcome IT IS BACKING wins, so
     // buying that outcome only makes sense when the forecast clears what the

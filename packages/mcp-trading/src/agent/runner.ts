@@ -710,6 +710,7 @@ async function runCycleCore(
       trace,
       idem,
       provenance,
+      { pmMinEntryProbabilityPct: spec.risk.pmMinEntryProbabilityPct },
     );
     exitPlanned.push({
       action,
@@ -1215,7 +1216,9 @@ async function runCycleCore(
         }
       }
     }
-    const quote = await fetchQuote(client, action, observation, baseTrace);
+    const quote = await fetchQuote(client, action, observation, baseTrace, {
+      pmMinEntryProbabilityPct: spec.risk.pmMinEntryProbabilityPct,
+    });
     // Early PM skip: the quote's openBlocked preview tells us a pm/open right now
     // would be rejected 422 by the open-time quality gate (distinct from the
     // eligible/blockReasons SHAPE gate the validator checks). Bail here with a clear
@@ -1363,6 +1366,7 @@ async function runCycleCore(
       trace,
       idem,
       provenance,
+      { pmMinEntryProbabilityPct: spec.risk.pmMinEntryProbabilityPct },
     );
     planned.push({
       action,

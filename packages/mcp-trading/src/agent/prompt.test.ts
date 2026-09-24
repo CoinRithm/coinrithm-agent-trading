@@ -438,3 +438,23 @@ describe("buildSystemPrompt — universe_scan vs watchlist caps line (contradict
     expect(out).toMatch(/## Universe scan \(discovered movers\)/);
   });
 });
+
+describe("PM entry floor in the hard caps", () => {
+  it("renders the floor only when configured and only for PM venues", () => {
+    const spec = parseSkill(renderFolderOfOne("a", "conservative")).spec;
+    const pmSpec = {
+      ...spec,
+      venues: ["pm"] as ("spot" | "futures" | "pm")[],
+      risk: { ...spec.risk, pmMinEntryProbabilityPct: 20 },
+    };
+    const text = buildSystemPrompt(pmSpec, "strategy");
+    expect(text).toContain("PM ENTRY FLOOR");
+    expect(text).toContain("below 20 points is REJECTED");
+    expect(
+      buildSystemPrompt({ ...pmSpec, risk: spec.risk }, "strategy"),
+    ).not.toContain("PM ENTRY FLOOR");
+    expect(
+      buildSystemPrompt({ ...pmSpec, venues: ["futures"] }, "strategy"),
+    ).not.toContain("PM ENTRY FLOOR");
+  });
+});

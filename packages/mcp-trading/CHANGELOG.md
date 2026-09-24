@@ -10,6 +10,13 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 - Preflight futures protection updates against observed side, mark and liquidation
   prices, including retained triggers. Reject known invalid end-states with an
   actionable reason before a write; the API remains authoritative as prices move.
+- Add the optional `risk.pmMinEntryProbabilityPct` policy (0..100 points): the
+  runner rejects `pm_open` when the chosen outcome's raw market probability at
+  entry is below the floor, with a reason that names both numbers. Fees stay
+  in the forecast-edge check, so a 19-point outcome fails a 20-point floor even
+  when fees lift its cost above 20. Absent keeps today's behaviour; a set floor
+  with no quoted probability fails closed. The floor is rendered in the prompt's
+  hard caps.
 - Retain candle timestamps and compact coverage/interval evidence alongside
   indicators, separately from market-price freshness. Missing timestamps stay
   unknown; nominal five-minute cadence does not imply current or regular bars.

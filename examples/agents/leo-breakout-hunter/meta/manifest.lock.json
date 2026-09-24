@@ -1,5 +1,5 @@
 {
-  "configHash": "sha256:a3d928475216f2f7568028f56a5ba3f777bac3a73bd4327ff0531a1164757d58",
+  "configHash": "sha256:de975acec6aa5e9968e3bf2052906bdf96b2315d7161e198c077aa6a0c211aad",
   "contentHashes": {
     "agent.md": "sha256:e4beda26ee4d470b90ac7b958c432b15648517a929932126655fd28b0edb3d36",
     "character/abstention.yaml": "sha256:8af8788902fe47d64870cf1020886ac32265d9fc0d6438ee518e399e81f00794",
@@ -9,7 +9,7 @@
     "character/limits.yaml": "sha256:840b9e937490d8212f27a2c8070c4c53dd3f6833a88e1d80a1a258d783004571",
     "character/persona.md": "sha256:7b43d4cac3d97a44969d256048a998d9a7b74f9ad3e3c487c4a63dadbf605196",
     "character/research.md": "sha256:487abdd2cda120da6eab540e921dfc5e2f5196af8014ef09e0244a3b6084dbda",
-    "character/risk.yaml": "sha256:c54951b07d042a7b975c9f16b802ec5970021bf06728de2cfa4541e4a985177f",
+    "character/risk.yaml": "sha256:7edef2f5d3b9020d9693615954e744e87a62d942ae0cb2419cf4d68574c64a44",
     "character/sizing.md": "sha256:81a8400b04da5425820ad5ded66a8cfa3d7e24668d32b6481a7b82463f7a5ae7",
     "character/sizing.yaml": "sha256:9076c4ba169099cece52cb49c27c4c220649cea4ab21e73033fae83f30da045f",
     "character/thesis.md": "sha256:060cc733ca840642f2ee31fa91fb549ec80fb1b264b4f8848eb9a7c70cef7968",
@@ -108,6 +108,7 @@
       "maxConcurrentPositions": 3,
       "maxLeverage": 4,
       "perTradeMarginMusd": 5000,
+      "pmMinEntryProbabilityPct": 20,
       "requireStopLoss": true,
       "watchlist": [
         "BTC",
@@ -189,6 +190,7 @@
       "maxConcurrentPositions": 3,
       "maxLeverage": 4,
       "perTradeMarginMusd": 5000,
+      "pmMinEntryProbabilityPct": 20,
       "requireStopLoss": true,
       "watchlist": [
         "BTC",

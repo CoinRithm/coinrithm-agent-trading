@@ -56,11 +56,23 @@ function coinIdFor(
 }
 
 // Read-only quote BEFORE any open. Returns ineligible (never throws) on error.
+/** Configured policy values the server enforces independently of the model's
+ * action fields (2026-09-24: the PM entry floor). */
+export interface ExecutionPolicy {
+  pmMinEntryProbabilityPct?: number;
+}
+const pmFloorBody = (policy?: ExecutionPolicy) =>
+  typeof policy?.pmMinEntryProbabilityPct === "number" &&
+  Number.isFinite(policy.pmMinEntryProbabilityPct)
+    ? { minEntryProbabilityPct: policy.pmMinEntryProbabilityPct }
+    : {};
+
 export async function fetchQuote(
   client: CoinRithmClient,
   action: ProposedAction,
   observation: Observation,
   trace?: AgentTrace,
+  policy?: ExecutionPolicy,
 ): Promise<QuoteEvidence | undefined> {
   let r: ApiResult;
   if (action.type === "futures_open") {
@@ -94,6 +106,7 @@ export async function fetchQuote(
         ...(action.forecastProbability != null
           ? { forecastProbability: action.forecastProbability }
           : {}),
+        ...pmFloorBody(policy),
       },
       trace,
     );
@@ -151,6 +164,7 @@ export async function executeAction(
   // durable-artifact write path here). Absent => the request is byte-identical to
   // pre-provenance behavior.
   provenance?: ProvenanceReport,
+  policy?: ExecutionPolicy,
 ): Promise<ApiResult> {
   if (action.type === "futures_open") {
     const coinId = coinIdFor(observation, action.symbol);
@@ -222,6 +236,9 @@ export async function executeAction(
         ? { forecastProbability: action.forecastProbability }
         : {}),
       ...(action.thesis?.summary ? { thesis: action.thesis.summary } : {}),
+      // The CONFIGURED entry floor rides along so the server re-checks it inside
+      // its locked open transaction (absent => byte-identical request).
+      ...pmFloorBody(policy),
       // Attach runner provenance only when present (byte-identical to before when absent).
       ...(provenance ? { provenance } : {}),
       agentTrace: trace,

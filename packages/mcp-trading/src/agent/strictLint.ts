@@ -58,6 +58,7 @@ const ALLOWED_KEYS: Record<string, string[] | null> = {
     "blocklist",
     "direction",
     "entryPredicates",
+    "pmMinEntryProbabilityPct",
   ],
   sizing: null,
   capitalSizing: [

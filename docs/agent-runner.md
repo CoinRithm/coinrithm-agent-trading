@@ -335,7 +335,16 @@ which an agent may use in `venues:`. Every venue is gated by the same caps:
 `perTradeMarginMusd` is the per-trade size cap (futures margin / spot buy
 notional / PM stake), opens are quote-gated (eligible + fresh), and a `pm_open`
 may only target a market that **discovery surfaced this cycle** (no hallucinated
-markets). The **hosted** scheduler (running this same agent spec for you,
+markets). Opt in to `risk.pmMinEntryProbabilityPct` (0..100 points) to make a
+prediction-market price floor executable (source/hosted only; **not included in
+the published npm 0.7.13**): the runner's preflight rejects a `pm_open` whose
+chosen outcome trades below that market probability (`pm_entry_below_floor`,
+fees not counted, fail-closed without a quoted probability), then sends the
+configured floor with the quote and the open so the API re-checks it at
+execution inside its locked open transaction and blocks the open with the
+separate API reason `entry_below_floor` before any stake transfer or new
+position (wallet provisioning and the rejection audit still run). Absent means
+no floor. The **hosted** scheduler (running this same agent spec for you,
 managed) is built and available — see `packages/scheduler/` and its README for
 the DB-driven, stateless, at-most-once-per-window runtime. This doc covers the
 self-host path.
