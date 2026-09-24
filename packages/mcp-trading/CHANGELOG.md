@@ -5,7 +5,7 @@ ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (t
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
 versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
-## Unreleased
+## 0.7.14
 
 - Scope permanent model-error streaks to the attempted provider/model. Discard
   legacy unattributed streaks and reset availability failures on a successful
@@ -13,7 +13,6 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
   request an early hold on a replacement model; agent risk limits are unchanged.
 - Attribute a routed permanent-error hold to the attempt that produced the error,
   even when a later fallback is rate-limited; keep actual-call metering unchanged.
-
 - Preflight futures protection updates against observed side, mark and liquidation
   prices, including retained triggers. Reject known invalid end-states with an
   actionable reason before a write; the API remains authoritative as prices move.
@@ -41,6 +40,10 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 - Tactic cap merges treat 0 as unlimited for `maxTradesPerDay` and
   `maxDailyLossMusd`: a tactic may tighten 0 to a positive cap but can no
   longer turn a positive cap into 0. Writes and margins keep lower-is-tighter.
+
+Publication and hosted deployment are verified separately. See the repository's
+[release status](https://github.com/CoinRithm/coinrithm-agent-trading#version-clarity)
+for registry availability and the hosted runtime evidence.
 
 ## 0.7.13
 

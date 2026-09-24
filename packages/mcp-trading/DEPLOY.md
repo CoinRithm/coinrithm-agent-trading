@@ -210,6 +210,11 @@ source `9ea286cacceb4d0a0da31c71f4f0b726e8c8b262`. Release source passed all 26
 The official MCP Registry separately lists **0.7.13** as active and latest,
 verified after the [registry workflow](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/35926812905).
 
+**Prepared package release (2026-09-24):** MCP **0.7.14**, TypeScript SDK
+**0.3.3** and Python SDK **1.8.3** are prepared from reviewed source. They are
+not published until the registry downloads are verified and recorded here and
+in the [publishing procedure](../../docs/PUBLISHING.md).
+
 Hosted MCP runtime `4b39cd057765f0ab995d0ec4db2cfde665fa4bdd` and scheduler
 runtime `1842010` are separate deployment evidence; verify the exact deployed
 image and health before calling either runtime current. Package publication does
@@ -236,8 +241,8 @@ npm run build
 npm pack --dry-run --json
 # Expect compiled dist/*.js + declarations (including dist/agent/*), both
 # binaries, package.json, README.md and CHANGELOG.md; no .env/.npmrc/tests.
-# Then: npm pack --json > /path/to/mcp-0.7.13-pack.json
-# and: sha256sum coinrithm-mcp-trading-0.7.13.tgz
+# Then: npm pack --json > /path/to/mcp-0.7.14-pack.json
+# and: sha256sum coinrithm-mcp-trading-0.7.14.tgz
 ```
 
 3. Open a pull request from a topic branch. The active
@@ -263,7 +268,7 @@ npm pack --dry-run --json
    scheduler restart. Never cancel another operator's build to make room.
 5. Only with working npm publishing authorization, publish the exact reviewed
    `.tgz` archive as public, without repacking from the checkout. Inspect
-   `npm view @coinrithm/mcp-trading@0.7.13 version gitHead dist.integrity` and
+   `npm view @coinrithm/mcp-trading@0.7.14 version gitHead dist.integrity` and
    smoke the published stdio binary before marking npm delivered. Preserve the
    prior immutable release; do not try to overwrite its version.
 6. Once npm and hosted evidence are confirmed, publish the matching registry

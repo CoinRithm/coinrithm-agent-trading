@@ -23,6 +23,20 @@ downloaded packages passed the existing Node and Python smoke checks. The
 commands below record the upload procedure; a subsequent release must use its
 own reviewed versions and filenames, because these versions are immutable.
 
+## Prepared, not published: 24 September 2026
+
+| Registry | Package                  | Version  | Files                                                                |
+| -------- | ------------------------ | -------- | -------------------------------------------------------------------- |
+| npm      | `@coinrithm/mcp-trading` | `0.7.14` | `coinrithm-mcp-trading-0.7.14.tgz`                                   |
+| npm      | `@coinrithm/sdk`         | `0.3.3`  | `coinrithm-sdk-0.3.3.tgz`                                            |
+| PyPI     | `coinrithm-sdk`          | `1.8.3`  | `coinrithm_sdk-1.8.3-py3-none-any.whl`, `coinrithm_sdk-1.8.3.tar.gz` |
+
+These archives and their `release-manifest.json` are packed once from the
+reviewed release source and kept in the reviewed artifact directory. They are
+not published until the registry downloads are verified and this page, the
+README and the changelog record that verification. The commands below use
+these versions.
+
 ## Before uploading
 
 1. Use the reviewed archive directory and its `release-manifest.json`. Verify
@@ -36,13 +50,13 @@ own reviewed versions and filenames, because these versions are immutable.
    and skip only that matching upload; do not overwrite or blindly retry.
 
 ```powershell
-npm view @coinrithm/mcp-trading@0.7.13 version dist.integrity --registry=https://registry.npmjs.org/
-npm view @coinrithm/sdk@0.3.2 version dist.integrity --registry=https://registry.npmjs.org/
+npm view @coinrithm/mcp-trading@0.7.14 version dist.integrity --registry=https://registry.npmjs.org/
+npm view @coinrithm/sdk@0.3.3 version dist.integrity --registry=https://registry.npmjs.org/
 python -m pip index versions coinrithm-sdk
 ```
 
 An npm `E404` for one of these exact versions means that target is not published.
-If Python 1.8.2 appears in the version list, verify its files before uploading.
+If Python 1.8.3 appears in the version list, verify its files before uploading.
 
 As verified on 23 September 2026, the registry versions are MCP 0.7.13,
 TypeScript 0.3.2 and Python 1.8.2. The API reference follows the current contract;
@@ -56,16 +70,16 @@ publishing accounts. Keep credentials in the local login/password prompts.
 ```powershell
 npm login --auth-type=web --registry=https://registry.npmjs.org/
 npm whoami --registry=https://registry.npmjs.org/
-npm publish ./coinrithm-sdk-0.3.2.tgz --access public --registry=https://registry.npmjs.org/
-npm publish ./coinrithm-mcp-trading-0.7.13.tgz --access public --registry=https://registry.npmjs.org/
+npm publish ./coinrithm-sdk-0.3.3.tgz --access public --registry=https://registry.npmjs.org/
+npm publish ./coinrithm-mcp-trading-0.7.14.tgz --access public --registry=https://registry.npmjs.org/
 ```
 
 For Python, use Twine in a dedicated local virtual environment. Check both
 archives before uploading them together:
 
 ```powershell
-python -m twine check ./coinrithm_sdk-1.8.2-py3-none-any.whl ./coinrithm_sdk-1.8.2.tar.gz
-python -m twine upload --repository-url https://upload.pypi.org/legacy/ --username __token__ ./coinrithm_sdk-1.8.2-py3-none-any.whl ./coinrithm_sdk-1.8.2.tar.gz
+python -m twine check ./coinrithm_sdk-1.8.3-py3-none-any.whl ./coinrithm_sdk-1.8.3.tar.gz
+python -m twine upload --repository-url https://upload.pypi.org/legacy/ --username __token__ ./coinrithm_sdk-1.8.3-py3-none-any.whl ./coinrithm_sdk-1.8.3.tar.gz
 ```
 
 At Twine's password prompt, use a PyPI API token authorized for `coinrithm-sdk`.
@@ -83,7 +97,7 @@ describe the underlying upload commands.
    target commit, attached archives and checksums must match the reviewed source
    and uploads. Keep the previous release available.
 3. Dispatch `.github/workflows/publish-mcp.yml` against the exact release ref
-   after npm 0.7.13 exists. The workflow publishes **MCP Registry metadata only**;
+   after npm 0.7.14 exists. The workflow publishes **MCP Registry metadata only**;
    it does not upload an npm package. Verify the resulting registry entry.
 4. Update the README, changelog and release-status records from prepared to
    verified publication. Update runnable-example SDK pins to the published
