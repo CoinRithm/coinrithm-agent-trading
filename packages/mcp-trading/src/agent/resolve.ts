@@ -65,7 +65,14 @@ const JOURNAL_MAX_LINES = 200;
 const JOURNAL_MAX_BYTES = 8_000;
 
 // Optional prose files (markdown the LLM reads), in assembly order.
-const PROSE_FILES = ["character/thesis.md", "character/persona.md"];
+const PROSE_FILES = [
+  "character/thesis.md",
+  "character/persona.md",
+  "character/entries.md",
+  "character/exits.md",
+  "character/sizing.md",
+  "character/research.md",
+];
 
 // Prose files carry an OPTIONAL YAML frontmatter block (type/title/description/
 // tags) that is authoring metadata, not doctrine — the model gains nothing from

@@ -13,7 +13,11 @@ import {
   ResolveError,
   hostedProseBudget,
   HOSTED_PROSE_MAX_CHARS,
+  wrapGuardsProse,
 } from "./resolve.js";
+import { sha256 } from "./util.js";
+import { buildSpec } from "./skill.js";
+import { buildManifest, serializeManifest } from "./manifest.js";
 
 let dir: string;
 beforeEach(() => {
@@ -93,6 +97,109 @@ watchlist: [BTC, ETH]`,
     );
     const refd = resolveAgent(dir);
     expect(refd.rawFrontmatter.risk).toEqual(inline.rawFrontmatter.risk);
+  });
+});
+
+describe("resolveAgent — optional strategy sections", () => {
+  const sections = ["entries", "exits", "sizing", "research"];
+
+  function writeBase(): void {
+    write(
+      "agent.md",
+      INLINE_AGENT.replace("venues:", "include: [momentum]\nvenues:"),
+    );
+    write("character/thesis.md", "The thesis.");
+    write("character/persona.md", "The persona.");
+    write("character/skills/momentum.md", "The tactic.");
+    write("journal/notes.md", "The journal.");
+    write("character/guards.md", "Never violate the guard.");
+  }
+
+  it("preserves the existing bundle prose and sources when the optional files are absent", () => {
+    writeBase();
+    const resolved = resolveAgent(dir);
+    expect(resolved.mergedProse).toBe(
+      [
+        "<!-- agent.md -->\nStrategy body here.",
+        "<!-- character/thesis.md -->\nThe thesis.",
+        "<!-- character/persona.md -->\nThe persona.",
+        "<!-- character/skills/momentum.md -->\nThe tactic.",
+        "<!-- journal/notes.md -->\nThe journal.",
+        `<!-- character/guards.md -->\n${wrapGuardsProse("Never violate the guard.")}`,
+      ].join("\n\n"),
+    );
+    expect(Object.keys(resolved.contentHashes).sort()).toEqual([
+      "agent.md",
+      "character/guards.md",
+      "character/persona.md",
+      "character/skills/momentum.md",
+      "character/thesis.md",
+      "journal/notes.md",
+    ]);
+  });
+
+  it("loads each section after persona in deterministic order and locks its content without changing hard caps", () => {
+    writeBase();
+    const baseline = resolveAgent(dir);
+    // Creation order must not control prompt order. Metadata is not doctrine.
+    for (const section of [...sections].reverse()) {
+      write(
+        `character/${section}.md`,
+        `---\ntitle: ${section} metadata\n---\nThe ${section} rule.`,
+      );
+    }
+    const resolved = resolveAgent(dir);
+    expect(resolved.rawFrontmatter).toEqual(baseline.rawFrontmatter);
+    expect(resolved.proseParts.map((part) => part.source)).toEqual([
+      "agent.md",
+      "character/thesis.md",
+      "character/persona.md",
+      ...sections.map((section) => `character/${section}.md`),
+      "character/skills/momentum.md",
+      "journal/notes.md",
+      "character/guards.md",
+    ]);
+    const manifest = buildManifest(
+      resolved,
+      buildSpec(resolved.rawFrontmatter),
+    );
+    for (const section of sections) {
+      const path = `character/${section}.md`;
+      expect(resolved.mergedProse).toContain(
+        `<!-- ${path} -->\nThe ${section} rule.`,
+      );
+      expect(manifest.contentHashes[path]).toBe(
+        sha256(`---\ntitle: ${section} metadata\n---\nThe ${section} rule.`),
+      );
+      expect(manifest.provenance.mergeOrder).toContain(path);
+    }
+    expect(resolved.mergedProse).not.toContain("metadata");
+    const again = resolveAgent(dir);
+    expect(
+      serializeManifest(buildManifest(again, buildSpec(again.rawFrontmatter))),
+    ).toBe(serializeManifest(manifest));
+
+    write("character/entries.md", "A changed entry rule.");
+    const changed = resolveAgent(dir);
+    const changedManifest = buildManifest(
+      changed,
+      buildSpec(changed.rawFrontmatter),
+    );
+    expect(changedManifest.contentHashes["character/entries.md"]).not.toBe(
+      manifest.contentHashes["character/entries.md"],
+    );
+    expect(changedManifest.configHash).toBe(manifest.configHash);
+    expect(changed.mergedProse).toContain("A changed entry rule.");
+    expect(changed.mergedProse).not.toContain("The entries rule.");
+  });
+
+  it.each(sections)("rejects secrets in character/%s.md", (section) => {
+    write("agent.md", INLINE_AGENT);
+    write(
+      `character/${section}.md`,
+      "My key is crk_live_AbCdEfGh12345678_a1b2c3",
+    );
+    expect(() => resolveAgent(dir)).toThrow(/secret_in_prose/);
   });
 });
 

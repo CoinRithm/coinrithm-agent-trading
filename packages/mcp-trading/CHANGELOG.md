@@ -7,6 +7,9 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
 ## Unreleased
 
+- Load optional `character/entries.md`, `exits.md`, `sizing.md` and `research.md`
+  from local bundles so Studio strategy sections reach the model, manifest and
+  compiled definition. Existing bundles without these files are unchanged.
 - Include the exact compiled strategy definition and its digest in local
   inspection; expose the same snapshot builder to engine consumers.
 - Add `run --expect-definition` to reject a changed baseline before model or

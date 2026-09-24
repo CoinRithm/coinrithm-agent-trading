@@ -141,6 +141,7 @@ my-agent/
   runtime.yaml             # model + cadence (no secrets)
   character/
     thesis.md  persona.md  # prose the model reads
+    entries.md exits.md sizing.md research.md  # optional strategy prose
     risk.yaml              # HARD caps the runner enforces
     limits.yaml abstention.yaml
   safety/killSwitch.yaml   # circuit-breakers (override the model)
@@ -151,6 +152,12 @@ my-agent/
 The machine-read config (YAML/frontmatter) and the prose the model reads
 (markdown bodies) never cross: the runner reads only the config, the model reads
 only the prose. Secrets are never permitted in any file (scanned, fail-closed).
+
+In the unreleased source, the four optional strategy sections match Studio's
+entry, exit, sizing and research editors. They are assembled in that order
+after `persona.md`, before tactic skills and the journal; `guards.md` remains
+last. Absent sections leave existing bundle behavior unchanged. `sizing.md`
+is model guidance; enforced caps still come from the YAML configuration.
 
 ## Enforced execution controls
 
