@@ -5,6 +5,7 @@ maxLeverage: 2
 perTradeMarginMusd: 2000 # stake ceiling per bet = perTicketCapitalPct 4% of the original 50,000 book
 maxConcurrentPositions: 3 # futures only
 requireStopLoss: true
+pmMinEntryProbabilityPct: 20 # chosen-outcome entry price in points, before fees
 # Indicators for these coins feed the volatility model that prices crypto markets.
 watchlist:
   - BTC
