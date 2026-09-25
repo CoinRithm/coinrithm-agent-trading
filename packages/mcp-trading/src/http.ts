@@ -59,6 +59,10 @@ type AuthedRequest = Request & {
   auth?: { token: string; clientId: string; scopes: string[] };
 };
 
+// "/mcp" immediately followed by the markdown "](" of a pasted link, literal or
+// percent-encoded. Anything else under /mcp is not this family.
+export const MALFORMED_MCP_LINK = /^\/mcp(?:\]|%5d)(?:\(|%28)/i;
+
 // Factory permits isolated localhost SDK tests without opening a listener on import.
 export function createHttpApp(
   client: CoinRithmClient,
@@ -141,6 +145,16 @@ export function createHttpApp(
   // initialization or tool listing. Do not "fix" a registry problem here.
   app.get("/robots.txt", (_req, res) => {
     res.type("text/plain").send("User-agent: *\nDisallow: /\n");
+  });
+
+  // Recover one observed malformed URL family. A markdown link to this
+  // endpoint circulates with its "](https://…)" suffix pasted into the path,
+  // e.g. GET /mcp](https:/mcp.coinrithm.com/mcp): 408 such requests on
+  // 2026-09-25, all Claude-User web fetches that received Express's default
+  // 404. Send them to the service descriptor. Only this family and only
+  // GET/HEAD; POST /mcp and every other unknown path behave as before.
+  app.get(MALFORMED_MCP_LINK, (_req, res) => {
+    res.redirect(302, "/");
   });
 
   app.get("/mcp", (_req, res) => {
