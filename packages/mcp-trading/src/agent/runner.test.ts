@@ -301,6 +301,13 @@ describe("runner lifecycle and failure boundaries", () => {
         disabled: true,
         disabledReason: "equity drawdown >= 100",
         planned: [],
+        llmCallMade: false,
+        decisionType: "skip",
+        tokensIn: 0,
+        tokensOut: 0,
+        estimatedCostUsd: 0,
+        writeAttempted: 0,
+        writeAccepted: 0,
       });
       expect(d.state.disabled).toBe(true);
       expect(decide).not.toHaveBeenCalled();
@@ -319,6 +326,13 @@ describe("runner lifecycle and failure boundaries", () => {
     expect(await runCycle(d)).toMatchObject({
       disabled: true,
       disabledReason: expect.stringContaining("key_invalid:"),
+      llmCallMade: false,
+      decisionType: "skip",
+      tokensIn: 0,
+      tokensOut: 0,
+      estimatedCostUsd: 0,
+      writeAttempted: 0,
+      writeAccepted: 0,
     });
     expect(d.state.consecutiveAuthFailures).toBe(10);
     expect(decide).not.toHaveBeenCalled();
@@ -330,11 +344,48 @@ describe("runner lifecycle and failure boundaries", () => {
     });
     const d = deps({ live: true }, client, { label: "fixture", decide });
     delete d.state.consecutiveAuthFailures;
-    expect(await runCycle(d)).toMatchObject({ decision: "skip", planned: [] });
+    expect(await runCycle(d)).toMatchObject({
+      decision: "skip",
+      planned: [],
+      llmCallMade: false,
+      decisionType: "skip",
+      tokensIn: 0,
+      tokensOut: 0,
+      estimatedCostUsd: 0,
+      writeAttempted: 0,
+      writeAccepted: 0,
+    });
     expect(d.state.consecutiveAuthFailures).toBe(1);
     expect(d.state.disabled).toBe(false);
     expect(decide).not.toHaveBeenCalled();
     expect(client.openFutures).not.toHaveBeenCalled();
+  });
+  it("records no model call or writes when no market can be observed", async () => {
+    const decide = vi.fn();
+    const client = baseClient({
+      resolve: async () => okData({ match: null }),
+      discoverPmMarkets: async () => okData({ data: [] }),
+    });
+    const d = deps({ live: true }, client, { label: "fixture", decide });
+    const result = await runCycle(d);
+    expect(result).toMatchObject({
+      decision: "skip",
+      skipReason: "no watchlist coin resolved and no PM markets available",
+      planned: [],
+      llmCallMade: false,
+      decisionType: "skip",
+      tokensIn: 0,
+      tokensOut: 0,
+      estimatedCostUsd: 0,
+      writeAttempted: 0,
+      writeAccepted: 0,
+    });
+    expect(decide).not.toHaveBeenCalled();
+    expect(client.openFutures).not.toHaveBeenCalled();
+    expect(client.openPmPosition).not.toHaveBeenCalled();
+    expect(result.effectiveModel).toBeUndefined();
+    expect(result.effectiveProvider).toBeUndefined();
+    expect(result.routeReason).toBeUndefined();
   });
   it("does not invent a position identity from an incomplete successful open response", async () => {
     const client = baseClient({
@@ -1315,6 +1366,15 @@ describe("runCycle private input evidence", () => {
     stopped.spec.killSwitch.maxConsecutiveRejects = 1;
     stopped.state.consecutiveRejectCycles = 1;
     const stopResult = await runCycle(stopped);
+    expect(stopResult).toMatchObject({
+      llmCallMade: false,
+      decisionType: "skip",
+      tokensIn: 0,
+      tokensOut: 0,
+      estimatedCostUsd: 0,
+      writeAttempted: 0,
+      writeAccepted: 0,
+    });
     expect(stopResult.decisionInputRecord).toMatchObject({
       phase: "before_observation",
       account: null,

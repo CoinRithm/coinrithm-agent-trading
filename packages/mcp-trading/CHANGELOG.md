@@ -5,6 +5,13 @@ ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (t
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
 versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
+## Unreleased
+
+- Record explicit zero model calls, tokens, inference cost and action writes for
+  cycles that return before inference due to a kill switch, observed drawdown,
+  failed account reads or an empty market selection. Historical records remain
+  unchanged; failures after a possible provider call retain unknown evidence.
+
 ## 0.7.14
 
 - Scope permanent model-error streaks to the attempted provider/model. Discard

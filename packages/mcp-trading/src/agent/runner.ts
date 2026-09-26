@@ -544,6 +544,20 @@ async function runCycleCore(
   const captureBase = { runId, decisionId, spec, mergedProse, state };
   capture({ ...captureBase, phase: "before_observation" });
 
+  // These exits happen before both provider invocation and action execution.
+  // Record that known absence explicitly; missing metering means unknown to
+  // audit consumers. Do not default later failures to zero: a call/write may
+  // already have occurred by then.
+  const preDecisionMeter = {
+    llmCallMade: false,
+    decisionType: "skip" as const,
+    tokensIn: 0,
+    tokensOut: 0,
+    estimatedCostUsd: 0,
+    writeAttempted: 0,
+    writeAccepted: 0,
+  };
+
   // Kill-switch pre-check: a disabled agent never observes, decides, or acts.
   const tripped = checkKillSwitch(spec, state);
   if (tripped) {
@@ -557,6 +571,7 @@ async function runCycleCore(
       disabled: true,
       disabledReason: tripped,
       live,
+      ...preDecisionMeter,
     };
   }
 
@@ -633,6 +648,7 @@ async function runCycleCore(
       disabled: true,
       disabledReason: state.disabledReason,
       live,
+      ...preDecisionMeter,
       ...observationReceipt,
     };
   }
@@ -658,6 +674,7 @@ async function runCycleCore(
           disabled: true,
           disabledReason: state.disabledReason,
           live,
+          ...preDecisionMeter,
           ...observationReceipt,
         };
       }
@@ -669,6 +686,7 @@ async function runCycleCore(
       skipReason: obs.skip,
       planned: [],
       live,
+      ...preDecisionMeter,
       ...observationReceipt,
     };
   }
