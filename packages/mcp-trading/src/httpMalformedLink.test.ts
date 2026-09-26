@@ -5,8 +5,9 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { CoinRithmClient } from "./client.js";
 import { createHttpApp, MALFORMED_MCP_LINK } from "./http.js";
 
-// The observed family (2026-09-25 Traefik log, 408 Claude-User GETs): a
-// markdown link whose "](https://…)" suffix ended up in the request path.
+// The observed family (2026-09-25 Traefik log, 408 Claude-User GETs; then
+// 2026-09-26, 127 Claude-User connector POSTs in 6 h): a markdown link whose
+// "](https://…)" suffix ended up in the request path.
 const OBSERVED = "/mcp](https:/mcp.coinrithm.com/mcp)";
 
 const servers: Server[] = [];
@@ -72,15 +73,50 @@ describe("malformed MCP link recovery", () => {
     expect((await followed.json()).service).toBe("CoinRithm MCP");
   });
 
-  it("leaves POST on that path, GET /mcp and ordinary unknown paths unchanged", async () => {
+  it("serves MCP initialize and tool listing on POST to that path", async () => {
     const base = await start();
-    const post = await fetch(base + OBSERVED, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: "{}",
-      redirect: "manual",
+    const client = new Client({
+      name: "malformed-link-connector",
+      version: "0.0.0",
     });
-    expect(post.status).toBe(404);
+    const transport = new StreamableHTTPClientTransport(
+      new URL(base + OBSERVED),
+    );
+    await client.connect(transport);
+    const { tools } = await client.listTools();
+    expect(tools.length).toBeGreaterThan(0);
+    await client.close();
+
+    const encoded = await fetch(
+      `${base}/mcp%5D(https://mcp.coinrithm.com/mcp)`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          accept: "application/json, text/event-stream",
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/list",
+          params: {},
+        }),
+      },
+    );
+    expect(encoded.status).toBe(200);
+  });
+
+  it("leaves GET /mcp and ordinary unknown paths unchanged", async () => {
+    const base = await start();
+    for (const path of ["/mcpx", "/mcp)", "/unknown"]) {
+      const post = await fetch(base + path, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+        redirect: "manual",
+      });
+      expect(post.status, `POST ${path}`).toBe(404);
+    }
     expect((await fetch(`${base}/mcp`, { redirect: "manual" })).status).toBe(
       405,
     );

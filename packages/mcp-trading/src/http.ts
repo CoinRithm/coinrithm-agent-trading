@@ -151,8 +151,10 @@ export function createHttpApp(
   // endpoint circulates with its "](https://…)" suffix pasted into the path,
   // e.g. GET /mcp](https:/mcp.coinrithm.com/mcp): 408 such requests on
   // 2026-09-25, all Claude-User web fetches that received Express's default
-  // 404. Send them to the service descriptor. Only this family and only
-  // GET/HEAD; POST /mcp and every other unknown path behave as before.
+  // 404. GET/HEAD go to the service descriptor. POST is served as MCP below:
+  // on 2026-09-26, 127 Claude-User connector POSTs in 6 h hit the same path
+  // and got 404, so a user who pasted that URL into a connector could never
+  // initialize. Every other unknown path behaves as before.
   app.get(MALFORMED_MCP_LINK, (_req, res) => {
     res.redirect(302, "/");
   });
@@ -165,7 +167,7 @@ export function createHttpApp(
     });
   });
 
-  app.post("/mcp", async (req: AuthedRequest, res) => {
+  app.post(["/mcp", MALFORMED_MCP_LINK], async (req: AuthedRequest, res) => {
     // Per-request auth: read THIS caller's key from the Authorization header,
     // or from Smithery's non-reserved forwarding header.
     // It is optional at the transport layer so registries can initialize the
