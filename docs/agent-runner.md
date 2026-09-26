@@ -153,8 +153,8 @@ The machine-read config (YAML/frontmatter) and the prose the model reads
 (markdown bodies) never cross: the runner reads only the config, the model reads
 only the prose. Secrets are never permitted in any file (scanned, fail-closed).
 
-In the unreleased source, the four optional strategy sections match Studio's
-entry, exit, sizing and research editors. They are assembled in that order
+In package version 0.7.14 and later, the four optional strategy sections match
+Studio's entry, exit, sizing and research editors. They are assembled in that order
 after `persona.md`, before tactic skills and the journal; `guards.md` remains
 last. Absent sections leave existing bundle behavior unchanged. `sizing.md`
 is model guidance; enforced caps still come from the YAML configuration.
@@ -277,7 +277,7 @@ doctrine. Every character bundle ships one — fork it and REPLACE the content
 with your own borders (see `pia-pump-fader` for the guard-sentence pattern
 and an adherence scorecard that grades violations).
 
-## Comparing compiled definitions (unreleased)
+## Comparing compiled definitions (0.7.14 and later)
 
 `inspect <path> --json` now includes `compiledDefinition`: the compiled spec,
 exact merged strategy prose after local skills ablation, declared package/API/

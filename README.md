@@ -453,11 +453,13 @@ X-CoinRithm-Confidence: 0.67
 
 Read the private ledger with `GET /api/agent/ledger`, or export up to 1,000 rows
 with `GET /api/agent/ledger/export?runId=...`. Passing a `runId` returns a
-**run-evidence bundle** — everything needed to reproduce and grade what the agent
-did:
+**run-evidence bundle** for inspecting the retained API calls and paper-execution
+assumptions for that run. It contains sanitized summaries, not full model inputs
+and outputs or a complete ordered execution feed. It is not a replayable snapshot
+of the agent's runtime and historical data:
 
 - **Manifest** — first/last event time, quote/write/reject/replay counts, venues,
-  ledger statuses, related paper-trade ids, and the sanitized rows that reproduce
+  ledger statuses, related paper-trade ids, and the sanitized rows that document
   what the agent called.
 - **`executionAssumptions`** — the versioned `paper_execution_v1` cost model, in
   writing: paper account only, latest stored market/probability snapshots, the
