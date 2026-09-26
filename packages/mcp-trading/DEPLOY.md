@@ -112,7 +112,8 @@ curl -s -X POST https://mcp.coinrithm.com/mcp \
 ```
 
 An optional public-data smoke can call `pm_data_event` for one known source
-and slug with `detail: "compact"`, without an Authorization header. A genuine
+and slug with `detail: "summary"`, without an Authorization header. The tool's
+`detail` enum is `summary | full`; `compact` is not a valid argument. A genuine
 per-request-auth smoke may call `whoami` with a separately authorized read-only
 key, but must not place orders. Do not print that key, put it in a URL, or
 substitute a dummy key into an upstream account call.
@@ -222,6 +223,16 @@ Hosted MCP (deployment 2673) and scheduler (2672) were verified separately at
 `c374e782a87d01ee3b7a2fbff304ac6e6edb7123` on 24 September 2026. The MCP
 advertises 0.7.14 with 40 tools; both services passed their health checks with
 zero restarts. Package publication does not change those hosted deployments.
+
+**Hosted HTTP correction (2026-09-25):** MCP deployment **2688** runs
+`5849f835fa5755f7425ac2c78db355439e82a7a1` ([PR53](https://github.com/CoinRithm/coinrithm-agent-trading/pull/53)).
+GET/HEAD requests in the observed malformed `/mcp](` link family redirect to
+the service descriptor. Valid POST `/mcp`, unrelated 404s and private-tool
+authentication are unchanged. All 26 main-branch CI jobs passed; exact-image
+checks and public probes verified health, redirects, initialization, 40 tools,
+missing-key `whoami` 401 and a keyless `pm_data_event` read with `detail: "summary"`.
+The scheduler container was unchanged. This is a hosted transport patch; it does
+not represent a new npm/SDK publication or a package-version bump.
 
 The official MCP Registry and npm latest version must be checked independently.
 TypeScript SDK and Python SDK publication are separate release states.
