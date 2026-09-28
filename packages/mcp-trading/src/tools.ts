@@ -518,6 +518,8 @@ function compactComparison(value: unknown): unknown {
             "label",
             "eventAProbability",
             "eventBProbability",
+            "eventAHasObservedPrice",
+            "eventBHasObservedPrice",
             "deltaPoints",
             "presentInA",
             "presentInB",

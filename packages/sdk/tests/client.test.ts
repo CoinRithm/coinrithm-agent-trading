@@ -162,6 +162,20 @@ describe("TypeScript SDK request contract", () => {
     expect(outcome.normalizedProbability).toBeNull();
     expect(outcome.hasObservedPrice).toBe(true);
     expect(outcome.sourceObservation?.observedAt).toBeNull();
+
+    const explicitMissing: components["schemas"]["PublicPmOutcome"] = {
+      name: "Explicitly unavailable quote",
+      hasObservedPrice: false,
+      sourceObservation: null,
+    };
+    expect(explicitMissing.hasObservedPrice).toBe(false);
+    expect(explicitMissing.sourceObservation).toBeNull();
+
+    const unknown: components["schemas"]["PublicPmOutcome"] = {
+      name: "Legacy outcome",
+    };
+    expect("hasObservedPrice" in unknown).toBe(false);
+    expect("sourceObservation" in unknown).toBe(false);
   });
 
   it("exposes futures fill estimates and audit execution evidence", () => {

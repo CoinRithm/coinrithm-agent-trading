@@ -8,6 +8,13 @@ Each package has its own version; the API contract is versioned separately.
 [TypeScript history](packages/sdk/CHANGELOG.md) ·
 [Python release notes](packages/sdk-python/README.md)
 
+## Unreleased (source contract)
+
+- Document and generate the optional prediction-market outcome
+  `hasObservedPrice` and nullable `sourceObservation` fields. This is source
+  contract work pending release; published MCP `0.7.14`, TypeScript SDK
+  `0.3.3`, and Python SDK `1.8.3` are unchanged.
+
 ## MCP 0.7.14, TypeScript 0.3.3, Python 1.8.3 (2026-09-24)
 
 Published to npm/PyPI and verified on 24 September 2026. All four registry

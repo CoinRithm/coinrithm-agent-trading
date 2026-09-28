@@ -109,6 +109,19 @@ def test_public_pm_outcome_round_trips_lifecycle_null_zero_and_unknown_fields() 
     assert outcome.lifecycle["futureLifecycleField"] == "preserved"
     assert outcome.to_dict() == payload
 
+    explicit_missing_payload = {
+        "name": "Explicitly unavailable quote",
+        "hasObservedPrice": False,
+        "sourceObservation": None,
+    }
+    explicit_missing = PublicPmOutcome.from_dict(explicit_missing_payload)
+    assert explicit_missing.has_observed_price is False
+    assert explicit_missing.source_observation is None
+    assert explicit_missing.to_dict() == explicit_missing_payload
+
+    unknown = PublicPmOutcome.from_dict({"name": "Legacy outcome"})
+    assert unknown.to_dict() == {"name": "Legacy outcome"}
+
 
 def test_authenticated_client_sends_bearer_token() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
