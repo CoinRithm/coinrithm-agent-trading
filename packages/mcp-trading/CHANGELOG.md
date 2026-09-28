@@ -7,6 +7,11 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
 ## Unreleased
 
+- Preserve optional observed-price flags and bounded source provenance in public
+  market summaries, including the exact sides of venue comparisons. A missing
+  observed price remains distinct from an observed zero and unknown provenance.
+  This source change is not included in published npm `0.7.14`.
+
 - Hosted scheduler rollout supports the opt-in `whale_context` runner capability. After the deterministic
   gate fires for a PM-scoped, non-mechanical cycle, it attaches bounded public
   tape context and up to two validated wallet movement summaries to the

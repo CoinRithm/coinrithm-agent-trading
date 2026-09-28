@@ -14,6 +14,8 @@ Each package has its own version; the API contract is versioned separately.
   `hasObservedPrice` and nullable `sourceObservation` fields. This is source
   contract work pending release; published MCP `0.7.14`, TypeScript SDK
   `0.3.3`, and Python SDK `1.8.3` are unchanged.
+- Preserve these fields in bounded MCP results and keep the exact per-side
+  observed-price flags in venue comparisons. Raw probabilities remain available.
 
 ## MCP 0.7.14, TypeScript 0.3.3, Python 1.8.3 (2026-09-24)
 
