@@ -3024,6 +3024,27 @@ components:
         outcomes:
           type: array
           items: { $ref: "#/components/schemas/PublicPmOutcome" }
+        representativeOutcome:
+          anyOf:
+            - $ref: "#/components/schemas/PublicPmOutcome"
+            - type: "null"
+          description: |
+            Open events only; absent on closed, awaiting and resolved events and
+            on responses that do not select it. The one outcome a headline quotes,
+            chosen from the full current book and served as a complete outcome
+            object (same identity, lifecycle, hasObservedPrice and raw
+            probability as its row in `outcomes`). Null when no current outcome
+            has a usable price. Served on event detail, and on compact list
+            responses requested with `lead=representative`.
+        representativeOutcomeBasis:
+          type: string
+          enum: [threshold_ladder_line, informative_leader]
+          description: |
+            Event detail only, open events only: the rule that chose
+            representativeOutcome. `threshold_ladder_line` is a threshold
+            ladder's line nearest 50% (a Kalshi strike ladder).
+            `informative_leader` is the highest current outcome strictly inside
+            5-95, else the highest; it is not necessarily the leading outcome.
         referenceProbability:
           type: [object, "null"]
           additionalProperties: true

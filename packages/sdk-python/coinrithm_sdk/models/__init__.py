@@ -297,6 +297,7 @@ from .public_pm_event_freshness import PublicPmEventFreshness
 from .public_pm_event_probability_book_type_0 import PublicPmEventProbabilityBookType0
 from .public_pm_event_quality_type_0 import PublicPmEventQualityType0
 from .public_pm_event_reference_probability_type_0 import PublicPmEventReferenceProbabilityType0
+from .public_pm_event_representative_outcome_basis import PublicPmEventRepresentativeOutcomeBasis
 from .public_pm_event_revision import PublicPmEventRevision
 from .public_pm_event_revision_evidence import PublicPmEventRevisionEvidence
 from .public_pm_event_revisions_response import PublicPmEventRevisionsResponse
@@ -648,6 +649,7 @@ __all__ = (
     "PublicPmEventProbabilityBookType0",
     "PublicPmEventQualityType0",
     "PublicPmEventReferenceProbabilityType0",
+    "PublicPmEventRepresentativeOutcomeBasis",
     "PublicPmEventRevision",
     "PublicPmEventRevisionEvidence",
     "PublicPmEventRevisionsResponse",

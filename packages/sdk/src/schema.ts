@@ -1662,6 +1662,25 @@ export interface components {
                 [key: string]: unknown;
             } | null;
             outcomes: components["schemas"]["PublicPmOutcome"][];
+            /**
+             * @description Open events only; absent on closed, awaiting and resolved events and
+             *     on responses that do not select it. The one outcome a headline quotes,
+             *     chosen from the full current book and served as a complete outcome
+             *     object (same identity, lifecycle, hasObservedPrice and raw
+             *     probability as its row in `outcomes`). Null when no current outcome
+             *     has a usable price. Served on event detail, and on compact list
+             *     responses requested with `lead=representative`.
+             */
+            representativeOutcome?: components["schemas"]["PublicPmOutcome"] | null;
+            /**
+             * @description Event detail only, open events only: the rule that chose
+             *     representativeOutcome. `threshold_ladder_line` is a threshold
+             *     ladder's line nearest 50% (a Kalshi strike ladder).
+             *     `informative_leader` is the highest current outcome strictly inside
+             *     5-95, else the highest; it is not necessarily the leading outcome.
+             * @enum {string}
+             */
+            representativeOutcomeBasis?: "threshold_ladder_line" | "informative_leader";
             /** @description Canonical matched-venue reference with venue count and spread. */
             referenceProbability?: {
                 [key: string]: unknown;
