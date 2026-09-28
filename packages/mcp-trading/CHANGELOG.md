@@ -7,6 +7,10 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
 ## Unreleased
 
+- Preserve full public `walletAddress` values in whale tape and default event
+  summaries for direct wallet-tool follow-up on Polymarket, Limitless and Myriad.
+  Anonymous/null and absent identities remain unchanged. This source fix is not
+  included in the published npm `0.7.14` package.
 - Record explicit zero model calls, tokens, inference cost and action writes for
   cycles that return before inference due to a kill switch, observed drawdown,
   failed account reads or an empty market selection. Historical records remain

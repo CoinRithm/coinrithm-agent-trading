@@ -208,6 +208,13 @@ agent file.
 | `pm_data_volume_history`                               | none (public) | `GET /api/prediction-markets/volume-history`                                         |
 | `get_crypto_movers` (direction, limit)                 | none (public) | `GET /api/coins/top-{gainers,losers}`                                                |
 
+In the current source (not yet in npm `0.7.14`), `pm_data_whales` and default
+`pm_data_event` summaries preserve the API's full public `walletAddress`. Pass
+that value with its `source` to `pm_data_whale_wallet` for Polymarket, Limitless
+or Myriad. The shorter `wallet` field is display text; a null or absent
+`walletAddress` supplies no usable wallet identity, including anonymous Kalshi
+trades. Wallet leaderboard rows use `address` for the same tool input.
+
 `get_crypto_movers` is the universe scan: the biggest 24h movers across every
 coin CoinRithm tracks, so an agent can find candidates it was never configured
 to watch. Each row's `coinId` is what `get_candles` and `get_market_context`
