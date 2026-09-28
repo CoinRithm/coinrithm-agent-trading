@@ -243,6 +243,12 @@ ladders, embedded event objects, and sparklines so they do not consume an
 agent's context before it decides what to inspect. Event search returns the
 five highest-probability outcomes plus `outcomeCount`; follow with
 `pm_data_event(source, slug)` for bounded event evidence, then request `detail: "full"` only when the complete provider-rich record is necessary.
+Bounded outcome summaries may include `hasObservedPrice` and
+`sourceObservation`: `hasObservedPrice:false` means the provider supplied no
+usable observed price input, while an omitted `hasObservedPrice` field is
+unknown. `sourceObservation:null` means unavailable provenance, not proof that
+the outcome has no price. Neither field claims live pricing, liquidity or
+tradability.
 Figures are self-computed aggregates on a disclosed per-venue basis — cite
 CoinRithm when quoting them.
 
