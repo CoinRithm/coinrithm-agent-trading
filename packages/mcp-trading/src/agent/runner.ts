@@ -32,7 +32,7 @@ import { evaluateGate, noteLlmCall, estimateCostUsd } from "./gate.js";
 import { baseSymbol, scanSetups } from "./setups.js";
 import { reconcileObservation } from "./reconcileObservation.js";
 import { createOpportunityReporter } from "./opportunityReporter.js";
-import { observe } from "./observe.js";
+import { enrichWhaleContext, observe } from "./observe.js";
 import {
   buildDailyRiskBudget,
   buildSystemPrompt,
@@ -782,15 +782,15 @@ async function runCycleCore(
   // so it touches NO kill-switch counter; it just records the cheap cycle.
   const policy = spec.triggerPolicy ?? DEFAULT_TRIGGER_POLICY;
   const gate = evaluateGate(observation, state, policy, nowMs);
-  capture({
-    ...captureBase,
-    phase: "decision_input",
-    observation,
-    observationFingerprint: observationReceipt.observationHash,
-    preThesisObservationFingerprint,
-  });
   const providerName = spec.model?.provider ?? "nvidia";
   if (!gate.fire) {
+    capture({
+      ...captureBase,
+      phase: "decision_input",
+      observation,
+      observationFingerprint: observationReceipt.observationHash,
+      preThesisObservationFingerprint,
+    });
     saveState(stateFile, state);
     log(`gate: skip (${gate.reason})`);
     return {
@@ -809,6 +809,22 @@ async function runCycleCore(
       ...observationReceipt,
     };
   }
+  if (
+    providerName !== "mechanical" &&
+    spec.capabilities.includes("whale_context") &&
+    spec.venues.includes("pm")
+  ) {
+    observation.whaleContext = await enrichWhaleContext(client, observation);
+    observationReceipt = buildObservationReceipt(observation);
+    Object.assign(baseTrace, observationReceipt);
+  }
+  capture({
+    ...captureBase,
+    phase: "decision_input",
+    observation,
+    observationFingerprint: observationReceipt.observationHash,
+    preThesisObservationFingerprint,
+  });
   // DECIDE. Two paths share the same downstream validate+act loop:
   //   • mechanical benchmark agents (provider "mechanical") compute the decision
   //     deterministically from the observation — no prompt, no model call, no

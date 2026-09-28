@@ -60,6 +60,49 @@ describe("API request deadlines", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it("bounds the optional public whale read through response-body parsing", async () => {
+    vi.useFakeTimers();
+    const response = new Response("fixture");
+    vi.spyOn(response, "text").mockImplementation(never);
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(response);
+    const result = new CoinRithmClient({
+      ...config,
+      fetchFn,
+    }).getPublicPmWhales({
+      timeoutMs: 20,
+    });
+    await vi.advanceTimersByTimeAsync(20);
+    expect(await result).toMatchObject({
+      status: 0,
+      data: { error: "timeout" },
+    });
+    expect(fetchFn.mock.calls[0][1]!.signal!.aborted).toBe(true);
+    expect(
+      new Headers(fetchFn.mock.calls[0][1]!.headers).has("authorization"),
+    ).toBe(false);
+    expect(fetchFn).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("does not call the public transport when the caller is already cancelled", async () => {
+    vi.useFakeTimers();
+    const fetchFn = vi.fn<typeof fetch>();
+    const controller = new AbortController();
+    controller.abort("PRIVATE_REASON");
+    const result = await new CoinRithmClient({
+      ...config,
+      fetchFn,
+      signal: controller.signal,
+    }).getPublicPmWhales({ timeoutMs: 20 });
+    expect(result).toMatchObject({
+      status: 0,
+      data: { error: "network_error" },
+    });
+    expect(JSON.stringify(result)).not.toContain("PRIVATE_REASON");
+    expect(fetchFn).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it.each([new Error("body disconnected"), "body disconnected"])(
     "returns an uncertain body failure without replaying a write",
     async (error) => {

@@ -7,6 +7,12 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
 ## Unreleased
 
+- Add the opt-in `whale_context` runner capability. After the deterministic
+  gate fires for a PM-scoped, non-mechanical cycle, it attaches bounded public
+  tape context and up to two validated wallet movement summaries to the
+  observation. Reads are best effort with explicit availability status and do
+  not widen candidates or change risk/write gates.
+
 - Preserve full public `walletAddress` values in whale tape and default event
   summaries for direct wallet-tool follow-up on Polymarket, Limitless and Myriad.
   Anonymous/null and absent identities remain unchanged. This source fix is not

@@ -17,6 +17,10 @@ import {
   WatchEntry,
   IndicatorContext,
   AgentTrace,
+  WhaleContext,
+  WhaleTradeContext,
+  WhaleWalletContext,
+  WhaleWalletFillContext,
 } from "./types.js";
 import { asObj, asArr, asNum, asStr } from "./extract.js";
 import { computeIndicators, Candle, IndicatorSet } from "./indicators.js";
@@ -27,6 +31,344 @@ import { deriveCapitalBook, usesCapitalSizing } from "./capitalSizing.js";
 export interface ObserveOutput {
   observation: Observation;
   skip?: string;
+}
+
+const WHALE_READ_TIMEOUT_MS = 5_000;
+const MAX_WHALE_TRADES = 10;
+const MAX_WHALE_WALLETS = 2;
+const MAX_WALLET_DAILY = 30;
+const MAX_WALLET_FILLS = 6;
+const MAX_EVENT_SLUG_LENGTH = 240;
+const MAX_TIMESTAMP_LENGTH = 40;
+const PUBLIC_WALLET_SOURCES = new Set(["polymarket", "limitless", "myriad"]);
+const FULL_EVM_ADDRESS = /^0x[a-fA-F0-9]{40}$/;
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+function whaleFailure(result: {
+  status: number;
+  data: unknown;
+}): WhaleContext["reason"] {
+  if (result.status === 0) {
+    return asObj(result.data).error === "timeout" ? "timeout" : "network_error";
+  }
+  return "http_error";
+}
+
+function compactWalletFill(value: unknown): WhaleWalletFillContext | undefined {
+  const row = asObj(value);
+  const event = asObj(row.event);
+  const side = asStr(row.side);
+  if (!side) return undefined;
+  return {
+    ...(asStr(event.slug)
+      ? { eventSlug: asStr(event.slug)?.slice(0, MAX_EVENT_SLUG_LENGTH) }
+      : {}),
+    ...(asStr(event.title)
+      ? { eventTitle: asStr(event.title)?.slice(0, 180) }
+      : {}),
+    ...(asStr(row.marketQuestion)
+      ? { marketQuestion: asStr(row.marketQuestion)?.slice(0, 240) }
+      : {}),
+    side: side.slice(0, 24),
+    ...(asStr(row.outcome)
+      ? { outcome: asStr(row.outcome)?.slice(0, 120) }
+      : {}),
+    ...(asNum(row.usdValue) !== undefined
+      ? { usdValue: asNum(row.usdValue) }
+      : {}),
+    ...(asNum(row.price) !== undefined ? { price: asNum(row.price) } : {}),
+    ...(asStr(row.evidenceType)
+      ? { evidenceType: asStr(row.evidenceType)?.slice(0, 48) }
+      : {}),
+    ...(asStr(row.tradedAt)
+      ? { tradedAt: asStr(row.tradedAt)?.slice(0, MAX_TIMESTAMP_LENGTH) }
+      : {}),
+    ...(asStr(row.sourceMarketRef)
+      ? { sourceMarketRef: asStr(row.sourceMarketRef)?.slice(0, 120) }
+      : {}),
+  };
+}
+
+function compactWallet(
+  value: unknown,
+  expectedSource: string,
+  expectedAddress: string,
+): WhaleWalletContext | undefined {
+  const row = asObj(value);
+  const returnedSource = asStr(row.source)?.toLowerCase();
+  const returnedAddress = asStr(row.wallet) ?? asStr(row.address);
+  if (
+    returnedSource !== expectedSource ||
+    !returnedAddress ||
+    returnedAddress.toLowerCase() !== expectedAddress
+  ) {
+    return undefined;
+  }
+  if (
+    !row.summary30d ||
+    typeof row.summary30d !== "object" ||
+    Array.isArray(row.summary30d)
+  ) {
+    return undefined;
+  }
+  if (!Array.isArray(row.daily) || !Array.isArray(row.recentFills)) {
+    return undefined;
+  }
+  const summary = asObj(row.summary30d);
+  const daily = asArr(row.daily)
+    .filter((item) => ISO_DAY.test(asStr(asObj(item).day) ?? ""))
+    .map((item) => {
+      const day = asObj(item);
+      return {
+        ...(asStr(day.day) ? { day: asStr(day.day) } : {}),
+        ...(asNum(day.tradeCount) !== undefined
+          ? { tradeCount: asNum(day.tradeCount) }
+          : {}),
+        ...(asNum(day.buyCount) !== undefined
+          ? { buyCount: asNum(day.buyCount) }
+          : {}),
+        ...(asNum(day.sellCount) !== undefined
+          ? { sellCount: asNum(day.sellCount) }
+          : {}),
+        ...(asNum(day.notionalUsd) !== undefined
+          ? { notionalUsd: asNum(day.notionalUsd) }
+          : {}),
+      };
+    })
+    .sort((a, b) => (b.day ?? "").localeCompare(a.day ?? ""))
+    .slice(0, MAX_WALLET_DAILY);
+  const recentFills = asArr(row.recentFills)
+    .map(compactWalletFill)
+    .filter((item): item is WhaleWalletFillContext => !!item)
+    .slice(0, MAX_WALLET_FILLS);
+  return {
+    source: expectedSource,
+    address: expectedAddress,
+    ...(asStr(row.asOf)
+      ? { asOf: asStr(row.asOf)?.slice(0, MAX_TIMESTAMP_LENGTH) }
+      : {}),
+    summary30d: {
+      ...(asStr(summary.basis)
+        ? { basis: asStr(summary.basis)?.slice(0, 48) }
+        : {}),
+      ...(asStr(summary.windowStart)
+        ? {
+            windowStart: asStr(summary.windowStart)?.slice(
+              0,
+              MAX_TIMESTAMP_LENGTH,
+            ),
+          }
+        : {}),
+      ...(asNum(summary.tradeCount) !== undefined
+        ? { tradeCount: asNum(summary.tradeCount) }
+        : {}),
+      ...(asNum(summary.notionalUsd) !== undefined
+        ? { notionalUsd: asNum(summary.notionalUsd) }
+        : {}),
+      ...(asNum(summary.buyNotionalUsd) !== undefined
+        ? { buyNotionalUsd: asNum(summary.buyNotionalUsd) }
+        : {}),
+      ...(asNum(summary.sellNotionalUsd) !== undefined
+        ? { sellNotionalUsd: asNum(summary.sellNotionalUsd) }
+        : {}),
+    },
+    rollup: {
+      ...(typeof asObj(row.rollup).available === "boolean"
+        ? { available: asObj(row.rollup).available as boolean }
+        : {}),
+      ...(asNum(asObj(row.rollup).coveredDays) !== undefined
+        ? { coveredDays: asNum(asObj(row.rollup).coveredDays) }
+        : {}),
+      ...(asStr(asObj(row.rollup).from)
+        ? {
+            from: asStr(asObj(row.rollup).from)?.slice(0, MAX_TIMESTAMP_LENGTH),
+          }
+        : {}),
+      ...(asStr(asObj(row.rollup).to)
+        ? { to: asStr(asObj(row.rollup).to)?.slice(0, MAX_TIMESTAMP_LENGTH) }
+        : {}),
+      ...(asStr(asObj(row.rollup).computedAt)
+        ? {
+            computedAt: asStr(asObj(row.rollup).computedAt)?.slice(
+              0,
+              MAX_TIMESTAMP_LENGTH,
+            ),
+          }
+        : {}),
+    },
+    daily,
+    recentFills,
+  };
+}
+
+/**
+ * Add bounded public whale context after the deterministic gate. This is
+ * deliberately separate from observe(): a skipped or mechanical cycle never
+ * pays for the public reads, and this context cannot widen candidate selection.
+ */
+export async function enrichWhaleContext(
+  client: CoinRithmClient,
+  observation: Observation,
+): Promise<WhaleContext> {
+  const fetchedAt = () => new Date().toISOString();
+  const relevant = new Set(
+    [...observation.pmMarkets, ...observation.pmPositions]
+      .map((item) =>
+        item.source && item.slug
+          ? `${item.source.toLowerCase()}|${item.slug.toLowerCase()}`
+          : undefined,
+      )
+      .filter((item): item is string => !!item),
+  );
+  const unavailable = (reason: WhaleContext["reason"]): WhaleContext => ({
+    status: "unavailable",
+    fetchedAt: fetchedAt(),
+    coverage: "relevant_events",
+    trades: [],
+    wallets: [],
+    omitted: 0,
+    ...(reason ? { reason } : {}),
+  });
+  if (relevant.size === 0) {
+    return {
+      status: "available",
+      fetchedAt: fetchedAt(),
+      coverage: "no_relevant_events",
+      trades: [],
+      wallets: [],
+      omitted: 0,
+    };
+  }
+  const tape = await client.getPublicPmWhales({
+    limit: 50,
+    timeoutMs: WHALE_READ_TIMEOUT_MS,
+  });
+  if (!tape.ok) return unavailable(whaleFailure(tape));
+  const root = asObj(tape.data);
+  if (!Array.isArray(root.trades)) return unavailable("invalid_payload");
+
+  let omitted = 0;
+  const trades: WhaleTradeContext[] = [];
+  const walletRequests: Array<{ source: string; address: string }> = [];
+  for (const value of root.trades) {
+    const row = asObj(value);
+    const source = asStr(row.source)?.toLowerCase();
+    const eventSlug = asStr(row.eventSlug);
+    const side = asStr(row.side);
+    if (
+      !source ||
+      !eventSlug ||
+      !side ||
+      !relevant.has(`${source}|${eventSlug.toLowerCase()}`)
+    ) {
+      omitted += 1;
+      continue;
+    }
+    if (trades.length >= MAX_WHALE_TRADES) {
+      omitted += 1;
+      continue;
+    }
+    const trade: WhaleTradeContext = {
+      source,
+      eventSlug: eventSlug.slice(0, MAX_EVENT_SLUG_LENGTH),
+      side: side.slice(0, 24),
+      ...(asStr(row.eventTitle)
+        ? { eventTitle: asStr(row.eventTitle)?.slice(0, 180) }
+        : {}),
+      ...(asStr(row.marketQuestion)
+        ? { marketQuestion: asStr(row.marketQuestion)?.slice(0, 240) }
+        : {}),
+      ...(asStr(row.outcome)
+        ? { outcome: asStr(row.outcome)?.slice(0, 120) }
+        : {}),
+      ...(asNum(row.usdValue) !== undefined
+        ? { usdValue: asNum(row.usdValue) }
+        : {}),
+      ...(asNum(row.price) !== undefined ? { price: asNum(row.price) } : {}),
+      ...(asStr(row.sourceMarketRef)
+        ? { sourceMarketRef: asStr(row.sourceMarketRef)?.slice(0, 120) }
+        : {}),
+      ...(asStr(row.valueBasis)
+        ? { valueBasis: asStr(row.valueBasis)?.slice(0, 64) }
+        : {}),
+      ...(asStr(row.evidenceType)
+        ? { evidenceType: asStr(row.evidenceType)?.slice(0, 48) }
+        : {}),
+      ...(asStr(row.evidenceRef)
+        ? { evidenceRef: asStr(row.evidenceRef)?.slice(0, 160) }
+        : {}),
+      ...(asNum(row.nativeValue) !== undefined
+        ? { nativeValue: asNum(row.nativeValue) }
+        : {}),
+      ...(asStr(row.nativeCurrency)
+        ? { nativeCurrency: asStr(row.nativeCurrency)?.slice(0, 24) }
+        : {}),
+      ...(asStr(row.availability) &&
+      ["live", "delayed", "unavailable"].includes(asStr(row.availability)!)
+        ? {
+            availability: asStr(row.availability) as
+              "live" | "delayed" | "unavailable",
+          }
+        : {}),
+      ...(asStr(row.tradedAt)
+        ? { tradedAt: asStr(row.tradedAt)?.slice(0, MAX_TIMESTAMP_LENGTH) }
+        : {}),
+      ...(asStr(row.observedAt)
+        ? { observedAt: asStr(row.observedAt)?.slice(0, MAX_TIMESTAMP_LENGTH) }
+        : {}),
+      ...(asNum(row.latencySeconds) !== undefined
+        ? { latencySeconds: asNum(row.latencySeconds) }
+        : {}),
+    };
+    const walletAddress = asStr(row.walletAddress)?.trim();
+    if (
+      walletAddress &&
+      PUBLIC_WALLET_SOURCES.has(source) &&
+      FULL_EVM_ADDRESS.test(walletAddress)
+    ) {
+      trade.walletAddress = walletAddress.toLowerCase();
+      if (
+        !walletRequests.some(
+          (item) =>
+            item.source === source && item.address === trade.walletAddress,
+        )
+      ) {
+        walletRequests.push({ source, address: trade.walletAddress });
+      }
+    }
+    trades.push(trade);
+  }
+
+  const wallets: WhaleWalletContext[] = [];
+  let reason: WhaleContext["reason"];
+  for (const request of walletRequests.slice(0, MAX_WHALE_WALLETS)) {
+    const detail = await client.getPublicPmWhaleWallet(
+      request.source,
+      request.address,
+      { timeoutMs: WHALE_READ_TIMEOUT_MS },
+    );
+    if (!detail.ok) {
+      omitted += 1;
+      reason ??= whaleFailure(detail);
+      continue;
+    }
+    const wallet = compactWallet(detail.data, request.source, request.address);
+    if (!wallet) {
+      omitted += 1;
+      reason ??= "invalid_payload";
+      continue;
+    }
+    wallets.push(wallet);
+  }
+  return {
+    status: reason ? "partial" : "available",
+    fetchedAt: fetchedAt(),
+    coverage: "relevant_events",
+    trades,
+    wallets,
+    omitted,
+    ...(reason ? { reason } : {}),
+  };
 }
 
 // The 1D endpoint nominally returns 288 five-minute bars. Timestamps and gaps
