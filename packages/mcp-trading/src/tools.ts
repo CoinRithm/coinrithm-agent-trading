@@ -2682,9 +2682,16 @@ export function registerTools(
         "venue's slug. Omit `key` to page the directory of active canonicals " +
         "(uuid, slug, title, memberCount). Pass `key` (a canonical's uuid OR " +
         "slug) for one canonical's full record: its venue members (each with " +
-        "orientation — same/inverted/unknown, NEVER price-inferred — plus " +
+        "orientation — same/flipped/unknown, NEVER price-inferred — plus " +
         "confidence and provenance basis) and an append-only judgment lineage " +
-        "(created/member_added/member_removed/merged, newest first). A MERGED " +
+        "(created/member_added/member_removed/merged, newest first). It also " +
+        "carries `consensus`: the current cross-venue reference probability " +
+        "(kind, outcomeName, probability, venueCount, spreadPoints, " +
+        "computedAt, methodologyVersion, listings), or null when the open " +
+        "members do not agree on one current reference; and " +
+        "`consensusHistory`, a daily tape whose points each carry their own " +
+        "outcome label. `listings` may be a subset of the contributing venues. " +
+        "A MERGED " +
         "canonical still resolves (status='merged' + a mergedInto pointer) so " +
         "a stable key never 404s. Use this to track one question across " +
         "venues by a durable identity instead of re-matching venue slugs " +

@@ -261,6 +261,11 @@ from .public_pm_calibration_response_scored_item_excluded import PublicPmCalibra
 from .public_pm_calibration_response_scored_item_reliability_item import (
     PublicPmCalibrationResponseScoredItemReliabilityItem,
 )
+from .public_pm_canonical_consensus import PublicPmCanonicalConsensus
+from .public_pm_canonical_consensus_kind import PublicPmCanonicalConsensusKind
+from .public_pm_canonical_consensus_listings_item import PublicPmCanonicalConsensusListingsItem
+from .public_pm_canonical_consensus_point import PublicPmCanonicalConsensusPoint
+from .public_pm_canonical_consensus_point_kind import PublicPmCanonicalConsensusPointKind
 from .public_pm_canonical_detail_response import PublicPmCanonicalDetailResponse
 from .public_pm_canonical_detail_response_canonical import PublicPmCanonicalDetailResponseCanonical
 from .public_pm_canonical_detail_response_lineage_item import PublicPmCanonicalDetailResponseLineageItem
@@ -609,6 +614,11 @@ __all__ = (
     "PublicPmCalibrationResponseScoredItem",
     "PublicPmCalibrationResponseScoredItemExcluded",
     "PublicPmCalibrationResponseScoredItemReliabilityItem",
+    "PublicPmCanonicalConsensus",
+    "PublicPmCanonicalConsensusKind",
+    "PublicPmCanonicalConsensusListingsItem",
+    "PublicPmCanonicalConsensusPoint",
+    "PublicPmCanonicalConsensusPointKind",
     "PublicPmCanonicalDetailResponse",
     "PublicPmCanonicalDetailResponseCanonical",
     "PublicPmCanonicalDetailResponseLineageItem",

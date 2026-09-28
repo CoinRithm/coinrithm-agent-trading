@@ -3503,6 +3503,22 @@ components:
         mergedInto:
           type: [object, "null"]
           additionalProperties: true
+        consensus:
+          anyOf:
+            - $ref: "#/components/schemas/PublicPmCanonicalConsensus"
+            - type: "null"
+          description: |
+            Current cross-venue consensus for this question, or null when no
+            open member holds a current reference that passes selection. Absent
+            on a merged canonical.
+        consensusHistory:
+          type: array
+          description: |
+            Daily consensus tape, oldest first, up to 90 days. A series is
+            returned only when one outcome identity holds for the whole window;
+            otherwise it is empty. Each point carries its own row's identity.
+            Absent on a merged canonical.
+          items: { $ref: "#/components/schemas/PublicPmCanonicalConsensusPoint" }
         members:
           type: array
           items:
@@ -3524,6 +3540,73 @@ components:
             type: object
             additionalProperties: true
       required: [canonical, members, lineage]
+
+    PublicPmCanonicalConsensus:
+      type: object
+      additionalProperties: false
+      description: |
+        The cross-venue reference probability for one canonical question. Every
+        open member holding a current reference must agree on the full tuple
+        (cluster, kind, outcome, probability, venueCount, spread); a binary
+        reference additionally needs every holder aligned with the canonical
+        anchor. Any disagreement yields null instead of a pick.
+      properties:
+        kind:
+          type: string
+          enum: [binary, leader]
+          description: binary = the Yes side; leader = the leading named outcome.
+        outcomeName:
+          type: [string, "null"]
+          description: Label of the leading outcome; null for a binary reference.
+        probability:
+          type: number
+          description: Consensus probability in percent (0-100).
+        venueCount:
+          type: integer
+          description: Number of venues that contributed a voice.
+        spreadPoints:
+          type: number
+          description: Cross-venue spread in probability points.
+        computedAt:
+          type: string
+          format: date-time
+          description: Validated computation (heartbeat) time, not a quote or trade time.
+        methodologyVersion:
+          type: string
+          examples: ["consensus_probability_v2"]
+        listings:
+          type: array
+          description: |
+            Public listings of member events that hold this reference. May be a
+            subset of the contributing venues and may include several listings
+            of one venue; its length is not venueCount.
+          items:
+            type: object
+            additionalProperties: false
+            properties:
+              source: { type: string }
+              eventSlug: { type: string }
+            required: [source, eventSlug]
+      required:
+        [kind, outcomeName, probability, venueCount, spreadPoints, computedAt, methodologyVersion, listings]
+
+    PublicPmCanonicalConsensusPoint:
+      type: object
+      additionalProperties: false
+      properties:
+        day:
+          type: string
+          format: date
+        kind:
+          type: string
+          enum: [binary, leader]
+        outcomeName:
+          type: [string, "null"]
+          description: This point's own outcome label; null for a binary reference.
+        probability: { type: number }
+        venueCount: { type: integer }
+        spreadPoints: { type: number }
+      required: [day, kind, outcomeName, probability, venueCount, spreadPoints]
 
     PublicCryptoMover:
       type: object
