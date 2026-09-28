@@ -1580,7 +1580,7 @@ export interface components {
                 /** Format: date */
                 tradeDate?: string | null;
             } | null;
-            /** @description 24h probability move in PERCENTAGE POINTS on the 0–100 scale (e.g. 5.5 means +5.5 points), NOT a fraction and not a relative percent change. */
+            /** @description Signed outcome probability change in percentage points (-100 to +100; probabilities are 0 to 100), not a fraction or relative percent change. For example, 20% to 25.5% is +5.5 points. The nominal 24h field follows the venue's available lookback basis, which may be a previous-session close or an observed-window span rather than exactly 24 hours. Null means unavailable. */
             priceChange24h?: number | null;
             /** @description Per-outcome provider lifecycle evidence. Terminal states are results, not live quotes; an open state with providerAcceptingOrders=false is a paused quote. */
             lifecycle?: ({
@@ -1653,9 +1653,9 @@ export interface components {
             bestAsk?: number | null;
             spread?: number | null;
             source: components["schemas"]["PublicPmSource"];
-            /** @description Leading-outcome 24h probability move in PERCENTAGE POINTS on the 0–100 scale, NOT a fraction. */
+            /** @description Signed event-level probability change in percentage points (-100 to +100; probabilities are 0 to 100), not a fraction or relative percent change. The representative contract or outcome and nominal 24h lookback basis vary by venue; this need not be the displayed leader or largest outcome move. The lookback may be a previous-session close or an observed-window span rather than exactly 24 hours. Use outcome.priceChange24h for a named outcome's change. Null means unavailable. */
             priceChange24h?: number | null;
-            /** @description Leading-outcome 7d probability move in PERCENTAGE POINTS on the 0–100 scale, NOT a fraction. */
+            /** @description Signed event-level probability change over the venue's available seven-day lookback, in percentage points (-100 to +100; probabilities are 0 to 100), not a fraction or relative percent change. The representative contract or outcome varies by venue; this need not be the displayed leader or largest outcome move. Null means unavailable. */
             priceChange7d?: number | null;
             /** @description Book-level probability basis: `basis` is `normalized_complete_book` when outcomes carry normalizedProbability (with `rawSum` and `overroundPoints`), else `raw_quotes`. */
             probabilityBook?: {

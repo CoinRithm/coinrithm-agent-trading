@@ -38,8 +38,10 @@ class PublicPmOutcome:
             stored outcome price. Null means the supported source marker was unavailable or explicitly null; it does not
             prove that the outcome has no price. Timestamps describe source evidence, not current freshness or executable
             liquidity.
-        price_change_24_h (float | None | Unset): 24h probability move in PERCENTAGE POINTS on the 0–100 scale (e.g. 5.5
-            means +5.5 points), NOT a fraction and not a relative percent change.
+        price_change_24_h (float | None | Unset): Signed outcome probability change in percentage points (-100 to +100;
+            probabilities are 0 to 100), not a fraction or relative percent change. For example, 20% to 25.5% is +5.5
+            points. The nominal 24h field follows the venue's available lookback basis, which may be a previous-session
+            close or an observed-window span rather than exactly 24 hours. Null means unavailable.
         lifecycle (None | PublicPmOutcomeLifecycleType0 | Unset): Per-outcome provider lifecycle evidence. Terminal
             states are results, not live quotes; an open state with providerAcceptingOrders=false is a paused quote.
         prior_probability (None | PublicPmOutcomePriorProbabilityType0 | Unset): Last stored provider quote before the
