@@ -11,6 +11,7 @@ from ..types import UNSET, Unset
 if TYPE_CHECKING:
     from ..models.public_pm_outcome_lifecycle_type_0 import PublicPmOutcomeLifecycleType0
     from ..models.public_pm_outcome_prior_probability_type_0 import PublicPmOutcomePriorProbabilityType0
+    from ..models.public_pm_outcome_source_observation_type_0 import PublicPmOutcomeSourceObservationType0
     from ..models.public_pm_outcome_venue_terms import PublicPmOutcomeVenueTerms
 
 
@@ -23,12 +24,20 @@ class PublicPmOutcome:
     Attributes:
         name (str):
         external_market_id (str | Unset):
-        probability (float | None | Unset): Provider-implied probability on a 0–100 scale (raw venue quote; may include
-            vig, so a book's outcomes can sum above 100).
+        probability (float | None | Unset): Provider-implied probability on a 0–100 scale (raw venue input; may include
+            vig, so a book's outcomes can sum above 100). Execution eligibility and a usable quote are reported by the quote
+            endpoint, not inferred from this field alone.
         normalized_probability (float | None | Unset): Vig-removed display probability on a 0–100 scale, proportionally
             normalized so a complete exclusive book sums to ~100. Null when the book is not a complete exclusive book
-            (threshold ladders, partial catalogs, non-market sources). The raw `probability` remains the executable venue
-            quote.
+            (threshold ladders, partial catalogs, non-market sources). This is display context, not an execution quote.
+        has_observed_price (bool | Unset): Optional source-data truth flag. `true` means a supported source observation
+            validated a usable observed price, including numeric 0; `false` is emitted only for the Rothera explicit writer-
+            null marker and means no usable observed price input. Omitted means unknown, legacy, or unsupported source data.
+            This flag does not claim live pricing, liquidity, or tradability.
+        source_observation (None | PublicPmOutcomeSourceObservationType0 | Unset): Optional bounded provenance for the
+            stored outcome price. Null means the supported source marker was unavailable or explicitly null; it does not
+            prove that the outcome has no price. Timestamps describe source evidence, not current freshness or executable
+            liquidity.
         price_change_24_h (float | None | Unset): 24h probability move in PERCENTAGE POINTS on the 0–100 scale (e.g. 5.5
             means +5.5 points), NOT a fraction and not a relative percent change.
         lifecycle (None | PublicPmOutcomeLifecycleType0 | Unset): Per-outcome provider lifecycle evidence. Terminal
@@ -43,6 +52,8 @@ class PublicPmOutcome:
     external_market_id: str | Unset = UNSET
     probability: float | None | Unset = UNSET
     normalized_probability: float | None | Unset = UNSET
+    has_observed_price: bool | Unset = UNSET
+    source_observation: None | PublicPmOutcomeSourceObservationType0 | Unset = UNSET
     price_change_24_h: float | None | Unset = UNSET
     lifecycle: None | PublicPmOutcomeLifecycleType0 | Unset = UNSET
     prior_probability: None | PublicPmOutcomePriorProbabilityType0 | Unset = UNSET
@@ -52,6 +63,7 @@ class PublicPmOutcome:
     def to_dict(self) -> dict[str, Any]:
         from ..models.public_pm_outcome_lifecycle_type_0 import PublicPmOutcomeLifecycleType0
         from ..models.public_pm_outcome_prior_probability_type_0 import PublicPmOutcomePriorProbabilityType0
+        from ..models.public_pm_outcome_source_observation_type_0 import PublicPmOutcomeSourceObservationType0
 
         name = self.name
 
@@ -68,6 +80,16 @@ class PublicPmOutcome:
             normalized_probability = UNSET
         else:
             normalized_probability = self.normalized_probability
+
+        has_observed_price = self.has_observed_price
+
+        source_observation: dict[str, Any] | None | Unset
+        if isinstance(self.source_observation, Unset):
+            source_observation = UNSET
+        elif isinstance(self.source_observation, PublicPmOutcomeSourceObservationType0):
+            source_observation = self.source_observation.to_dict()
+        else:
+            source_observation = self.source_observation
 
         price_change_24_h: float | None | Unset
         if isinstance(self.price_change_24_h, Unset):
@@ -108,6 +130,10 @@ class PublicPmOutcome:
             field_dict["probability"] = probability
         if normalized_probability is not UNSET:
             field_dict["normalizedProbability"] = normalized_probability
+        if has_observed_price is not UNSET:
+            field_dict["hasObservedPrice"] = has_observed_price
+        if source_observation is not UNSET:
+            field_dict["sourceObservation"] = source_observation
         if price_change_24_h is not UNSET:
             field_dict["priceChange24h"] = price_change_24_h
         if lifecycle is not UNSET:
@@ -123,6 +149,7 @@ class PublicPmOutcome:
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.public_pm_outcome_lifecycle_type_0 import PublicPmOutcomeLifecycleType0
         from ..models.public_pm_outcome_prior_probability_type_0 import PublicPmOutcomePriorProbabilityType0
+        from ..models.public_pm_outcome_source_observation_type_0 import PublicPmOutcomeSourceObservationType0
         from ..models.public_pm_outcome_venue_terms import PublicPmOutcomeVenueTerms
 
         d = dict(src_dict)
@@ -147,6 +174,25 @@ class PublicPmOutcome:
             return cast(float | None | Unset, data)
 
         normalized_probability = _parse_normalized_probability(d.pop("normalizedProbability", UNSET))
+
+        has_observed_price = d.pop("hasObservedPrice", UNSET)
+
+        def _parse_source_observation(data: object) -> None | PublicPmOutcomeSourceObservationType0 | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                source_observation_type_0 = PublicPmOutcomeSourceObservationType0.from_dict(data)
+
+                return source_observation_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(None | PublicPmOutcomeSourceObservationType0 | Unset, data)
+
+        source_observation = _parse_source_observation(d.pop("sourceObservation", UNSET))
 
         def _parse_price_change_24_h(data: object) -> float | None | Unset:
             if data is None:
@@ -203,6 +249,8 @@ class PublicPmOutcome:
             external_market_id=external_market_id,
             probability=probability,
             normalized_probability=normalized_probability,
+            has_observed_price=has_observed_price,
+            source_observation=source_observation,
             price_change_24_h=price_change_24_h,
             lifecycle=lifecycle,
             prior_probability=prior_probability,

@@ -75,6 +75,13 @@ def test_public_pm_outcome_round_trips_lifecycle_null_zero_and_unknown_fields() 
         "externalMarketId": "paused",
         "probability": 0,
         "normalizedProbability": None,
+        "hasObservedPrice": True,
+        "sourceObservation": {
+            "version": 1,
+            "basis": "provider_quote",
+            "provider": "robinhood",
+            "observedAt": None,
+        },
         "priceChange24h": None,
         "lifecycle": {
             "state": "unknown",
@@ -94,6 +101,9 @@ def test_public_pm_outcome_round_trips_lifecycle_null_zero_and_unknown_fields() 
     outcome = PublicPmOutcome.from_dict(payload)
 
     assert outcome.probability == 0
+    assert outcome.has_observed_price is True
+    assert outcome.source_observation is not None
+    assert outcome.source_observation.observed_at is None
     assert outcome.lifecycle is not None
     assert outcome.lifecycle.state.value == "unknown"
     assert outcome.lifecycle["futureLifecycleField"] == "preserved"

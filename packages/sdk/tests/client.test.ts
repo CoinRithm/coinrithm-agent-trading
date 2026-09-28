@@ -120,6 +120,13 @@ describe("TypeScript SDK request contract", () => {
       name: "Paused quote",
       probability: 0,
       normalizedProbability: null,
+      hasObservedPrice: true,
+      sourceObservation: {
+        version: 1,
+        basis: "provider_quote",
+        provider: "robinhood",
+        observedAt: null,
+      },
       lifecycle: {
         state: "unknown",
         providerAcceptingOrders: null,
@@ -153,6 +160,8 @@ describe("TypeScript SDK request contract", () => {
     expect(winnerId).toBeNull();
     expect(outcome.probability).toBe(0);
     expect(outcome.normalizedProbability).toBeNull();
+    expect(outcome.hasObservedPrice).toBe(true);
+    expect(outcome.sourceObservation?.observedAt).toBeNull();
   });
 
   it("exposes futures fill estimates and audit execution evidence", () => {
