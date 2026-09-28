@@ -261,6 +261,11 @@ from .public_pm_calibration_response_scored_item_excluded import PublicPmCalibra
 from .public_pm_calibration_response_scored_item_reliability_item import (
     PublicPmCalibrationResponseScoredItemReliabilityItem,
 )
+from .public_pm_canonical_consensus import PublicPmCanonicalConsensus
+from .public_pm_canonical_consensus_kind import PublicPmCanonicalConsensusKind
+from .public_pm_canonical_consensus_listings_item import PublicPmCanonicalConsensusListingsItem
+from .public_pm_canonical_consensus_point import PublicPmCanonicalConsensusPoint
+from .public_pm_canonical_consensus_point_kind import PublicPmCanonicalConsensusPointKind
 from .public_pm_canonical_detail_response import PublicPmCanonicalDetailResponse
 from .public_pm_canonical_detail_response_canonical import PublicPmCanonicalDetailResponseCanonical
 from .public_pm_canonical_detail_response_lineage_item import PublicPmCanonicalDetailResponseLineageItem
@@ -292,6 +297,7 @@ from .public_pm_event_freshness import PublicPmEventFreshness
 from .public_pm_event_probability_book_type_0 import PublicPmEventProbabilityBookType0
 from .public_pm_event_quality_type_0 import PublicPmEventQualityType0
 from .public_pm_event_reference_probability_type_0 import PublicPmEventReferenceProbabilityType0
+from .public_pm_event_representative_outcome_basis import PublicPmEventRepresentativeOutcomeBasis
 from .public_pm_event_revision import PublicPmEventRevision
 from .public_pm_event_revision_evidence import PublicPmEventRevisionEvidence
 from .public_pm_event_revisions_response import PublicPmEventRevisionsResponse
@@ -609,6 +615,11 @@ __all__ = (
     "PublicPmCalibrationResponseScoredItem",
     "PublicPmCalibrationResponseScoredItemExcluded",
     "PublicPmCalibrationResponseScoredItemReliabilityItem",
+    "PublicPmCanonicalConsensus",
+    "PublicPmCanonicalConsensusKind",
+    "PublicPmCanonicalConsensusListingsItem",
+    "PublicPmCanonicalConsensusPoint",
+    "PublicPmCanonicalConsensusPointKind",
     "PublicPmCanonicalDetailResponse",
     "PublicPmCanonicalDetailResponseCanonical",
     "PublicPmCanonicalDetailResponseLineageItem",
@@ -638,6 +649,7 @@ __all__ = (
     "PublicPmEventProbabilityBookType0",
     "PublicPmEventQualityType0",
     "PublicPmEventReferenceProbabilityType0",
+    "PublicPmEventRepresentativeOutcomeBasis",
     "PublicPmEventRevision",
     "PublicPmEventRevisionEvidence",
     "PublicPmEventRevisionsResponse",

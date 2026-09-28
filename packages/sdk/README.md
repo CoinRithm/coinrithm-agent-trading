@@ -9,6 +9,24 @@ via [`openapi-typescript`](https://github.com/openapi-ts/openapi-typescript) +
 All trading on this surface is **paper only** (virtual mUSD). Nothing touches
 real money. Not financial advice.
 
+## 0.3.4
+
+- Adds optional `representativeOutcome` (a full `PublicPmOutcome`, or `null`)
+  and `representativeOutcomeBasis` (`threshold_ladder_line` or
+  `informative_leader`) to prediction-market events. Both are served on open
+  events only: on event detail, and on compact lists requested with
+  `lead=representative`. `informative_leader` is not necessarily the leading
+  outcome.
+- Adds canonical-question `consensus` (the current cross-venue reference:
+  kind, outcomeName, probability, venueCount, spreadPoints, computedAt,
+  methodologyVersion and listings, or `null`) and `consensusHistory` (a daily
+  tape in which every point carries its own outcome label). `listings` may be a
+  subset of the contributing venues.
+- Types the optional per-outcome `hasObservedPrice` flag and nullable
+  `sourceObservation` provenance.
+- All additive; generated from API contract 1.7.0. The basis and consensus
+  kind are strict enums, so a future value needs a matching SDK release.
+
 ## 0.3.3
 
 - PM quote and open requests accept optional `minEntryProbabilityPct`, a
@@ -30,7 +48,7 @@ npm install @coinrithm/sdk
 ```
 
 Published on npm as [`@coinrithm/sdk`](https://www.npmjs.com/package/@coinrithm/sdk).
-This package documents version **0.3.3**. See the
+This package documents version **0.3.4**. See the
 [release status](https://github.com/CoinRithm/coinrithm-agent-trading#version-clarity)
 for registry availability.
 Check `npm view @coinrithm/sdk version` for

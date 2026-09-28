@@ -1662,6 +1662,25 @@ export interface components {
                 [key: string]: unknown;
             } | null;
             outcomes: components["schemas"]["PublicPmOutcome"][];
+            /**
+             * @description Open events only; absent on closed, awaiting and resolved events and
+             *     on responses that do not select it. The one outcome a headline quotes,
+             *     chosen from the full current book and served as a complete outcome
+             *     object (same identity, lifecycle, hasObservedPrice and raw
+             *     probability as its row in `outcomes`). Null when no current outcome
+             *     has a usable price. Served on event detail, and on compact list
+             *     responses requested with `lead=representative`.
+             */
+            representativeOutcome?: components["schemas"]["PublicPmOutcome"] | null;
+            /**
+             * @description Event detail only, open events only: the rule that chose
+             *     representativeOutcome. `threshold_ladder_line` is a threshold
+             *     ladder's line nearest 50% (a Kalshi strike ladder).
+             *     `informative_leader` is the highest current outcome strictly inside
+             *     5-95, else the highest; it is not necessarily the leading outcome.
+             * @enum {string}
+             */
+            representativeOutcomeBasis?: "threshold_ladder_line" | "informative_leader";
             /** @description Canonical matched-venue reference with venue count and spread. */
             referenceProbability?: {
                 [key: string]: unknown;
@@ -2061,6 +2080,19 @@ export interface components {
             mergedInto?: {
                 [key: string]: unknown;
             } | null;
+            /**
+             * @description Current cross-venue consensus for this question, or null when no
+             *     open member holds a current reference that passes selection. Absent
+             *     on a merged canonical.
+             */
+            consensus?: components["schemas"]["PublicPmCanonicalConsensus"] | null;
+            /**
+             * @description Daily consensus tape, oldest first, up to 90 days. A series is
+             *     returned only when one outcome identity holds for the whole window;
+             *     otherwise it is empty. Each point carries its own row's identity.
+             *     Absent on a merged canonical.
+             */
+            consensusHistory?: components["schemas"]["PublicPmCanonicalConsensusPoint"][];
             members: ({
                 source?: string;
                 sourceName?: string;
@@ -2078,6 +2110,55 @@ export interface components {
             lineage: {
                 [key: string]: unknown;
             }[];
+        };
+        /**
+         * @description The cross-venue reference probability for one canonical question. Every
+         *     open member holding a current reference must agree on the full tuple
+         *     (cluster, kind, outcome, probability, venueCount, spread); a binary
+         *     reference additionally needs every holder aligned with the canonical
+         *     anchor. Any disagreement yields null instead of a pick.
+         */
+        PublicPmCanonicalConsensus: {
+            /**
+             * @description binary = the Yes side; leader = the leading named outcome.
+             * @enum {string}
+             */
+            kind: "binary" | "leader";
+            /** @description Label of the leading outcome; null for a binary reference. */
+            outcomeName: string | null;
+            /** @description Consensus probability in percent (0-100). */
+            probability: number;
+            /** @description Number of venues that contributed a voice. */
+            venueCount: number;
+            /** @description Cross-venue spread in probability points. */
+            spreadPoints: number;
+            /**
+             * Format: date-time
+             * @description Validated computation (heartbeat) time, not a quote or trade time.
+             */
+            computedAt: string;
+            /** @example consensus_probability_v2 */
+            methodologyVersion: string;
+            /**
+             * @description Public listings of member events that hold this reference. May be a
+             *     subset of the contributing venues and may include several listings
+             *     of one venue; its length is not venueCount.
+             */
+            listings: {
+                source: string;
+                eventSlug: string;
+            }[];
+        };
+        PublicPmCanonicalConsensusPoint: {
+            /** Format: date */
+            day: string;
+            /** @enum {string} */
+            kind: "binary" | "leader";
+            /** @description This point's own outcome label; null for a binary reference. */
+            outcomeName: string | null;
+            probability: number;
+            venueCount: number;
+            spreadPoints: number;
         };
         /**
          * @description One row of the top-gainers / top-losers universe scan. `change24h` and

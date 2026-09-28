@@ -9,10 +9,26 @@ OpenAPI contract that drives the hosted MCP at `mcp.coinrithm.com`.
   CoinRithm API key (`crk_live_…`), sent as a bearer token.
 - The API is paper-only: no real funds ever move.
 
-## 1.8.3
+## 1.8.4
 
 See the [release status](https://github.com/CoinRithm/coinrithm-agent-trading#version-clarity)
-for registry availability. The notes and examples below describe version 1.8.3.
+for registry availability. The notes and examples below describe version 1.8.4.
+
+- Prediction-market events gain optional `representative_outcome` (a full
+  `PublicPmOutcome`, or `None`) and `representative_outcome_basis`
+  (`THRESHOLD_LADDER_LINE` or `INFORMATIVE_LEADER`). Both are served on open
+  events only: on event detail, and on compact lists requested with
+  `lead=representative`. `INFORMATIVE_LEADER` is not necessarily the leading
+  outcome.
+- Canonical detail gains `consensus` (the current cross-venue reference, or
+  `None`) and `consensus_history` (a daily tape in which every point carries
+  its own outcome label). `listings` may be a subset of the contributing venues.
+- Outcomes type the optional `has_observed_price` flag and nullable
+  `source_observation` provenance.
+- All additive; generated from API contract 1.7.0. The basis and consensus
+  kind are strict enums, so a future value needs a matching SDK release.
+
+## 1.8.3
 
 - PM quote and open requests accept optional `min_entry_probability_pct`, a
   chosen-side entry probability floor in percentage points before fees. It is

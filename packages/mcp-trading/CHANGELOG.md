@@ -5,7 +5,14 @@ ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (t
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
 versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
-## Unreleased
+## 0.7.15 (prepared, not yet published)
+
+- The hosted HTTP server recovers the pasted-markdown descriptor link
+  (`/mcp` followed by `](`, literal or percent-encoded): GET/HEAD redirect to
+  the service descriptor and POST runs the same MCP handler as `POST /mcp`.
+  Every other unknown path stays 404 and `GET /mcp` stays 405.
+- `pm_data_canonical` documents the canonical `consensus` (or null) and the
+  labelled `consensusHistory`, and names orientation `flipped` as the API does.
 
 - Preserve optional observed-price flags and bounded source provenance in public
   market summaries, including the exact sides of venue comparisons. A missing

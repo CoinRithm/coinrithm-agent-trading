@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, TypeVar, cast
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
+from ..models.public_pm_event_representative_outcome_basis import PublicPmEventRepresentativeOutcomeBasis
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
@@ -58,6 +59,20 @@ class PublicPmEvent:
         probability_book (None | PublicPmEventProbabilityBookType0 | Unset): Book-level probability basis: `basis` is
             `normalized_complete_book` when outcomes carry normalizedProbability (with `rawSum` and `overroundPoints`), else
             `raw_quotes`.
+        representative_outcome (None | PublicPmOutcome | Unset): Open events only; absent on closed, awaiting and
+            resolved events and
+            on responses that do not select it. The one outcome a headline quotes,
+            chosen from the full current book and served as a complete outcome
+            object (same identity, lifecycle, hasObservedPrice and raw
+            probability as its row in `outcomes`). Null when no current outcome
+            has a usable price. Served on event detail, and on compact list
+            responses requested with `lead=representative`.
+        representative_outcome_basis (PublicPmEventRepresentativeOutcomeBasis | Unset): Event detail only, open events
+            only: the rule that chose
+            representativeOutcome. `threshold_ladder_line` is a threshold
+            ladder's line nearest 50% (a Kalshi strike ladder).
+            `informative_leader` is the highest current outcome strictly inside
+            5-95, else the highest; it is not necessarily the leading outcome.
         reference_probability (None | PublicPmEventReferenceProbabilityType0 | Unset): Canonical matched-venue reference
             with venue count and spread.
         decision_support (None | PublicPmEventDecisionSupportType0 | Unset):
@@ -88,6 +103,8 @@ class PublicPmEvent:
     price_change_24_h: float | None | Unset = UNSET
     price_change_7_d: float | None | Unset = UNSET
     probability_book: None | PublicPmEventProbabilityBookType0 | Unset = UNSET
+    representative_outcome: None | PublicPmOutcome | Unset = UNSET
+    representative_outcome_basis: PublicPmEventRepresentativeOutcomeBasis | Unset = UNSET
     reference_probability: None | PublicPmEventReferenceProbabilityType0 | Unset = UNSET
     decision_support: None | PublicPmEventDecisionSupportType0 | Unset = UNSET
     quality: None | PublicPmEventQualityType0 | Unset = UNSET
@@ -99,6 +116,7 @@ class PublicPmEvent:
         from ..models.public_pm_event_probability_book_type_0 import PublicPmEventProbabilityBookType0
         from ..models.public_pm_event_quality_type_0 import PublicPmEventQualityType0
         from ..models.public_pm_event_reference_probability_type_0 import PublicPmEventReferenceProbabilityType0
+        from ..models.public_pm_outcome import PublicPmOutcome
 
         id = self.id
 
@@ -217,6 +235,18 @@ class PublicPmEvent:
         else:
             probability_book = self.probability_book
 
+        representative_outcome: dict[str, Any] | None | Unset
+        if isinstance(self.representative_outcome, Unset):
+            representative_outcome = UNSET
+        elif isinstance(self.representative_outcome, PublicPmOutcome):
+            representative_outcome = self.representative_outcome.to_dict()
+        else:
+            representative_outcome = self.representative_outcome
+
+        representative_outcome_basis: str | Unset = UNSET
+        if not isinstance(self.representative_outcome_basis, Unset):
+            representative_outcome_basis = self.representative_outcome_basis.value
+
         reference_probability: dict[str, Any] | None | Unset
         if isinstance(self.reference_probability, Unset):
             reference_probability = UNSET
@@ -292,6 +322,10 @@ class PublicPmEvent:
             field_dict["priceChange7d"] = price_change_7_d
         if probability_book is not UNSET:
             field_dict["probabilityBook"] = probability_book
+        if representative_outcome is not UNSET:
+            field_dict["representativeOutcome"] = representative_outcome
+        if representative_outcome_basis is not UNSET:
+            field_dict["representativeOutcomeBasis"] = representative_outcome_basis
         if reference_probability is not UNSET:
             field_dict["referenceProbability"] = reference_probability
         if decision_support is not UNSET:
@@ -508,6 +542,30 @@ class PublicPmEvent:
 
         probability_book = _parse_probability_book(d.pop("probabilityBook", UNSET))
 
+        def _parse_representative_outcome(data: object) -> None | PublicPmOutcome | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                representative_outcome_type_0 = PublicPmOutcome.from_dict(data)
+
+                return representative_outcome_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(None | PublicPmOutcome | Unset, data)
+
+        representative_outcome = _parse_representative_outcome(d.pop("representativeOutcome", UNSET))
+
+        _representative_outcome_basis = d.pop("representativeOutcomeBasis", UNSET)
+        representative_outcome_basis: PublicPmEventRepresentativeOutcomeBasis | Unset
+        if isinstance(_representative_outcome_basis, Unset):
+            representative_outcome_basis = UNSET
+        else:
+            representative_outcome_basis = PublicPmEventRepresentativeOutcomeBasis(_representative_outcome_basis)
+
         def _parse_reference_probability(data: object) -> None | PublicPmEventReferenceProbabilityType0 | Unset:
             if data is None:
                 return data
@@ -591,6 +649,8 @@ class PublicPmEvent:
             price_change_24_h=price_change_24_h,
             price_change_7_d=price_change_7_d,
             probability_book=probability_book,
+            representative_outcome=representative_outcome,
+            representative_outcome_basis=representative_outcome_basis,
             reference_probability=reference_probability,
             decision_support=decision_support,
             quality=quality,

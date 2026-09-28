@@ -43,15 +43,18 @@ This package ships two binaries:
 
 > **Paper trading only** — virtual funds (50,000 mUSD). Not financial advice.
 
-## Version 0.7.14
+## Version 0.7.15
 
-This release makes a configured prediction-market entry floor executable
-(`risk.pmMinEntryProbabilityPct`: runner preflight plus the API's own re-check
-at execution), preflights futures stop/target updates against observed prices,
-loads the optional strategy sections from local bundles, pins compiled strategy
-definitions (`run --expect-definition`), retains candle timing evidence, and
-scopes permanent model-error streaks to the attempted provider/model. Trading
-limits and retry counts are otherwise unchanged. See [CHANGELOG.md](./CHANGELOG.md).
+This release preserves observed-price evidence in public market summaries
+(`hasObservedPrice` and bounded `sourceObservation`, including both sides of
+venue comparisons), keeps full public `walletAddress` values in whale summaries
+for `pm_data_whale_wallet` follow-up, adds the opt-in `whale_context` runner
+capability, and records explicit zero model/action evidence for cycles skipped
+before inference. `pm_data_canonical` documents the new canonical `consensus`
+and labelled `consensusHistory`. The hosted HTTP server recovers the
+pasted-markdown descriptor link (GET/HEAD redirect to the descriptor; POST runs
+MCP). Trading limits, risk gates and retry counts are unchanged. See
+[CHANGELOG.md](./CHANGELOG.md).
 Check `npm view @coinrithm/mcp-trading version` and the
 [release status](https://github.com/CoinRithm/coinrithm-agent-trading#version-clarity)
 for registry availability; hosted deployments and npm releases are separate.
@@ -101,8 +104,8 @@ adds a bounded public tape sample and up to two validated wallet movement
 summaries to the model observation for non-mechanical providers. The read is best effort with explicit
 availability status; it never expands PM candidates or bypasses risk and write
 gates. Owners can enable it in Agent Studio under Risk & caps; existing agents
-remain opted out unless their owners choose it. The capability is also in the
-repository source, but is not part of published MCP `0.7.14`.
+remain opted out unless their owners choose it. It ships in package version
+0.7.15; published MCP `0.7.14` does not include it.
 The CoinRithm hosted scheduler runs this same engine for you — see the
 [scheduler README](https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/packages/scheduler/README.md) for the built,
 DB-driven runtime.
@@ -216,7 +219,7 @@ agent file.
 | `pm_data_volume_history`                               | none (public) | `GET /api/prediction-markets/volume-history`                                         |
 | `get_crypto_movers` (direction, limit)                 | none (public) | `GET /api/coins/top-{gainers,losers}`                                                |
 
-In the current source (not yet in npm `0.7.14`), `pm_data_whales` and default
+From package version 0.7.15 (not in npm `0.7.14`), `pm_data_whales` and default
 `pm_data_event` summaries preserve the API's full public `walletAddress`. Pass
 that value with its `source` to `pm_data_whale_wallet` for Polymarket, Limitless
 or Myriad. The shorter `wallet` field is display text; a null or absent

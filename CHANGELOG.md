@@ -8,14 +8,22 @@ Each package has its own version; the API contract is versioned separately.
 [TypeScript history](packages/sdk/CHANGELOG.md) ·
 [Python release notes](packages/sdk-python/README.md)
 
-## Unreleased (source contract)
+## MCP 0.7.15, TypeScript 0.3.4, Python 1.8.4 (prepared 2026-09-28, not yet published)
 
-- Document and generate the optional prediction-market outcome
-  `hasObservedPrice` and nullable `sourceObservation` fields. This is source
-  contract work pending release; published MCP `0.7.14`, TypeScript SDK
-  `0.3.3`, and Python SDK `1.8.3` are unchanged.
-- Preserve these fields in bounded MCP results and keep the exact per-side
-  observed-price flags in venue comparisons. Raw probabilities remain available.
+Prepared and frozen for review; registry upload is pending. Published MCP
+`0.7.14`, TypeScript SDK `0.3.3` and Python SDK `1.8.3` remain the installable
+versions until the upload is verified. The API contract stays `1.7.0`
+(additive only).
+
+- Both SDKs: optional `representativeOutcome` and `representativeOutcomeBasis`
+  on prediction-market events (open events only), canonical `consensus` and
+  labelled `consensusHistory`, and the optional per-outcome `hasObservedPrice`
+  flag with nullable `sourceObservation` provenance.
+- MCP and runner: observed-price evidence preserved in bounded results and
+  both sides of venue comparisons; full public `walletAddress` values in whale
+  summaries; the opt-in `whale_context` runner capability; explicit zero
+  evidence for cycles skipped before inference; `pm_data_canonical` documents
+  consensus; and the hosted server recovers the pasted-markdown descriptor link.
 
 ## MCP 0.7.14, TypeScript 0.3.3, Python 1.8.3 (2026-09-24)
 
