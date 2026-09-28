@@ -282,6 +282,7 @@ const WHALE_TRADE_FIELDS = [
   "eventSlug",
   "eventTitle",
   "wallet",
+  "walletAddress",
   "traderName",
   "side",
   "outcome",
@@ -2475,7 +2476,9 @@ export function registerTools(
           .string()
           .trim()
           .regex(/^0x[0-9a-fA-F]{40}$/, "expected a 20-byte EVM wallet address")
-          .describe("Wallet address returned by pm_data_whale_wallets."),
+          .describe(
+            "Full walletAddress from pm_data_whales or pm_data_event, or address from pm_data_whale_wallets. The shortened wallet display is not an address.",
+          ),
       },
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: readOnlyAnnotations(

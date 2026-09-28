@@ -360,6 +360,107 @@ describe("MCP tool requests use the declared contract", () => {
       });
     },
   );
+  it.each(
+    ["polymarket", "limitless", "myriad"].flatMap((source) =>
+      ["pm_data_whales", "pm_data_event"].map((tool) => ({ source, tool })),
+    ),
+  )(
+    "passes $source wallet identity from default $tool summary into wallet lookup",
+    async ({ source, tool }) => {
+      const walletAddress = "0x894df6e8ad9f01be25ea47e5733dde6dabfc04e2";
+      const trade = {
+        source,
+        wallet: "0x894d…04e2",
+        walletAddress,
+        side: "BUY",
+        usdValue: 2520,
+        evidenceType: "public_matched_trade",
+        internalFixtureField: "omit",
+      };
+      const key = tool === "pm_data_whales" ? "trades" : "recentWhaleTrades";
+      const f = fixture({ event: { status: "closed" }, [key]: [trade] });
+      const response = await f.call(
+        tool,
+        tool === "pm_data_event" ? { source, slug: "fixture-event" } : {},
+      );
+      const body = response.structuredContent.body as Record<
+        string,
+        Record<string, unknown>[]
+      >;
+      const compact = body[key]![0]!;
+      expect(compact).toEqual({
+        source,
+        wallet: trade.wallet,
+        walletAddress,
+        side: "BUY",
+        usdValue: 2520,
+        evidenceType: "public_matched_trade",
+      });
+      // This goes through the registered Zod schema and actual public client,
+      // rather than validating a separately hand-written address regex.
+      await f.call("pm_data_whale_wallet", {
+        source: compact.source,
+        wallet: compact.walletAddress,
+      });
+      expect(new URL(f.requests[1]!.url).pathname).toBe(
+        `/api/prediction-markets/whales/wallets/${source}/${walletAddress}`,
+      );
+      expect(f.requests).toHaveLength(2);
+      for (const request of f.requests)
+        expect(new Headers(request.init?.headers).has("authorization")).toBe(
+          false,
+        );
+      await expect(
+        f.call("pm_data_whale_wallet", {
+          source: compact.source,
+          wallet: compact.wallet,
+        }),
+      ).rejects.toThrow("expected a 20-byte EVM wallet address");
+      expect(f.requests).toHaveLength(2);
+    },
+  );
+  it.each(["pm_data_whales", "pm_data_event"])(
+    "%s preserves anonymous/null and absent wallet identity without deriving it from display text",
+    async (tool) => {
+      const key = tool === "pm_data_whales" ? "trades" : "recentWhaleTrades";
+      const f = fixture({
+        event: { status: "closed" },
+        [key]: [
+          {
+            source: "kalshi",
+            wallet: "",
+            walletAddress: null,
+            evidenceType: "public_matched_trade",
+          },
+          { source: "polymarket", wallet: "0x894d…04e2" },
+        ],
+      });
+      const response = await f.call(
+        tool,
+        tool === "pm_data_event"
+          ? { source: "kalshi", slug: "fixture-event" }
+          : {},
+      );
+      const body = response.structuredContent.body as Record<
+        string,
+        Record<string, unknown>[]
+      >;
+      expect(body[key]![0]).toEqual({
+        source: "kalshi",
+        wallet: "",
+        walletAddress: null,
+        evidenceType: "public_matched_trade",
+      });
+      expect(body[key]![1]).not.toHaveProperty("walletAddress");
+      await expect(
+        f.call("pm_data_whale_wallet", {
+          source: "kalshi",
+          wallet: body[key]![0]!.walletAddress,
+        }),
+      ).rejects.toThrow();
+      expect(f.requests).toHaveLength(1);
+    },
+  );
   it("exposes bounded identifiable whale-wallet context without a key", async () => {
     const f = fixture({
       window: "7d",
