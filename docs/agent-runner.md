@@ -225,14 +225,15 @@ promoted into tradable candidates under the same risk caps and blocklist) and
 included). `websearch` is reserved — accepted by the validator but not yet
 implemented; declaring it does nothing today.
 
-The upcoming hosted scheduler source adds `whale_context` as an opt-in,
-post-gate prediction-market context read. It is
-only fetched when `pm` is in the venue scope and the cycle will call a
+`whale_context` is an opt-in, post-gate prediction-market context read available
+in the hosted scheduler and repository source. It is fetched only when `pm` is
+in the venue scope and the cycle will call a
 non-mechanical provider. The runner joins a bounded public tape sample to the
 cycle's own PM markets/positions, and may fetch up to two validated public
-wallet movement summaries. It never widens candidates, bypasses risk checks or
-acts as a bullish/bearish signal. `available`, `partial` and `unavailable`
-status are explicit; an empty sample does not prove no activity.
+wallet movement summaries. It never widens candidates or bypasses risk checks.
+`available`, `partial` and `unavailable` status are explicit; an empty sample does
+not prove no activity. Hosted owners can enable it in Agent Studio under Risk &
+caps. Published MCP `0.7.14` does not include this capability.
 
 Also inactive: the four `abstention` booleans (`onStaleData`, `onWeakSignal`,
 `onMissingQuote`, `onInsufficientBalance`) parse and default to `true`, but no

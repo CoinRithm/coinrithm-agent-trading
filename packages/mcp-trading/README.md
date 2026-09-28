@@ -95,13 +95,14 @@ COINRITHM_API_KEY=crk_live_… ANTHROPIC_API_KEY=sk-ant-… \
 
 Full guide (env vars, fail-closed guarantees, folder layout):
 **[docs/agent-runner.md](https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/docs/agent-runner.md)**.
-The upcoming hosted scheduler source supports an opt-in `whale_context`
+The hosted scheduler supports an opt-in `whale_context`
 capability when `pm` is in scope. After the event-driven gate fires, the runner
 adds a bounded public tape sample and up to two validated wallet movement
-summaries to the model observation. The read is best effort with explicit
+summaries to the model observation for non-mechanical providers. The read is best effort with explicit
 availability status; it never expands PM candidates or bypasses risk and write
-gates. This is source awaiting hosted rollout and is not part of published
-MCP `0.7.14`.
+gates. Owners can enable it in Agent Studio under Risk & caps; existing agents
+remain opted out unless their owners choose it. The capability is also in the
+repository source, but is not part of published MCP `0.7.14`.
 The CoinRithm hosted scheduler runs this same engine for you — see the
 [scheduler README](https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/packages/scheduler/README.md) for the built,
 DB-driven runtime.
