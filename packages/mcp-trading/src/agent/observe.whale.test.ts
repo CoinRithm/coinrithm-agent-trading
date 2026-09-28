@@ -153,7 +153,12 @@ describe("post-gate whale context", () => {
           },
         })),
       } as never,
-      observation(),
+      observation({
+        pmMarkets: [
+          { source: "polymarket", slug: "btc-up" },
+          { source: "kalshi", slug: "btc-up" },
+        ],
+      }),
     );
     expect(result.status).toBe("partial");
     expect(result.reason).toBe("invalid_payload");
@@ -204,5 +209,55 @@ describe("post-gate whale context", () => {
     const result = await enrichWhaleContext(client as never, observation());
     expect(result).toMatchObject({ status: "unavailable", reason: "timeout" });
     expect(JSON.stringify(result)).not.toContain("private upstream detail");
+  });
+
+  it("discovers a wallet after the retained trade cap", async () => {
+    const address = "0x9999999999999999999999999999999999999999";
+    const getPublicPmWhaleWallet = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      data: {
+        source: "polymarket",
+        wallet: address,
+        summary30d: {},
+        daily: [],
+        recentFills: [],
+      },
+    }));
+    const rows: Array<Record<string, unknown>> = Array.from(
+      { length: 10 },
+      () => ({
+        source: "kalshi",
+        eventSlug: "btc-up",
+        side: "BUY",
+      }),
+    );
+    rows.push({
+      source: "polymarket",
+      eventSlug: "btc-up",
+      side: "BUY",
+      walletAddress: address,
+    });
+    const result = await enrichWhaleContext(
+      {
+        getPublicPmWhales: vi.fn(async () => ({
+          ok: true,
+          status: 200,
+          data: { trades: rows },
+        })),
+        getPublicPmWhaleWallet,
+      } as never,
+      observation({
+        pmMarkets: [
+          { source: "polymarket", slug: "btc-up" },
+          { source: "kalshi", slug: "btc-up" },
+        ],
+      }),
+    );
+    expect(result.trades).toHaveLength(10);
+    expect(result.wallets).toHaveLength(1);
+    expect(getPublicPmWhaleWallet).toHaveBeenCalledWith("polymarket", address, {
+      timeoutMs: 5000,
+    });
   });
 });
