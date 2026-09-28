@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.3.4 (prepared, not yet published)
+
+- Adds optional `representativeOutcome` (a full `PublicPmOutcome`, or `null`)
+  and `representativeOutcomeBasis` (`threshold_ladder_line` or
+  `informative_leader`) to prediction-market events. Both are served on open
+  events only: on event detail, and on compact lists requested with
+  `lead=representative`. `informative_leader` is not necessarily the leading
+  outcome.
+- Adds canonical-question `consensus` (the current cross-venue reference:
+  kind, outcomeName, probability, venueCount, spreadPoints, computedAt,
+  methodologyVersion and listings, or `null`) and `consensusHistory` (a daily
+  tape in which every point carries its own outcome label). `listings` may be a
+  subset of the contributing venues.
+- Types the optional per-outcome `hasObservedPrice` flag and nullable
+  `sourceObservation` provenance.
+- All additive; generated from API contract 1.7.0. The basis and consensus
+  kind are strict enums, so a future value needs a matching SDK release.
+
 ## 0.3.3
 
 - Adds the optional `minEntryProbabilityPct` request field to PM quote and open:

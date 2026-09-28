@@ -40,6 +40,21 @@ Clean-install Node/Python checks passed. The GitHub release is published, and
 the official MCP Registry lists **0.7.14** as active and latest after the
 [registry workflow](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/36003403675).
 
+## Prepared delivery, 28 September 2026 (not yet uploaded)
+
+| Registry | Package                  | Version  | Files                                                                |
+| -------- | ------------------------ | -------- | -------------------------------------------------------------------- |
+| npm      | `@coinrithm/mcp-trading` | `0.7.15` | `coinrithm-mcp-trading-0.7.15.tgz`                                   |
+| npm      | `@coinrithm/sdk`         | `0.3.4`  | `coinrithm-sdk-0.3.4.tgz`                                            |
+| PyPI     | `coinrithm-sdk`          | `1.8.4`  | `coinrithm_sdk-1.8.4-py3-none-any.whl`, `coinrithm_sdk-1.8.4.tar.gz` |
+
+The four archives, `release-manifest.json` and `SHA256SUMS.txt` are frozen
+together with a GitHub draft release. The manifest records the archive build
+source. The upload needs the authorized publishing accounts and follows the
+public API contract check for the new fields. Until verification, published
+versions stay 0.7.14, 0.3.3 and 1.8.3, and public install/example pins stay on
+them.
+
 ## Before uploading
 
 1. Use the reviewed archive directory and its `release-manifest.json`. Verify
@@ -53,8 +68,8 @@ the official MCP Registry lists **0.7.14** as active and latest after the
    and skip only that matching upload; do not overwrite or blindly retry.
 
 ```powershell
-npm view @coinrithm/mcp-trading@0.7.14 version dist.integrity --registry=https://registry.npmjs.org/
-npm view @coinrithm/sdk@0.3.3 version dist.integrity --registry=https://registry.npmjs.org/
+npm view @coinrithm/mcp-trading@0.7.15 version dist.integrity --registry=https://registry.npmjs.org/
+npm view @coinrithm/sdk@0.3.4 version dist.integrity --registry=https://registry.npmjs.org/
 python -m pip index versions coinrithm-sdk
 ```
 
@@ -74,16 +89,16 @@ publishing accounts. Keep credentials in the local login/password prompts.
 ```powershell
 npm login --auth-type=web --registry=https://registry.npmjs.org/
 npm whoami --registry=https://registry.npmjs.org/
-npm publish ./coinrithm-sdk-0.3.3.tgz --access public --registry=https://registry.npmjs.org/
-npm publish ./coinrithm-mcp-trading-0.7.14.tgz --access public --registry=https://registry.npmjs.org/
+npm publish ./coinrithm-sdk-0.3.4.tgz --access public --registry=https://registry.npmjs.org/
+npm publish ./coinrithm-mcp-trading-0.7.15.tgz --access public --registry=https://registry.npmjs.org/
 ```
 
 For Python, use Twine in a dedicated local virtual environment. Check both
 archives before uploading them together:
 
 ```powershell
-python -m twine check ./coinrithm_sdk-1.8.3-py3-none-any.whl ./coinrithm_sdk-1.8.3.tar.gz
-python -m twine upload --repository-url https://upload.pypi.org/legacy/ --username __token__ ./coinrithm_sdk-1.8.3-py3-none-any.whl ./coinrithm_sdk-1.8.3.tar.gz
+python -m twine check ./coinrithm_sdk-1.8.4-py3-none-any.whl ./coinrithm_sdk-1.8.4.tar.gz
+python -m twine upload --repository-url https://upload.pypi.org/legacy/ --username __token__ ./coinrithm_sdk-1.8.4-py3-none-any.whl ./coinrithm_sdk-1.8.4.tar.gz
 ```
 
 At Twine's password prompt, use a PyPI API token authorized for `coinrithm-sdk`.
@@ -101,7 +116,7 @@ describe the underlying upload commands.
    target commit, attached archives and checksums must match the reviewed source
    and uploads. Keep the previous release available.
 3. Dispatch `.github/workflows/publish-mcp.yml` against the exact release ref
-   after npm 0.7.14 exists. The workflow publishes **MCP Registry metadata only**;
+   after npm 0.7.15 exists. The workflow publishes **MCP Registry metadata only**;
    it does not upload an npm package. Verify the resulting registry entry.
 4. Update the README, changelog and release-status records from prepared to
    verified publication. Update runnable-example SDK pins to the published

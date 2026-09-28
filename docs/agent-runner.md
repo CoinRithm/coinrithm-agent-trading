@@ -233,7 +233,8 @@ cycle's own PM markets/positions, and may fetch up to two validated public
 wallet movement summaries. It never widens candidates or bypasses risk checks.
 `available`, `partial` and `unavailable` status are explicit; an empty sample does
 not prove no activity. Hosted owners can enable it in Agent Studio under Risk &
-caps. Published MCP `0.7.14` does not include this capability.
+caps. It ships in package version 0.7.15; published MCP `0.7.14` does not
+include it.
 
 Also inactive: the four `abstention` booleans (`onStaleData`, `onWeakSignal`,
 `onMissingQuote`, `onInsufficientBalance`) parse and default to `true`, but no
