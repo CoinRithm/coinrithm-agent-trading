@@ -274,6 +274,8 @@ const OUTCOME_SUMMARY_FIELDS = [
   "lifecycle",
   "priorProbability",
   "venueTerms",
+  "hasObservedPrice",
+  "sourceObservation",
 ] as const;
 
 const WHALE_TRADE_FIELDS = [
@@ -305,6 +307,29 @@ const WHALE_TRADE_FIELDS = [
 function boundedText(value: unknown, maxLength: number): unknown {
   if (typeof value !== "string" || value.length <= maxLength) return value;
   return `${value.slice(0, maxLength - 1)}…`;
+}
+
+function compactSourceObservation(value: unknown): unknown {
+  if (value === null) return null;
+  if (!isJsonRecord(value)) return undefined;
+  return pick(value, [
+    "version",
+    "basis",
+    "provider",
+    "observedAt",
+    "tradeDate",
+  ]);
+}
+
+function compactOutcomeSummary(value: unknown): unknown {
+  if (!isJsonRecord(value)) return value;
+  const outcome = pick(value, OUTCOME_SUMMARY_FIELDS);
+  if ("sourceObservation" in outcome) {
+    const sourceObservation = compactSourceObservation(value.sourceObservation);
+    if (sourceObservation === undefined) delete outcome.sourceObservation;
+    else outcome.sourceObservation = sourceObservation;
+  }
+  return outcome;
 }
 
 function compactWhaleTrade(value: unknown): unknown {
@@ -361,9 +386,7 @@ function eventSummary(value: unknown): unknown {
         })
         .slice(0, 5)
         .map(({ outcome }) =>
-          isJsonRecord(outcome)
-            ? pick(outcome, OUTCOME_SUMMARY_FIELDS)
-            : outcome,
+          isJsonRecord(outcome) ? compactOutcomeSummary(outcome) : outcome,
         )
     : [];
 
@@ -459,9 +482,7 @@ function compactSnapshot(value: unknown): unknown {
           outcomes: value.outcomes
             .slice(0, 10)
             .map((outcome) =>
-              isJsonRecord(outcome)
-                ? pick(outcome, OUTCOME_SUMMARY_FIELDS)
-                : outcome,
+              isJsonRecord(outcome) ? compactOutcomeSummary(outcome) : outcome,
             ),
         }
       : {}),
@@ -497,6 +518,8 @@ function compactComparison(value: unknown): unknown {
             "label",
             "eventAProbability",
             "eventBProbability",
+            "eventAHasObservedPrice",
+            "eventBHasObservedPrice",
             "deltaPoints",
             "presentInA",
             "presentInB",
@@ -2327,6 +2350,12 @@ export function registerTools(
         "2026-07-02 — read the event's volume trend directly from it). " +
         "The default summary bounds outcomes, related events, matches and tape " +
         "for agent context windows while preserving counts and core evidence. " +
+        "Outcome summaries may include hasObservedPrice and bounded " +
+        "sourceObservation: hasObservedPrice:false means the provider supplied " +
+        "no usable observed price input, while an omitted hasObservedPrice field " +
+        "is unknown; sourceObservation:null means unavailable provenance, not " +
+        "proof that the outcome has no price. Neither field is a live, " +
+        "liquidity, or trading guarantee. " +
         "Set detail=full only when the untouched provider-rich record is needed. " +
         "This is the cross-venue research view; for tradability use pm_quote. " +
         "No API key required.",

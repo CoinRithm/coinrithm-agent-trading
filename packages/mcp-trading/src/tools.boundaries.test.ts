@@ -85,6 +85,100 @@ describe("compact market evidence preserves missing and malformed values", () =>
     expect(outcomes).toEqual(original);
   });
 
+  it("preserves observed-price truth without turning zero into unknown or vice versa", () => {
+    const sourceObservation = {
+      version: 1,
+      basis: "provider_quote",
+      provider: "robinhood",
+      observedAt: null,
+      privateField: "drop",
+    };
+    const outcomes = [
+      {
+        name: "true-zero",
+        probability: 0,
+        hasObservedPrice: true,
+        sourceObservation,
+      },
+      {
+        name: "false-zero",
+        probability: 0,
+        hasObservedPrice: false,
+        sourceObservation: null,
+      },
+      { name: "unknown", probability: 0 },
+      {
+        name: "daily-zero",
+        probability: 0,
+        hasObservedPrice: true,
+        sourceObservation: {
+          version: 1,
+          basis: "daily_clearing_mark",
+          provider: "rothera",
+          tradeDate: "2026-09-27",
+        },
+      },
+    ];
+    const event = {
+      source: "rothera",
+      slug: "observed-price",
+      outcomes,
+    };
+    const expectedTrue = {
+      name: "true-zero",
+      probability: 0,
+      hasObservedPrice: true,
+      sourceObservation: {
+        version: 1,
+        basis: "provider_quote",
+        provider: "robinhood",
+        observedAt: null,
+      },
+    };
+    const expectedFalse = {
+      name: "false-zero",
+      probability: 0,
+      hasObservedPrice: false,
+      sourceObservation: null,
+    };
+    const original = structuredClone(event);
+    const compactList = compactPublicPmEvents({ data: [event] }) as any;
+    const compactOverview = compactPublicPmOverview({
+      highlights: { featured: [event] },
+    }) as any;
+    const compactDetail = compactPublicPmEvent({
+      event,
+      relatedEvents: [event],
+      crossSourceMatches: [{ event }],
+      snapshots: [{ outcomes }],
+    }) as any;
+    const assertOutcomes = (rows: any[]) => {
+      expect(rows[0]).toMatchObject({
+        ...expectedTrue,
+        sourceObservation: { observedAt: null },
+      });
+      expect(rows[1]).toMatchObject(expectedFalse);
+      expect(rows[1].sourceObservation).toBeNull();
+      expect(rows[2]).toEqual({ name: "unknown", probability: 0 });
+      expect(rows[2]).not.toHaveProperty("hasObservedPrice");
+      expect(rows[3]).toMatchObject({
+        name: "daily-zero",
+        hasObservedPrice: true,
+        sourceObservation: {
+          basis: "daily_clearing_mark",
+          tradeDate: "2026-09-27",
+        },
+      });
+    };
+    assertOutcomes(compactList.data[0].outcomes);
+    assertOutcomes(compactOverview.highlights.featured[0].outcomes);
+    assertOutcomes(compactDetail.event.outcomes);
+    assertOutcomes(compactDetail.relatedEvents[0].outcomes);
+    assertOutcomes(compactDetail.crossSourceMatches[0].event.outcomes);
+    assertOutcomes(compactDetail.snapshots[0].outcomes);
+    expect(event).toEqual(original);
+  });
+
   it("handles partial event detail and snapshots without inventing related records", () => {
     expect(compactPublicPmEvent({ event: null })).toMatchObject({
       event: null,

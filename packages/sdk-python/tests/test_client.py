@@ -75,6 +75,13 @@ def test_public_pm_outcome_round_trips_lifecycle_null_zero_and_unknown_fields() 
         "externalMarketId": "paused",
         "probability": 0,
         "normalizedProbability": None,
+        "hasObservedPrice": True,
+        "sourceObservation": {
+            "version": 1,
+            "basis": "provider_quote",
+            "provider": "robinhood",
+            "observedAt": None,
+        },
         "priceChange24h": None,
         "lifecycle": {
             "state": "unknown",
@@ -94,10 +101,26 @@ def test_public_pm_outcome_round_trips_lifecycle_null_zero_and_unknown_fields() 
     outcome = PublicPmOutcome.from_dict(payload)
 
     assert outcome.probability == 0
+    assert outcome.has_observed_price is True
+    assert outcome.source_observation is not None
+    assert outcome.source_observation.observed_at is None
     assert outcome.lifecycle is not None
     assert outcome.lifecycle.state.value == "unknown"
     assert outcome.lifecycle["futureLifecycleField"] == "preserved"
     assert outcome.to_dict() == payload
+
+    explicit_missing_payload = {
+        "name": "Explicitly unavailable quote",
+        "hasObservedPrice": False,
+        "sourceObservation": None,
+    }
+    explicit_missing = PublicPmOutcome.from_dict(explicit_missing_payload)
+    assert explicit_missing.has_observed_price is False
+    assert explicit_missing.source_observation is None
+    assert explicit_missing.to_dict() == explicit_missing_payload
+
+    unknown = PublicPmOutcome.from_dict({"name": "Legacy outcome"})
+    assert unknown.to_dict() == {"name": "Legacy outcome"}
 
 
 def test_authenticated_client_sends_bearer_token() -> None:

@@ -307,6 +307,9 @@ from .public_pm_outcome_lifecycle_type_0_result_type_2_type_1 import PublicPmOut
 from .public_pm_outcome_lifecycle_type_0_result_type_3_type_1 import PublicPmOutcomeLifecycleType0ResultType3Type1
 from .public_pm_outcome_lifecycle_type_0_state import PublicPmOutcomeLifecycleType0State
 from .public_pm_outcome_prior_probability_type_0 import PublicPmOutcomePriorProbabilityType0
+from .public_pm_outcome_source_observation_type_0 import PublicPmOutcomeSourceObservationType0
+from .public_pm_outcome_source_observation_type_0_basis import PublicPmOutcomeSourceObservationType0Basis
+from .public_pm_outcome_source_observation_type_0_provider import PublicPmOutcomeSourceObservationType0Provider
 from .public_pm_outcome_venue_terms import PublicPmOutcomeVenueTerms
 from .public_pm_overview_response import PublicPmOverviewResponse
 from .public_pm_overview_response_by_category_item import PublicPmOverviewResponseByCategoryItem
@@ -650,6 +653,9 @@ __all__ = (
     "PublicPmOutcomeLifecycleType0ResultType3Type1",
     "PublicPmOutcomeLifecycleType0State",
     "PublicPmOutcomePriorProbabilityType0",
+    "PublicPmOutcomeSourceObservationType0",
+    "PublicPmOutcomeSourceObservationType0Basis",
+    "PublicPmOutcomeSourceObservationType0Provider",
     "PublicPmOutcomeVenueTerms",
     "PublicPmOverviewResponse",
     "PublicPmOverviewResponseByCategoryItem",

@@ -407,6 +407,11 @@ describe("compact public prediction-market MCP responses", () => {
       presentInA: true,
       presentInB: true,
       isShared: true,
+      ...(index === 0
+        ? { eventAHasObservedPrice: false, eventBHasObservedPrice: true }
+        : index === 1
+          ? { eventAHasObservedPrice: true, eventBHasObservedPrice: false }
+          : {}),
     }));
     const source = {
       event: {
@@ -463,6 +468,17 @@ describe("compact public prediction-market MCP responses", () => {
     expect(compact.crossSourceMatches).toHaveLength(5);
     expect(compact.crossSourceMatches[0].comparison.outcomeCount).toBe(20);
     expect(compact.crossSourceMatches[0].comparison.outcomes).toHaveLength(5);
+    expect(compact.crossSourceMatches[0].comparison.outcomes[0]).toMatchObject({
+      eventAHasObservedPrice: false,
+      eventBHasObservedPrice: true,
+    });
+    expect(compact.crossSourceMatches[0].comparison.outcomes[1]).toMatchObject({
+      eventAHasObservedPrice: true,
+      eventBHasObservedPrice: false,
+    });
+    expect(
+      compact.crossSourceMatches[0].comparison.outcomes[2],
+    ).not.toHaveProperty("eventAHasObservedPrice");
     expect(
       compact.crossSourceMatches[0].comparison.outcomes[0].deltaPoints,
     ).toBe(-10);
@@ -504,6 +520,11 @@ describe("compact public prediction-market MCP responses", () => {
       presentInA: true,
       presentInB: true,
       isShared: true,
+      ...(index === 0
+        ? { eventAHasObservedPrice: false, eventBHasObservedPrice: true }
+        : index === 1
+          ? { eventAHasObservedPrice: true, eventBHasObservedPrice: false }
+          : {}),
     }));
     const cluster = {
       clusterId: "kalshi:x|polymarket:y",
@@ -560,6 +581,17 @@ describe("compact public prediction-market MCP responses", () => {
     expect(pair.matchId).toBe(19466);
     expect(pair.comparison.outcomeCount).toBe(20);
     expect(pair.comparison.outcomes).toHaveLength(5);
+    expect(pair.comparison.outcomes[0]).toMatchObject({
+      eventAHasObservedPrice: false,
+      eventBHasObservedPrice: true,
+    });
+    expect(pair.comparison.outcomes[1]).toMatchObject({
+      eventAHasObservedPrice: true,
+      eventBHasObservedPrice: false,
+    });
+    expect(pair.comparison.outcomes[2]).not.toHaveProperty(
+      "eventAHasObservedPrice",
+    );
     expect(JSON.stringify(compact).length).toBeLessThan(
       JSON.stringify(source).length / 2,
     );

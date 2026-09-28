@@ -1561,10 +1561,25 @@ export interface components {
         PublicPmOutcome: {
             externalMarketId?: string;
             name: string;
-            /** @description Provider-implied probability on a 0–100 scale (raw venue quote; may include vig, so a book's outcomes can sum above 100). */
+            /** @description Provider-implied probability on a 0–100 scale (raw venue input; may include vig, so a book's outcomes can sum above 100). Execution eligibility and a usable quote are reported by the quote endpoint, not inferred from this field alone. */
             probability?: number | null;
-            /** @description Vig-removed display probability on a 0–100 scale, proportionally normalized so a complete exclusive book sums to ~100. Null when the book is not a complete exclusive book (threshold ladders, partial catalogs, non-market sources). The raw `probability` remains the executable venue quote. */
+            /** @description Vig-removed display probability on a 0–100 scale, proportionally normalized so a complete exclusive book sums to ~100. Null when the book is not a complete exclusive book (threshold ladders, partial catalogs, non-market sources). This is display context, not an execution quote. */
             normalizedProbability?: number | null;
+            /** @description Optional source-data truth flag. `true` means a supported source observation validated a usable observed price, including numeric 0; `false` is emitted only for the Rothera explicit writer-null marker and means no usable observed price input. Omitted means unknown, legacy, or unsupported source data. This flag does not claim live pricing, liquidity, or tradability. */
+            hasObservedPrice?: boolean;
+            /** @description Optional bounded provenance for the stored outcome price. Null means the supported source marker was unavailable or explicitly null; it does not prove that the outcome has no price. Timestamps describe source evidence, not current freshness or executable liquidity. */
+            sourceObservation?: {
+                /** @description Source-observation schema version; currently 1. */
+                version: number;
+                /** @enum {string} */
+                basis: "provider_quote" | "provider_trade" | "daily_clearing_mark" | "clearing_settlement" | "last_price_untimed";
+                /** @enum {string} */
+                provider: "robinhood" | "forecastex" | "rothera";
+                /** Format: date-time */
+                observedAt?: string | null;
+                /** Format: date */
+                tradeDate?: string | null;
+            } | null;
             /** @description 24h probability move in PERCENTAGE POINTS on the 0–100 scale (e.g. 5.5 means +5.5 points), NOT a fraction and not a relative percent change. */
             priceChange24h?: number | null;
             /** @description Per-outcome provider lifecycle evidence. Terminal states are results, not live quotes; an open state with providerAcceptingOrders=false is a paused quote. */
