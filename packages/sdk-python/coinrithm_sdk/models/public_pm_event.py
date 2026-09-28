@@ -46,10 +46,15 @@ class PublicPmEvent:
         best_bid (float | None | Unset):
         best_ask (float | None | Unset):
         spread (float | None | Unset):
-        price_change_24_h (float | None | Unset): Leading-outcome 24h probability move in PERCENTAGE POINTS on the 0–100
-            scale, NOT a fraction.
-        price_change_7_d (float | None | Unset): Leading-outcome 7d probability move in PERCENTAGE POINTS on the 0–100
-            scale, NOT a fraction.
+        price_change_24_h (float | None | Unset): Signed event-level probability change in percentage points (-100 to
+            +100; probabilities are 0 to 100), not a fraction or relative percent change. The representative contract or
+            outcome and nominal 24h lookback basis vary by venue; this need not be the displayed leader or largest outcome
+            move. The lookback may be a previous-session close or an observed-window span rather than exactly 24 hours. Use
+            outcome.priceChange24h for a named outcome's change. Null means unavailable.
+        price_change_7_d (float | None | Unset): Signed event-level probability change over the venue's available seven-
+            day lookback, in percentage points (-100 to +100; probabilities are 0 to 100), not a fraction or relative
+            percent change. The representative contract or outcome varies by venue; this need not be the displayed leader or
+            largest outcome move. Null means unavailable.
         probability_book (None | PublicPmEventProbabilityBookType0 | Unset): Book-level probability basis: `basis` is
             `normalized_complete_book` when outcomes carry normalizedProbability (with `rawSum` and `overroundPoints`), else
             `raw_quotes`.
