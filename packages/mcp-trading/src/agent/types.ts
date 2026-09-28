@@ -218,6 +218,9 @@ export interface ObjectiveConfig {
 // slice. `websearch` = external lookups (an injection surface + a cost — it can
 // inform reasoning but NEVER widen a cap, since caps live in the runner);
 // `indicators` = runner-computed RSI/MACD/etc. fed into the observation.
+// `whale_context` reads bounded public prediction-market whale context only
+// after the deterministic gate fires, and only when PM is in the venue scope.
+// It never widens the candidate set or acts as a trading signal by itself.
 // `universe_scan` (2026-08-18, direct user request): each cycle the runner
 // pulls the top 24h movers across CoinRithm's tracked coin universe, resolves
 // the top few into FULL watch entries (price, sentiment, indicators when that
@@ -232,6 +235,7 @@ export const ALLOWED_CAPABILITIES = [
   "indicators",
   "news",
   "universe_scan",
+  "whale_context",
 ] as const;
 export type Capability = (typeof ALLOWED_CAPABILITIES)[number];
 
@@ -539,6 +543,84 @@ export interface NewsItem {
   coins?: string[]; // related coin slugs
 }
 
+export type WhaleContextStatus = "available" | "partial" | "unavailable";
+export type WhaleContextFailure =
+  "timeout" | "network_error" | "http_error" | "invalid_payload";
+
+export interface WhaleTradeContext {
+  source: string;
+  eventSlug: string;
+  eventTitle?: string;
+  marketQuestion?: string;
+  side: string;
+  outcome?: string;
+  usdValue?: number;
+  price?: number;
+  sourceMarketRef?: string;
+  valueBasis?: string;
+  evidenceType?: string;
+  evidenceRef?: string;
+  nativeValue?: number;
+  nativeCurrency?: string;
+  availability?: "live" | "delayed" | "unavailable";
+  tradedAt?: string;
+  observedAt?: string;
+  latencySeconds?: number;
+  walletAddress?: string;
+}
+
+export interface WhaleWalletFillContext {
+  eventSlug?: string;
+  eventTitle?: string;
+  marketQuestion?: string;
+  side?: string;
+  outcome?: string;
+  usdValue?: number;
+  price?: number;
+  evidenceType?: string;
+  tradedAt?: string;
+  sourceMarketRef?: string;
+}
+
+export interface WhaleWalletContext {
+  source: string;
+  address: string;
+  asOf?: string;
+  summary30d?: {
+    basis?: string;
+    windowStart?: string;
+    tradeCount?: number;
+    notionalUsd?: number;
+    buyNotionalUsd?: number;
+    sellNotionalUsd?: number;
+  };
+  rollup?: {
+    available?: boolean;
+    coveredDays?: number;
+    from?: string;
+    to?: string;
+    computedAt?: string;
+  };
+  daily: Array<{
+    day?: string;
+    tradeCount?: number;
+    buyCount?: number;
+    sellCount?: number;
+    notionalUsd?: number;
+  }>;
+  recentFills: WhaleWalletFillContext[];
+}
+
+export interface WhaleContext {
+  status: WhaleContextStatus;
+  fetchedAt: string;
+  coverage: "relevant_events" | "no_relevant_events";
+  trades: WhaleTradeContext[];
+  wallets: WhaleWalletContext[];
+  omitted: number;
+  reason?: WhaleContextFailure;
+}
+
 export interface Observation {
   asOf: string; // server time the bundle was built
   scopes: string[];
@@ -559,6 +641,7 @@ export interface Observation {
   newClosedTrades: Array<Record<string, unknown>>; // fired stops/liqs/settlements
   polledBeforeWrite: boolean; // whether this cycle synced /trades first
   news?: NewsItem[]; // recent high-importance watchlist news (only with `news` capability)
+  whaleContext?: WhaleContext; // bounded public PM context, only after gate fires
   // Universe context beyond the resolved candidates (only with `universe_scan`):
   // the remaining top movers as symbol + 24h change, so the model sees breadth
   // without the runner paying a resolve/market call per row.

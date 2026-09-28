@@ -562,6 +562,113 @@ describe("runner lifecycle and failure boundaries", () => {
   });
 });
 
+describe("whale context runner gating", () => {
+  it("enriches only after the gate and captures the enriched decision input", async () => {
+    const whale = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      data: {
+        trades: [
+          {
+            source: "kalshi",
+            eventSlug: "btc-up",
+            side: "BUY",
+            outcome: "Yes",
+          },
+        ],
+      },
+    }));
+    const captured: DecisionInputRecord[] = [];
+    let modelUser = "";
+    const d = deps(
+      {
+        onDecisionInputRecord: (record) => captured.push(record),
+      },
+      baseClient({
+        getPublicPmWhales: whale,
+        getPublicPmWhaleWallet: vi.fn(),
+      }),
+      {
+        label: "capture",
+        decide: async (input) => {
+          modelUser = input.user;
+          return {
+            ok: true,
+            text: JSON.stringify({
+              decision: "skip",
+              confidence: 0.5,
+              actions: [],
+            }),
+          };
+        },
+      },
+    );
+    d.spec.capabilities = ["whale_context"];
+    d.spec.venues = ["pm"];
+
+    const result = await runCycle(d);
+
+    expect(result.decision).toBe("skip");
+    expect(whale).toHaveBeenCalledOnce();
+    expect(modelUser).toContain('"whaleContext"');
+    expect(modelUser).toContain('"eventSlug":"btc-up"');
+    const input = captured.find((record) => record.phase === "decision_input");
+    expect(input?.observationFingerprint).toBe(result.observationHash);
+  });
+
+  it("does not read whale context on a gate skip or mechanical cycle", async () => {
+    const whale = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      data: { trades: [] },
+    }));
+    const skipped = deps(
+      {},
+      baseClient({
+        getPublicPmWhales: whale,
+      }),
+    );
+    skipped.spec.capabilities = ["whale_context"];
+    skipped.spec.venues = ["pm"];
+    skipped.spec.triggerPolicy = {
+      mode: "event",
+      skipLlmWhenNoTrigger: true,
+      alwaysManageOpenPositions: false,
+      maxLlmCallsPerHour: 0,
+      debounceMinutes: 0,
+      pmEvalCooldownMinutes: 0,
+    };
+    await runCycle(skipped);
+    expect(whale).not.toHaveBeenCalled();
+
+    const mechanical = deps(
+      {},
+      baseClient({ getPublicPmWhales: whale }),
+      provider({ decision: "skip", confidence: 0.5, actions: [] }),
+    );
+    mechanical.spec.capabilities = ["whale_context"];
+    mechanical.spec.venues = ["pm"];
+    mechanical.spec.model = { provider: "mechanical", name: "market-implied" };
+    await runCycle(mechanical);
+    expect(whale).not.toHaveBeenCalled();
+
+    const noOptInWhale = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      data: { trades: [] },
+    }));
+    const noOptIn = deps(
+      {},
+      baseClient({ getPublicPmWhales: noOptInWhale }),
+      provider({ decision: "skip", confidence: 0.5, actions: [] }),
+    );
+    noOptIn.spec.capabilities = [];
+    noOptIn.spec.venues = ["pm"];
+    await runCycle(noOptIn);
+    expect(noOptInWhale).not.toHaveBeenCalled();
+  });
+});
+
 describe("take-profit repair boundaries", () => {
   const action: ProposedAction = {
     type: "futures_open",

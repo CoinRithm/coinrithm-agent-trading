@@ -212,6 +212,74 @@ export class CoinRithmClient {
     }
   }
 
+  // Keyless, bounded reads against the public PM surface. These deliberately
+  // bypass the authenticated request path so a runner key cannot leak into a
+  // public context lookup. No retries are added here; the enrichment is
+  // optional and its deadline includes response-body consumption.
+  private async publicRequest(
+    path: string,
+    query?: Query,
+    timeoutMs = 5_000,
+  ): Promise<ApiResult> {
+    const url = new URL(this.baseUrl + path);
+    for (const [key, value] of Object.entries(query ?? {})) {
+      if (value !== undefined && value !== null && value !== "")
+        url.searchParams.set(key, String(value));
+    }
+    const controller = new AbortController();
+    if (this.signal?.aborted) {
+      return { ok: false, status: 0, data: { error: "network_error" } };
+    }
+    const cancel = () => controller.abort();
+    this.signal?.addEventListener("abort", cancel, { once: true });
+    const deadlineMs = Math.min(timeoutMs, this.requestTimeoutMs);
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, deadlineMs);
+    let rejectAborted!: () => void;
+    const aborted = new Promise<never>((_, reject) => {
+      rejectAborted = () => reject(new Error("public request aborted"));
+      controller.signal.addEventListener("abort", rejectAborted, {
+        once: true,
+      });
+    });
+    if (this.signal?.aborted) cancel();
+    try {
+      const perform = async (): Promise<ApiResult> => {
+        const res = await this.fetchFn(url.toString(), {
+          method: "GET",
+          headers: { Accept: "application/json" },
+          signal: controller.signal,
+        });
+        const text = await res.text();
+        let data: unknown = text;
+        if (text) {
+          try {
+            data = JSON.parse(text);
+          } catch {
+            /* leave as text */
+          }
+        }
+        return { ok: res.ok, status: res.status, data };
+      };
+      return await Promise.race([perform(), aborted]);
+    } catch {
+      return {
+        ok: false,
+        status: 0,
+        data: {
+          error: timedOut ? "timeout" : "network_error",
+        },
+      };
+    } finally {
+      clearTimeout(timer);
+      controller.signal.removeEventListener("abort", rejectAborted);
+      this.signal?.removeEventListener("abort", cancel);
+    }
+  }
+
   // ── reads ──────────────────────────────────────────────────────────────────
   me(trace?: AgentTrace) {
     return this.request("GET", "/api/agent/me", { trace });
@@ -238,6 +306,24 @@ export class CoinRithmClient {
         ? "/api/coins/top-losers"
         : "/api/coins/top-gainers",
       { query: { limit }, trace },
+    );
+  }
+  getPublicPmWhales(options?: { timeoutMs?: number; limit?: number }) {
+    return this.publicRequest(
+      "/api/prediction-markets/whales",
+      { limit: options?.limit },
+      options?.timeoutMs,
+    );
+  }
+  getPublicPmWhaleWallet(
+    source: string,
+    wallet: string,
+    options?: { timeoutMs?: number },
+  ) {
+    return this.publicRequest(
+      `/api/prediction-markets/whales/wallets/${encodeURIComponent(source)}/${encodeURIComponent(wallet)}`,
+      undefined,
+      options?.timeoutMs,
     );
   }
   market(coinId: string, trace?: AgentTrace) {
