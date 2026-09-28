@@ -264,6 +264,21 @@ export async function enrichWhaleContext(
       omitted += 1;
       continue;
     }
+    const walletAddress = asStr(row.walletAddress)?.trim();
+    const validWalletAddress =
+      walletAddress &&
+      PUBLIC_WALLET_SOURCES.has(source) &&
+      FULL_EVM_ADDRESS.test(walletAddress)
+        ? walletAddress.toLowerCase()
+        : undefined;
+    if (
+      validWalletAddress &&
+      !walletRequests.some(
+        (item) => item.source === source && item.address === validWalletAddress,
+      )
+    ) {
+      walletRequests.push({ source, address: validWalletAddress });
+    }
     if (trades.length >= MAX_WHALE_TRADES) {
       omitted += 1;
       continue;
@@ -319,23 +334,8 @@ export async function enrichWhaleContext(
       ...(asNum(row.latencySeconds) !== undefined
         ? { latencySeconds: asNum(row.latencySeconds) }
         : {}),
+      ...(validWalletAddress ? { walletAddress: validWalletAddress } : {}),
     };
-    const walletAddress = asStr(row.walletAddress)?.trim();
-    if (
-      walletAddress &&
-      PUBLIC_WALLET_SOURCES.has(source) &&
-      FULL_EVM_ADDRESS.test(walletAddress)
-    ) {
-      trade.walletAddress = walletAddress.toLowerCase();
-      if (
-        !walletRequests.some(
-          (item) =>
-            item.source === source && item.address === trade.walletAddress,
-        )
-      ) {
-        walletRequests.push({ source, address: trade.walletAddress });
-      }
-    }
     trades.push(trade);
   }
 
