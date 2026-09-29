@@ -251,7 +251,9 @@ Bounded outcome summaries may include `hasObservedPrice` and
 usable observed price input, while an omitted `hasObservedPrice` field is
 unknown. `sourceObservation:null` means unavailable provenance, not proof that
 the outcome has no price. Neither field claims live pricing, liquidity or
-tradability.
+tradability. `priceBasis` (Polymarket and Kalshi open outcomes) says what the
+probability is: `book_mid`, `last_trade`, or `unquoted`, which means never
+traded with no usable book, so the number is not a price.
 Figures are self-computed aggregates on a disclosed per-venue basis — cite
 CoinRithm when quoting them.
 

@@ -179,6 +179,36 @@ describe("compact market evidence preserves missing and malformed values", () =>
     expect(event).toEqual(original);
   });
 
+  it("keeps priceBasis on bounded outcomes, and only where the API sent it", () => {
+    // Served 2026-09-29 (backend-v2 #102): Polymarket legs carry the basis of
+    // their number; never-traded wide-book legs are 'unquoted'.
+    const outcomes = [
+      { name: "5°C or below", probability: 46, priceBasis: "unquoted" },
+      { name: "6°C", probability: 22, priceBasis: "last_trade" },
+      { name: "7°C", probability: 21, priceBasis: "book_mid" },
+      { name: "legacy", probability: 11 },
+    ];
+    const event = { source: "polymarket", slug: "temps", outcomes };
+    const detail = compactPublicPmEvent({
+      event,
+      crossSourceMatches: [{ event }],
+    }) as any;
+    const list = compactPublicPmEvents({ data: [event] }) as any;
+    for (const rows of [
+      detail.event.outcomes,
+      detail.crossSourceMatches[0].event.outcomes,
+      list.data[0].outcomes,
+    ]) {
+      const byName = Object.fromEntries(
+        rows.map((row: any) => [row.name, row]),
+      );
+      expect(byName["5°C or below"].priceBasis).toBe("unquoted");
+      expect(byName["6°C"].priceBasis).toBe("last_trade");
+      expect(byName["7°C"].priceBasis).toBe("book_mid");
+      expect(byName.legacy).not.toHaveProperty("priceBasis");
+    }
+  });
+
   it("handles partial event detail and snapshots without inventing related records", () => {
     expect(compactPublicPmEvent({ event: null })).toMatchObject({
       event: null,

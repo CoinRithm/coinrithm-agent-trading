@@ -1570,6 +1570,21 @@ export interface components {
             normalizedProbability?: number | null;
             /** @description Optional source-data truth flag. `true` means a supported source observation validated a usable observed price, including numeric 0; `false` is emitted only for the Rothera explicit writer-null marker and means no usable observed price input. Omitted means unknown, legacy, or unsupported source data. This flag does not claim live pricing, liquidity, or tradability. */
             hasObservedPrice?: boolean;
+            /**
+             * @description Polymarket and Kalshi open outcomes only: what `probability` is.
+             *     `unquoted` means never traded and no usable book, so `probability`
+             *     is not a price (a Polymarket wide-book midpoint such as 48 on a
+             *     3/93 book, or a stored 0 on Kalshi). `book_mid` is the order-book
+             *     midpoint (Polymarket: a spread of 10 points or less; Kalshi: the
+             *     venue's quote midpoint). `last_trade` is the last traded price
+             *     (Polymarket uses it when the book is wider than 10 points). Absent
+             *     on other venues, on settled outcomes and on responses served before
+             *     2026-09-29. Like `hasObservedPrice`, it is not an execution quote;
+             *     use the quote endpoint for tradability. A plain string, so a basis
+             *     added later cannot break older clients: treat an unknown value as
+             *     unknown.
+             */
+            priceBasis?: string;
             /** @description Optional bounded provenance for the stored outcome price. Null means the supported source marker was unavailable or explicitly null; it does not prove that the outcome has no price. Timestamps describe source evidence, not current freshness or executable liquidity. */
             sourceObservation?: {
                 /** @description Source-observation schema version; currently 1. */
