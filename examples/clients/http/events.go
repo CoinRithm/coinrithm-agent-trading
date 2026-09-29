@@ -16,7 +16,7 @@ func run() error {
 	}
 	// Public read: no Authorization header. Standard library only.
 	client := &http.Client{Timeout: 30 * time.Second}
-	response, err := client.Get(strings.TrimRight(baseURL, "/") + "/api/prediction-markets/events?limit=3")
+	response, err := client.Get(strings.TrimRight(baseURL, "/") + "/api/prediction-markets/events?status=open&limit=3")
 	if err != nil {
 		return err
 	}
