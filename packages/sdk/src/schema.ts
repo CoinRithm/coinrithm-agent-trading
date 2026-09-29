@@ -1635,6 +1635,14 @@ export interface components {
             id: string;
             slug: string;
             title: string;
+            /**
+             * @description Kalshi single-market (Yes/No) events only: the contract's subject as
+             *     the venue labels it, e.g. "Over 2.5 maps" under the title
+             *     "... : Total Maps". Yes and No resolve against this line. Absent
+             *     when the venue gives none, when it is just "Yes", and on every
+             *     other event; the Yes/No outcome names and the title are unchanged.
+             */
+            marketSubtitle?: string;
             description?: string | null;
             status: string;
             /** Format: date-time */
