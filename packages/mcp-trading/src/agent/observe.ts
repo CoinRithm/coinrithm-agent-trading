@@ -25,7 +25,12 @@ import {
 import { asObj, asArr, asNum, asStr } from "./extract.js";
 import { computeIndicators, Candle, IndicatorSet } from "./indicators.js";
 import { scanSetups } from "./setups.js";
-import { freshnessOf, pmQualityOf, pmDecisionSupportOf } from "./pmContext.js";
+import {
+  freshnessOf,
+  pmQualityOf,
+  pmDecisionSupportOf,
+  pmConsensusOf,
+} from "./pmContext.js";
 import { deriveCapitalBook, usesCapitalSizing } from "./capitalSizing.js";
 
 export interface ObserveOutput {
@@ -706,6 +711,9 @@ function expandPmMarkets(
         // the mechanical BENCHMARK agents' deterministic highest-volume pick rule.
         // Same for every outcome of the event; undefined on an older backend.
         const volumeUsd = asNum(ev.volume24h) ?? undefined;
+        // Event-level cross-venue consensus, copied onto every outcome row of
+        // the event as-is (never mapped to or flipped for a specific outcome).
+        const consensus = pmConsensusOf(ev);
         // At most a few outcomes per event so a wide multi-outcome market
         // (e.g. dozens of price buckets) can't explode the prompt. Drop
         // outcomes the backend flagged NOT openable (eligible === false) so the
@@ -747,6 +755,7 @@ function expandPmMarkets(
           // resolution date and the venue-reported liquidity (USD).
           endDate: asStr(ev.endDate) ?? undefined,
           liquidityUsd: asNum(ev.liquidity) ?? undefined,
+          ...(consensus !== undefined ? { consensus } : {}),
         }));
       })
       .filter(

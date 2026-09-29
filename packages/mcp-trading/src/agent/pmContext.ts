@@ -1,6 +1,11 @@
 // Compact allowlists for already-returned API facts. Never infer eligibility,
 // source type, winning probability, or reference data from a quality badge.
-import type { Freshness, PmDecisionSupport, PmQuality } from "./types.js";
+import type {
+  Freshness,
+  PmConsensus,
+  PmDecisionSupport,
+  PmQuality,
+} from "./types.js";
 import { asArr, asNum, asObj } from "./extract.js";
 
 export const PM_BLOCK_REASONS = [
@@ -134,6 +139,51 @@ export function pmQualityOf(value: unknown): PmQuality | undefined {
       omitted(raw.warningReasons, PM_WARNING_REASONS) ||
       omitted(raw.blockReasons, PM_BLOCK_REASONS),
   };
+}
+
+export const PM_CONSENSUS_KINDS = ["binary", "leader"] as const;
+
+// The discover event's optional `referenceProbability` (0..100 points, open
+// events only) as event-level consensus on the 0..1 `prob` scale. Returns
+// undefined when the key is absent (older backend) and null when it is null
+// or unusable. It is copied as-is: never mapped onto a specific outcome row
+// and never flipped for a NO side, because orientation must not be inferred.
+// An unknown kind, or a leader with no named outcome, cannot be read safely
+// and is null.
+export function pmConsensusOf(
+  event: Record<string, unknown>,
+): PmConsensus | null | undefined {
+  if (!Object.hasOwn(event, "referenceProbability")) return undefined;
+  const raw = event.referenceProbability;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  const probability = asNum(r.probability);
+  const venues = asNum(r.venueCount);
+  const spreadPts = asNum(r.spreadPoints);
+  const kind = knownCode(r.kind, PM_CONSENSUS_KINDS) as
+    PmConsensus["kind"] | undefined;
+  const outcome =
+    typeof r.outcomeName === "string" && r.outcomeName.trim() !== ""
+      ? r.outcomeName.slice(0, 80)
+      : r.outcomeName == null
+        ? null
+        : undefined;
+  if (
+    probability == null ||
+    probability < 0 ||
+    probability > 100 ||
+    venues == null ||
+    !Number.isSafeInteger(venues) ||
+    venues < 1 ||
+    spreadPts == null ||
+    spreadPts < 0 ||
+    spreadPts > 100 ||
+    !kind ||
+    outcome === undefined ||
+    (kind === "leader" && outcome === null)
+  )
+    return null;
+  return { prob: probability / 100, venues, spreadPts, kind, outcome };
 }
 
 export function pmDecisionSupportOf(
