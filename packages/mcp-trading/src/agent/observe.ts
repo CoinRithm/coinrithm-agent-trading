@@ -432,11 +432,14 @@ const PM_COIN_NAMES: Record<string, string> = {
 };
 
 // Repeated micro-contracts are useful for execution smoke tests but are a poor
-// calibration universe: outcomes overlap heavily, resolve too quickly to admit
-// meaningful independent research, and drown the public scorecard in Bitcoin
-// coin flips. Non-mechanical calibration agents receive a deeper discovery
-// page with these rows removed. Mechanical baselines intentionally keep the
-// unmodified universe so their reference contract remains reproducible.
+// forecasting universe: outcomes overlap heavily, resolve too quickly to admit
+// meaningful independent research, and are priced off the same public spot
+// prices the agent sees. In production (30 days to 2026-09-29) these churn rows
+// were 72% of all LLM PM decisions and drowned the public scorecard in Bitcoin
+// coin flips. Every non-mechanical agent (any objective, not only
+// calibration) therefore receives a deeper discovery page with these rows
+// removed. Mechanical baselines intentionally keep the unmodified universe so
+// their reference contract remains reproducible.
 const PM_CALIBRATION_CHURN_RE =
   /(updown|up-or-down|-5-?min|-5m-|-15m|15m(?:-|$)|(?:5|15)\s+min(?:ute)?s?|-1h-|hourly|-daily-|\bdaily\b|what-price-will[^\n]*(?:today|tomorrow)|-above-on-|-price-on-|this[ -]week|of[ -]the[ -]week|-weekly-)/i;
 
@@ -1070,10 +1073,10 @@ export async function observe(
   let pmResolutions: PmResolution[] = [];
   let pmMarkets: PmMarket[] = [];
   if (wantPm) {
-    const curatedCalibrationBoard =
-      spec.objective?.primary === "calibration" &&
-      spec.model?.provider !== "mechanical";
-    const primaryDiscoveryLimit = curatedCalibrationBoard ? 30 : 12;
+    // Curated board for every non-mechanical agent: churn rows removed and a
+    // deeper page so the filter does not empty it (see PM_CALIBRATION_CHURN_RE).
+    const curatedPmBoard = spec.model?.provider !== "mechanical";
+    const primaryDiscoveryLimit = curatedPmBoard ? 30 : 12;
     // Bias PM discovery toward CRYPTO markets the agent has a price view on, the
     // only PM markets where a price agent's view is even relevant (probed
     // 2026-06-24: the default board is World Cup / elections / F1). The discover
@@ -1099,8 +1102,10 @@ export async function observe(
         ).length
       : 0;
     if (firstCount < 3 && pmQuery !== "Bitcoin") {
+      // Same page depth as the primary: the Bitcoin board is the most
+      // churn-heavy query, so a 12-row page could filter down to nothing.
       const fb = await client.discoverPmMarkets(
-        { q: "Bitcoin", limit: 12 },
+        { q: "Bitcoin", limit: primaryDiscoveryLimit },
         trace,
       );
       if (fb.ok) pmDiscR = fb;
@@ -1189,7 +1194,7 @@ export async function observe(
       // quoteable id NESTED at outcomes[].externalMarketId — expandPmMarkets turns
       // that into one row per quoteable outcome (eligible + not-held filtered).
       let mergedRows = expandPmMarkets(pmDiscR.data, heldPmKeys);
-      if (curatedCalibrationBoard) {
+      if (curatedPmBoard) {
         mergedRows = mergedRows.filter(
           (market) => !isCalibrationChurnMarket(market),
         );
@@ -1235,7 +1240,7 @@ export async function observe(
           let secRows = expandPmMarkets(secR.data, heldPmKeys)
             .filter((m) => titleMentionsCoin(m.title, topAnalyzed))
             .filter((m) => !primaryEventKeys.has(`${m.source}|${m.slug}`));
-          if (curatedCalibrationBoard) {
+          if (curatedPmBoard) {
             secRows = secRows.filter(
               (market) => !isCalibrationChurnMarket(market),
             );
