@@ -155,6 +155,10 @@ for (const sample of samples) {
           assert.equal(request.headers["x-api-key"], undefined);
           if (sample.name === "events" || sample.name === "trades")
             assert.equal(url.searchParams.get("limit"), "3");
+          // The default list also returns closed events (on 2026-09-29 the
+          // first three were closed July markets); first contact asks for open.
+          if (sample.name === "events")
+            assert.equal(url.searchParams.get("status"), "open");
           if (sample.name === "quote") {
             assert.match(request.headers["content-type"], /application\/json/);
             assert.deepEqual(JSON.parse(request.body), {
