@@ -3,7 +3,8 @@ import {
   EXECUTION_POLICY_SUMMARY,
   PAPER_EXECUTION_VERSION,
 } from "./executionPolicy.js";
-import { PAPER_NOTE } from "./tools.js";
+import { PAPER_NOTE, PAPER_NOTE_SHORT } from "./tools.js";
+import { SERVER_INSTRUCTIONS } from "./instructions.js";
 
 // The stale-text regression this guards: a served/tool description that claims
 // paper execution charges nothing while the backend charges real modeled costs.
@@ -20,7 +21,9 @@ describe("execution-policy cost honesty (drift + contract guard)", () => {
   // NAME the versioned policy and NEVER match the costless regex.
   const surfaces: Array<[string, string]> = [
     ["EXECUTION_POLICY_SUMMARY", EXECUTION_POLICY_SUMMARY],
-    ["PAPER_NOTE (served on MCP tool descriptions)", PAPER_NOTE],
+    ["PAPER_NOTE (served in the MCP server instructions)", PAPER_NOTE],
+    ["PAPER_NOTE_SHORT (served on MCP tool descriptions)", PAPER_NOTE_SHORT],
+    ["SERVER_INSTRUCTIONS (MCP initialize result)", SERVER_INSTRUCTIONS],
   ];
   for (const [name, text] of surfaces) {
     it(`${name}: names the versioned policy and is never costless`, () => {
