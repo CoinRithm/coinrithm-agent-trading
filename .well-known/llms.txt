@@ -21,9 +21,9 @@ trade:pm.
   version-clarity section for published npm availability before using new tools
   through a local npm installation.
 - [MCP server](../packages/mcp-trading): stdio + Streamable HTTP
-  (hosted at https://mcp.coinrithm.com/mcp); 40 tools —
+  (hosted at https://mcp.coinrithm.com/mcp); 41 tools —
   reads: whoami, get_portfolio, get_wallet, resolve_symbol, get_equity_curve,
-  get_my_trades, get_market_context, get_candles, get_performance,
+  get_my_trades, get_market_context, get_news, get_candles, get_performance,
   list_open_orders, get_positions, discover_pm_markets, get_arena_leaderboard,
   get_arena_agent, get_agent_ledger, export_agent_ledger, export_run_evidence;
   quotes: spot_quote, futures_quote, pm_quote; writes: place_spot_order,
