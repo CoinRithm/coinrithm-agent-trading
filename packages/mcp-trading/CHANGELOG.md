@@ -5,6 +5,26 @@ ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (t
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
 versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
+## Unreleased (runner source only, not part of the prepared 0.7.15)
+
+- The PM system prompt no longer claims a "genuine information edge" on crypto
+  price markets or makes a PM bet REQUIRED. It says the market already prices
+  the same public data, that short-dated price markets are usually efficient,
+  and that a bet needs a probability gap larger than costs plus a named reason;
+  skipping PM is always valid. The ref anti-hallucination rule is unchanged.
+- Every non-mechanical agent (not only `objective.primary: calibration`) gets
+  the micro-contract churn filter and the deeper 30-row discovery page,
+  including the Bitcoin fallback. Mechanical baselines keep the unmodified
+  12-row universe.
+- PM board rows carry the discover event's optional `referenceProbability` as
+  event-level `consensus` (`prob` 0..1, `venues`, `spreadPts`, `kind`,
+  `outcome`), never mapped to or flipped for a specific outcome. Absent or
+  unusable stays unknown.
+- Non-mechanical PM agents see their own settled forecast record
+  (`pmCalibration` from `GET /api/agent/performance`) when it has at least 20
+  settled forecasts. It is read at most once per 30 minutes per credential,
+  without retries, and omitted on any failure.
+
 ## 0.7.15 (prepared, not yet published)
 
 - The hosted HTTP server recovers the pasted-markdown descriptor link
