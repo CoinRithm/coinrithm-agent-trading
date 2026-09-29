@@ -185,6 +185,7 @@ agent file.
 | `get_equity_curve`                                     | read          | `GET /api/agent/equity-curve`                                                        |
 | `get_my_trades` (venue)                                | read          | `GET /api/agent/trades`                                                              |
 | `get_market_context` (coinId)                          | read          | `GET /api/agent/market/:coinId`                                                      |
+| `get_news` (coins, limit?, hours?, minImportance?)     | read          | `GET /api/agent/news`                                                                |
 | `get_candles` (coinId, range)                          | read          | `GET /api/agent/market/:coinId/candles`                                              |
 | `discover_pm_markets`                                  | read          | `GET /api/agent/pm/discover`                                                         |
 | `get_performance`                                      | read          | `GET /api/agent/performance`                                                         |

@@ -1184,6 +1184,62 @@ export function registerTools(
   );
 
   server.registerTool(
+    "get_news",
+    {
+      title: "Get scored crypto news",
+      description:
+        "Recent crypto news for up to 25 coins, linked to each coin by " +
+        "CoinRithm's curated coin-news graph. Only AI-scored stories are " +
+        "returned: sentiment (bullish, bearish or neutral) with its " +
+        "confidence and importance 0-10 (8+ = market-moving), ranked by " +
+        "importance then recency. ageMinutes is each story's age. Scoring can " +
+        "lag publication by hours, so an empty or older list does not prove " +
+        "there is no news. Needs an API key with read scope.",
+      inputSchema: {
+        coins: z
+          .string()
+          .min(1)
+          .max(400)
+          .describe(
+            'Comma-separated symbols or slugs, e.g. "BTC,ETH" (max 25).',
+          ),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(25)
+          .optional()
+          .describe("Stories to return, 1-25 (default 8)."),
+        hours: z
+          .number()
+          .int()
+          .min(1)
+          .max(168)
+          .optional()
+          .describe("Look-back window in hours, 1-168 (default 48)."),
+        minImportance: z
+          .number()
+          .int()
+          .min(0)
+          .max(10)
+          .optional()
+          .describe("Only stories at or above this importance (default 0)."),
+        agentTrace: AGENT_TRACE_SCHEMA,
+      },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations("Get scored crypto news"),
+    },
+    async ({ coins, limit, hours, minImportance, agentTrace }, extra) =>
+      present(
+        await client.getNews(
+          { coins, limit, hours, minImportance },
+          requestKey(extra),
+          agentTrace,
+        ),
+      ),
+  );
+
+  server.registerTool(
     "discover_pm_markets",
     {
       title: "Discover prediction markets",
@@ -2753,8 +2809,9 @@ export function registerTools(
         "biggest 24h price moves — top gainers or top losers, ordered by " +
         "24h change percent. Use this to DISCOVER candidates beyond your " +
         "watchlist (abnormal rapid moves), then deep-analyze each candidate " +
-        "with get_candles (OHLC + indicators) and get_market_context " +
-        "(sentiment, news) before any trade decision. Rows carry coinId, " +
+        "with get_candles (OHLC + indicators), get_market_context " +
+        "(sentiment, related markets) and get_news before any trade " +
+        "decision. Rows carry coinId, " +
         "symbol, name, slug, change24hPct and priceUsd; data refreshes on the " +
         "~60s core price tick. Pass the row's coinId straight to get_candles " +
         "/ get_market_context — do NOT re-resolve it from the symbol, since " +
