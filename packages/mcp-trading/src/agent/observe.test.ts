@@ -772,6 +772,130 @@ describe("observe", () => {
     expect(observation.pmMarkets[0]?.slug).toBe("kxbtc15m-26jul181200");
   });
 
+  // Churn rows were 72% of LLM PM decisions (30 days to 2026-09-29), from
+  // agents of every objective, so the curated board is no longer gated on
+  // objective.primary === "calibration".
+  const churnBoard = () => ({
+    data: [
+      {
+        source: "kalshi",
+        slug: "kxbtc15m-26jul181200",
+        title: "BTC 15 min · $64,000 target",
+        outcomes: [{ externalMarketId: "fast", name: "Yes", probability: 52 }],
+      },
+      {
+        source: "polymarket",
+        slug: "bitcoin-up-or-down-september-29-4am-et",
+        title: "Bitcoin Up or Down - September 29, 4AM ET",
+        outcomes: [{ externalMarketId: "hour", name: "Up", probability: 50 }],
+      },
+      {
+        source: "forecastex",
+        slug: "yxhbt-123126-100000",
+        title: "Will Bitcoin exceed $100,000 in 2026?",
+        outcomes: [{ externalMarketId: "year", name: "Yes", probability: 31 }],
+      },
+    ],
+  });
+
+  it.each([
+    ["realized_pnl objective", { primary: "realized_pnl" as const }],
+    ["no objective", undefined],
+  ])(
+    "curates the board for a non-calibration LLM agent (%s)",
+    async (_label, objective) => {
+      const llmSpec = {
+        ...spec,
+        venues: ["pm"] as ("spot" | "futures" | "pm")[],
+        objective: objective ? { ...objective, secondary: [] } : undefined,
+        model: { provider: "anthropic" as const, name: "test-model" },
+      };
+      const calls: Array<{ q?: string; limit?: number }> = [];
+      const c = fakeClient({
+        pmPositions: async () => okData({ positions: [] }),
+        discoverPmMarkets: async (q: { q?: string; limit?: number }) => {
+          calls.push(q);
+          return okData(churnBoard());
+        },
+      });
+      const { observation } = await observe(c, llmSpec, newState("r"));
+      expect(calls[0]?.limit).toBe(30);
+      expect(observation.pmMarkets.map((m) => m.slug)).toEqual([
+        "yxhbt-123126-100000",
+      ]);
+      expect(observation.pmMarkets[0]?.ref).toBe("pm1");
+    },
+  );
+
+  it("curates the board when the model is omitted (hosted default is an LLM)", async () => {
+    const llmSpec = {
+      ...spec,
+      venues: ["pm"] as ("spot" | "futures" | "pm")[],
+      objective: undefined,
+      model: undefined,
+    };
+    const c = fakeClient({
+      pmPositions: async () => okData({ positions: [] }),
+      discoverPmMarkets: async () => okData(churnBoard()),
+    });
+    const { observation } = await observe(c, llmSpec, newState("r"));
+    expect(observation.pmMarkets.map((m) => m.slug)).toEqual([
+      "yxhbt-123126-100000",
+    ]);
+  });
+
+  it("keeps the unmodified universe for a non-calibration mechanical agent", async () => {
+    const mechanicalSpec = {
+      ...spec,
+      venues: ["pm"] as ("spot" | "futures" | "pm")[],
+      objective: { primary: "realized_pnl" as const, secondary: [] },
+      model: { provider: "mechanical" as const, name: "market-implied" },
+    };
+    const calls: Array<{ q?: string; limit?: number }> = [];
+    const c = fakeClient({
+      pmPositions: async () => okData({ positions: [] }),
+      discoverPmMarkets: async (q: { q?: string; limit?: number }) => {
+        calls.push(q);
+        return okData(churnBoard());
+      },
+    });
+    const { observation } = await observe(c, mechanicalSpec, newState("r"));
+    expect(calls[0]?.limit).toBe(12);
+    expect(observation.pmMarkets.map((m) => m.slug)).toEqual([
+      "kxbtc15m-26jul181200",
+      "bitcoin-up-or-down-september-29-4am-et",
+      "yxhbt-123126-100000",
+    ]);
+  });
+
+  it("uses the same deeper page for the Bitcoin fallback: 30 for an LLM agent, 12 for mechanical", async () => {
+    const run = async (provider: "anthropic" | "mechanical") => {
+      const calls: Array<{ q?: string; limit?: number }> = [];
+      const c = fakeClient({
+        pmPositions: async () => okData({ positions: [] }),
+        discoverPmMarkets: async (q: { q?: string; limit?: number }) => {
+          calls.push(q);
+          return okData(q.q === "Bitcoin" ? churnBoard() : { data: [] });
+        },
+      });
+      await observe(
+        c,
+        {
+          ...spec,
+          venues: ["pm"] as ("spot" | "futures" | "pm")[],
+          risk: { ...spec.risk, watchlist: ["SOL"] },
+          model: { provider, name: "m" },
+        },
+        newState("r"),
+      );
+      return calls;
+    };
+    const llm = await run("anthropic");
+    expect(llm[1]).toEqual({ q: "Bitcoin", limit: 30 });
+    const mechanical = await run("mechanical");
+    expect(mechanical[1]).toEqual({ q: "Bitcoin", limit: 12 });
+  });
+
   it("fires ONE crypto-targeted secondary discover when the primary board lacks the top analyzed coin, merging its refs continuously", async () => {
     // Top coin is SOL. Its primary query is thin (1 event < 3) so the existing
     // Bitcoin fallback replaces the board with BTC markets — leaving SOL, the coin
