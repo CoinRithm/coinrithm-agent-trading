@@ -1074,9 +1074,9 @@ export async function observe(
       spec.objective?.primary === "calibration" &&
       spec.model?.provider !== "mechanical";
     const primaryDiscoveryLimit = curatedCalibrationBoard ? 30 : 12;
-    // Bias PM discovery toward CRYPTO markets the agent has a price view on — the
-    // only PM edge a price agent reliably has (probed 2026-06-24: the default board
-    // is World Cup / elections / F1, which an agent has no edge on). The discover
+    // Bias PM discovery toward CRYPTO markets the agent has a price view on, the
+    // only PM markets where a price agent's view is even relevant (probed
+    // 2026-06-24: the default board is World Cup / elections / F1). The discover
     // `q` is an AND/phrase match, so query ONE coin — the agent's TOP watchlist coin,
     // where its price view is sharpest — never the joined list (matches ~nothing).
     // Fall back to Bitcoin (always plentiful) — NEVER the general non-crypto board.
@@ -1196,9 +1196,9 @@ export async function observe(
       }
 
       // ── Crypto-targeted secondary discover (pm_ref hallucination fix) ────────
-      // The prompt tells the model its SHARPEST PM edge is the crypto price view it
-      // JUST formed — but that is only actionable if the board actually LISTS a
-      // market for the coin it analysed. The primary board is keyed to ONE query
+      // The prompt tells the model crypto price markets are where its price view
+      // is at least relevant, but that is only usable if the board actually LISTS
+      // a market for the coin it analysed. The primary board is keyed to ONE query
       // (the top watchlist coin, with a Bitcoin fallback when that coin is thin),
       // so an agent whose top coin got displaced by the Bitcoin fallback sees NO
       // market for the coin it has a view on and an 8B model invents a pmN ref

@@ -335,10 +335,9 @@ describe("buildSystemPrompt — pm_ref escape hatch (hallucination fix)", () => 
     return spec;
   };
 
-  it("adds an ESCAPE HATCH: an unlisted crypto view is a legitimate SKIP, not a reason to invent a ref", () => {
+  it("keeps the ref anti-hallucination rule: an unlisted market is a skip, never an invented ref", () => {
     const out = buildSystemPrompt(specWithPm(), "strategy");
-    expect(out).toMatch(/ESCAPE HATCH/);
-    expect(out).toMatch(/legitimate SKIP for PM/i);
+    expect(out).toMatch(/if none fits, skip PM in one clause/i);
     // Explicitly forbids inventing/incrementing a ref and names the wasted-cycle cost.
     expect(out).toMatch(/do NOT invent, guess, or increment a ref/i);
     expect(out).toMatch(/pm_ref_unknown/);
@@ -346,13 +345,70 @@ describe("buildSystemPrompt — pm_ref escape hatch (hallucination fix)", () => 
     expect(out).toMatch(
       /listed in observation\.pmMarkets THIS cycle \(pm1\.\.pmN\)/,
     );
-    // The scan REQUIREMENT (edge thesis) is preserved, not removed.
-    expect(out).toMatch(/REQUIRED that you scan/);
   });
 
   it("keeps the pm_open action ref instruction scoped to THIS cycle's listed refs (pm1..pmN)", () => {
     const out = buildSystemPrompt(specWithPm(), "strategy");
     expect(out).toMatch(/one of the refs listed THIS cycle \(pm1\.\.pmN\)/);
+  });
+});
+
+describe("buildSystemPrompt: honest PM bar (no invented edge, no bet pressure)", () => {
+  const specWithPm = () => {
+    const spec = parseSkill(renderFolderOfOne("a", "conservative")).spec;
+    spec.venues = ["pm", "futures", "spot"];
+    return spec;
+  };
+  const pmBar = (out: string) =>
+    out.split("\n").find((line) => line.startsWith("- PM BAR:")) ?? "";
+
+  it("drops the claimed information edge and the REQUIRED bet scan", () => {
+    const out = buildSystemPrompt(specWithPm(), "strategy");
+    const bar = pmBar(out);
+    expect(bar).not.toBe("");
+    expect(out).not.toMatch(/genuine information edge/i);
+    expect(out).not.toMatch(/SHARPEST PM EDGE/);
+    expect(bar).not.toContain("REQUIRED");
+    expect(out).not.toMatch(/REQUIRED that you scan/);
+    expect(out).not.toMatch(/mistake to avoid/i);
+  });
+
+  it("states the market already prices public data and that skipping PM is never a failure", () => {
+    const bar = pmBar(buildSystemPrompt(specWithPm(), "strategy"));
+    expect(bar).toMatch(/market price already reflects the same public prices/);
+    expect(bar).toMatch(
+      /short-dated price markets are usually efficiently priced/,
+    );
+    expect(bar).toMatch(/differs from the market's `prob` by more than costs/);
+    expect(bar).toMatch(/name the specific reason/);
+    expect(bar).toMatch(
+      /Skipping PM is always a valid outcome and is never a failure/,
+    );
+  });
+
+  it("no longer pushes PM bets from a futures cap, an empty setups list, news or settlement wins", () => {
+    const spec = specWithPm();
+    spec.capabilities = ["indicators", "news"];
+    const out = buildSystemPrompt(spec, "strategy");
+    expect(out).not.toMatch(/PIVOT to pm_open/);
+    expect(out).toMatch(/A futures cap is not a reason to bet PM/);
+    expect(out).not.toMatch(/BEFORE you skip, check observation\.pmMarkets/);
+    expect(out).toMatch(
+      /an empty setups list is not a reason to open a PM bet/,
+    );
+    expect(out).not.toMatch(/exactly the kind of mispricing edge to act on/);
+    const feedback = formatPmResolutions([
+      { id: 1, eventTitle: "x", side: "yes", status: "settled_win" },
+    ]).join("\n");
+    expect(feedback).not.toMatch(/lean into that edge/i);
+    expect(feedback).toMatch(/not on a single win or loss/);
+  });
+
+  it("leaves the futures decisive-trader persona text in place", () => {
+    const out = buildSystemPrompt(specWithPm(), "strategy");
+    expect(out).toContain(
+      "## How to act — a decisive trader in character, not a bystander",
+    );
   });
 });
 
