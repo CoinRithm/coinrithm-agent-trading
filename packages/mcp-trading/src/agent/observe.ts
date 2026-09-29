@@ -17,6 +17,7 @@ import {
   WatchEntry,
   IndicatorContext,
   AgentTrace,
+  PmCalibration,
   WhaleContext,
   WhaleTradeContext,
   WhaleWalletContext,
@@ -30,6 +31,7 @@ import {
   pmQualityOf,
   pmDecisionSupportOf,
   pmConsensusOf,
+  pmCalibrationOf,
 } from "./pmContext.js";
 import { deriveCapitalBook, usesCapitalSizing } from "./capitalSizing.js";
 
@@ -374,6 +376,58 @@ export async function enrichWhaleContext(
     omitted,
     ...(reason ? { reason } : {}),
   };
+}
+
+// The agent's own settled PM forecast record changes only as bets settle, so
+// it is read at most once per PM_CALIBRATION_TTL_MS per credential. The cache
+// is module-level because the hosted scheduler builds a new client every
+// cycle; it is keyed by a hash of base URL + API key, never the key itself.
+// Every attempt (success, failure, or a backend without the field) is cached
+// for the full TTL, a read is never retried (no 429 retry either) and it has
+// its own short deadline, so it can neither block nor repeat within a cycle.
+const PM_CALIBRATION_TTL_MS = 30 * 60_000;
+const PM_CALIBRATION_READ_TIMEOUT_MS = 5_000;
+const PM_CALIBRATION_CACHE_MAX = 2_000;
+const pmCalibrationCache = new Map<
+  string,
+  { at: number; value: Promise<PmCalibration | undefined> }
+>();
+
+export function clearPmCalibrationCache(): void {
+  pmCalibrationCache.clear();
+}
+
+export async function readPmCalibration(
+  client: CoinRithmClient,
+  trace?: AgentTrace,
+  nowMs: number = Date.now(),
+): Promise<PmCalibration | undefined> {
+  try {
+    const key = client.credentialFingerprint();
+    const hit = pmCalibrationCache.get(key);
+    if (hit && nowMs >= hit.at && nowMs - hit.at < PM_CALIBRATION_TTL_MS)
+      return await hit.value;
+    const value = client
+      .performance(trace, {
+        timeoutMs: PM_CALIBRATION_READ_TIMEOUT_MS,
+        maxRetries: 0,
+      })
+      .then((r) =>
+        r.ok ? pmCalibrationOf(asObj(r.data).pmCalibration) : undefined,
+      )
+      .catch(() => undefined);
+    // Re-insert so Map order tracks recency, then drop the oldest entries.
+    pmCalibrationCache.delete(key);
+    pmCalibrationCache.set(key, { at: nowMs, value });
+    for (const oldest of pmCalibrationCache.keys()) {
+      if (pmCalibrationCache.size <= PM_CALIBRATION_CACHE_MAX) break;
+      pmCalibrationCache.delete(oldest);
+    }
+    return await value;
+  } catch {
+    // A client without the read (or any synchronous failure) omits the block.
+    return undefined;
+  }
 }
 
 // The 1D endpoint nominally returns 288 five-minute bars. Timestamps and gaps
@@ -1081,6 +1135,7 @@ export async function observe(
   let capitalPmData: unknown;
   let pmResolutions: PmResolution[] = [];
   let pmMarkets: PmMarket[] = [];
+  let pmCalibration: PmCalibration | undefined;
   if (wantPm) {
     // Curated board for every non-mechanical agent: churn rows removed and a
     // deeper page so the filter does not empty it (see PM_CALIBRATION_CHURN_RE).
@@ -1095,13 +1150,19 @@ export async function observe(
     const topCoin = (spec.risk.watchlist[0] ?? "").toUpperCase();
     const pmQuery =
       PM_COIN_NAMES[topCoin] ?? spec.risk.watchlist[0] ?? "Bitcoin";
-    const [pmPosR, pmDiscFirst] = await Promise.all([
+    // The own-calibration read runs alongside the PM reads (cached, bounded,
+    // never fatal). Mechanical agents have no prompt, so they skip it.
+    const [pmPosR, pmDiscFirst, calibration] = await Promise.all([
       client.pmPositions(undefined, trace),
       client.discoverPmMarkets(
         { q: pmQuery, limit: primaryDiscoveryLimit },
         trace,
       ),
+      curatedPmBoard
+        ? readPmCalibration(client, trace)
+        : Promise.resolve(undefined),
     ]);
+    pmCalibration = calibration;
     let pmDiscR = pmDiscFirst;
     const firstCount = pmDiscR.ok
       ? asArr(
@@ -1343,6 +1404,7 @@ export async function observe(
     pmPositions,
     pmResolutions,
     pmMarkets,
+    ...(pmCalibration ? { pmCalibration } : {}),
     watch,
     news,
     // Deterministic structure flags computed from the watch indicators — the

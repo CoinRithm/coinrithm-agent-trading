@@ -40,6 +40,33 @@ describe("API request deadlines", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it("applies a shorter per-call deadline, never a longer one", async () => {
+    vi.useFakeTimers();
+    const fetchFn = vi.fn<typeof fetch>().mockImplementation(never);
+    const client = new CoinRithmClient({
+      ...config,
+      fetchFn,
+      requestTimeoutMs: 100,
+    });
+    const short = client.performance(undefined, { timeoutMs: 20 });
+    await vi.advanceTimersByTimeAsync(20);
+    expect(await short).toMatchObject({
+      status: 0,
+      data: {
+        error: "request_timeout",
+        message: "API request exceeded 20ms deadline",
+      },
+    });
+    for (const timeoutMs of [1_000, 0, 1.5]) {
+      const capped = client.performance(undefined, { timeoutMs });
+      await vi.advanceTimersByTimeAsync(100);
+      expect(await capped).toMatchObject({
+        data: { message: "API request exceeded 100ms deadline" },
+      });
+    }
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it("bounds stalled response bodies as part of the same request", async () => {
     vi.useFakeTimers();
     const response = new Response("fixture");

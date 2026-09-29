@@ -489,6 +489,25 @@ export interface PmMarket {
   consensus?: PmConsensus | null;
 }
 
+// The agent's OWN settled PM forecast record, from the optional
+// `pmCalibration` block of GET /api/agent/performance. Present in the
+// observation only with at least PM_CALIBRATION_MIN_SETTLED settled forecasts.
+// Brier is 0..1 (lower is better); percentages are whole 0..100 points.
+export interface PmCalibration {
+  settled: number;
+  brierAgent: number | null; // the agent's own forecasts
+  brierMarket: number | null; // the market price at entry, same bets
+  meanForecastPct: number | null; // what the agent said on average
+  winRatePct: number | null; // how often those bets actually won
+  bands: Array<{
+    fromPct: number;
+    toPct: number;
+    n: number;
+    meanForecastPct: number;
+    winRatePct: number;
+  }>;
+}
+
 export interface PmConsensus {
   prob: number; // 0..1, the same scale as PmMarket.probability
   venues: number; // how many venues the reference combines
@@ -647,6 +666,9 @@ export interface Observation {
   pmPositions: PmPosition[]; // open prediction-market positions
   pmResolutions: PmResolution[]; // recently-settled PM bets (settlement-feedback loop; reflective context, not an action)
   pmMarkets: PmMarket[]; // discovered quote-ready PM candidates (only if pm venue)
+  // Own settled PM forecast record (pm venue, non-mechanical, >= 20 settled);
+  // read at most once per 30 minutes per credential, omitted when unavailable.
+  pmCalibration?: PmCalibration;
   watch: WatchEntry[];
   setups: SetupSignal[]; // deterministic per-cycle structure flags (see SetupSignal)
   // Market-wide mood (the Fear & Greed index) — a one-line regime read fetched once

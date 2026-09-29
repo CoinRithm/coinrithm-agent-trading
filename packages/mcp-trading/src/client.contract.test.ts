@@ -264,6 +264,12 @@ const runnerContracts: Contract[] = [
     { coins: "BTC,ETH", limit: "2" },
   ],
   ["pmPositions", [undefined, trace], "GET", "/api/agent/positions/pm"],
+  [
+    "performance",
+    [trace, { timeoutMs: 5_000, maxRetries: 0 }],
+    "GET",
+    "/api/agent/performance",
+  ],
   ["pmQuote", [pm, trace], "POST", "/api/agent/pm/quote", undefined, pm],
   [
     "openFutures",

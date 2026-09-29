@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   freshnessOf,
+  pmCalibrationOf,
   pmConsensusOf,
   pmDecisionSupportOf,
   pmQualityOf,
@@ -166,5 +167,51 @@ describe("event-level cross-venue consensus (referenceProbability)", () => {
     ["blank outcome", ref({ outcomeName: " " })],
   ])("treats %s as unknown (null), never as agreement", (_label, event) => {
     expect(pmConsensusOf(event)).toBeNull();
+  });
+});
+
+describe("own settled PM calibration record (pmCalibration)", () => {
+  it("needs at least 20 whole settled forecasts", () => {
+    for (const settled of [undefined, null, "40", 19, 20.5, -1, NaN]) {
+      expect(pmCalibrationOf({ settled })).toBeUndefined();
+    }
+    expect(pmCalibrationOf(null)).toBeUndefined();
+    expect(pmCalibrationOf({ settled: 20 })).toEqual({
+      settled: 20,
+      brierAgent: null,
+      brierMarket: null,
+      meanForecastPct: null,
+      winRatePct: null,
+      bands: [],
+    });
+  });
+
+  it("keeps unknown numbers null instead of guessing and caps the bands", () => {
+    const band = (i: number) => ({
+      fromPct: i,
+      toPct: i + 1,
+      n: 1,
+      meanForecastPct: i,
+      winRatePct: 0,
+    });
+    const out = pmCalibrationOf({
+      settled: 25,
+      brierAgent: 1.2,
+      brierMarket: "0.18",
+      meanForecastPct: 101,
+      winRatePct: -3,
+      bands: [
+        ...Array.from({ length: 12 }, (_, i) => band(i)),
+        { fromPct: 0, toPct: 101, n: 5, meanForecastPct: 50, winRatePct: 50 },
+      ],
+    });
+    expect(out).toMatchObject({
+      brierAgent: null,
+      brierMarket: null,
+      meanForecastPct: null,
+      winRatePct: null,
+    });
+    expect(out?.bands).toHaveLength(10);
+    expect(out?.bands[0]).toEqual(band(0));
   });
 });

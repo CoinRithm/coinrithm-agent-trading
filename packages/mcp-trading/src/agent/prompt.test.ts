@@ -326,6 +326,40 @@ describe("buildUserPrompt — settlement feedback integration", () => {
     expect(buildSystemPrompt(spec, "strategy")).not.toMatch(/consensus/);
   });
 
+  it("shows the own calibration record only with PM, and explains how to use it", () => {
+    const pmCalibration = {
+      settled: 40,
+      brierAgent: 0.28,
+      brierMarket: 0.183,
+      meanForecastPct: 57,
+      winRatePct: 34,
+      bands: [
+        { fromPct: 50, toPct: 60, n: 40, meanForecastPct: 55, winRatePct: 30 },
+      ],
+    };
+    const obs = baseObs({ pmCalibration });
+    const json = (text: string) =>
+      JSON.parse(text.match(/```json\n(.*)\n```/)![1]);
+    expect(
+      json(buildUserPrompt(obs, undefined, { venues: ["pm"] })).pmCalibration,
+    ).toEqual(pmCalibration);
+    expect(
+      json(buildUserPrompt(obs, undefined, { venues: ["futures"] })),
+    ).not.toHaveProperty("pmCalibration");
+    expect(json(buildUserPrompt(baseObs()))).not.toHaveProperty(
+      "pmCalibration",
+    );
+    const spec = parseSkill(renderFolderOfOne("a", "conservative")).spec;
+    spec.venues = ["pm"];
+    const system = buildSystemPrompt(spec, "strategy");
+    expect(system).toMatch(/YOUR OWN settled PM forecast record/);
+    expect(system).toMatch(
+      /win rate below what you said in a band\), shade your forecast toward the market or skip/,
+    );
+    spec.venues = ["futures"];
+    expect(buildSystemPrompt(spec, "strategy")).not.toMatch(/pmCalibration/);
+  });
+
   it("omits the resolutions block when there are none", () => {
     const out = buildUserPrompt(baseObs());
     expect(out).not.toMatch(/settlement feedback/i);

@@ -2,6 +2,7 @@
 // source type, winning probability, or reference data from a quality badge.
 import type {
   Freshness,
+  PmCalibration,
   PmConsensus,
   PmDecisionSupport,
   PmQuality,
@@ -184,6 +185,66 @@ export function pmConsensusOf(
   )
     return null;
   return { prob: probability / 100, venues, spreadPts, kind, outcome };
+}
+
+// Below this many settled forecasts the record is too noisy to steer the
+// model, so it is not shown at all.
+export const PM_CALIBRATION_MIN_SETTLED = 20;
+const PM_CALIBRATION_MAX_BANDS = 10;
+
+// The optional `pmCalibration` block of GET /api/agent/performance, compacted
+// for the prompt: Brier to 3 decimals, percentages to whole points, bands
+// with an invalid or empty range dropped. Returns undefined when the block is
+// missing, malformed or has fewer than PM_CALIBRATION_MIN_SETTLED settled.
+export function pmCalibrationOf(value: unknown): PmCalibration | undefined {
+  const raw = asObj(value);
+  const settled = asNum(raw.settled);
+  if (
+    settled == null ||
+    !Number.isSafeInteger(settled) ||
+    settled < PM_CALIBRATION_MIN_SETTLED
+  )
+    return undefined;
+  const brier = (v: unknown): number | null => {
+    const n = asNum(v);
+    return n != null && n >= 0 && n <= 1 ? Math.round(n * 1000) / 1000 : null;
+  };
+  const pct = (v: unknown): number | null => {
+    const n = asNum(v);
+    return n != null && n >= 0 && n <= 100 ? Math.round(n) : null;
+  };
+  const bands = asArr(raw.bands)
+    .map(asObj)
+    .flatMap((b) => {
+      const fromPct = asNum(b.fromPct);
+      const toPct = asNum(b.toPct);
+      const n = asNum(b.n);
+      const meanForecastPct = pct(b.meanForecastPct);
+      const winRatePct = pct(b.winRatePct);
+      if (
+        fromPct == null ||
+        toPct == null ||
+        fromPct < 0 ||
+        toPct > 100 ||
+        fromPct >= toPct ||
+        n == null ||
+        !Number.isSafeInteger(n) ||
+        n < 1 ||
+        meanForecastPct == null ||
+        winRatePct == null
+      )
+        return [];
+      return [{ fromPct, toPct, n, meanForecastPct, winRatePct }];
+    })
+    .slice(0, PM_CALIBRATION_MAX_BANDS);
+  return {
+    settled,
+    brierAgent: brier(raw.brierAgent),
+    brierMarket: brier(raw.brierMarket),
+    meanForecastPct: pct(raw.meanForecastPct),
+    winRatePct: pct(raw.winRatePct),
+    bands,
+  };
 }
 
 export function pmDecisionSupportOf(
