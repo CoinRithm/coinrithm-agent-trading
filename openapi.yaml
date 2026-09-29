@@ -2026,16 +2026,19 @@ paths:
     get:
       operationId: getPublicPredictionMarketPriceHistory
       tags: [public-pm-data]
-      summary: Probability history for one event
+      summary: Probability history for one outcome of an event
       description: |
-        Time series of outcome probabilities. Documented here because it is
-        advertised on the public API page and in llms-full.txt — a contract
-        that claims to BE the documented surface cannot leave an advertised
-        endpoint undocumented.
+        Native venue price history for ONE outcome of the event: the Yes leg
+        of a binary market, else the first outcome in venue order. `outcome`
+        names it; on a multi-outcome event, use event detail for the others.
 
-        Depth varies by venue and is not uniform: check
-        `coverage.probabilityHistoryStartDay` on /sources before assuming a
-        window exists. A venue can have a long catalog and shallow history.
+        Polymarket and Kalshi only. Other venues answer 200 with `points: []`,
+        which means "not served here", not "no trading".
+
+        `interval` is a lookback range, not a bucket size. The venue picks
+        point spacing (Polymarket 1d: about one point per minute). Depth still
+        varies by venue: check `coverage.probabilityHistoryStartDay` on
+        /sources before assuming a long window exists.
       security: []
       parameters:
         - name: source
@@ -2048,32 +2051,44 @@ paths:
           schema: { type: string, minLength: 1 }
         - name: interval
           in: query
-          description: Bucket size; venue support varies.
-          schema: { type: string, enum: ["1h", "1d", "1w", "max"], default: "1d" }
+          description: |
+            Lookback range. Aliases 24h, 7d, 30d and all map to 1d, 1w, 1m and
+            max; any other value is served as 1w. The response echoes the
+            range actually served.
+          schema: { type: string, enum: ["1h", "6h", "1d", "1w", "1m", "max"], default: "1w" }
       responses:
         "200":
-          description: Probability points, oldest first
+          description: Probability points for one outcome, oldest first
           content:
             application/json:
               schema:
                 type: object
                 additionalProperties: true
+                required: [source, slug, interval, points]
                 properties:
-                  markets:
+                  source: { type: string }
+                  slug: { type: string }
+                  interval:
+                    type: string
+                    description: The range served, in canonical form (1h, 6h, 1d, 1w, 1m or max).
+                  outcome:
+                    description: The outcome this series describes; null when the event has no outcomes.
+                    oneOf:
+                      - type: object
+                        additionalProperties: true
+                        properties:
+                          name: { type: [string, "null"] }
+                          externalMarketId: { type: [string, "null"] }
+                      - type: "null"
+                  points:
                     type: array
                     items:
                       type: object
                       additionalProperties: true
+                      required: [t, p]
                       properties:
-                        market: { type: string }
-                        history:
-                          type: array
-                          items:
-                            type: object
-                            additionalProperties: true
-                            properties:
-                              t: { type: integer, description: Unix ms }
-                              p: { type: number, description: Probability 0..1 }
+                        t: { type: integer, description: Unix ms }
+                        p: { type: number, minimum: 0, maximum: 1, description: Probability 0..1 }
         "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
         "500": { $ref: "#/components/responses/ServerError" }

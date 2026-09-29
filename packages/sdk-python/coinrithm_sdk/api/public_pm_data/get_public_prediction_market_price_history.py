@@ -20,7 +20,7 @@ def _get_kwargs(
     slug: str,
     *,
     interval: GetPublicPredictionMarketPriceHistoryInterval
-    | Unset = GetPublicPredictionMarketPriceHistoryInterval.VALUE_1,
+    | Unset = GetPublicPredictionMarketPriceHistoryInterval.VALUE_3,
 ) -> dict[str, Any]:
 
     params: dict[str, Any] = {}
@@ -91,24 +91,27 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
     interval: GetPublicPredictionMarketPriceHistoryInterval
-    | Unset = GetPublicPredictionMarketPriceHistoryInterval.VALUE_1,
+    | Unset = GetPublicPredictionMarketPriceHistoryInterval.VALUE_3,
 ) -> Response[Error | GetPublicPredictionMarketPriceHistoryResponse200]:
-    """Probability history for one event
+    r"""Probability history for one outcome of an event
 
-     Time series of outcome probabilities. Documented here because it is
-    advertised on the public API page and in llms-full.txt — a contract
-    that claims to BE the documented surface cannot leave an advertised
-    endpoint undocumented.
+     Native venue price history for ONE outcome of the event: the Yes leg
+    of a binary market, else the first outcome in venue order. `outcome`
+    names it; on a multi-outcome event, use event detail for the others.
 
-    Depth varies by venue and is not uniform: check
-    `coverage.probabilityHistoryStartDay` on /sources before assuming a
-    window exists. A venue can have a long catalog and shallow history.
+    Polymarket and Kalshi only. Other venues answer 200 with `points: []`,
+    which means \"not served here\", not \"no trading\".
+
+    `interval` is a lookback range, not a bucket size. The venue picks
+    point spacing (Polymarket 1d: about one point per minute). Depth still
+    varies by venue: check `coverage.probabilityHistoryStartDay` on
+    /sources before assuming a long window exists.
 
     Args:
         source (PublicPmSourceSlug):
         slug (str):
         interval (GetPublicPredictionMarketPriceHistoryInterval | Unset):  Default:
-            GetPublicPredictionMarketPriceHistoryInterval.VALUE_1.
+            GetPublicPredictionMarketPriceHistoryInterval.VALUE_3.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -137,24 +140,27 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
     interval: GetPublicPredictionMarketPriceHistoryInterval
-    | Unset = GetPublicPredictionMarketPriceHistoryInterval.VALUE_1,
+    | Unset = GetPublicPredictionMarketPriceHistoryInterval.VALUE_3,
 ) -> Error | GetPublicPredictionMarketPriceHistoryResponse200 | None:
-    """Probability history for one event
+    r"""Probability history for one outcome of an event
 
-     Time series of outcome probabilities. Documented here because it is
-    advertised on the public API page and in llms-full.txt — a contract
-    that claims to BE the documented surface cannot leave an advertised
-    endpoint undocumented.
+     Native venue price history for ONE outcome of the event: the Yes leg
+    of a binary market, else the first outcome in venue order. `outcome`
+    names it; on a multi-outcome event, use event detail for the others.
 
-    Depth varies by venue and is not uniform: check
-    `coverage.probabilityHistoryStartDay` on /sources before assuming a
-    window exists. A venue can have a long catalog and shallow history.
+    Polymarket and Kalshi only. Other venues answer 200 with `points: []`,
+    which means \"not served here\", not \"no trading\".
+
+    `interval` is a lookback range, not a bucket size. The venue picks
+    point spacing (Polymarket 1d: about one point per minute). Depth still
+    varies by venue: check `coverage.probabilityHistoryStartDay` on
+    /sources before assuming a long window exists.
 
     Args:
         source (PublicPmSourceSlug):
         slug (str):
         interval (GetPublicPredictionMarketPriceHistoryInterval | Unset):  Default:
-            GetPublicPredictionMarketPriceHistoryInterval.VALUE_1.
+            GetPublicPredictionMarketPriceHistoryInterval.VALUE_3.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -178,24 +184,27 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
     interval: GetPublicPredictionMarketPriceHistoryInterval
-    | Unset = GetPublicPredictionMarketPriceHistoryInterval.VALUE_1,
+    | Unset = GetPublicPredictionMarketPriceHistoryInterval.VALUE_3,
 ) -> Response[Error | GetPublicPredictionMarketPriceHistoryResponse200]:
-    """Probability history for one event
+    r"""Probability history for one outcome of an event
 
-     Time series of outcome probabilities. Documented here because it is
-    advertised on the public API page and in llms-full.txt — a contract
-    that claims to BE the documented surface cannot leave an advertised
-    endpoint undocumented.
+     Native venue price history for ONE outcome of the event: the Yes leg
+    of a binary market, else the first outcome in venue order. `outcome`
+    names it; on a multi-outcome event, use event detail for the others.
 
-    Depth varies by venue and is not uniform: check
-    `coverage.probabilityHistoryStartDay` on /sources before assuming a
-    window exists. A venue can have a long catalog and shallow history.
+    Polymarket and Kalshi only. Other venues answer 200 with `points: []`,
+    which means \"not served here\", not \"no trading\".
+
+    `interval` is a lookback range, not a bucket size. The venue picks
+    point spacing (Polymarket 1d: about one point per minute). Depth still
+    varies by venue: check `coverage.probabilityHistoryStartDay` on
+    /sources before assuming a long window exists.
 
     Args:
         source (PublicPmSourceSlug):
         slug (str):
         interval (GetPublicPredictionMarketPriceHistoryInterval | Unset):  Default:
-            GetPublicPredictionMarketPriceHistoryInterval.VALUE_1.
+            GetPublicPredictionMarketPriceHistoryInterval.VALUE_3.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -222,24 +231,27 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
     interval: GetPublicPredictionMarketPriceHistoryInterval
-    | Unset = GetPublicPredictionMarketPriceHistoryInterval.VALUE_1,
+    | Unset = GetPublicPredictionMarketPriceHistoryInterval.VALUE_3,
 ) -> Error | GetPublicPredictionMarketPriceHistoryResponse200 | None:
-    """Probability history for one event
+    r"""Probability history for one outcome of an event
 
-     Time series of outcome probabilities. Documented here because it is
-    advertised on the public API page and in llms-full.txt — a contract
-    that claims to BE the documented surface cannot leave an advertised
-    endpoint undocumented.
+     Native venue price history for ONE outcome of the event: the Yes leg
+    of a binary market, else the first outcome in venue order. `outcome`
+    names it; on a multi-outcome event, use event detail for the others.
 
-    Depth varies by venue and is not uniform: check
-    `coverage.probabilityHistoryStartDay` on /sources before assuming a
-    window exists. A venue can have a long catalog and shallow history.
+    Polymarket and Kalshi only. Other venues answer 200 with `points: []`,
+    which means \"not served here\", not \"no trading\".
+
+    `interval` is a lookback range, not a bucket size. The venue picks
+    point spacing (Polymarket 1d: about one point per minute). Depth still
+    varies by venue: check `coverage.probabilityHistoryStartDay` on
+    /sources before assuming a long window exists.
 
     Args:
         source (PublicPmSourceSlug):
         slug (str):
         interval (GetPublicPredictionMarketPriceHistoryInterval | Unset):  Default:
-            GetPublicPredictionMarketPriceHistoryInterval.VALUE_1.
+            GetPublicPredictionMarketPriceHistoryInterval.VALUE_3.
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
