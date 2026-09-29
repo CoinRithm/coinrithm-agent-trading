@@ -34,6 +34,18 @@ class PublicPmOutcome:
             validated a usable observed price, including numeric 0; `false` is emitted only for the Rothera explicit writer-
             null marker and means no usable observed price input. Omitted means unknown, legacy, or unsupported source data.
             This flag does not claim live pricing, liquidity, or tradability.
+        price_basis (str | Unset): Polymarket and Kalshi open outcomes only: what `probability` is.
+            `unquoted` means never traded and no usable book, so `probability`
+            is not a price (a Polymarket wide-book midpoint such as 48 on a
+            3/93 book, or a stored 0 on Kalshi). `book_mid` is the order-book
+            midpoint (Polymarket: a spread of 10 points or less; Kalshi: the
+            venue's quote midpoint). `last_trade` is the last traded price
+            (Polymarket uses it when the book is wider than 10 points). Absent
+            on other venues, on settled outcomes and on responses served before
+            2026-09-29. Like `hasObservedPrice`, it is not an execution quote;
+            use the quote endpoint for tradability. A plain string, so a basis
+            added later cannot break older clients: treat an unknown value as
+            unknown.
         source_observation (None | PublicPmOutcomeSourceObservationType0 | Unset): Optional bounded provenance for the
             stored outcome price. Null means the supported source marker was unavailable or explicitly null; it does not
             prove that the outcome has no price. Timestamps describe source evidence, not current freshness or executable
@@ -55,6 +67,7 @@ class PublicPmOutcome:
     probability: float | None | Unset = UNSET
     normalized_probability: float | None | Unset = UNSET
     has_observed_price: bool | Unset = UNSET
+    price_basis: str | Unset = UNSET
     source_observation: None | PublicPmOutcomeSourceObservationType0 | Unset = UNSET
     price_change_24_h: float | None | Unset = UNSET
     lifecycle: None | PublicPmOutcomeLifecycleType0 | Unset = UNSET
@@ -84,6 +97,8 @@ class PublicPmOutcome:
             normalized_probability = self.normalized_probability
 
         has_observed_price = self.has_observed_price
+
+        price_basis = self.price_basis
 
         source_observation: dict[str, Any] | None | Unset
         if isinstance(self.source_observation, Unset):
@@ -134,6 +149,8 @@ class PublicPmOutcome:
             field_dict["normalizedProbability"] = normalized_probability
         if has_observed_price is not UNSET:
             field_dict["hasObservedPrice"] = has_observed_price
+        if price_basis is not UNSET:
+            field_dict["priceBasis"] = price_basis
         if source_observation is not UNSET:
             field_dict["sourceObservation"] = source_observation
         if price_change_24_h is not UNSET:
@@ -178,6 +195,8 @@ class PublicPmOutcome:
         normalized_probability = _parse_normalized_probability(d.pop("normalizedProbability", UNSET))
 
         has_observed_price = d.pop("hasObservedPrice", UNSET)
+
+        price_basis = d.pop("priceBasis", UNSET)
 
         def _parse_source_observation(data: object) -> None | PublicPmOutcomeSourceObservationType0 | Unset:
             if data is None:
@@ -252,6 +271,7 @@ class PublicPmOutcome:
             probability=probability,
             normalized_probability=normalized_probability,
             has_observed_price=has_observed_price,
+            price_basis=price_basis,
             source_observation=source_observation,
             price_change_24_h=price_change_24_h,
             lifecycle=lifecycle,
