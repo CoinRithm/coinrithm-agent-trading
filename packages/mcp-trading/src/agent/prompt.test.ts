@@ -279,6 +279,53 @@ describe("buildUserPrompt — settlement feedback integration", () => {
     expect(system).not.toContain("a listed market will not bounce at quote");
   });
 
+  it("shows event-level consensus on a row when known and omits it when null or absent", () => {
+    const row = {
+      source: "kalshi",
+      slug: "btc-120k-2026",
+      outcomeExternalMarketId: "no",
+      outcomeName: "No",
+      probability: 0.6,
+    };
+    const consensus = {
+      prob: 0.31,
+      venues: 3,
+      spreadPts: 2,
+      kind: "binary" as const,
+      outcome: null,
+    };
+    const prompt = buildUserPrompt(
+      baseObs({
+        pmMarkets: [
+          { ...row, ref: "pm1", consensus },
+          { ...row, ref: "pm2", consensus: null },
+          { ...row, ref: "pm3" },
+        ],
+      }),
+      undefined,
+      { venues: ["pm"] },
+    );
+    const data = JSON.parse(prompt.match(/```json\n(.*)\n```/)![1]);
+    // Passed through exactly as observed: a NO row is not complemented.
+    expect(data.pmMarkets[0]).toMatchObject({ outcome: "No", prob: 0.6 });
+    expect(data.pmMarkets[0].consensus).toEqual(consensus);
+    expect(data.pmMarkets[1]).not.toHaveProperty("consensus");
+    expect(data.pmMarkets[2]).not.toHaveProperty("consensus");
+  });
+
+  it("explains consensus only when PM is enabled", () => {
+    const spec = parseSkill(renderFolderOfOne("a", "conservative")).spec;
+    spec.venues = ["pm"];
+    const withPm = buildSystemPrompt(spec, "strategy");
+    expect(withPm).toMatch(/may carry `consensus`/);
+    expect(withPm).toMatch(
+      /kind "binary" with outcome null prices the event's YES side/,
+    );
+    expect(withPm).toMatch(/no consensus means unknown, not agreement/);
+    spec.venues = ["futures"];
+    expect(buildSystemPrompt(spec, "strategy")).not.toMatch(/consensus/);
+  });
+
   it("omits the resolutions block when there are none", () => {
     const out = buildUserPrompt(baseObs());
     expect(out).not.toMatch(/settlement feedback/i);

@@ -648,6 +648,71 @@ describe("observe", () => {
     expect(observation.pmMarkets.map((m) => m.ref)).toEqual(["pm1", "pm2"]);
   });
 
+  it("carries the event-level consensus onto every outcome row unchanged, including null and absent", async () => {
+    const pmSpec = {
+      ...spec,
+      venues: ["pm", "futures"] as ("spot" | "futures" | "pm")[],
+    };
+    const c = fakeClient({
+      pmPositions: async () => okData({ positions: [] }),
+      discoverPmMarkets: async () =>
+        okData({
+          data: [
+            {
+              source: "kalshi",
+              slug: "btc-120k-2026",
+              title: "Bitcoin above $120k in 2026?",
+              referenceProbability: {
+                probability: 31,
+                venueCount: 3,
+                spreadPoints: 2,
+                kind: "binary",
+                outcomeName: null,
+              },
+              outcomes: [
+                { externalMarketId: "yes", name: "Yes", probability: 40 },
+                { externalMarketId: "no", name: "No", probability: 60 },
+              ],
+            },
+            {
+              source: "polymarket",
+              slug: "btc-150k-2026",
+              title: "Bitcoin above $150k in 2026?",
+              referenceProbability: null,
+              outcomes: [
+                { externalMarketId: "y", name: "Yes", probability: 9 },
+              ],
+            },
+            {
+              source: "polymarket",
+              slug: "btc-200k-2026",
+              title: "Bitcoin above $200k in 2026?",
+              outcomes: [
+                { externalMarketId: "z", name: "Yes", probability: 3 },
+              ],
+            },
+          ],
+        }),
+    });
+    const { observation } = await observe(c, pmSpec, newState("r"));
+    const byId = Object.fromEntries(
+      observation.pmMarkets.map((m) => [m.outcomeExternalMarketId, m]),
+    );
+    const consensus = {
+      prob: 0.31,
+      venues: 3,
+      spreadPts: 2,
+      kind: "binary",
+      outcome: null,
+    };
+    // The same event-level value on the YES and the NO row: never re-oriented
+    // or complemented for the NO side.
+    expect(byId.yes.consensus).toEqual(consensus);
+    expect(byId.no.consensus).toEqual(consensus);
+    expect(byId.y.consensus).toBeNull();
+    expect(byId.z).not.toHaveProperty("consensus");
+  });
+
   // ── crypto-targeted secondary discover (pm_ref hallucination fix) ────────────
   it("does NOT fire a second discover when the primary board already lists the top analyzed coin (budget)", async () => {
     // Conservative watchlist top coin is BTC; the board lists a Bitcoin market, so

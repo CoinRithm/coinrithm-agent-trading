@@ -247,6 +247,7 @@ export function buildSystemPrompt(
     ...(hasPm
       ? [
           "- Each pmMarkets row carries `end` (resolution date), `vol24h` and `liq` (USD): thin liquidity means a smaller stake and a wider required edge; your time stop must sit before `end`; a probability that moved on heavy volume is information, one that moved on none is noise.",
+          "- A row may carry `consensus` (event-level, the same on every row of that event): a cross-venue reference `prob` (0..1) for `consensus.outcome`, which is not necessarily the row's own outcome; kind \"binary\" with outcome null prices the event's YES side, so compare it with the matching side yourself. `venues` = how many venues it combines, `spreadPts` = their disagreement in points. A price far from a tight multi-venue consensus is information; a wide spread is uncertainty; no consensus means unknown, not agreement.",
         ]
       : []),
     "",
@@ -476,6 +477,9 @@ export function buildUserPrompt(
               end: m.endDate,
               vol24h: roundUsd(m.volumeUsd),
               liq: roundUsd(m.liquidityUsd),
+              // Event-level cross-venue consensus; omitted (not null) when
+              // unknown so rows without one cost no tokens.
+              consensus: m.consensus ?? undefined,
             })),
           }
         : {}),

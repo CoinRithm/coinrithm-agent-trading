@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   freshnessOf,
+  pmConsensusOf,
   pmDecisionSupportOf,
   pmQualityOf,
   sourceTimestamp,
@@ -110,5 +111,60 @@ describe("bounded PM source context", () => {
         "qualityScore",
       );
     }
+  });
+});
+
+describe("event-level cross-venue consensus (referenceProbability)", () => {
+  const ref = (over: Record<string, unknown> = {}) => ({
+    referenceProbability: {
+      probability: 57,
+      venueCount: 3,
+      spreadPoints: 4.5,
+      kind: "binary",
+      outcomeName: null,
+      ...over,
+    },
+  });
+
+  it("keeps omission (older backend) distinct from an explicit null", () => {
+    expect(pmConsensusOf({})).toBeUndefined();
+    expect(pmConsensusOf({ referenceProbability: null })).toBeNull();
+  });
+
+  it("copies a binary or leader reference onto the 0..1 prob scale, unmapped and unflipped", () => {
+    expect(pmConsensusOf(ref())).toEqual({
+      prob: 0.57,
+      venues: 3,
+      spreadPts: 4.5,
+      kind: "binary",
+      outcome: null,
+    });
+    expect(
+      pmConsensusOf(ref({ kind: "leader", outcomeName: "Kamala Harris" })),
+    ).toEqual({
+      prob: 0.57,
+      venues: 3,
+      spreadPts: 4.5,
+      kind: "leader",
+      outcome: "Kamala Harris",
+    });
+  });
+
+  it.each([
+    ["an array", { referenceProbability: [57] }],
+    ["a string", { referenceProbability: "57" }],
+    ["probability over 100", ref({ probability: 101 })],
+    ["negative probability", ref({ probability: -1 })],
+    ["string probability", ref({ probability: "57" })],
+    ["zero venues", ref({ venueCount: 0 })],
+    ["fractional venues", ref({ venueCount: 2.5 })],
+    ["negative spread", ref({ spreadPoints: -1 })],
+    ["spread over 100", ref({ spreadPoints: 101 })],
+    ["unknown kind", ref({ kind: "ladder" })],
+    ["leader with no named outcome", ref({ kind: "leader" })],
+    ["non-string outcome", ref({ outcomeName: 7 })],
+    ["blank outcome", ref({ outcomeName: " " })],
+  ])("treats %s as unknown (null), never as agreement", (_label, event) => {
+    expect(pmConsensusOf(event)).toBeNull();
   });
 });

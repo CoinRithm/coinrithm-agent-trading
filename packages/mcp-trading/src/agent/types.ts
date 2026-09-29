@@ -474,12 +474,27 @@ export interface PmMarket {
   volumeUsd?: number;
   // Event-level fundamentals from the SAME discover payload (slice 2): the
   // resolution date and the venue-reported liquidity (USD). The discover row
-  // carries no 24h probability change and no cross-venue divergence, so those
-  // are deliberately NOT here (absent > fabricated).
+  // carries no 24h probability change, so that is deliberately NOT here
+  // (absent > fabricated).
   endDate?: string;
   liquidityUsd?: number;
   quality?: PmQuality;
   decisionSupport?: PmDecisionSupport;
+  // Event-level cross-venue consensus from the discover row's
+  // `referenceProbability`. Shared by every outcome row of the event and NOT
+  // mapped onto this row's outcome: it prices `consensus.outcome` (or, for a
+  // binary event with outcome null, the event's YES side). Never flipped or
+  // re-oriented here. Absent = older backend; null = no current consensus or
+  // an unusable payload. Either way it is unknown, never agreement.
+  consensus?: PmConsensus | null;
+}
+
+export interface PmConsensus {
+  prob: number; // 0..1, the same scale as PmMarket.probability
+  venues: number; // how many venues the reference combines
+  spreadPts: number; // 0..100 points of disagreement between those venues
+  kind: "binary" | "leader";
+  outcome: string | null; // the outcome it prices; null on binary = YES side
 }
 
 // Bounded server evidence, not a probability of winning. Missing stays unknown.
