@@ -265,6 +265,7 @@ const OUTCOME_SUMMARY_FIELDS = [
   "priorProbability",
   "venueTerms",
   "hasObservedPrice",
+  "priceBasis",
   "sourceObservation",
 ] as const;
 
@@ -2345,6 +2346,8 @@ export function registerTools(
         "is unknown; sourceObservation:null means unavailable provenance, not " +
         "proof that the outcome has no price. Neither field is a live, " +
         "liquidity, or trading guarantee. " +
+        "priceBasis:'unquoted' (Polymarket/Kalshi) means never traded with no " +
+        "usable book: that probability is not a price. " +
         "Set detail=full only when the untouched provider-rich record is needed. " +
         "This is the cross-venue research view; for tradability use pm_quote. " +
         "No API key required.",
