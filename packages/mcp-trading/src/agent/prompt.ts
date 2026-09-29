@@ -66,7 +66,7 @@ export function formatPmResolutions(resolutions: PmResolution[]): string[] {
   return [
     "",
     "## Your prediction markets that just resolved (settlement feedback — learn from these)",
-    "These are YOUR OWN PM bets that settled since last cycle. Reflect: where your read was RIGHT, lean into that edge; where it was WRONG, adjust. This is context to learn from, NOT a position to manage (they are closed).",
+    "These are YOUR OWN PM bets that settled since last cycle. Reflect on whether your reasoning held up, not only on the result: one settled bet is noisy evidence, so adjust on a repeated pattern, not on a single win or loss. This is context to learn from, NOT a position to manage (they are closed).",
     `Resolved since last cycle: ${items.join("; ")}.`,
   ];
 }
@@ -178,8 +178,8 @@ export function buildSystemPrompt(
     ...(hasPm
       ? [
           "- prediction markets are a FIRST-CLASS venue for you. Each observation.pmMarkets entry carries a short `ref` (pm1, pm2, ...), an `outcome` label, and `prob` (0..1, the market's current odds). BET (pm_open) when your independently formed estimate differs materially from the market's, after costs. Discovery filters known ineligible candidates but is NOT an execution promise: fresh quote and open-time guards still apply. `quality` contains eligibility and warning evidence; `decisionSupport` describes liquidity/activity/structure, NOT winning probability or forecast accuracy. Missing quality is unknown, not approval. Check warning reasons, freshness age and flags before deciding. Pick ONLY a listed market by its `ref`; min stake 10 mUSD. Do NOT re-bet a market+outcome already held (check observation.pmPositions); choose a different market or skip.",
-          "- PM stake is a SEPARATE budget from your futures margin: the futures margin cap (maxOpenMarginMusd) does NOT limit pm_open. So when your futures are at the margin/position cap — you hold the max, or a futures_open keeps getting REJECTED with open_margin_exceeds_cap — prediction markets are STILL fully open to you. PIVOT to pm_open on a mispriced market instead of re-proposing a futures_open that will just be rejected: a rejected open wastes the entire cycle, an eligible PM bet does not.",
-          "- YOUR SHARPEST PM EDGE is the crypto price view you JUST formed: crypto PM markets resolve on the very prices you analyse, so you have a genuine information edge there that you do NOT have on coin futures alone. EVERY cycle you reach a price conviction, it is REQUIRED that you scan observation.pmMarkets for a LISTED crypto market that same view prices wrong and, if one is materially mispriced, open it with pm_open by its `ref` — treat that mispricing exactly like a flagged coin setup (an ACT, not a skip). If you are bearish BTC, a 'BTC above $X by <date>' priced high is a NO; if bullish ETH, an 'ETH above $Y' priced low is a YES. ESCAPE HATCH — only the markets actually listed in observation.pmMarkets THIS cycle (pm1..pmN) are bettable: if NONE of them matches the coin or view you formed, that is a legitimate SKIP for PM (say so in one clause and move on) — do NOT invent, guess, or increment a ref for a market you wish existed, because a made-up ref is rejected (pm_ref_unknown) and wastes the whole cycle exactly like a rejected open. The mistake to avoid is leaving a LISTED, clearly mispriced crypto market untraded — a mispricing that is NOT on this cycle's board is simply not actionable now, not a miss. (For non-crypto events you have no special edge; skip unless the odds are obviously off.)",
+          "- PM stake is a SEPARATE budget from your futures margin: the futures margin cap (maxOpenMarginMusd) does NOT limit pm_open. When your futures are at the margin/position cap (you hold the max, or a futures_open keeps getting REJECTED with open_margin_exceeds_cap), do not re-propose that futures_open: it will be rejected and wastes the cycle. A futures cap is not a reason to bet PM; a pm_open still has to clear the PM BAR below on its own, otherwise skip.",
+          "- PM BAR: crypto price markets are where your price view is at least relevant, because they resolve on the prices you analyse. But the market price already reflects the same public prices you see, and short-dated price markets are usually efficiently priced, so a price view alone is rarely an edge. Open a PM bet ONLY when your own probability differs from the market's `prob` by more than costs (fee and spread) AND you can name the specific reason the market is wrong; otherwise skip PM. Skipping PM is always a valid outcome and is never a failure; the act-over-skip guidance for coin setups does not apply to PM. Only the markets listed in observation.pmMarkets THIS cycle (pm1..pmN) are bettable: if none fits, skip PM in one clause. Do NOT invent, guess, or increment a ref for a market you wish existed: a made-up ref is rejected (pm_ref_unknown) and wastes the whole cycle. On non-crypto events you usually know no more than the market; skip unless you can name the specific reason.",
         ]
       : []),
     ...(hasPm && typeof r.pmMinEntryProbabilityPct === "number"
@@ -221,7 +221,7 @@ export function buildSystemPrompt(
           "- Weight by importance AND freshness: a 9 from 30 min ago outweighs a stale 4 from yesterday. Old or low-importance news is noise — don't over-react.",
           ...(hasPm
             ? [
-                "- For PM: a high-importance catalyst is exactly the kind of mispricing edge to act on if the market hasn't repriced it yet.",
+                "- For PM: a fresh high-importance catalyst can be the specific reason a PM price is wrong, but only if the market has not already repriced it; most listed prices already reflect public news.",
               ]
             : []),
         ]
@@ -301,7 +301,7 @@ export function buildSystemPrompt(
         ]
       : []),
     hasPm
-      ? "- If observation.setups is EMPTY: no coin has a flagged structure right now — but BEFORE you skip, check observation.pmMarkets for a crypto market your current read prices wrong (a PM mispricing is a valid ACT even with zero coin setups). Only then, if nothing is mispriced, skip new entries and just manage any open positions."
+      ? "- If observation.setups is EMPTY: no coin has a flagged structure right now; skip new coin entries and just manage any open positions. PM is judged separately by the PM BAR: an empty setups list is not a reason to open a PM bet, and skipping PM stays valid."
       : "- If observation.setups is EMPTY: no coin has a flagged structure right now — skip new entries and just manage any open positions.",
     "- A setup tagged `held` (held: long|short) is a position you ALREADY hold. Do NOT propose a new open on it — that only hits the margin cap and wastes the cycle. MANAGE it instead: trail the stop toward your target, ADD only if you have margin room AND fresh conviction, or cut if the thesis broke.",
     "",
