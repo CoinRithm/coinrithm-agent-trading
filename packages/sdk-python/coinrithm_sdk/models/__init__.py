@@ -174,11 +174,11 @@ from .get_public_prediction_market_disagreements_source_kind import GetPublicPre
 from .get_public_prediction_market_disagreements_status import GetPublicPredictionMarketDisagreementsStatus
 from .get_public_prediction_market_price_history_interval import GetPublicPredictionMarketPriceHistoryInterval
 from .get_public_prediction_market_price_history_response_200 import GetPublicPredictionMarketPriceHistoryResponse200
-from .get_public_prediction_market_price_history_response_200_markets_item import (
-    GetPublicPredictionMarketPriceHistoryResponse200MarketsItem,
+from .get_public_prediction_market_price_history_response_200_outcome_type_0 import (
+    GetPublicPredictionMarketPriceHistoryResponse200OutcomeType0,
 )
-from .get_public_prediction_market_price_history_response_200_markets_item_history_item import (
-    GetPublicPredictionMarketPriceHistoryResponse200MarketsItemHistoryItem,
+from .get_public_prediction_market_price_history_response_200_points_item import (
+    GetPublicPredictionMarketPriceHistoryResponse200PointsItem,
 )
 from .get_public_prediction_market_whale_wallet_response_200 import GetPublicPredictionMarketWhaleWalletResponse200
 from .get_public_prediction_market_whale_wallet_response_200_daily_item import (
@@ -550,8 +550,8 @@ __all__ = (
     "GetPublicPredictionMarketDisagreementsStatus",
     "GetPublicPredictionMarketPriceHistoryInterval",
     "GetPublicPredictionMarketPriceHistoryResponse200",
-    "GetPublicPredictionMarketPriceHistoryResponse200MarketsItem",
-    "GetPublicPredictionMarketPriceHistoryResponse200MarketsItemHistoryItem",
+    "GetPublicPredictionMarketPriceHistoryResponse200OutcomeType0",
+    "GetPublicPredictionMarketPriceHistoryResponse200PointsItem",
     "GetPublicPredictionMarketWhaleWalletResponse200",
     "GetPublicPredictionMarketWhaleWalletResponse200DailyItem",
     "GetPublicPredictionMarketWhaleWalletResponse200RecentFillsItem",

@@ -1084,15 +1084,18 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Probability history for one event
-         * @description Time series of outcome probabilities. Documented here because it is
-         *     advertised on the public API page and in llms-full.txt — a contract
-         *     that claims to BE the documented surface cannot leave an advertised
-         *     endpoint undocumented.
+         * Probability history for one outcome of an event
+         * @description Native venue price history for ONE outcome of the event: the Yes leg
+         *     of a binary market, else the first outcome in venue order. `outcome`
+         *     names it; on a multi-outcome event, use event detail for the others.
          *
-         *     Depth varies by venue and is not uniform: check
-         *     `coverage.probabilityHistoryStartDay` on /sources before assuming a
-         *     window exists. A venue can have a long catalog and shallow history.
+         *     Polymarket and Kalshi only. Other venues answer 200 with `points: []`,
+         *     which means "not served here", not "no trading".
+         *
+         *     `interval` is a lookback range, not a bucket size. The venue picks
+         *     point spacing (Polymarket 1d: about one point per minute). Depth still
+         *     varies by venue: check `coverage.probabilityHistoryStartDay` on
+         *     /sources before assuming a long window exists.
          */
         get: operations["getPublicPredictionMarketPriceHistory"];
         put?: never;
@@ -5728,8 +5731,12 @@ export interface operations {
     getPublicPredictionMarketPriceHistory: {
         parameters: {
             query?: {
-                /** @description Bucket size; venue support varies. */
-                interval?: "1h" | "1d" | "1w" | "max";
+                /**
+                 * @description Lookback range. Aliases 24h, 7d, 30d and all map to 1d, 1w, 1m and
+                 *     max; any other value is served as 1w. The response echoes the
+                 *     range actually served.
+                 */
+                interval?: "1h" | "6h" | "1d" | "1w" | "1m" | "max";
             };
             header?: never;
             path: {
@@ -5740,23 +5747,29 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Probability points, oldest first */
+            /** @description Probability points for one outcome, oldest first */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": {
-                        markets?: ({
-                            market?: string;
-                            history?: ({
-                                /** @description Unix ms */
-                                t?: number;
-                                /** @description Probability 0..1 */
-                                p?: number;
-                            } & {
-                                [key: string]: unknown;
-                            })[];
+                        source: string;
+                        slug: string;
+                        /** @description The range served, in canonical form (1h, 6h, 1d, 1w, 1m or max). */
+                        interval: string;
+                        /** @description The outcome this series describes; null when the event has no outcomes. */
+                        outcome?: ({
+                            name?: string | null;
+                            externalMarketId?: string | null;
+                        } & {
+                            [key: string]: unknown;
+                        }) | null;
+                        points: ({
+                            /** @description Unix ms */
+                            t: number;
+                            /** @description Probability 0..1 */
+                            p: number;
                         } & {
                             [key: string]: unknown;
                         })[];
