@@ -794,6 +794,99 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/prediction-markets/resolved": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resolved prediction-market events archive
+         * @description Keyless archive of closed, definitively-resolved events across all
+         *     supported venues, newest settlement first. Outcome probabilities are
+         *     0-100 points, matching `PublicPmOutcome.probability`.
+         *
+         *     `resolvedAt` is populated only when the source-reported resolution
+         *     time is provider-verified (`resolvedAtVerified: true`); otherwise it
+         *     is null and `closedAt` carries a real observed close time instead —
+         *     never a fabricated settlement date.
+         *
+         *     Pass `year` (and optionally `month`, 1-12) to page one calendar slice
+         *     instead of the unbounded archive walk; `month` without `year` is
+         *     rejected with 400. A slice raises the per-page ceiling to 200 rows;
+         *     the unbounded walk stays at 100. `minVolume` turns the feed into a
+         *     "recent AND substantial" tape: when set, `meta.totalResolved` is null
+         *     (the archive count is not volume-filtered) and `meta.minVolume`
+         *     echoes the floor instead, so a slice total is never mistaken for the
+         *     venue's lifetime total.
+         */
+        get: operations["listPublicResolvedPredictionMarkets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/prediction-markets/surprises": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Biggest resolved-market surprises ("flips")
+         * @description Keyless "surprise index": resolved BINARY (exactly two outcomes)
+         *     markets whose eventual winner was priced under 50 (of 100) roughly 24
+         *     hours before settlement, ordered by the lowest T-24h winner
+         *     probability first. Only provider-resolution-basis events qualify;
+         *     multi-strike ladder markets are excluded because their non-leading
+         *     strikes are structurally near zero and are not a real surprise
+         *     signal. Same resolvedAt/closedAt honesty rule as `/resolved`:
+         *     `resolvedAt` is populated only when provider-verified.
+         *
+         *     `surprise.t24hProbability` and `surprise.t7dProbability` are the
+         *     WINNING outcome's probability, 0-100 points, at T-24h and T-7d before
+         *     resolution. `t7dProbability` is frequently null — not every market
+         *     has 7 days of pre-resolution history.
+         */
+        get: operations["listPublicPredictionMarketSurprises"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/prediction-markets/expiring": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Open prediction markets expiring soon
+         * @description Keyless catalog of OPEN events whose `endDate` falls within the
+         *     lookahead window (`days`, default 7), soonest end first. Requires
+         *     24h volume >= 1000 or lifetime volume >= 10000 in the venue's raw
+         *     (pre-fiat-conversion) units, so thin/inactive markets are excluded.
+         *     Each row is a full event plus `expiresInMs`: milliseconds from the
+         *     response time to `endDate`.
+         */
+        get: operations["listPublicExpiringPredictionMarkets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -1098,6 +1191,76 @@ export interface paths {
          *     /sources before assuming a long window exists.
          */
         get: operations["getPublicPredictionMarketPriceHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/prediction-markets/event/{source}/{slug}/orderbook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Live order book for one outcome of an event
+         * @description Keyless live order book for the SAME single outcome `price-history`
+         *     describes (the Yes leg of a binary market, else the first outcome in
+         *     venue order). Polymarket and Kalshi only; other sources answer 200
+         *     with `orderBook: null`, which means "not served here", not "no
+         *     market". A thin or near-expiry market with no resting orders on
+         *     either side also answers 200 with `orderBook: null` — a valid empty
+         *     shape, not an error.
+         *
+         *     `bid`/`ask`/`midpoint`/level `price` are probabilities 0-1 (a
+         *     fraction), NOT the 0-100 scale used by `PublicPmOutcome.probability`
+         *     elsewhere in this API. This is fetch-time venue depth, not an
+         *     executable quote or a tradability guarantee — use the quote/mock-open
+         *     flow for that.
+         *
+         *     `askEvidence` is present only for Polymarket books: it records
+         *     whether the supplied ask snapshot parsed as a valid non-empty book
+         *     (`validated`) and when this server fetched it (`receivedAt`, its own
+         *     acquisition time, not an upstream trade time). Kalshi books omit it.
+         */
+        get: operations["getPublicPredictionMarketOrderBook"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/prediction-markets/event/{source}/{slug}/trades": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Recent trades for one outcome of an event
+         * @description Keyless recent-trades tape for the same single outcome
+         *     `price-history`/`orderbook` describe. Always returns the most recent
+         *     trades up to a fixed server cap of 20; there is no limit/offset
+         *     parameter and none is read from the query string. Polymarket and
+         *     Kalshi only; other sources answer 200 with `trades: []`, which means
+         *     "not served here", not "no trading" — an event with genuinely no
+         *     recent trades on a supported source also answers 200 with
+         *     `trades: []`.
+         *
+         *     `price` is a probability 0-1 (a fraction), NOT the 0-100 scale used
+         *     by `PublicPmOutcome.probability` elsewhere in this API. `usdValue` is
+         *     `size * price`. `who` is a public trader handle only where the venue
+         *     exposes one (Polymarket pseudonym); Kalshi trades always report
+         *     `who: null`.
+         */
+        get: operations["getPublicPredictionMarketTrades"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1736,6 +1899,169 @@ export interface components {
             meta?: {
                 [key: string]: unknown;
             };
+        };
+        PublicPmPagination: {
+            limit: number;
+            offset: number;
+            hasMore: boolean;
+        } & {
+            [key: string]: unknown;
+        };
+        /** @description The winning outcome as recorded at resolution. */
+        PublicPmResolutionOutcome: {
+            externalMarketId: string;
+            name: string;
+            /** @description The winning outcome's provider-implied probability on a 0-100 scale, as last recorded. */
+            probability: number;
+            /** @description How the winner was determined. Currently `source` (the venue's own resolved-outcome marker matched a stored outcome) or `final_probability` (no venue marker, but exactly one outcome closed at >=99.5). A plain string: treat an unknown value as unknown. */
+            basis: string;
+        } & {
+            [key: string]: unknown;
+        };
+        PublicPmResolvedEntry: {
+            event: components["schemas"]["PublicPmEvent"];
+            /**
+             * Format: date-time
+             * @description Provider-verified resolution time. Null when not provider-verified; see resolvedAtVerified.
+             */
+            resolvedAt?: string | null;
+            resolvedAtVerified: boolean;
+            /**
+             * Format: date-time
+             * @description A real observed close time (never a fabricated future date), used when resolvedAt is not provider-verified.
+             */
+            closedAt?: string | null;
+            resolutionOutcome: components["schemas"]["PublicPmResolutionOutcome"];
+        } & {
+            [key: string]: unknown;
+        };
+        PublicPmResolvedEventsResponse: {
+            data: components["schemas"]["PublicPmResolvedEntry"][];
+            pagination: components["schemas"]["PublicPmPagination"];
+            meta: {
+                /** @description Null when minVolume is set (the archive count is not volume-filtered); see minVolume. */
+                totalResolved: number | null;
+                /** @description Echoes the requested floor when set, else null. */
+                minVolume: number | null;
+                period: {
+                    year?: number;
+                    month?: number | null;
+                } | null;
+            } & {
+                [key: string]: unknown;
+            };
+        };
+        PublicPmSurpriseEntry: {
+            event: components["schemas"]["PublicPmEvent"];
+            /**
+             * Format: date-time
+             * @description Provider-verified resolution time. Null when not provider-verified; see resolvedAtVerified.
+             */
+            resolvedAt?: string | null;
+            resolvedAtVerified: boolean;
+            /** Format: date-time */
+            closedAt?: string | null;
+            resolutionOutcome: components["schemas"]["PublicPmResolutionOutcome"];
+            surprise: {
+                /** @description Winning outcome's probability (0-100) roughly 24h before resolution. */
+                t24hProbability: number;
+                /** @description Winning outcome's probability (0-100) roughly 7 days before resolution; frequently null. */
+                t7dProbability: number | null;
+            } & {
+                [key: string]: unknown;
+            };
+        } & {
+            [key: string]: unknown;
+        };
+        PublicPmSurprisesResponse: {
+            data: components["schemas"]["PublicPmSurpriseEntry"][];
+            /** @description The window applied, echoed from the request (`7d`, `30d`, `90d` or `all`; unknown requests are served as `all`). */
+            window: string;
+            pagination: components["schemas"]["PublicPmPagination"];
+        };
+        PublicPmExpiringEventsResponse: {
+            /** @description Each row is a PublicPmEvent that additionally carries `expiresInMs` (integer, milliseconds from fetch time to endDate); PublicPmEvent's open additionalProperties allows the extra field. */
+            data: components["schemas"]["PublicPmEvent"][];
+            pagination: components["schemas"]["PublicPmPagination"];
+            meta: {
+                totalExpiring: number;
+                window: {
+                    /** Format: date-time */
+                    from: string;
+                    /** Format: date-time */
+                    to: string;
+                };
+            } & {
+                [key: string]: unknown;
+            };
+        };
+        /** @description Which outcome this microstructure read describes; null when the event has neither an outcome name nor id. */
+        PublicPmMicrostructureOutcome: ({
+            name?: string | null;
+            externalMarketId?: string | null;
+        } & {
+            [key: string]: unknown;
+        }) | null;
+        PublicPmOrderBookLevel: {
+            /** @description Probability 0-1, a fraction. */
+            price: number;
+            /** @description Resting size in shares (Polymarket) or contracts (Kalshi). */
+            size: number;
+        };
+        /** @description Present only for Polymarket books; Kalshi books omit it. */
+        PublicPmOrderBookAskEvidence: {
+            /** @description Whether the supplied ask snapshot parsed as a valid non-empty book. */
+            validated: boolean;
+            /**
+             * Format: date-time
+             * @description This server's acquisition time, not an upstream trade time.
+             */
+            receivedAt: string;
+        };
+        /** @description Null when the source has no book endpoint or none is currently resting — a valid empty shape, not an error. */
+        PublicPmOrderBook: ({
+            bid: number | null;
+            ask: number | null;
+            spread: number | null;
+            midpoint: number | null;
+            /** @description Bid levels, best (highest price) first. */
+            bids: components["schemas"]["PublicPmOrderBookLevel"][];
+            /** @description Ask levels, best (lowest price) first. */
+            asks: components["schemas"]["PublicPmOrderBookLevel"][];
+            askEvidence?: components["schemas"]["PublicPmOrderBookAskEvidence"];
+        } & {
+            [key: string]: unknown;
+        }) | null;
+        PublicPmOrderBookResponse: {
+            source: components["schemas"]["PublicPmSourceSlug"];
+            slug: string;
+            outcome: components["schemas"]["PublicPmMicrostructureOutcome"];
+            orderBook: components["schemas"]["PublicPmOrderBook"];
+        };
+        PublicPmTrade: {
+            /** @description Normalized direction: buy/sell (Polymarket) or the venue's own taker-side label, e.g. yes/no (Kalshi). Plain string — new venues may add new labels. */
+            side: string;
+            /** @description Probability 0-1, a fraction. */
+            price: number;
+            /** @description Size in shares (Polymarket) or contracts (Kalshi). */
+            size: number;
+            /** @description Notional USD value, size * price. */
+            usdValue: number;
+            /** @description Outcome label when the venue reports one on the trade row, else null. */
+            outcome: string | null;
+            /** @description Public trader handle when the venue exposes one (Polymarket pseudonym); Kalshi trades always report null. */
+            who: string | null;
+            /** Format: date-time */
+            timestamp: string;
+        } & {
+            [key: string]: unknown;
+        };
+        PublicPmTradesResponse: {
+            source: components["schemas"]["PublicPmSourceSlug"];
+            slug: string;
+            outcome: components["schemas"]["PublicPmMicrostructureOutcome"];
+            /** @description Most recent trades, fixed server cap of 20; not client-configurable. */
+            trades: components["schemas"]["PublicPmTrade"][];
         };
         PublicPmOverviewResponse: {
             stats: {
@@ -5515,6 +5841,98 @@ export interface operations {
             500: components["responses"]["ServerError"];
         };
     };
+    listPublicResolvedPredictionMarkets: {
+        parameters: {
+            query?: {
+                /** @description Capped at 100 unless `year` is set, which raises the ceiling to 200. */
+                limit?: number;
+                offset?: number;
+                fiat?: string;
+                source?: components["schemas"]["PublicPmSourceSlug"];
+                /** @description Lifetime-volume floor. 0 (default) applies no floor. */
+                minVolume?: number;
+                /** @description Calendar year filter (2010 through next UTC year). Required if `month` is set. */
+                year?: number;
+                /** @description Calendar month filter, 1-12. Requires `year`; invalid without it. */
+                month?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paginated resolved-event archive rows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPmResolvedEventsResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    listPublicPredictionMarketSurprises: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                fiat?: string;
+                source?: components["schemas"]["PublicPmSourceSlug"];
+                /** @description Resolved-recency filter. Unknown/absent values are served as `all`, never rejected. */
+                window?: "7d" | "30d" | "90d" | "all";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paginated surprise-index rows */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPmSurprisesResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    listPublicExpiringPredictionMarkets: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                fiat?: string;
+                /** @description Lookahead window in days from now. */
+                days?: number;
+                source?: components["schemas"]["PublicPmSourceSlug"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paginated soon-to-expire open events */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPmExpiringEventsResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            500: components["responses"]["ServerError"];
+        };
+    };
     getHealthz: {
         parameters: {
             query?: never;
@@ -5799,6 +6217,58 @@ export interface operations {
                     } & {
                         [key: string]: unknown;
                     };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    getPublicPredictionMarketOrderBook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source: components["schemas"]["PublicPmSourceSlug"];
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Order book for one outcome (null when unsupported or empty) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPmOrderBookResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    getPublicPredictionMarketTrades: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source: components["schemas"]["PublicPmSourceSlug"];
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Up to 20 most recent trades for one outcome */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPmTradesResponse"];
                 };
             };
             400: components["responses"]["BadRequest"];
