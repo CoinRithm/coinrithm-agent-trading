@@ -21,11 +21,14 @@ info:
 
     ## Start without an API key
 
-    Read three prediction-market events with one request:
+    Read three open prediction-market events with one request:
 
     ```bash
-    curl "https://api.coinrithm.com/api/prediction-markets/events?limit=3"
+    curl "https://api.coinrithm.com/api/prediction-markets/events?status=open&limit=3"
     ```
+
+    Without `status=open` the list also returns closed events (on 2026-09-29
+    the first three were closed July World Cup markets).
 
     The JSON response contains `data`, `pagination` and `meta`. Inspect each
     event's `freshness`, `quality` and `decisionSupport` before using it for a
