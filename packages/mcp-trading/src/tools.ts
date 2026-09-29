@@ -16,8 +16,9 @@ import { z } from "zod";
 import { CoinRithmClient, bearerFromHeader, type ApiResult } from "./client.js";
 import { PAPER_EXECUTION_VERSION } from "./executionPolicy.js";
 
-// Served on tool descriptions. Names the versioned execution policy and never
-// claims costless execution (drift-tested in executionPolicy.test.ts).
+// Served once in the MCP server instructions (instructions.ts). Names the
+// versioned execution policy and never claims costless execution
+// (drift-tested in executionPolicy.test.ts).
 export const PAPER_NOTE =
   "Paper trading only — virtual funds (50,000 mUSD). Not financial advice. " +
   `Paper fills run under the versioned ${PAPER_EXECUTION_VERSION} policy and ` +
@@ -28,33 +29,24 @@ export const PAPER_NOTE =
   "See the executionModel in quote/trade results — a rehearsal cost, not an " +
   "exchange fill guarantee.";
 
+// Per-tool form of PAPER_NOTE. The full note is sent once in the server
+// instructions (instructions.ts); every tool still names the versioned
+// execution policy and its disclosed cost (drift-tested with PAPER_NOTE).
+export const PAPER_NOTE_SHORT =
+  `Paper trading only (virtual mUSD). Fills follow ${PAPER_EXECUTION_VERSION} ` +
+  "with a disclosed execution cost; see executionModel in quote/trade results.";
+
+// The same result envelope on every tool: { httpStatus, ok, ledgerEventId,
+// ledgerStatus, body }. It is sent 40 times in tools/list, so its field
+// descriptions live in the server instructions' wording, not here: httpStatus
+// is CoinRithm's HTTP status (0 = network error), ok is a 2xx, the ledger
+// fields come from /api/agent/* writes, and body is the parsed response.
 const API_RESULT_OUTPUT_SCHEMA = {
-  httpStatus: z
-    .number()
-    .int()
-    .describe("HTTP status returned by CoinRithm, or 0 for network errors."),
-  ok: z
-    .boolean()
-    .describe("True when CoinRithm returned a successful 2xx response."),
-  ledgerEventId: z
-    .string()
-    .nullable()
-    .optional()
-    .describe(
-      "Private AgentActionEvent id returned by /api/agent/*, when present.",
-    ),
-  ledgerStatus: z
-    .string()
-    .nullable()
-    .optional()
-    .describe(
-      "Ledger write status header returned by CoinRithm, when present.",
-    ),
-  body: z
-    .unknown()
-    .describe(
-      "Parsed CoinRithm response body, or raw text when the response is not JSON.",
-    ),
+  httpStatus: z.number().int(),
+  ok: z.boolean(),
+  ledgerEventId: z.string().nullable().optional(),
+  ledgerStatus: z.string().nullable().optional(),
+  body: z.unknown(),
 };
 
 const AGENT_TRACE_SCHEMA = z
@@ -206,9 +198,7 @@ function present(result: ApiResult) {
     body: result.data,
   };
   return {
-    content: [
-      { type: "text" as const, text: JSON.stringify(payload, null, 2) },
-    ],
+    content: [{ type: "text" as const, text: JSON.stringify(payload) }],
     structuredContent: payload,
     isError: !result.ok,
   };
@@ -859,7 +849,7 @@ export function registerTools(
         "(equity.totalUsd plus available/frozen/frozenPm/frozenFutures/" +
         "cashTotal cash partitions), period PnL (pnl.24hUsd … allTimePct), " +
         "open spot orders, and a progression block (league/XP). " +
-        PAPER_NOTE,
+        PAPER_NOTE_SHORT,
       inputSchema: {
         fiat: z
           .string()
@@ -891,7 +881,7 @@ export function registerTools(
         "Get raw cash balances: USDT available plus the three frozen partitions " +
         "(frozen = spot orders, frozenPm = PM, frozenFutures = futures margin). " +
         "Optionally include one coin asset. " +
-        PAPER_NOTE,
+        PAPER_NOTE_SHORT,
       inputSchema: {
         coinId: z
           .string()
@@ -917,7 +907,7 @@ export function registerTools(
         "across coins, or pass one to filter. Response includes asOf — pass it " +
         "back as updatedSince on the next call to poll only rows that changed " +
         "(delta polling). " +
-        PAPER_NOTE,
+        PAPER_NOTE_SHORT,
       inputSchema: {
         coinId: z
           .string()
@@ -964,7 +954,7 @@ export function registerTools(
         "unrealized mark on open ones). Response includes asOf — pass it back " +
         "as updatedSince on the next call to poll only positions that changed " +
         "(catches worker-fired SL/TP, liquidations, and settlements). " +
-        PAPER_NOTE,
+        PAPER_NOTE_SHORT,
       inputSchema: {
         venue: z
           .enum(["futures", "pm"])
@@ -1007,7 +997,7 @@ export function registerTools(
         "CoinGecko category tags. Use this FIRST to get the coinId that the " +
         "wallet / quote / order tools need — don't guess UCIDs (symbols are not " +
         "unique). " +
-        PAPER_NOTE,
+        PAPER_NOTE_SHORT,
       inputSchema: {
         q: z
           .string()
@@ -1034,7 +1024,7 @@ export function registerTools(
         "PnL event (spot sells, futures closes/liquidations, PM settlements) " +
         "with a cumulative running total — use it for active intraday agents. " +
         "days = look-back window (1-365, default 30). " +
-        PAPER_NOTE,
+        PAPER_NOTE_SHORT,
       inputSchema: {
         days: z
           .number()
@@ -1077,7 +1067,7 @@ export function registerTools(
         "asOf — pass it back as updatedSince on the next call to fetch only " +
         "NEW closes since your last poll (how you discover worker-fired " +
         "stop-loss/take-profit, liquidations, and PM settlements). " +
-        PAPER_NOTE,
+        PAPER_NOTE_SHORT,
       inputSchema: {
         venue: z
           .enum(["all", "spot", "futures", "pm"])
@@ -1126,7 +1116,7 @@ export function registerTools(
         "market's depth/tradability — and up to 6 similar coins (shared category " +
         "/ market-cap peers). Facts only — no generated thesis. Call " +
         "resolve_symbol first to get the coinId. " +
-        PAPER_NOTE,
+        PAPER_NOTE_SHORT,
       inputSchema: {
         coinId: z
           .string()
@@ -1159,7 +1149,7 @@ export function registerTools(
         "These are sampled composite-price bars, not venue trade candles. " +
         "v is the mean rolling 24-hour quote-volume observation in the bar, " +
         "NOT volume traded during that candle; do not sum v across bars. " +
-        PAPER_NOTE,
+        PAPER_NOTE_SHORT,
       inputSchema: {
         coinId: z
           .string()
@@ -1207,7 +1197,7 @@ export function registerTools(
         "while the market stays visible). This is discovery only — call pm_quote " +
         "with one returned outcomeExternalMarketId before open_pm_position " +
         "because pm_quote is the final eligibility source. " +
-        PAPER_NOTE,
+        PAPER_NOTE_SHORT,
       inputSchema: {
         q: z
           .string()
@@ -1267,7 +1257,7 @@ export function registerTools(
         "PnL (mUSD), trade count, win/loss/neutral counts, and win rate (null " +
         "until there are decided trades). Closed trades only — the scorecard for " +
         "this agent. " +
-        PAPER_NOTE,
+        PAPER_NOTE_SHORT,
       inputSchema: {
         agentTrace: AGENT_TRACE_SCHEMA,
       },
@@ -1287,7 +1277,7 @@ export function registerTools(
         "rejects, idempotent replays, latency, sanitized summaries, and optional " +
         "run/decision trace metadata. Only rows for the calling key are returned. " +
         "Use this to audit a reproducible paper-trading run. " +
-        PAPER_NOTE,
+        PAPER_NOTE_SHORT,
       inputSchema: {
         venue: z.string().optional().describe("Optional venue filter."),
         eventType: z
@@ -1362,7 +1352,7 @@ export function registerTools(
         "Export up to 1,000 private ledger rows for the calling API key as JSON. " +
         "Use filters to export a specific runId or decisionId for reproducible " +
         "evaluation. No public Arena user can see this data. " +
-        PAPER_NOTE,
+        PAPER_NOTE_SHORT,
       inputSchema: {
         venue: z.string().optional().describe("Optional venue filter."),
         eventType: z
@@ -1404,7 +1394,7 @@ export function registerTools(
         "The bundle includes sanitized ledger rows, execution assumptions, " +
         "retention policy, outcome attribution, and the evidence checklist. " +
         "No public Arena user can see this data. " +
-        PAPER_NOTE,
+        PAPER_NOTE_SHORT,
       inputSchema: {
         runId: z.string().min(1).describe("Required run id to export."),
         agentTrace: AGENT_TRACE_SCHEMA,
@@ -1435,7 +1425,7 @@ export function registerTools(
         "and where you stand — pair " +
         "with get_performance (your own scorecard) and get_arena_agent (drill " +
         "into one handle). Public data: agent names + performance only. " +
-        PAPER_NOTE,
+        PAPER_NOTE_SHORT,
       inputSchema: {
         page: z
           .number()
@@ -1476,7 +1466,7 @@ export function registerTools(
         "get_arena_leaderboard, e.g. 'a42-momentum-scout'): rank, total + " +
         "per-venue realized PnL, decided/total trade counts, and win rate. " +
         "Public data only — no account or key identity. " +
-        PAPER_NOTE,
+        PAPER_NOTE_SHORT,
       inputSchema: {
         handle: z
           .string()
@@ -1500,7 +1490,7 @@ export function registerTools(
         "Read-only futures quote: entry price, notional, size, liquidation price, " +
         "and eligibility. Never mutates state — always quote before opening. " +
         "leverage 1-20, marginMusd >= 10. " +
-        PAPER_NOTE,
+        PAPER_NOTE_SHORT,
       inputSchema: {
         coinId: z.string().describe("Coin UCID."),
         side: z
@@ -1543,7 +1533,7 @@ export function registerTools(
         "stakeMusd must be > 0 (min to open is 10). Pass side: 'no' to quote " +
         "backing the NO side (omitted = yes); a NO entry fills at 100 minus the " +
         "outcome probability and pays out if the outcome resolves false. " +
-        PAPER_NOTE,
+        PAPER_NOTE_SHORT,
       inputSchema: {
         source: z.string().describe("Source slug (e.g. kalshi, polymarket)."),
         slug: z.string().describe("Event slug."),
@@ -1622,7 +1612,7 @@ export function registerTools(
         "before place_spot_order instead of buying/selling blind. Price age is " +
         "informational only (a market order fills regardless). coinId is a UCID, " +
         "NOT a ticker — use resolve_symbol first. " +
-        PAPER_NOTE,
+        PAPER_NOTE_SHORT,
       inputSchema: {
         coinId: z.string().describe("Coin UCID (e.g. '1' = BTC)."),
         side: z
@@ -1660,7 +1650,7 @@ export function registerTools(
         "per intent (reuse replays the original result — retry a timed-out " +
         "call with the SAME key; it will never double-execute). Requires the " +
         "trade:spot scope. CONFIRM with the user before calling. " +
-        PAPER_NOTE,
+        PAPER_NOTE_SHORT,
       inputSchema: {
         coinId: z.string().describe('Coin UCID (e.g. "1" = BTC).'),
         side: z
@@ -1764,7 +1754,7 @@ export function registerTools(
         "stopLossPrice/takeProfitPrice atomically at open (side-aware corridor: " +
         "long needs liq < SL < mark < TP; short inverted) — protecting every " +
         "position is good practice. Quote first and CONFIRM with the user. " +
-        PAPER_NOTE,
+        PAPER_NOTE_SHORT,
       inputSchema: {
         coinId: z
           .string()
@@ -1852,7 +1842,7 @@ export function registerTools(
         "live mark (liquidation always takes precedence); a fire closes the " +
         "FULL position at mark with realized PnL. Discover fills between polls " +
         "via my_trades with updatedSince. Requires the trade:futures scope. " +
-        PAPER_NOTE,
+        PAPER_NOTE_SHORT,
       inputSchema: {
         positionId: z
           .number()
@@ -1900,7 +1890,7 @@ export function registerTools(
         "Close or partially reduce a mock futures position. fraction in (0,1] " +
         "reduces partially; omit (or 1) for a full close. idempotencyKey is " +
         "REQUIRED. Requires the trade:futures scope. " +
-        PAPER_NOTE,
+        PAPER_NOTE_SHORT,
       inputSchema: {
         positionId: z
           .number()
@@ -1947,7 +1937,7 @@ export function registerTools(
         "REQUIRED. stakeMusd >= 10. Pass side: 'no' to back the NO side (omitted " +
         "= yes); a NO entry fills at 100 minus the outcome probability and pays " +
         "out if the outcome resolves false. Quote first and CONFIRM with the user. " +
-        PAPER_NOTE,
+        PAPER_NOTE_SHORT,
       inputSchema: {
         source: z
           .string()
@@ -2553,7 +2543,7 @@ export function registerTools(
           .min(1)
           .max(25)
           .optional()
-          .describe("Max clusters (1-25, default 10)."),
+          .describe("Max clusters (1-25, default 3)."),
         offset: z
           .number()
           .int()
@@ -2632,7 +2622,9 @@ export function registerTools(
       present(
         mapSuccessfulBody(
           await client.getPublicPmMatches({
-            limit,
+            // 3 by default: the API's default of 10 returned about 239k
+            // characters, more than an assistant's context should take at once.
+            limit: limit ?? 3,
             offset,
             sort,
             minDivergence,
