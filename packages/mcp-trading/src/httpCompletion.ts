@@ -22,6 +22,7 @@ export const COMPLETION_TOOL_NAMES = [
   "get_my_trades",
   "get_market_context",
   "get_candles",
+  "get_news",
   "discover_pm_markets",
   "get_performance",
   "get_agent_ledger",

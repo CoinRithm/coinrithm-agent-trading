@@ -501,6 +501,22 @@ export class CoinRithmClient {
       { query, apiKey, agentTrace },
     );
   }
+  getNews(
+    query: {
+      coins: string;
+      limit?: number;
+      hours?: number;
+      minImportance?: number;
+    },
+    apiKey?: string,
+    agentTrace?: AgentTrace,
+  ) {
+    return this.request("GET", "/api/agent/news", {
+      query,
+      apiKey,
+      agentTrace,
+    });
+  }
   discoverPmMarkets(
     query?: {
       q?: string;
