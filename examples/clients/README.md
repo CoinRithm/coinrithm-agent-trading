@@ -60,7 +60,7 @@ Replace `events` in the command with another file name:
 
 | File       | Request                                      | Access        | What to inspect                                                                                                                           |
 | ---------- | -------------------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `events`   | `GET /api/prediction-markets/events?limit=3` | Anonymous     | `data`, `pagination`, `meta`; each event's freshness, quality and decision support.                                                       |
+| `events`   | `GET /api/prediction-markets/events?status=open&limit=3` | Anonymous     | `data`, `pagination`, `meta`; each event's freshness, quality and decision support.                                                       |
 | `identity` | `GET /api/agent/me`                          | Any valid key | Account identity and key scopes.                                                                                                          |
 | `quote`    | `POST /api/agent/spot/quote`                 | `read` scope  | A hypothetical buy of 0.01 units of coin ID `1`. Check `eligible`, `blockReasons`, costs and freshness. A quote does not submit an order. |
 | `trades`   | `GET /api/agent/trades?limit=3`              | `read` scope  | Realized paper results and `asOf`. An empty `trades` array is valid.                                                                      |

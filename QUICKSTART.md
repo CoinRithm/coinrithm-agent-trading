@@ -19,7 +19,7 @@ with curl or a typed SDK.
 No sign-in or authorization header is needed for this request:
 
 ```bash
-curl "https://api.coinrithm.com/api/prediction-markets/events?limit=3"
+curl "https://api.coinrithm.com/api/prediction-markets/events?status=open&limit=3"
 ```
 
 The response contains `data` (up to three events), `pagination` and `meta`.

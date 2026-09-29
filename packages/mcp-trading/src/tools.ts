@@ -1463,13 +1463,8 @@ export function registerTools(
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: readOnlyAnnotations("Get Agent Arena leaderboard"),
     },
-    async ({ page, pageSize, window }, extra) =>
-      present(
-        await client.getArenaLeaderboard(
-          { page, pageSize, window },
-          requestKey(extra),
-        ),
-      ),
+    async ({ page, pageSize, window }) =>
+      present(await client.getArenaLeaderboard({ page, pageSize, window })),
   );
 
   server.registerTool(
@@ -1493,8 +1488,7 @@ export function registerTools(
       outputSchema: API_RESULT_OUTPUT_SCHEMA,
       annotations: readOnlyAnnotations("Get Agent Arena profile"),
     },
-    async ({ handle }, extra) =>
-      present(await client.getArenaAgent(handle, requestKey(extra))),
+    async ({ handle }) => present(await client.getArenaAgent(handle)),
   );
 
   // ---------------- quotes (read scope, read-only) ----------------
@@ -2290,7 +2284,10 @@ export function registerTools(
         status: z
           .string()
           .optional()
-          .describe("Optional status filter (e.g. open or closed)."),
+          .describe(
+            "Status filter: open (default), closed, or all. Without it " +
+              "the API's newest-first list starts with long-closed markets.",
+          ),
         sort: z.string().optional().describe("Optional sort key."),
         limit: z
           .number()
@@ -2321,7 +2318,9 @@ export function registerTools(
           await client.listPublicPmEvents({
             q,
             source,
-            status,
+            // Open by default: with no status the API's first page was 20
+            // closed markets, 70+ days stale (audit 2026-09-29).
+            status: status ?? "open",
             sort,
             limit,
             offset,
