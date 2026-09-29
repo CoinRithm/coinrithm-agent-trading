@@ -34,6 +34,11 @@ class PublicPmEvent:
         status (str):
         source (PublicPmSource):
         outcomes (list[PublicPmOutcome]):
+        market_subtitle (str | Unset): Kalshi single-market (Yes/No) events only: the contract's subject as
+            the venue labels it, e.g. "Over 2.5 maps" under the title
+            "... : Total Maps". Yes and No resolve against this line. Absent
+            when the venue gives none, when it is just "Yes", and on every
+            other event; the Yes/No outcome names and the title are unchanged.
         description (None | str | Unset):
         start_date (datetime.datetime | None | Unset):
         end_date (datetime.datetime | None | Unset):
@@ -87,6 +92,7 @@ class PublicPmEvent:
     status: str
     source: PublicPmSource
     outcomes: list[PublicPmOutcome]
+    market_subtitle: str | Unset = UNSET
     description: None | str | Unset = UNSET
     start_date: datetime.datetime | None | Unset = UNSET
     end_date: datetime.datetime | None | Unset = UNSET
@@ -132,6 +138,8 @@ class PublicPmEvent:
         for outcomes_item_data in self.outcomes:
             outcomes_item = outcomes_item_data.to_dict()
             outcomes.append(outcomes_item)
+
+        market_subtitle = self.market_subtitle
 
         description: None | str | Unset
         if isinstance(self.description, Unset):
@@ -290,6 +298,8 @@ class PublicPmEvent:
                 "outcomes": outcomes,
             }
         )
+        if market_subtitle is not UNSET:
+            field_dict["marketSubtitle"] = market_subtitle
         if description is not UNSET:
             field_dict["description"] = description
         if start_date is not UNSET:
@@ -365,6 +375,8 @@ class PublicPmEvent:
             outcomes_item = PublicPmOutcome.from_dict(outcomes_item_data)
 
             outcomes.append(outcomes_item)
+
+        market_subtitle = d.pop("marketSubtitle", UNSET)
 
         def _parse_description(data: object) -> None | str | Unset:
             if data is None:
@@ -633,6 +645,7 @@ class PublicPmEvent:
             status=status,
             source=source,
             outcomes=outcomes,
+            market_subtitle=market_subtitle,
             description=description,
             start_date=start_date,
             end_date=end_date,
