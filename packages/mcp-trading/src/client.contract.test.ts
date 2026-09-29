@@ -128,8 +128,6 @@ const mcpReads: Contract[] = [
     "/api/agent/ledger/export",
     { runId: "fixture/run" },
   ],
-  ["getArenaLeaderboard", [{ page: 1 }], "GET", "/api/arena", { page: "1" }],
-  ["getArenaAgent", ["fixture/name"], "GET", "/api/arena/fixture%2Fname"],
   ["listOpenOrders", [], "GET", "/api/agent/orders/open"],
   ["getFuturesPositions", [], "GET", "/api/agent/positions/futures"],
   ["getPmPositions", [], "GET", "/api/agent/positions/pm"],
@@ -343,7 +341,37 @@ async function check(
   );
 }
 
+// Public Arena reads go through the keyless path: the API serves them without
+// a key, and the caller's trading key must not leak into them.
+const mcpPublicReads: Contract[] = [
+  ["getArenaLeaderboard", [{ page: 1 }], "GET", "/api/arena", { page: "1" }],
+  ["getArenaAgent", ["fixture/name"], "GET", "/api/arena/fixture%2Fname"],
+];
+
 describe("MCP and runner HTTP contracts", () => {
+  it.each(mcpPublicReads)(
+    "MCP %s sends the declared route with no key",
+    async (method, args, verb, path, query = {}) => {
+      const client = new CoinRithmClient({
+        apiKey: "fixture-default",
+        baseUrl,
+      });
+      const call = (
+        client as unknown as Record<
+          string,
+          (...args: unknown[]) => Promise<unknown>
+        >
+      )[method];
+      await call.apply(client, args);
+      expect(fetchMock).toHaveBeenCalledOnce();
+      const [url, init] = fetchMock.mock.calls[0];
+      const parsed = new URL(String(url));
+      expect(parsed.pathname).toBe(path);
+      expect(Object.fromEntries(parsed.searchParams)).toEqual(query);
+      expect(init?.method ?? "GET").toBe(verb);
+      expect(new Headers(init?.headers).get("Authorization")).toBeNull();
+    },
+  );
   it.each([...mcpReads, ...mcpWrites])(
     "MCP %s sends the declared route, body and key",
     async (...contract) => {

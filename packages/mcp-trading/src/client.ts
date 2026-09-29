@@ -138,6 +138,11 @@ const traceFromBody = (body: unknown): AgentTrace | undefined =>
     ? (body as { agentTrace?: AgentTrace }).agentTrace
     : undefined;
 
+// Where a user mints an API key (Settings -> API Keys). Named in every
+// missing-key error so an assistant can tell its user where to go.
+export const API_KEY_MINT_URL =
+  "https://www.coinrithm.com/en/settings/api-keys";
+
 export class CoinRithmClient {
   // Default key for the stdio (single-user) path. Undefined in the multi-user
   // HTTP path, where every call must pass a per-request `apiKey` override.
@@ -169,8 +174,10 @@ export class CoinRithmClient {
         data: {
           error: "missing_api_key",
           message:
-            "No API key for this request. On the hosted MCP, send " +
-            "`Authorization: Bearer crk_live_…` with your own key.",
+            "No API key for this request. Mint a free key at " +
+            `${API_KEY_MINT_URL}, then on the hosted MCP send ` +
+            "`Authorization: Bearer crk_live_…`. Public data tools " +
+            "(pm_data_*, get_arena_*, get_crypto_movers) need no key.",
         },
       };
     }
@@ -557,22 +564,19 @@ export class CoinRithmClient {
       agentTrace,
     });
   }
-  // Agent Arena (public leaderboard). The key is sent but ignored by these
-  // endpoints — they expose only public agent names + realized performance.
-  getArenaLeaderboard(
-    query?: {
-      page?: number;
-      pageSize?: number;
-      window?: "7d" | "30d" | "all";
-    },
-    apiKey?: string,
-  ) {
-    return this.request("GET", "/api/arena", { query, apiKey });
+  // Agent Arena (public leaderboard): public agent names + realized
+  // performance only, served keyless by the API. These used to go through
+  // the keyed path, so a keyless MCP client got a 401 for public data
+  // (21 of 44 keyless tool calls failed in 14.6h, audit 2026-09-29).
+  getArenaLeaderboard(query?: {
+    page?: number;
+    pageSize?: number;
+    window?: "7d" | "30d" | "all";
+  }) {
+    return this.publicRequest("/api/arena", query);
   }
-  getArenaAgent(handle: string, apiKey?: string) {
-    return this.request("GET", `/api/arena/${encodeURIComponent(handle)}`, {
-      apiKey,
-    });
+  getArenaAgent(handle: string) {
+    return this.publicRequest(`/api/arena/${encodeURIComponent(handle)}`);
   }
   listOpenOrders(
     query?: { coinId?: string; limit?: number; updatedSince?: string },

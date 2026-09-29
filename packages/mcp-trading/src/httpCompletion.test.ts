@@ -231,7 +231,7 @@ describe("HTTP completion metrics through the real localhost MCP SDK", () => {
     },
   );
 
-  it.each(["whoami", "get_arena_leaderboard"])(
+  it.each(["whoami", "get_performance"])(
     "records missing-key %s as tool failure, not HTTP success",
     async (name) => {
       const f = await fixture();
@@ -303,6 +303,19 @@ describe("HTTP completion metrics through the real localhost MCP SDK", () => {
       );
     },
   );
+
+  it("serves the public Arena leaderboard to a keyless caller", async () => {
+    const f = await fixture();
+    const { messages } = await post(f.base, call("get_arena_leaderboard"));
+    expect(messages[0].result.isError).toBe(false);
+    const [record] = await waitRecords(f, 1);
+    expect(f.upstreamCalls[0].path).toBe("/api/arena");
+    expect(record).toMatchObject({
+      tool: "get_arena_leaderboard",
+      credential_supplied: false,
+      result_ok: true,
+    });
+  });
 
   it("does not call a public Arena 200 authenticated even with a supplied key", async () => {
     const f = await fixture();
