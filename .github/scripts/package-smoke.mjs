@@ -123,7 +123,9 @@ const mcp = new Client({ name: "package-smoke", version: "1.0.0" });
 try {
   await mcp.connect(transport);
   const { tools } = await mcp.listTools();
-  assert.equal(tools.length, 40);
+  // 41 since get_news (agent-trading #73).
+  assert.equal(tools.length, 41);
+  assert.ok(tools.some((tool) => tool.name === "get_news"));
   assert.equal(new Set(tools.map((tool) => tool.name)).size, tools.length);
 } finally {
   await mcp.close();
