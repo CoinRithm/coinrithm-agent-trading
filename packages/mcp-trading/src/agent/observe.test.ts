@@ -1,5 +1,9 @@
-import { describe, it, expect } from "vitest";
-import { observe } from "./observe.js";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
+import {
+  clearPmCalibrationCache,
+  observe,
+  readPmCalibration,
+} from "./observe.js";
 import { parseSkill } from "./skill.js";
 import { renderFolderOfOne } from "./templates.js";
 import { newState } from "./state.js";
@@ -1385,5 +1389,148 @@ describe("universe_scan capability", () => {
     });
     const { observation } = await observe(c, spec, newState("r"));
     expect(observation.watch.some((w) => w.discovered)).toBe(false);
+  });
+});
+
+describe("own PM calibration record (pmCalibration)", () => {
+  beforeEach(() => clearPmCalibrationCache());
+  afterEach(() => vi.useRealTimers());
+
+  const pmSpec = {
+    ...spec,
+    venues: ["pm", "futures"] as ("spot" | "futures" | "pm")[],
+    model: { provider: "anthropic" as const, name: "test-model" },
+  };
+  const record = (settled: number) => ({
+    settled,
+    brierAgent: 0.2801,
+    brierMarket: 0.1834,
+    meanForecastPct: 57.2,
+    winRatePct: 34.4,
+    bands: [
+      {
+        fromPct: 50,
+        toPct: 60,
+        n: 40,
+        meanForecastPct: 55.4,
+        winRatePct: 30.1,
+      },
+      // Invalid range and an empty band are dropped, never guessed.
+      { fromPct: 90, toPct: 80, n: 3, meanForecastPct: 85, winRatePct: 60 },
+      { fromPct: 60, toPct: 70, n: 0, meanForecastPct: 65, winRatePct: 0 },
+    ],
+  });
+  const clientWith = (
+    performance: (...args: unknown[]) => Promise<unknown>,
+    key = "agent-a",
+  ) =>
+    fakeClient({
+      pmPositions: async () => okData({ positions: [] }),
+      discoverPmMarkets: async () => okData({ data: [] }),
+      credentialFingerprint: () => key,
+      performance,
+    });
+
+  it("reads once per 30 minutes per credential and compacts the record", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const t0 = Date.parse("2026-09-29T00:00:00Z");
+    vi.setSystemTime(t0);
+    const perf = vi.fn(async () =>
+      okData({ totals: {}, pmCalibration: record(40) }),
+    );
+    const first = await observe(clientWith(perf), pmSpec, newState("r"));
+    expect(first.skip).toBeUndefined();
+    expect(first.observation.pmCalibration).toEqual({
+      settled: 40,
+      brierAgent: 0.28,
+      brierMarket: 0.183,
+      meanForecastPct: 57,
+      winRatePct: 34,
+      bands: [
+        { fromPct: 50, toPct: 60, n: 40, meanForecastPct: 55, winRatePct: 30 },
+      ],
+    });
+    // A new client per cycle (as the hosted scheduler does), same credential.
+    const second = await observe(clientWith(perf), pmSpec, newState("r"));
+    expect(second.observation.pmCalibration).toEqual(
+      first.observation.pmCalibration,
+    );
+    vi.setSystemTime(t0 + 30 * 60_000 - 1);
+    await observe(clientWith(perf), pmSpec, newState("r"));
+    expect(perf).toHaveBeenCalledOnce();
+    expect(perf.mock.calls[0][1]).toEqual({ timeoutMs: 5_000, maxRetries: 0 });
+    // Another agent's credential has its own entry.
+    await observe(clientWith(perf, "agent-b"), pmSpec, newState("r"));
+    expect(perf).toHaveBeenCalledTimes(2);
+    vi.setSystemTime(t0 + 30 * 60_000);
+    await observe(clientWith(perf), pmSpec, newState("r"));
+    expect(perf).toHaveBeenCalledTimes(3);
+  });
+
+  it("omits the block below 20 settled forecasts", async () => {
+    const { observation } = await observe(
+      clientWith(async () => okData({ pmCalibration: record(19) })),
+      pmSpec,
+      newState("r"),
+    );
+    expect(observation).not.toHaveProperty("pmCalibration");
+  });
+
+  it.each([
+    ["an older backend without the field", async () => okData({ totals: {} })],
+    ["a null block", async () => okData({ pmCalibration: null })],
+    ["an HTTP failure", async () => ({ ok: false, status: 500, data: {} })],
+    [
+      "a rejected read",
+      async () => {
+        throw new Error("network down");
+      },
+    ],
+  ])(
+    "omits the block and never blocks the cycle on %s, without retrying",
+    async (_label, impl) => {
+      const perf = vi.fn(impl);
+      const { observation, skip } = await observe(
+        clientWith(perf),
+        pmSpec,
+        newState("r"),
+      );
+      expect(skip).toBeUndefined();
+      expect(observation).not.toHaveProperty("pmCalibration");
+      expect(perf).toHaveBeenCalledOnce();
+      // The miss is cached too: no re-read in the next cycle within the TTL.
+      await observe(clientWith(perf), pmSpec, newState("r"));
+      expect(perf).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("never reads for a mechanical agent or without the PM venue", async () => {
+    const perf = vi.fn(async () => okData({ pmCalibration: record(40) }));
+    const mechanical = await observe(
+      clientWith(perf),
+      { ...pmSpec, model: { provider: "mechanical", name: "market-implied" } },
+      newState("r"),
+    );
+    expect(mechanical.observation).not.toHaveProperty("pmCalibration");
+    await observe(
+      clientWith(perf),
+      { ...pmSpec, venues: ["futures"] },
+      newState("r"),
+    );
+    expect(perf).not.toHaveBeenCalled();
+  });
+
+  it("omits the block for a client without the read", async () => {
+    expect(
+      await readPmCalibration({} as unknown as CoinRithmClient),
+    ).toBeUndefined();
+  });
+
+  it("re-reads when the clock moves backwards past the cached stamp", async () => {
+    const perf = vi.fn(async () => okData({ pmCalibration: record(40) }));
+    const c = clientWith(perf);
+    await readPmCalibration(c, undefined, 1_000_000);
+    await readPmCalibration(c, undefined, 999_999);
+    expect(perf).toHaveBeenCalledTimes(2);
   });
 });

@@ -6,6 +6,7 @@
 // injectable so tests run with no network and no real waits.
 
 import { AgentTrace, ApiResult } from "./types.js";
+import { createHash } from "node:crypto";
 import { setTimeout as sleep } from "node:timers/promises";
 import { retryAfterSeconds } from "../retryAfter.js";
 
@@ -102,8 +103,28 @@ export class CoinRithmClient {
   private async request(
     method: "GET" | "POST",
     path: string,
-    opts: { query?: Query; body?: unknown; trace?: AgentTrace } = {},
+    opts: {
+      query?: Query;
+      body?: unknown;
+      trace?: AgentTrace;
+      // Per-call overrides for optional reads: a shorter deadline (never
+      // longer than the client's) and fewer 429 retries (0 = no retry).
+      timeoutMs?: number;
+      maxRetries?: number;
+    } = {},
   ): Promise<ApiResult> {
+    const requestTimeoutMs =
+      opts.timeoutMs !== undefined &&
+      Number.isSafeInteger(opts.timeoutMs) &&
+      opts.timeoutMs >= 1
+        ? Math.min(opts.timeoutMs, this.requestTimeoutMs)
+        : this.requestTimeoutMs;
+    const maxRetries =
+      opts.maxRetries !== undefined &&
+      Number.isSafeInteger(opts.maxRetries) &&
+      opts.maxRetries >= 0
+        ? Math.min(opts.maxRetries, this.maxRetries)
+        : this.maxRetries;
     const url = new URL(this.baseUrl + path);
     if (opts.query) {
       for (const [k, v] of Object.entries(opts.query)) {
@@ -126,7 +147,7 @@ export class CoinRithmClient {
     const timer = setTimeout(() => {
       timedOut = true;
       controller.abort(new Error("API request deadline exceeded"));
-    }, this.requestTimeoutMs);
+    }, requestTimeoutMs);
     this.signal?.addEventListener("abort", cancel, { once: true });
     if (this.signal?.aborted) cancel();
 
@@ -151,12 +172,12 @@ export class CoinRithmClient {
 
         const retryAfter = retryAfterSeconds(res.headers.get("retry-after"));
         if (res.status === 429) this.rateLimitHits += 1;
-        if (res.status === 429 && attempt < this.maxRetries) {
+        if (res.status === 429 && attempt < maxRetries) {
           // Release this response before waiting so retries do not retain sockets.
           void res.body?.cancel().catch(() => {});
           const delayMs = (retryAfter ?? 5) * 1000;
           // Never shorten a provider's Retry-After or overflow a Node timer.
-          if (delayMs >= this.requestTimeoutMs) await aborted;
+          if (delayMs >= requestTimeoutMs) await aborted;
           else if (this.sleepFn) await this.sleepFn(delayMs);
           else await sleep(delayMs, undefined, { signal: controller.signal });
           continue;
@@ -197,7 +218,7 @@ export class CoinRithmClient {
               ? "request_aborted"
               : "network_error",
           message: timedOut
-            ? `API request exceeded ${this.requestTimeoutMs}ms deadline`
+            ? `API request exceeded ${requestTimeoutMs}ms deadline`
             : controller.signal.aborted
               ? "API request cancelled"
               : err instanceof Error
@@ -280,9 +301,32 @@ export class CoinRithmClient {
     }
   }
 
+  // A stable, non-reversible identity for this credential and API base, for
+  // per-agent in-memory caches that must outlive one client instance (the
+  // hosted scheduler builds a new client every cycle). Never the key itself.
+  credentialFingerprint(): string {
+    return createHash("sha256")
+      .update(`${this.baseUrl}\n${this.apiKey}`, "utf8")
+      .digest("hex")
+      .slice(0, 32);
+  }
+
   // ── reads ──────────────────────────────────────────────────────────────────
   me(trace?: AgentTrace) {
     return this.request("GET", "/api/agent/me", { trace });
+  }
+  // GET /api/agent/performance: the calling key's own realized performance.
+  // Newer backends add an optional `pmCalibration` block (the key's settled PM
+  // forecast record), parsed defensively in observe.
+  performance(
+    trace?: AgentTrace,
+    options?: { timeoutMs?: number; maxRetries?: number },
+  ) {
+    return this.request("GET", "/api/agent/performance", {
+      trace,
+      timeoutMs: options?.timeoutMs,
+      maxRetries: options?.maxRetries,
+    });
   }
   portfolio(trace?: AgentTrace) {
     return this.request("GET", "/api/agent/portfolio", { trace });

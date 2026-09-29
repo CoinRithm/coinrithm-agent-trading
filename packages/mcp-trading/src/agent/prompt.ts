@@ -248,6 +248,7 @@ export function buildSystemPrompt(
       ? [
           "- Each pmMarkets row carries `end` (resolution date), `vol24h` and `liq` (USD): thin liquidity means a smaller stake and a wider required edge; your time stop must sit before `end`; a probability that moved on heavy volume is information, one that moved on none is noise.",
           "- A row may carry `consensus` (event-level, the same on every row of that event): a cross-venue reference `prob` (0..1) for `consensus.outcome`, which is not necessarily the row's own outcome; kind \"binary\" with outcome null prices the event's YES side, so compare it with the matching side yourself. `venues` = how many venues it combines, `spreadPts` = their disagreement in points. A price far from a tight multi-venue consensus is information; a wide spread is uncertainty; no consensus means unknown, not agreement.",
+          "- observation.pmCalibration (when present) is YOUR OWN settled PM forecast record: brierAgent vs brierMarket (lower is better), and per band what you said (meanForecastPct) vs how often it won (winRatePct), with n. If your forecasts have been overconfident (win rate below what you said in a band), shade your forecast toward the market or skip.",
         ]
       : []),
     "",
@@ -482,6 +483,9 @@ export function buildUserPrompt(
               consensus: m.consensus ?? undefined,
             })),
           }
+        : {}),
+      ...(hasPm && obs.pmCalibration
+        ? { pmCalibration: obs.pmCalibration }
         : {}),
       watch: obs.watch,
       setups: obs.setups,

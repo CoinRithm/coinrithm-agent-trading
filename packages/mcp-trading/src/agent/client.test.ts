@@ -81,6 +81,65 @@ describe("CoinRithmClient", () => {
       expect(isFailClosed(200)).toBe(false);
     },
   );
+  it("lets an optional read opt out of 429 retries while still counting the hit", async () => {
+    const fetchFn = vi.fn(
+      async () =>
+        new Response("limited", {
+          status: 429,
+          headers: { "retry-after": "0" },
+        }),
+    );
+    const sleepFn = vi.fn(async () => {});
+    const c = new CoinRithmClient({ apiKey: "fixture", fetchFn, sleepFn });
+    const result = await c.performance(undefined, { maxRetries: 0 });
+    expect(result).toMatchObject({ ok: false, status: 429 });
+    expect(fetchFn).toHaveBeenCalledOnce();
+    expect(sleepFn).not.toHaveBeenCalled();
+    expect(c.rateLimitHits).toBe(1);
+    expect(String(fetchFn.mock.calls[0][0])).toBe(
+      "https://api.coinrithm.com/api/agent/performance",
+    );
+  });
+
+  it.each([-1, 1.5, NaN, 99])(
+    "ignores an invalid or larger per-call retry override (%s)",
+    async (maxRetries) => {
+      const fetchFn = vi.fn(
+        async () =>
+          new Response("limited", {
+            status: 429,
+            headers: { "retry-after": "0" },
+          }),
+      );
+      const c = new CoinRithmClient({
+        apiKey: "fixture",
+        fetchFn,
+        sleepFn: async () => {},
+        maxRetries: 1,
+      });
+      await c.performance(undefined, { maxRetries });
+      // Never more than the client's own retry budget.
+      expect(fetchFn).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it("fingerprints the credential without exposing the key", () => {
+    const a = new CoinRithmClient({ apiKey: "crk_live_secret" });
+    const again = new CoinRithmClient({ apiKey: "crk_live_secret" });
+    const other = new CoinRithmClient({ apiKey: "crk_live_other" });
+    const otherBase = new CoinRithmClient({
+      apiKey: "crk_live_secret",
+      baseUrl: "http://api:4000",
+    });
+    expect(a.credentialFingerprint()).toMatch(/^[0-9a-f]{32}$/);
+    expect(a.credentialFingerprint()).toBe(again.credentialFingerprint());
+    expect(a.credentialFingerprint()).not.toBe(other.credentialFingerprint());
+    expect(a.credentialFingerprint()).not.toBe(
+      otherBase.credentialFingerprint(),
+    );
+    expect(a.credentialFingerprint()).not.toContain("secret");
+  });
+
   it("backs off on 429 (Retry-After) then succeeds", async () => {
     const fetchFn = responder([
       new Response("rate limited", {
