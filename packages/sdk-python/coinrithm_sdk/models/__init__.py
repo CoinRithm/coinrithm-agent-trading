@@ -211,6 +211,7 @@ from .get_public_prediction_market_whale_wallets_source import GetPublicPredicti
 from .get_public_prediction_market_whale_wallets_window import GetPublicPredictionMarketWhaleWalletsWindow
 from .list_competitions_response_200 import ListCompetitionsResponse200
 from .list_open_orders_response_200 import ListOpenOrdersResponse200
+from .list_public_prediction_market_surprises_window import ListPublicPredictionMarketSurprisesWindow
 from .open_futures_position_response_422 import OpenFuturesPositionResponse422
 from .open_order import OpenOrder
 from .open_order_order_type import OpenOrderOrderType
@@ -305,6 +306,14 @@ from .public_pm_event_revisions_response_reconstructed import PublicPmEventRevis
 from .public_pm_events_response import PublicPmEventsResponse
 from .public_pm_events_response_meta import PublicPmEventsResponseMeta
 from .public_pm_events_response_pagination import PublicPmEventsResponsePagination
+from .public_pm_expiring_events_response import PublicPmExpiringEventsResponse
+from .public_pm_expiring_events_response_meta import PublicPmExpiringEventsResponseMeta
+from .public_pm_expiring_events_response_meta_window import PublicPmExpiringEventsResponseMetaWindow
+from .public_pm_microstructure_outcome_type_0 import PublicPmMicrostructureOutcomeType0
+from .public_pm_order_book_ask_evidence import PublicPmOrderBookAskEvidence
+from .public_pm_order_book_level import PublicPmOrderBookLevel
+from .public_pm_order_book_response import PublicPmOrderBookResponse
+from .public_pm_order_book_type_0 import PublicPmOrderBookType0
 from .public_pm_outcome import PublicPmOutcome
 from .public_pm_outcome_lifecycle_type_0 import PublicPmOutcomeLifecycleType0
 from .public_pm_outcome_lifecycle_type_0_basis import PublicPmOutcomeLifecycleType0Basis
@@ -323,6 +332,12 @@ from .public_pm_overview_response_by_source_item import PublicPmOverviewResponse
 from .public_pm_overview_response_categories_item_type_1 import PublicPmOverviewResponseCategoriesItemType1
 from .public_pm_overview_response_highlights import PublicPmOverviewResponseHighlights
 from .public_pm_overview_response_stats import PublicPmOverviewResponseStats
+from .public_pm_pagination import PublicPmPagination
+from .public_pm_resolution_outcome import PublicPmResolutionOutcome
+from .public_pm_resolved_entry import PublicPmResolvedEntry
+from .public_pm_resolved_events_response import PublicPmResolvedEventsResponse
+from .public_pm_resolved_events_response_meta import PublicPmResolvedEventsResponseMeta
+from .public_pm_resolved_events_response_meta_period_type_0 import PublicPmResolvedEventsResponseMetaPeriodType0
 from .public_pm_source import PublicPmSource
 from .public_pm_source_slug import PublicPmSourceSlug
 from .public_pm_sources_health_response import PublicPmSourcesHealthResponse
@@ -334,6 +349,11 @@ from .public_pm_sources_health_response_summary import PublicPmSourcesHealthResp
 from .public_pm_sources_health_response_thresholds import PublicPmSourcesHealthResponseThresholds
 from .public_pm_sources_response import PublicPmSourcesResponse
 from .public_pm_sources_response_sources_item import PublicPmSourcesResponseSourcesItem
+from .public_pm_surprise_entry import PublicPmSurpriseEntry
+from .public_pm_surprise_entry_surprise import PublicPmSurpriseEntrySurprise
+from .public_pm_surprises_response import PublicPmSurprisesResponse
+from .public_pm_trade import PublicPmTrade
+from .public_pm_trades_response import PublicPmTradesResponse
 from .public_pm_volume_history_response import PublicPmVolumeHistoryResponse
 from .public_pm_volume_history_response_days_item import PublicPmVolumeHistoryResponseDaysItem
 from .public_pm_volume_history_response_days_item_by_source_item import (
@@ -567,6 +587,7 @@ __all__ = (
     "GetPublicPredictionMarketWhaleWalletsWindow",
     "ListCompetitionsResponse200",
     "ListOpenOrdersResponse200",
+    "ListPublicPredictionMarketSurprisesWindow",
     "OpenFuturesPositionResponse422",
     "OpenOrder",
     "OpenOrderOrderType",
@@ -657,6 +678,14 @@ __all__ = (
     "PublicPmEventsResponse",
     "PublicPmEventsResponseMeta",
     "PublicPmEventsResponsePagination",
+    "PublicPmExpiringEventsResponse",
+    "PublicPmExpiringEventsResponseMeta",
+    "PublicPmExpiringEventsResponseMetaWindow",
+    "PublicPmMicrostructureOutcomeType0",
+    "PublicPmOrderBookAskEvidence",
+    "PublicPmOrderBookLevel",
+    "PublicPmOrderBookResponse",
+    "PublicPmOrderBookType0",
     "PublicPmOutcome",
     "PublicPmOutcomeLifecycleType0",
     "PublicPmOutcomeLifecycleType0Basis",
@@ -675,6 +704,12 @@ __all__ = (
     "PublicPmOverviewResponseCategoriesItemType1",
     "PublicPmOverviewResponseHighlights",
     "PublicPmOverviewResponseStats",
+    "PublicPmPagination",
+    "PublicPmResolutionOutcome",
+    "PublicPmResolvedEntry",
+    "PublicPmResolvedEventsResponse",
+    "PublicPmResolvedEventsResponseMeta",
+    "PublicPmResolvedEventsResponseMetaPeriodType0",
     "PublicPmSource",
     "PublicPmSourcesHealthResponse",
     "PublicPmSourcesHealthResponseDegradedItem",
@@ -686,6 +721,11 @@ __all__ = (
     "PublicPmSourceSlug",
     "PublicPmSourcesResponse",
     "PublicPmSourcesResponseSourcesItem",
+    "PublicPmSurpriseEntry",
+    "PublicPmSurpriseEntrySurprise",
+    "PublicPmSurprisesResponse",
+    "PublicPmTrade",
+    "PublicPmTradesResponse",
     "PublicPmVolumeHistoryResponse",
     "PublicPmVolumeHistoryResponseDaysItem",
     "PublicPmVolumeHistoryResponseDaysItemBySourceItem",

@@ -1728,6 +1728,150 @@ paths:
               schema: { $ref: "#/components/schemas/PublicPmCalibrationResponse" }
         "500": { $ref: "#/components/responses/ServerError" }
 
+  /api/prediction-markets/resolved:
+    get:
+      operationId: listPublicResolvedPredictionMarkets
+      tags: [public-pm-data]
+      summary: Resolved prediction-market events archive
+      description: |
+        Keyless archive of closed, definitively-resolved events across all
+        supported venues, newest settlement first. Outcome probabilities are
+        0-100 points, matching `PublicPmOutcome.probability`.
+
+        `resolvedAt` is populated only when the source-reported resolution
+        time is provider-verified (`resolvedAtVerified: true`); otherwise it
+        is null and `closedAt` carries a real observed close time instead —
+        never a fabricated settlement date.
+
+        Pass `year` (and optionally `month`, 1-12) to page one calendar slice
+        instead of the unbounded archive walk; `month` without `year` is
+        rejected with 400. A slice raises the per-page ceiling to 200 rows;
+        the unbounded walk stays at 100. `minVolume` turns the feed into a
+        "recent AND substantial" tape: when set, `meta.totalResolved` is null
+        (the archive count is not volume-filtered) and `meta.minVolume`
+        echoes the floor instead, so a slice total is never mistaken for the
+        venue's lifetime total.
+      security: []
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 24 }
+          description: Capped at 100 unless `year` is set, which raises the ceiling to 200.
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+        - name: fiat
+          in: query
+          schema: { type: string, default: USD }
+        - name: source
+          in: query
+          schema: { $ref: "#/components/schemas/PublicPmSourceSlug" }
+        - name: minVolume
+          in: query
+          schema: { type: number, minimum: 0, default: 0 }
+          description: Lifetime-volume floor. 0 (default) applies no floor.
+        - name: year
+          in: query
+          schema: { type: integer, minimum: 2010 }
+          description: Calendar year filter (2010 through next UTC year). Required if `month` is set.
+        - name: month
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 12 }
+          description: Calendar month filter, 1-12. Requires `year`; invalid without it.
+      responses:
+        "200":
+          description: Paginated resolved-event archive rows
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicPmResolvedEventsResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /api/prediction-markets/surprises:
+    get:
+      operationId: listPublicPredictionMarketSurprises
+      tags: [public-pm-data]
+      summary: Biggest resolved-market surprises ("flips")
+      description: |
+        Keyless "surprise index": resolved BINARY (exactly two outcomes)
+        markets whose eventual winner was priced under 50 (of 100) roughly 24
+        hours before settlement, ordered by the lowest T-24h winner
+        probability first. Only provider-resolution-basis events qualify;
+        multi-strike ladder markets are excluded because their non-leading
+        strikes are structurally near zero and are not a real surprise
+        signal. Same resolvedAt/closedAt honesty rule as `/resolved`:
+        `resolvedAt` is populated only when provider-verified.
+
+        `surprise.t24hProbability` and `surprise.t7dProbability` are the
+        WINNING outcome's probability, 0-100 points, at T-24h and T-7d before
+        resolution. `t7dProbability` is frequently null — not every market
+        has 7 days of pre-resolution history.
+      security: []
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 24 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+        - name: fiat
+          in: query
+          schema: { type: string, default: USD }
+        - name: source
+          in: query
+          schema: { $ref: "#/components/schemas/PublicPmSourceSlug" }
+        - name: window
+          in: query
+          schema: { type: string, enum: [7d, 30d, 90d, all], default: all }
+          description: Resolved-recency filter. Unknown/absent values are served as `all`, never rejected.
+      responses:
+        "200":
+          description: Paginated surprise-index rows
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicPmSurprisesResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /api/prediction-markets/expiring:
+    get:
+      operationId: listPublicExpiringPredictionMarkets
+      tags: [public-pm-data]
+      summary: Open prediction markets expiring soon
+      description: |
+        Keyless catalog of OPEN events whose `endDate` falls within the
+        lookahead window (`days`, default 7), soonest end first. Requires
+        24h volume >= 1000 or lifetime volume >= 10000 in the venue's raw
+        (pre-fiat-conversion) units, so thin/inactive markets are excluded.
+        Each row is a full event plus `expiresInMs`: milliseconds from the
+        response time to `endDate`.
+      security: []
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+        - name: fiat
+          in: query
+          schema: { type: string, default: USD }
+        - name: days
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 30, default: 7 }
+          description: Lookahead window in days from now.
+        - name: source
+          in: query
+          schema: { $ref: "#/components/schemas/PublicPmSourceSlug" }
+      responses:
+        "200":
+          description: Paginated soon-to-expire open events
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicPmExpiringEventsResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
   /healthz:
     get:
       operationId: getHealthz
@@ -2092,6 +2236,90 @@ paths:
                       properties:
                         t: { type: integer, description: Unix ms }
                         p: { type: number, minimum: 0, maximum: 1, description: Probability 0..1 }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /api/prediction-markets/event/{source}/{slug}/orderbook:
+    get:
+      operationId: getPublicPredictionMarketOrderBook
+      tags: [public-pm-data]
+      summary: Live order book for one outcome of an event
+      description: |
+        Keyless live order book for the SAME single outcome `price-history`
+        describes (the Yes leg of a binary market, else the first outcome in
+        venue order). Polymarket and Kalshi only; other sources answer 200
+        with `orderBook: null`, which means "not served here", not "no
+        market". A thin or near-expiry market with no resting orders on
+        either side also answers 200 with `orderBook: null` — a valid empty
+        shape, not an error.
+
+        `bid`/`ask`/`midpoint`/level `price` are probabilities 0-1 (a
+        fraction), NOT the 0-100 scale used by `PublicPmOutcome.probability`
+        elsewhere in this API. This is fetch-time venue depth, not an
+        executable quote or a tradability guarantee — use the quote/mock-open
+        flow for that.
+
+        `askEvidence` is present only for Polymarket books: it records
+        whether the supplied ask snapshot parsed as a valid non-empty book
+        (`validated`) and when this server fetched it (`receivedAt`, its own
+        acquisition time, not an upstream trade time). Kalshi books omit it.
+      security: []
+      parameters:
+        - name: source
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/PublicPmSourceSlug" }
+        - name: slug
+          in: path
+          required: true
+          schema: { type: string, minLength: 1 }
+      responses:
+        "200":
+          description: Order book for one outcome (null when unsupported or empty)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicPmOrderBookResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /api/prediction-markets/event/{source}/{slug}/trades:
+    get:
+      operationId: getPublicPredictionMarketTrades
+      tags: [public-pm-data]
+      summary: Recent trades for one outcome of an event
+      description: |
+        Keyless recent-trades tape for the same single outcome
+        `price-history`/`orderbook` describe. Always returns the most recent
+        trades up to a fixed server cap of 20; there is no limit/offset
+        parameter and none is read from the query string. Polymarket and
+        Kalshi only; other sources answer 200 with `trades: []`, which means
+        "not served here", not "no trading" — an event with genuinely no
+        recent trades on a supported source also answers 200 with
+        `trades: []`.
+
+        `price` is a probability 0-1 (a fraction), NOT the 0-100 scale used
+        by `PublicPmOutcome.probability` elsewhere in this API. `usdValue` is
+        `size * price`. `who` is a public trader handle only where the venue
+        exposes one (Polymarket pseudonym); Kalshi trades always report
+        `who: null`.
+      security: []
+      parameters:
+        - name: source
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/PublicPmSourceSlug" }
+        - name: slug
+          in: path
+          required: true
+          schema: { type: string, minLength: 1 }
+      responses:
+        "200":
+          description: Up to 20 most recent trades for one outcome
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicPmTradesResponse" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
         "500": { $ref: "#/components/responses/ServerError" }
@@ -3122,6 +3350,231 @@ components:
           type: object
           additionalProperties: true
       required: [data, pagination]
+
+    PublicPmPagination:
+      type: object
+      additionalProperties: true
+      properties:
+        limit: { type: integer }
+        offset: { type: integer }
+        hasMore: { type: boolean }
+      required: [limit, offset, hasMore]
+
+    PublicPmResolutionOutcome:
+      type: object
+      additionalProperties: true
+      description: The winning outcome as recorded at resolution.
+      properties:
+        externalMarketId: { type: string }
+        name: { type: string }
+        probability:
+          type: number
+          description: The winning outcome's provider-implied probability on a 0-100 scale, as last recorded.
+        basis:
+          type: string
+          description: "How the winner was determined. Currently `source` (the venue's own resolved-outcome marker matched a stored outcome) or `final_probability` (no venue marker, but exactly one outcome closed at >=99.5). A plain string: treat an unknown value as unknown."
+      required: [externalMarketId, name, probability, basis]
+
+    PublicPmResolvedEntry:
+      type: object
+      additionalProperties: true
+      properties:
+        event: { $ref: "#/components/schemas/PublicPmEvent" }
+        resolvedAt:
+          type: [string, "null"]
+          format: date-time
+          description: Provider-verified resolution time. Null when not provider-verified; see resolvedAtVerified.
+        resolvedAtVerified: { type: boolean }
+        closedAt:
+          type: [string, "null"]
+          format: date-time
+          description: A real observed close time (never a fabricated future date), used when resolvedAt is not provider-verified.
+        resolutionOutcome: { $ref: "#/components/schemas/PublicPmResolutionOutcome" }
+      required: [event, resolvedAtVerified, resolutionOutcome]
+
+    PublicPmResolvedEventsResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/PublicPmResolvedEntry" }
+        pagination: { $ref: "#/components/schemas/PublicPmPagination" }
+        meta:
+          type: object
+          additionalProperties: true
+          properties:
+            totalResolved:
+              type: [integer, "null"]
+              description: Null when minVolume is set (the archive count is not volume-filtered); see minVolume.
+            minVolume:
+              type: [number, "null"]
+              description: Echoes the requested floor when set, else null.
+            period:
+              type: [object, "null"]
+              additionalProperties: false
+              properties:
+                year: { type: integer }
+                month: { type: [integer, "null"] }
+          required: [totalResolved, minVolume, period]
+      required: [data, pagination, meta]
+
+    PublicPmSurpriseEntry:
+      type: object
+      additionalProperties: true
+      properties:
+        event: { $ref: "#/components/schemas/PublicPmEvent" }
+        resolvedAt:
+          type: [string, "null"]
+          format: date-time
+          description: Provider-verified resolution time. Null when not provider-verified; see resolvedAtVerified.
+        resolvedAtVerified: { type: boolean }
+        closedAt:
+          type: [string, "null"]
+          format: date-time
+        resolutionOutcome: { $ref: "#/components/schemas/PublicPmResolutionOutcome" }
+        surprise:
+          type: object
+          additionalProperties: true
+          properties:
+            t24hProbability:
+              type: number
+              description: Winning outcome's probability (0-100) roughly 24h before resolution.
+            t7dProbability:
+              type: [number, "null"]
+              description: Winning outcome's probability (0-100) roughly 7 days before resolution; frequently null.
+          required: [t24hProbability, t7dProbability]
+      required: [event, resolvedAtVerified, resolutionOutcome, surprise]
+
+    PublicPmSurprisesResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/PublicPmSurpriseEntry" }
+        window:
+          type: string
+          description: The window applied, echoed from the request (`7d`, `30d`, `90d` or `all`; unknown requests are served as `all`).
+        pagination: { $ref: "#/components/schemas/PublicPmPagination" }
+      required: [data, window, pagination]
+
+    PublicPmExpiringEventsResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        data:
+          type: array
+          description: Each row is a PublicPmEvent that additionally carries `expiresInMs` (integer, milliseconds from fetch time to endDate); PublicPmEvent's open additionalProperties allows the extra field.
+          items: { $ref: "#/components/schemas/PublicPmEvent" }
+        pagination: { $ref: "#/components/schemas/PublicPmPagination" }
+        meta:
+          type: object
+          additionalProperties: true
+          properties:
+            totalExpiring: { type: integer }
+            window:
+              type: object
+              additionalProperties: false
+              properties:
+                from: { type: string, format: date-time }
+                to: { type: string, format: date-time }
+              required: [from, to]
+          required: [totalExpiring, window]
+      required: [data, pagination, meta]
+
+    PublicPmMicrostructureOutcome:
+      type: [object, "null"]
+      additionalProperties: true
+      description: Which outcome this microstructure read describes; null when the event has neither an outcome name nor id.
+      properties:
+        name: { type: [string, "null"] }
+        externalMarketId: { type: [string, "null"] }
+
+    PublicPmOrderBookLevel:
+      type: object
+      additionalProperties: false
+      properties:
+        price: { type: number, minimum: 0, maximum: 1, description: "Probability 0-1, a fraction." }
+        size: { type: number, minimum: 0, description: "Resting size in shares (Polymarket) or contracts (Kalshi)." }
+      required: [price, size]
+
+    PublicPmOrderBookAskEvidence:
+      type: object
+      additionalProperties: false
+      description: Present only for Polymarket books; Kalshi books omit it.
+      properties:
+        validated:
+          type: boolean
+          description: Whether the supplied ask snapshot parsed as a valid non-empty book.
+        receivedAt:
+          type: string
+          format: date-time
+          description: This server's acquisition time, not an upstream trade time.
+      required: [validated, receivedAt]
+
+    PublicPmOrderBook:
+      type: [object, "null"]
+      additionalProperties: true
+      description: Null when the source has no book endpoint or none is currently resting — a valid empty shape, not an error.
+      properties:
+        bid: { type: [number, "null"], minimum: 0, maximum: 1 }
+        ask: { type: [number, "null"], minimum: 0, maximum: 1 }
+        spread: { type: [number, "null"] }
+        midpoint: { type: [number, "null"], minimum: 0, maximum: 1 }
+        bids:
+          type: array
+          description: Bid levels, best (highest price) first.
+          items: { $ref: "#/components/schemas/PublicPmOrderBookLevel" }
+        asks:
+          type: array
+          description: Ask levels, best (lowest price) first.
+          items: { $ref: "#/components/schemas/PublicPmOrderBookLevel" }
+        askEvidence: { $ref: "#/components/schemas/PublicPmOrderBookAskEvidence" }
+      required: [bid, ask, spread, midpoint, bids, asks]
+
+    PublicPmOrderBookResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        source: { $ref: "#/components/schemas/PublicPmSourceSlug" }
+        slug: { type: string }
+        outcome: { $ref: "#/components/schemas/PublicPmMicrostructureOutcome" }
+        orderBook: { $ref: "#/components/schemas/PublicPmOrderBook" }
+      required: [source, slug, outcome, orderBook]
+
+    PublicPmTrade:
+      type: object
+      additionalProperties: true
+      properties:
+        side:
+          type: string
+          description: "Normalized direction: buy/sell (Polymarket) or the venue's own taker-side label, e.g. yes/no (Kalshi). Plain string — new venues may add new labels."
+        price: { type: number, minimum: 0, maximum: 1, description: "Probability 0-1, a fraction." }
+        size: { type: number, minimum: 0, description: "Size in shares (Polymarket) or contracts (Kalshi)." }
+        usdValue: { type: number, description: "Notional USD value, size * price." }
+        outcome:
+          type: [string, "null"]
+          description: Outcome label when the venue reports one on the trade row, else null.
+        who:
+          type: [string, "null"]
+          description: Public trader handle when the venue exposes one (Polymarket pseudonym); Kalshi trades always report null.
+        timestamp: { type: string, format: date-time }
+      required: [side, price, size, usdValue, outcome, who, timestamp]
+
+    PublicPmTradesResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        source: { $ref: "#/components/schemas/PublicPmSourceSlug" }
+        slug: { type: string }
+        outcome: { $ref: "#/components/schemas/PublicPmMicrostructureOutcome" }
+        trades:
+          type: array
+          maxItems: 20
+          description: Most recent trades, fixed server cap of 20; not client-configurable.
+          items: { $ref: "#/components/schemas/PublicPmTrade" }
+      required: [source, slug, outcome, trades]
 
     PublicPmOverviewResponse:
       type: object
