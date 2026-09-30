@@ -31,11 +31,14 @@ class PmDiscoveryResolution:
         settlement_source (None | str):
         settlement_sources (list[PmDiscoveryResolutionSettlementSourcesType0Item] | None): Named outlets the venue says
             it settles from (Kalshi); null elsewhere.
-        scope (PmDiscoveryResolutionScope | Unset): Present only when the venue's per-market rules were read (Kalshi);
-            absent means not determined and `rules` is the event text as before.
+        scope (PmDiscoveryResolutionScope | Unset): Present for venues whose markets each state their own rule
+            (Kalshi), even when those rules could not be read (every outcome
+            is then `unknown`); absent for other venues, where `rules` is the
+            event text as before.
             `per_outcome`: each outcome carries its own exact `rules`, bound by
             provider market id, and this event-level `rules` is ONLY a
-            secondary rule byte-identical in every market (else null). The
+            secondary rule every market states identically (compared after
+            whitespace normalization), else null. The
             event-level bullets, which mix several markets' conditions, are
             not served. `published` is true when at least one outcome has an
             exact rule.

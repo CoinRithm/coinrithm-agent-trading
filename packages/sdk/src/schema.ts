@@ -4325,11 +4325,14 @@ export interface components {
                 url: string | null;
             }[] | null;
             /**
-             * @description Present only when the venue's per-market rules were read (Kalshi);
-             *     absent means not determined and `rules` is the event text as before.
+             * @description Present for venues whose markets each state their own rule
+             *     (Kalshi), even when those rules could not be read (every outcome
+             *     is then `unknown`); absent for other venues, where `rules` is the
+             *     event text as before.
              *     `per_outcome`: each outcome carries its own exact `rules`, bound by
              *     provider market id, and this event-level `rules` is ONLY a
-             *     secondary rule byte-identical in every market (else null). The
+             *     secondary rule every market states identically (compared after
+             *     whitespace normalization), else null. The
              *     event-level bullets, which mix several markets' conditions, are
              *     not served. `published` is true when at least one outcome has an
              *     exact rule.
@@ -4362,10 +4365,12 @@ export interface components {
             /** @description exact only; primary or secondary was cut at 700 characters */
             truncated?: boolean;
             /**
-             * @description unknown only
+             * @description unknown only. `source_rules_unavailable`: the venue's per-market
+             *     rules could not be read at all; `market_not_found`: they were read
+             *     but do not include this market.
              * @enum {string}
              */
-            reason?: "market_not_found" | "rule_missing" | "conflicting_duplicates";
+            reason?: "source_rules_unavailable" | "market_not_found" | "rule_missing" | "conflicting_duplicates";
         };
         PmDiscoveryOutcome: {
             externalMarketId?: string;

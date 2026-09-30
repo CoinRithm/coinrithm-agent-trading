@@ -31,7 +31,9 @@ class PmDiscoveryOutcomeRule:
                 the shared one in `resolution.rules` (`secondaryShared` true).
             secondary_shared (bool | Unset): exact only
             truncated (bool | Unset): exact only; primary or secondary was cut at 700 characters
-            reason (PmDiscoveryOutcomeRuleReason | Unset): unknown only
+            reason (PmDiscoveryOutcomeRuleReason | Unset): unknown only. `source_rules_unavailable`: the venue's per-market
+                rules could not be read at all; `market_not_found`: they were read
+                but do not include this market.
     """
 
     status: PmDiscoveryOutcomeRuleStatus
