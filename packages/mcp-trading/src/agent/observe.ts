@@ -33,6 +33,7 @@ import {
   pmDecisionSupportOf,
   pmConsensusOf,
   pmCalibrationOf,
+  pmSettlementRuleOf,
 } from "./pmContext.js";
 import { deriveCapitalBook, usesCapitalSizing } from "./capitalSizing.js";
 
@@ -769,6 +770,9 @@ function expandPmMarkets(
         // Event-level cross-venue consensus, copied onto every outcome row of
         // the event as-is (never mapped to or flipped for a specific outcome).
         const consensus = pmConsensusOf(ev);
+        // Event-level settlement terms, likewise copied to every outcome row;
+        // the prompt prints them once per event.
+        const rules = pmSettlementRuleOf(ev);
         // At most a few outcomes per event so a wide multi-outcome market
         // (e.g. dozens of price buckets) can't explode the prompt. Drop
         // outcomes the backend flagged NOT openable (eligible === false) so the
@@ -811,6 +815,7 @@ function expandPmMarkets(
           endDate: asStr(ev.endDate) ?? undefined,
           liquidityUsd: asNum(ev.liquidity) ?? undefined,
           ...(consensus !== undefined ? { consensus } : {}),
+          ...(rules !== undefined ? { rules } : {}),
         }));
       })
       .filter(
