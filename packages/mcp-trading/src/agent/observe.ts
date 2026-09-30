@@ -34,7 +34,7 @@ import {
   pmConsensusOf,
   pmCalibrationOf,
   pmSettlementRuleOf,
-  pmRuleTermOf,
+  pmOutcomeRuleOf,
 } from "./pmContext.js";
 import { deriveCapitalBook, usesCapitalSizing } from "./capitalSizing.js";
 
@@ -826,9 +826,9 @@ function expandPmMarkets(
         // Only an absent legacy outcomes field permits the flat fallback. A
         // present empty/malformed/all-rejected array must never resurrect ev.
         return outcomes.map((o) => {
-          // This outcome's own term for a per-outcome rule (bound by market
+          // This outcome's own rule for a per-outcome event (bound by market
           // id at the API); undefined when the rule is not per-outcome.
-          const ruleTerm = pmRuleTermOf(rules, o);
+          const outcomeRule = pmOutcomeRuleOf(rules, o);
           return {
             source,
             slug,
@@ -856,7 +856,7 @@ function expandPmMarkets(
             liquidityUsd: asNum(ev.liquidity) ?? undefined,
             ...(consensus !== undefined ? { consensus } : {}),
             ...(rules !== undefined ? { rules } : {}),
-            ...(ruleTerm !== undefined ? { ruleTerm } : {}),
+            ...(outcomeRule ? { outcomeRule } : {}),
           };
         });
       })

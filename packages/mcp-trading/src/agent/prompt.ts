@@ -434,7 +434,7 @@ export function buildUserPrompt(
   // and the shared cache prefix stay unchanged.
   if (hasPm && obs.pmMarkets.some((m) => m.rules?.scope === "per_outcome")) {
     lines.push(
-      "Some pmMarkets events settle per outcome (rules.scope \"per_outcome\"): that event's rules.text is a template, and each row's ruleTerm replaces {term} for that row only, never another row's term. ruleTerm null means that outcome's exact settlement terms are unknown.",
+      "Some pmMarkets events settle per outcome (rules.scope \"per_outcome\"): each row's outcomeRule is that outcome's own rule as the venue states it (primary, plus secondary when it differs), and that event's rules.text holds only what every outcome shares. Judge each row by its own outcomeRule, never another row's. outcomeRule.unknown means that outcome's exact settlement terms are unknown.",
     );
   }
   if (opts.dailyRiskBudget) {
@@ -604,9 +604,9 @@ export function buildUserPrompt(
                 ) === i
                   ? m.rules
                   : undefined,
-              // This outcome's own term for a per-outcome rule, on every row
-              // (null = unknown); absent when the rule is not per-outcome.
-              ruleTerm: m.ruleTerm,
+              // This outcome's own rule for a per-outcome event, on every row;
+              // absent when the rule is not per-outcome.
+              outcomeRule: m.outcomeRule,
             })),
           }
         : {}),

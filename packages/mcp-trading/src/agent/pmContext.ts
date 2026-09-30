@@ -6,6 +6,7 @@ import type {
   PmConsensus,
   PmDecisionSupport,
   PmQuality,
+  PmOutcomeRule,
   PmSettlementRule,
 } from "./types.js";
 import { asArr, asNum, asObj, asStr } from "./extract.js";
@@ -175,8 +176,7 @@ export function pmSettlementRuleOf(
   const settlementSource = asStr(r.settlementSource)?.trim().slice(0, 120);
   if (settlementSource && !sources.includes(settlementSource))
     sources.unshift(settlementSource);
-  const scope =
-    r.scope === "event" || r.scope === "per_outcome" ? r.scope : undefined;
+  const scope = r.scope === "per_outcome" ? r.scope : undefined;
   return {
     published: r.published,
     ...(text ? { text } : {}),
@@ -185,22 +185,42 @@ export function pmSettlementRuleOf(
   };
 }
 
-// Longest per-outcome term the API emits (backend-v2 AGENT_RULE_TERM_MAX).
-export const PM_RULE_TERM_MAX = 48;
+// Prompt budget for one outcome's own rule (the API bounds each at 700).
+export const PM_OUTCOME_PRIMARY_MAX = 400;
+export const PM_OUTCOME_SECONDARY_MAX = 300;
 
-// One discover outcome's own settlement term, only for a per-outcome rule.
-// undefined = the rule is not per-outcome (the row carries no term); null =
-// per-outcome but this outcome's term is unknown (missing, junk or too long).
-export function pmRuleTermOf(
+const UNKNOWN_RULE_REASONS = [
+  "market_not_found",
+  "rule_missing",
+  "conflicting_duplicates",
+] as const;
+
+const cut = (text: string, max: number) =>
+  text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
+
+// One discover outcome's own settlement rule, only for a per-outcome event.
+// undefined = the event's rule is not per-outcome (the row carries none);
+// otherwise the exact provider rule or an explicit unknown reason.
+export function pmOutcomeRuleOf(
   rules: PmSettlementRule | null | undefined,
   outcome: Record<string, unknown>,
-): string | null | undefined {
+): PmOutcomeRule | undefined {
   if (rules?.scope !== "per_outcome") return undefined;
-  const term =
-    typeof outcome.ruleTerm === "string"
-      ? outcome.ruleTerm.replace(/\s+/g, " ").trim()
-      : "";
-  return term && term.length <= PM_RULE_TERM_MAX ? term : null;
+  const r = asObj(outcome.rules);
+  const text = (v: unknown) =>
+    typeof v === "string" ? v.replace(/\s+/g, " ").trim() : "";
+  const primary = text(r.primary);
+  if (r.status === "exact" && primary) {
+    const secondary = text(r.secondary);
+    return {
+      primary: cut(primary, PM_OUTCOME_PRIMARY_MAX),
+      ...(secondary
+        ? { secondary: cut(secondary, PM_OUTCOME_SECONDARY_MAX) }
+        : {}),
+    };
+  }
+  const reason = UNKNOWN_RULE_REASONS.find((v) => v === r.reason);
+  return { unknown: r.status === "unknown" && reason ? reason : "unreadable" };
 }
 
 export const PM_CONSENSUS_KINDS = ["binary", "leader"] as const;

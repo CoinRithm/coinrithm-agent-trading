@@ -6,8 +6,8 @@ import {
   pmDecisionSupportOf,
   pmQualityOf,
   pmSettlementRuleOf,
-  pmRuleTermOf,
-  PM_RULE_TERM_MAX,
+  pmOutcomeRuleOf,
+  PM_OUTCOME_PRIMARY_MAX,
   PM_RULES_TEXT_MAX,
   sourceTimestamp,
 } from "./pmContext.js";
@@ -272,44 +272,78 @@ describe("pmSettlementRuleOf (discover `resolution`, backend-v2 #111)", () => {
     expect(text?.endsWith("…")).toBe(true);
   });
 
-  it("keeps a known scope and drops an unknown one", () => {
+  it("keeps only the per-outcome scope and drops anything else", () => {
     expect(
       pmSettlementRuleOf(resolution({ scope: "per_outcome" }))?.scope,
     ).toBe("per_outcome");
-    expect(pmSettlementRuleOf(resolution({ scope: "event" }))?.scope).toBe(
-      "event",
-    );
-    expect(
-      pmSettlementRuleOf(resolution({ scope: "PRIVATE_TEXT" })),
-    ).not.toHaveProperty("scope");
+    for (const scope of ["event", "PRIVATE_TEXT"]) {
+      expect(pmSettlementRuleOf(resolution({ scope }))).not.toHaveProperty(
+        "scope",
+      );
+    }
   });
 });
 
-describe("pmRuleTermOf (per-outcome settlement term)", () => {
+describe("pmOutcomeRuleOf (an outcome's own settlement rule)", () => {
   const perOutcome = { published: true, scope: "per_outcome" as const };
-
-  it("carries only the outcome's own term, and only for a per-outcome rule", () => {
-    expect(pmRuleTermOf(perOutcome, { ruleTerm: " 3.6% " })).toBe("3.6%");
-    expect(
-      pmRuleTermOf({ published: true, scope: "event" }, { ruleTerm: "3.6%" }),
-    ).toBeUndefined();
-    expect(pmRuleTermOf({ published: true }, { ruleTerm: "3.6%" })).toBe(
-      undefined,
-    );
-    expect(pmRuleTermOf(null, { ruleTerm: "3.6%" })).toBeUndefined();
-    expect(pmRuleTermOf(undefined, { ruleTerm: "3.6%" })).toBeUndefined();
+  const PRIMARY =
+    "If CPI increases by more than 3.6%, then the market resolves to Yes.";
+  const exact = (over: Record<string, unknown> = {}) => ({
+    rules: {
+      status: "exact",
+      basis: "provider_market_rules",
+      marketId: "KXCPIYOY-26SEP-T3.6",
+      primary: PRIMARY,
+      secondary: null,
+      secondaryShared: true,
+      truncated: false,
+      ...over,
+    },
   });
 
-  it("is explicitly unknown when the term is missing, junk or too long", () => {
-    for (const ruleTerm of [
-      undefined,
-      null,
-      "",
-      "  ",
-      3.6,
-      "x".repeat(PM_RULE_TERM_MAX + 1),
+  it("carries the outcome's own rule only for a per-outcome event", () => {
+    expect(pmOutcomeRuleOf(perOutcome, exact())).toEqual({ primary: PRIMARY });
+    expect(
+      pmOutcomeRuleOf(
+        perOutcome,
+        exact({ secondary: "Only this line  settles early." }),
+      ),
+    ).toEqual({ primary: PRIMARY, secondary: "Only this line settles early." });
+    expect(pmOutcomeRuleOf({ published: true }, exact())).toBeUndefined();
+    expect(pmOutcomeRuleOf(null, exact())).toBeUndefined();
+    expect(pmOutcomeRuleOf(undefined, exact())).toBeUndefined();
+  });
+
+  it("keeps the API's unknown reason and marks anything unusable unreadable", () => {
+    expect(
+      pmOutcomeRuleOf(perOutcome, {
+        rules: {
+          status: "unknown",
+          marketId: "X",
+          reason: "conflicting_duplicates",
+        },
+      }),
+    ).toEqual({ unknown: "conflicting_duplicates" });
+    for (const outcome of [
+      {},
+      { rules: null },
+      { rules: "text" },
+      exact({ primary: "  " }),
+      { rules: { status: "unknown", reason: "PRIVATE_TEXT" } },
     ]) {
-      expect(pmRuleTermOf(perOutcome, { ruleTerm })).toBeNull();
+      expect(pmOutcomeRuleOf(perOutcome, outcome)).toEqual({
+        unknown: "unreadable",
+      });
     }
+  });
+
+  it("bounds a long rule for the prompt and marks the cut", () => {
+    const rule = pmOutcomeRuleOf(
+      perOutcome,
+      exact({ primary: "Condition. ".repeat(100) }),
+    );
+    if (!rule || !("primary" in rule)) throw new Error("expected a rule");
+    expect(rule.primary).toHaveLength(PM_OUTCOME_PRIMARY_MAX);
+    expect(rule.primary.endsWith("…")).toBe(true);
   });
 });
