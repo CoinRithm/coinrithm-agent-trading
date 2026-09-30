@@ -13,6 +13,9 @@ if TYPE_CHECKING:
     from ..models.agent_observation import AgentObservation
     from ..models.get_market_context_response_200_coin import GetMarketContextResponse200Coin
     from ..models.get_market_context_response_200_fear_greed_type_0 import GetMarketContextResponse200FearGreedType0
+    from ..models.get_market_context_response_200_futures_entry_eligibility import (
+        GetMarketContextResponse200FuturesEntryEligibility,
+    )
     from ..models.get_market_context_response_200_price_type_0 import GetMarketContextResponse200PriceType0
     from ..models.get_market_context_response_200_related_markets_item import (
         GetMarketContextResponse200RelatedMarketsItem,
@@ -32,6 +35,15 @@ class GetMarketContextResponse200:
         price (GetMarketContextResponse200PriceType0 | None | Unset):
         sentiment (GetMarketContextResponse200Sentiment | Unset):
         fear_greed (GetMarketContextResponse200FearGreedType0 | None | Unset):
+        futures_entry_eligibility (GetMarketContextResponse200FuturesEntryEligibility | Unset): What the server entry
+            gate's perpetual-reference rule says
+            about a NEW futures open on this coin right now (backend-v2
+            #106). Informational: quote/open re-check at execution,
+            and eligibility can change in between. Adds to and closes
+            of an existing position are never refused for it.
+            `reference_unavailable` states that CoinRithm holds no
+            supported perpetual reference for the coin, not that no
+            perpetual exists anywhere. Absent on older API versions.
         related_markets (list[GetMarketContextResponse200RelatedMarketsItem] | Unset):
         similar_coins (list[GetMarketContextResponse200SimilarCoinsItem] | Unset): Peer coins by shared CoinGecko
             category (then market-cap
@@ -48,6 +60,7 @@ class GetMarketContextResponse200:
     price: GetMarketContextResponse200PriceType0 | None | Unset = UNSET
     sentiment: GetMarketContextResponse200Sentiment | Unset = UNSET
     fear_greed: GetMarketContextResponse200FearGreedType0 | None | Unset = UNSET
+    futures_entry_eligibility: GetMarketContextResponse200FuturesEntryEligibility | Unset = UNSET
     related_markets: list[GetMarketContextResponse200RelatedMarketsItem] | Unset = UNSET
     similar_coins: list[GetMarketContextResponse200SimilarCoinsItem] | Unset = UNSET
     as_of: datetime.datetime | Unset = UNSET
@@ -82,6 +95,10 @@ class GetMarketContextResponse200:
         else:
             fear_greed = self.fear_greed
 
+        futures_entry_eligibility: dict[str, Any] | Unset = UNSET
+        if not isinstance(self.futures_entry_eligibility, Unset):
+            futures_entry_eligibility = self.futures_entry_eligibility.to_dict()
+
         related_markets: list[dict[str, Any]] | Unset = UNSET
         if not isinstance(self.related_markets, Unset):
             related_markets = []
@@ -115,6 +132,8 @@ class GetMarketContextResponse200:
             field_dict["sentiment"] = sentiment
         if fear_greed is not UNSET:
             field_dict["fearGreed"] = fear_greed
+        if futures_entry_eligibility is not UNSET:
+            field_dict["futuresEntryEligibility"] = futures_entry_eligibility
         if related_markets is not UNSET:
             field_dict["relatedMarkets"] = related_markets
         if similar_coins is not UNSET:
@@ -131,6 +150,9 @@ class GetMarketContextResponse200:
         from ..models.agent_observation import AgentObservation
         from ..models.get_market_context_response_200_coin import GetMarketContextResponse200Coin
         from ..models.get_market_context_response_200_fear_greed_type_0 import GetMarketContextResponse200FearGreedType0
+        from ..models.get_market_context_response_200_futures_entry_eligibility import (
+            GetMarketContextResponse200FuturesEntryEligibility,
+        )
         from ..models.get_market_context_response_200_price_type_0 import GetMarketContextResponse200PriceType0
         from ..models.get_market_context_response_200_related_markets_item import (
             GetMarketContextResponse200RelatedMarketsItem,
@@ -189,6 +211,15 @@ class GetMarketContextResponse200:
 
         fear_greed = _parse_fear_greed(d.pop("fearGreed", UNSET))
 
+        _futures_entry_eligibility = d.pop("futuresEntryEligibility", UNSET)
+        futures_entry_eligibility: GetMarketContextResponse200FuturesEntryEligibility | Unset
+        if isinstance(_futures_entry_eligibility, Unset):
+            futures_entry_eligibility = UNSET
+        else:
+            futures_entry_eligibility = GetMarketContextResponse200FuturesEntryEligibility.from_dict(
+                _futures_entry_eligibility
+            )
+
         _related_markets = d.pop("relatedMarkets", UNSET)
         related_markets: list[GetMarketContextResponse200RelatedMarketsItem] | Unset = UNSET
         if _related_markets is not UNSET:
@@ -228,6 +259,7 @@ class GetMarketContextResponse200:
             price=price,
             sentiment=sentiment,
             fear_greed=fear_greed,
+            futures_entry_eligibility=futures_entry_eligibility,
             related_markets=related_markets,
             similar_coins=similar_coins,
             as_of=as_of,

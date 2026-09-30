@@ -4936,6 +4936,29 @@ export interface operations {
                             value?: number;
                             label?: string;
                         } | null;
+                        /**
+                         * @description What the server entry gate's perpetual-reference rule says
+                         *     about a NEW futures open on this coin right now (backend-v2
+                         *     #106). Informational: quote/open re-check at execution,
+                         *     and eligibility can change in between. Adds to and closes
+                         *     of an existing position are never refused for it.
+                         *     `reference_unavailable` states that CoinRithm holds no
+                         *     supported perpetual reference for the coin, not that no
+                         *     perpetual exists anywhere. Absent on older API versions.
+                         */
+                        futuresEntryEligibility?: {
+                            /** @enum {string} */
+                            status: "eligible" | "reference_stale" | "reference_unavailable";
+                            /** @description Whether the gate currently requires a reference for NEW opens. */
+                            referenceRequired: boolean;
+                            venue?: string | null;
+                            symbol?: string | null;
+                            /** Format: date-time */
+                            referenceFetchedAt?: string | null;
+                            maxReferenceAgeHours: number;
+                            /** Format: date-time */
+                            evaluatedAt: string;
+                        };
                         relatedMarkets?: {
                             source?: string;
                             title?: string;
