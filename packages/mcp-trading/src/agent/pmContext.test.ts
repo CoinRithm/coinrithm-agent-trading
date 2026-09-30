@@ -324,6 +324,15 @@ describe("pmOutcomeRuleOf (an outcome's own settlement rule)", () => {
         },
       }),
     ).toEqual({ unknown: "conflicting_duplicates" });
+    expect(
+      pmOutcomeRuleOf(perOutcome, {
+        rules: {
+          status: "unknown",
+          marketId: "X",
+          reason: "source_rules_unavailable",
+        },
+      }),
+    ).toEqual({ unknown: "source_rules_unavailable" });
     for (const outcome of [
       {},
       { rules: null },

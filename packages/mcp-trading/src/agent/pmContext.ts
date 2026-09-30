@@ -190,6 +190,7 @@ export const PM_OUTCOME_PRIMARY_MAX = 400;
 export const PM_OUTCOME_SECONDARY_MAX = 300;
 
 const UNKNOWN_RULE_REASONS = [
+  "source_rules_unavailable",
   "market_not_found",
   "rule_missing",
   "conflicting_duplicates",

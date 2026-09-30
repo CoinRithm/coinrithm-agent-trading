@@ -544,6 +544,7 @@ export type PmOutcomeRule =
   | { primary: string; secondary?: string }
   | {
       unknown:
+        | "source_rules_unavailable"
         | "market_not_found"
         | "rule_missing"
         | "conflicting_duplicates"
