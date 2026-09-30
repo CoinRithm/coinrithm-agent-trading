@@ -1,11 +1,16 @@
 // House persona rollout CLI (owner 2026-09-23). Dry-run by default; root applies.
 //
-//   DATABASE_URL=... node scripts/house-rollout.mjs --hashes
+// Connection: OPERATOR_DATABASE_URL, supplied at run time through the secret
+// manager (never on the scheduler application). Every mode reads and --apply
+// writes agent_runtime.agent_revisions, which the runtime role is not granted,
+// so the script refuses to run as coinrithm_scheduler.
+//
+//   OPERATOR_DATABASE_URL=... node scripts/house-rollout.mjs --hashes
 //       print each house agent's live contentHash/status for writing a plan
-//   DATABASE_URL=... node scripts/house-rollout.mjs --plan plan.json
+//   OPERATOR_DATABASE_URL=... node scripts/house-rollout.mjs --plan plan.json
 //       review: evaluate every entry, write nothing, exit 1 on any rejection;
 //       also reports recent database activity markers, not process liveness
-//   DATABASE_URL=... node scripts/house-rollout.mjs --plan plan.json --apply --scheduler-stopped
+//   OPERATOR_DATABASE_URL=... node scripts/house-rollout.mjs --plan plan.json --apply --scheduler-stopped
 //       apply all entries in one transaction (any rejection rolls back).
 //       Stop ALL scheduler instances first (Coolify), verify no workers remain,
 //       and keep them stopped through the transaction. --scheduler-stopped
@@ -26,12 +31,10 @@ import {
   readHouseState,
   runHouseRollout,
 } from "../dist/houseRollout.js";
-
-function reqEnv(k) {
-  const v = process.env[k];
-  if (!v || !v.trim()) throw new Error(`missing required env ${k}`);
-  return v.trim();
-}
+import {
+  assertOperatorConnection,
+  operatorDatabaseUrl,
+} from "../dist/operatorConnection.js";
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(name);
@@ -40,7 +43,8 @@ const value = (name) => {
   return i >= 0 ? args[i + 1] : undefined;
 };
 
-const pool = new pg.Pool({ connectionString: reqEnv("DATABASE_URL") });
+const pool = new pg.Pool({ connectionString: operatorDatabaseUrl() });
+await assertOperatorConnection(pool, "house-rollout");
 const age = (s) =>
   s === null || s === undefined ? "never" : `${Math.round(s)} s ago`;
 const printEntries = (entries) => {

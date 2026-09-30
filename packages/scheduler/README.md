@@ -110,13 +110,46 @@ Operational must-knows:
    schema check and a natural completed cycle. A readiness failure must be fixed
    with the operator process, never by granting runtime DDL.
 
+Startup refuses two opposite mistakes. Too much authority (DDL, ownership,
+role membership, writable migration receipts) fails as "must have DML-only
+privileges". Too little fails as "missing required grants: <privilege> on
+<table>", listing each one: every grant in `src/runtimeGrants.ts` is checked on
+its own, and `runtime-role.sql` is pinned to that same list by a test.
+
+**Re-provision after schema changes.** `GRANT ... ON ALL SEQUENCES` and the
+explicit table list cover only what exists when the file runs. After any
+migration that adds a table or sequence the scheduler uses, add it to
+`src/runtimeGrants.ts` and `runtime-role.sql` in the same change, then re-run
+`runtime-role.sql` (idempotent) with the operator connection before deploying
+the image that needs it. Otherwise readiness names the missing grant and the
+new image does not start; the running one is unaffected.
+
+**Operator scripts and their connection.** Scripts that stay inside the
+runtime grants (`seed-house-agents`, `seedBenchmarkAgents`,
+`update-house-models`, `rollout-house-capital-sizing`, `rotate-credentials`)
+keep using `DATABASE_URL`. Two scripts write beyond them and take
+`OPERATOR_DATABASE_URL`, supplied for that run only through the secret manager
+and never configured on the application; both refuse to run as
+`coinrithm_scheduler` before their first statement:
+
+- `house-rollout.mjs` reads and, with `--apply`, writes
+  `agent_runtime.agent_revisions`;
+- `seedBenchmarkIdentities.mjs` inserts into `public."User"` and
+  `public."ApiKey"`.
+
 New numbered files must remain transactional (no `CONCURRENTLY` or embedded
 transaction control); use new files instead of editing recorded migrations.
 SQL checksums normalize CRLF to LF. Extra receipts from later additive migrations
 do not prevent an older compatible image from starting. Review schema rollback
-compatibility separately. Rolling back to a pre-separation image also requires
-restoring its previous runtime connection, since those images replay DDL; retain
-that secret configuration securely until those rollback images are retired.
+compatibility separately.
+
+**Rollback is an (image, connection) pair.** Rolling back to a pre-separation
+image also requires restoring its previous runtime connection, since those
+images replay DDL at startup and fail under the DML-only role; retain that
+secret configuration securely until those rollback images are retired. The
+`coinrithm_scheduler` role, its grants and the migration receipts can stay in
+place during such a rollback: nothing else uses them, and re-deploying the
+separated image later needs only its runtime connection switched back.
 
 ## Offline credential rotation and recovery
 

@@ -177,6 +177,34 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
       expect(await reserveProviderCapacity(runtime, limit)).toMatchObject({
         ok: true,
       });
+      // Readiness asserts every grant on its own: one missing privilege (the
+      // rest still held, so a comma-list ANY check would pass) fails startup
+      // by name instead of on the first live write.
+      await pool.query(
+        "REVOKE DELETE ON agent_runtime.agent_cycles FROM coinrithm_scheduler",
+      );
+      try {
+        await expect(assertSchemaReady(runtime)).rejects.toThrow(
+          "missing required grants: DELETE on agent_runtime.agent_cycles",
+        );
+      } finally {
+        await pool.query(
+          "GRANT DELETE ON agent_runtime.agent_cycles TO coinrithm_scheduler",
+        );
+      }
+      await pool.query(
+        'REVOKE SELECT ("revokedAt") ON public."ApiKey" FROM coinrithm_scheduler',
+      );
+      try {
+        await expect(assertSchemaReady(runtime)).rejects.toThrow(
+          'SELECT on public."ApiKey"(revokedAt)',
+        );
+      } finally {
+        await pool.query(
+          'GRANT SELECT ("revokedAt") ON public."ApiKey" TO coinrithm_scheduler',
+        );
+      }
+      await assertSchemaReady(runtime);
     } finally {
       await runtime.end();
     }

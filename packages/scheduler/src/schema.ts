@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Pool } from "pg";
 import { maintenanceTransaction } from "./maintenance.js";
+import { runtimePrivilegeChecks } from "./runtimeGrants.js";
 
 function migrations() {
   const directory = join(dirname(fileURLToPath(import.meta.url)), "..", "sql");
@@ -83,6 +84,37 @@ export async function assertSchemaReady(pool: Pool): Promise<void> {
   if (privileges.rows[0]?.unsafe !== false) {
     throw new Error(
       "Scheduler runtime database role must have DML-only privileges; use a separate migration connection",
+    );
+  }
+  // ...and it must have EVERY grant the scheduler uses (runtimeGrants.ts), each
+  // checked on its own: a comma list in has_table_privilege means ANY.
+  const checks = runtimePrivilegeChecks();
+  const missing = await pool.query<{
+    table: string;
+    column: string | null;
+    privilege: string;
+  }>(
+    `SELECT c.tbl AS "table", c.col AS "column", c.priv AS privilege
+       FROM unnest($1::text[], $2::text[], $3::text[]) AS c(tbl, col, priv)
+      WHERE NOT CASE WHEN c.col IS NULL
+                     THEN has_table_privilege(current_user, c.tbl, c.priv)
+                     ELSE has_column_privilege(current_user, c.tbl, c.col, c.priv)
+                END`,
+    [
+      checks.map((check) => check.table),
+      checks.map((check) => check.column),
+      checks.map((check) => check.privilege),
+    ],
+  );
+  if (missing.rows.length > 0) {
+    const names = missing.rows
+      .map(
+        (row) =>
+          `${row.privilege} on ${row.table}${row.column ? `(${row.column})` : ""}`,
+      )
+      .join(", ");
+    throw new Error(
+      `Scheduler runtime database role is missing required grants: ${names}; re-run sql/maintenance/runtime-role.sql with the operator connection`,
     );
   }
 }
