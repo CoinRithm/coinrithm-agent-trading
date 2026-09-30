@@ -4324,6 +4324,53 @@ export interface components {
                 /** @description http(s) only; anything else is null */
                 url: string | null;
             }[] | null;
+            /**
+             * @description Present for venues whose markets each state their own rule
+             *     (Kalshi), even when those rules could not be read (every outcome
+             *     is then `unknown`); absent for other venues, where `rules` is the
+             *     event text as before.
+             *     `per_outcome`: each outcome carries its own exact `rules`, bound by
+             *     provider market id, and this event-level `rules` is ONLY a
+             *     secondary rule every market states identically (compared after
+             *     whitespace normalization), else null. The
+             *     event-level bullets, which mix several markets' conditions, are
+             *     not served. `published` is true when at least one outcome has an
+             *     exact rule.
+             * @enum {string}
+             */
+            scope?: "per_outcome";
+        };
+        /**
+         * @description This outcome's own settlement rule as the provider states it, bound by
+         *     provider market id (Kalshi ticker = `externalMarketId`), never by title
+         *     words. `unknown` when the market is not in the provider data, has no
+         *     rule, or is listed twice with different text (never resolved
+         *     silently).
+         */
+        PmDiscoveryOutcomeRule: {
+            /** @enum {string} */
+            status: "exact" | "unknown";
+            /** @enum {string} */
+            basis: "provider_market_rules";
+            marketId: string;
+            /** @description exact only; cut with … when truncated */
+            primary?: string;
+            /**
+             * @description exact only. null when the outcome has no secondary rule or it is
+             *     the shared one in `resolution.rules` (`secondaryShared` true).
+             */
+            secondary?: string | null;
+            /** @description exact only */
+            secondaryShared?: boolean;
+            /** @description exact only; primary or secondary was cut at 700 characters */
+            truncated?: boolean;
+            /**
+             * @description unknown only. `source_rules_unavailable`: the venue's per-market
+             *     rules could not be read at all; `market_not_found`: they were read
+             *     but do not include this market.
+             * @enum {string}
+             */
+            reason?: "source_rules_unavailable" | "market_not_found" | "rule_missing" | "conflicting_duplicates";
         };
         PmDiscoveryOutcome: {
             externalMarketId?: string;
@@ -4336,6 +4383,8 @@ export interface components {
              *     when scalars are unavailable.
              */
             eligible?: boolean | null;
+            /** @description Present only when the event's `resolution.scope` is `per_outcome`. */
+            rules?: components["schemas"]["PmDiscoveryOutcomeRule"];
         };
         PmDiscoveryQuoteHint: {
             /** @example POST /api/agent/pm/quote */

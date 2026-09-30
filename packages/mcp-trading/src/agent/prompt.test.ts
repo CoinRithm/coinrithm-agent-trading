@@ -428,6 +428,55 @@ describe("buildUserPrompt — settlement feedback integration", () => {
     expect(data.pmMarkets[0].rules).toEqual(rules);
     expect(data.pmMarkets[1]).not.toHaveProperty("rules");
     expect(data.pmMarkets[2]).not.toHaveProperty("rules");
+    expect(data.pmMarkets[0]).not.toHaveProperty("outcomeRule");
+    expect(prompt).not.toMatch(/settle per outcome/);
+  });
+
+  it("prints each ladder row's own term and explains the template only when present", () => {
+    const rules = {
+      published: true,
+      text: "Shutdown delays extend the expiration date.",
+      scope: "per_outcome" as const,
+    };
+    const row = {
+      source: "kalshi",
+      slug: "kxcpiyoy-26sep",
+      probability: 0.4,
+      rules,
+    };
+    const prompt = buildUserPrompt(
+      baseObs({
+        pmMarkets: [
+          {
+            ...row,
+            ref: "pm1",
+            outcomeExternalMarketId: "KXCPIYOY-26SEP-T3.6",
+            outcomeName: "Above 3.6%",
+            outcomeRule: {
+              primary: "If CPI increases by more than 3.6%, then Yes.",
+            },
+          },
+          {
+            ...row,
+            ref: "pm2",
+            outcomeExternalMarketId: "KXCPIYOY-26SEP-T3.7",
+            outcomeName: "Above 3.7%",
+            outcomeRule: { unknown: "rule_missing" as const },
+          },
+        ],
+      }),
+      undefined,
+      { venues: ["pm"] },
+    );
+    const data = JSON.parse(prompt.match(/```json\n(.*)\n```/)![1]);
+    expect(data.pmMarkets[0].rules).toEqual(rules);
+    expect(data.pmMarkets[1]).not.toHaveProperty("rules");
+    expect(data.pmMarkets[0].outcomeRule).toEqual({
+      primary: "If CPI increases by more than 3.6%, then Yes.",
+    });
+    expect(data.pmMarkets[1].outcomeRule).toEqual({ unknown: "rule_missing" });
+    expect(prompt).toMatch(/settle per outcome/);
+    expect(prompt).toMatch(/outcomeRule.unknown means that outcome's exact/);
   });
 
   it("explains settlement rules only when PM is enabled, and a missing rule stays neutral", () => {

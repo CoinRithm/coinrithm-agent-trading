@@ -502,6 +502,10 @@ export interface PmMarket {
   // Absent = older backend; null = the row carried nothing usable. Either
   // way the terms are unknown, never assumed from the title.
   rules?: PmSettlementRule | null;
+  // This outcome's own settlement rule when `rules.scope` is "per_outcome",
+  // bound by provider market id at the API. Absent when the rule is not
+  // per-outcome.
+  outcomeRule?: PmOutcomeRule;
 }
 
 // The agent's OWN settled PM forecast record, from the optional
@@ -529,7 +533,23 @@ export interface PmSettlementRule {
   text?: string; // bounded; ends in "…" when cut
   // Named outlets the venue says it settles from (Kalshi), at most 3.
   sources?: string[];
+  // "per_outcome": each outcome row carries its own `outcomeRule`, and `text`
+  // is only a rule identical in every market. Absent = not determined.
+  scope?: "per_outcome";
 }
+
+// One outcome's own settlement rule (bounded for the prompt), or why it is
+// unknown. Never another outcome's text.
+export type PmOutcomeRule =
+  | { primary: string; secondary?: string }
+  | {
+      unknown:
+        | "source_rules_unavailable"
+        | "market_not_found"
+        | "rule_missing"
+        | "conflicting_duplicates"
+        | "unreadable";
+    };
 
 export interface PmConsensus {
   prob: number; // 0..1, the same scale as PmMarket.probability

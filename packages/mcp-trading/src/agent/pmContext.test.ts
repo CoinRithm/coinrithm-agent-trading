@@ -6,6 +6,8 @@ import {
   pmDecisionSupportOf,
   pmQualityOf,
   pmSettlementRuleOf,
+  pmOutcomeRuleOf,
+  PM_OUTCOME_PRIMARY_MAX,
   PM_RULES_TEXT_MAX,
   sourceTimestamp,
 } from "./pmContext.js";
@@ -268,5 +270,89 @@ describe("pmSettlementRuleOf (discover `resolution`, backend-v2 #111)", () => {
     )?.text;
     expect(text?.length).toBe(PM_RULES_TEXT_MAX);
     expect(text?.endsWith("…")).toBe(true);
+  });
+
+  it("keeps only the per-outcome scope and drops anything else", () => {
+    expect(
+      pmSettlementRuleOf(resolution({ scope: "per_outcome" }))?.scope,
+    ).toBe("per_outcome");
+    for (const scope of ["event", "PRIVATE_TEXT"]) {
+      expect(pmSettlementRuleOf(resolution({ scope }))).not.toHaveProperty(
+        "scope",
+      );
+    }
+  });
+});
+
+describe("pmOutcomeRuleOf (an outcome's own settlement rule)", () => {
+  const perOutcome = { published: true, scope: "per_outcome" as const };
+  const PRIMARY =
+    "If CPI increases by more than 3.6%, then the market resolves to Yes.";
+  const exact = (over: Record<string, unknown> = {}) => ({
+    rules: {
+      status: "exact",
+      basis: "provider_market_rules",
+      marketId: "KXCPIYOY-26SEP-T3.6",
+      primary: PRIMARY,
+      secondary: null,
+      secondaryShared: true,
+      truncated: false,
+      ...over,
+    },
+  });
+
+  it("carries the outcome's own rule only for a per-outcome event", () => {
+    expect(pmOutcomeRuleOf(perOutcome, exact())).toEqual({ primary: PRIMARY });
+    expect(
+      pmOutcomeRuleOf(
+        perOutcome,
+        exact({ secondary: "Only this line  settles early." }),
+      ),
+    ).toEqual({ primary: PRIMARY, secondary: "Only this line settles early." });
+    expect(pmOutcomeRuleOf({ published: true }, exact())).toBeUndefined();
+    expect(pmOutcomeRuleOf(null, exact())).toBeUndefined();
+    expect(pmOutcomeRuleOf(undefined, exact())).toBeUndefined();
+  });
+
+  it("keeps the API's unknown reason and marks anything unusable unreadable", () => {
+    expect(
+      pmOutcomeRuleOf(perOutcome, {
+        rules: {
+          status: "unknown",
+          marketId: "X",
+          reason: "conflicting_duplicates",
+        },
+      }),
+    ).toEqual({ unknown: "conflicting_duplicates" });
+    expect(
+      pmOutcomeRuleOf(perOutcome, {
+        rules: {
+          status: "unknown",
+          marketId: "X",
+          reason: "source_rules_unavailable",
+        },
+      }),
+    ).toEqual({ unknown: "source_rules_unavailable" });
+    for (const outcome of [
+      {},
+      { rules: null },
+      { rules: "text" },
+      exact({ primary: "  " }),
+      { rules: { status: "unknown", reason: "PRIVATE_TEXT" } },
+    ]) {
+      expect(pmOutcomeRuleOf(perOutcome, outcome)).toEqual({
+        unknown: "unreadable",
+      });
+    }
+  });
+
+  it("bounds a long rule for the prompt and marks the cut", () => {
+    const rule = pmOutcomeRuleOf(
+      perOutcome,
+      exact({ primary: "Condition. ".repeat(100) }),
+    );
+    if (!rule || !("primary" in rule)) throw new Error("expected a rule");
+    expect(rule.primary).toHaveLength(PM_OUTCOME_PRIMARY_MAX);
+    expect(rule.primary.endsWith("…")).toBe(true);
   });
 });

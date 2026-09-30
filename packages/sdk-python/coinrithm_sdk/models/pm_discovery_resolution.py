@@ -6,6 +6,9 @@ from typing import TYPE_CHECKING, Any, TypeVar, cast
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
+from ..models.pm_discovery_resolution_scope import PmDiscoveryResolutionScope
+from ..types import UNSET, Unset
+
 if TYPE_CHECKING:
     from ..models.pm_discovery_resolution_settlement_sources_type_0_item import (
         PmDiscoveryResolutionSettlementSourcesType0Item,
@@ -28,6 +31,17 @@ class PmDiscoveryResolution:
         settlement_source (None | str):
         settlement_sources (list[PmDiscoveryResolutionSettlementSourcesType0Item] | None): Named outlets the venue says
             it settles from (Kalshi); null elsewhere.
+        scope (PmDiscoveryResolutionScope | Unset): Present for venues whose markets each state their own rule
+            (Kalshi), even when those rules could not be read (every outcome
+            is then `unknown`); absent for other venues, where `rules` is the
+            event text as before.
+            `per_outcome`: each outcome carries its own exact `rules`, bound by
+            provider market id, and this event-level `rules` is ONLY a
+            secondary rule every market states identically (compared after
+            whitespace normalization), else null. The
+            event-level bullets, which mix several markets' conditions, are
+            not served. `published` is true when at least one outcome has an
+            exact rule.
     """
 
     published: bool
@@ -35,6 +49,7 @@ class PmDiscoveryResolution:
     rules_truncated: bool
     settlement_source: None | str
     settlement_sources: list[PmDiscoveryResolutionSettlementSourcesType0Item] | None
+    scope: PmDiscoveryResolutionScope | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -58,6 +73,10 @@ class PmDiscoveryResolution:
         else:
             settlement_sources = self.settlement_sources
 
+        scope: str | Unset = UNSET
+        if not isinstance(self.scope, Unset):
+            scope = self.scope.value
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -69,6 +88,8 @@ class PmDiscoveryResolution:
                 "settlementSources": settlement_sources,
             }
         )
+        if scope is not UNSET:
+            field_dict["scope"] = scope
 
         return field_dict
 
@@ -119,12 +140,20 @@ class PmDiscoveryResolution:
 
         settlement_sources = _parse_settlement_sources(d.pop("settlementSources"))
 
+        _scope = d.pop("scope", UNSET)
+        scope: PmDiscoveryResolutionScope | Unset
+        if isinstance(_scope, Unset):
+            scope = UNSET
+        else:
+            scope = PmDiscoveryResolutionScope(_scope)
+
         pm_discovery_resolution = cls(
             published=published,
             rules=rules,
             rules_truncated=rules_truncated,
             settlement_source=settlement_source,
             settlement_sources=settlement_sources,
+            scope=scope,
         )
 
         pm_discovery_resolution.additional_properties = d

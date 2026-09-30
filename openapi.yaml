@@ -6174,6 +6174,50 @@ components:
             properties:
               name: { type: string }
               url: { type: [string, "null"], description: "http(s) only; anything else is null" }
+        scope:
+          type: string
+          enum: [per_outcome]
+          description: |
+            Present for venues whose markets each state their own rule
+            (Kalshi), even when those rules could not be read (every outcome
+            is then `unknown`); absent for other venues, where `rules` is the
+            event text as before.
+            `per_outcome`: each outcome carries its own exact `rules`, bound by
+            provider market id, and this event-level `rules` is ONLY a
+            secondary rule every market states identically (compared after
+            whitespace normalization), else null. The
+            event-level bullets, which mix several markets' conditions, are
+            not served. `published` is true when at least one outcome has an
+            exact rule.
+    PmDiscoveryOutcomeRule:
+      type: object
+      description: |
+        This outcome's own settlement rule as the provider states it, bound by
+        provider market id (Kalshi ticker = `externalMarketId`), never by title
+        words. `unknown` when the market is not in the provider data, has no
+        rule, or is listed twice with different text (never resolved
+        silently).
+      required: [status, basis, marketId]
+      properties:
+        status: { type: string, enum: [exact, unknown] }
+        basis: { type: string, enum: [provider_market_rules] }
+        marketId: { type: string }
+        primary: { type: string, maxLength: 700, description: "exact only; cut with … when truncated" }
+        secondary:
+          type: [string, "null"]
+          maxLength: 700
+          description: |
+            exact only. null when the outcome has no secondary rule or it is
+            the shared one in `resolution.rules` (`secondaryShared` true).
+        secondaryShared: { type: boolean, description: "exact only" }
+        truncated: { type: boolean, description: "exact only; primary or secondary was cut at 700 characters" }
+        reason:
+          type: string
+          enum: [source_rules_unavailable, market_not_found, rule_missing, conflicting_duplicates]
+          description: |
+            unknown only. `source_rules_unavailable`: the venue's per-market
+            rules could not be read at all; `market_not_found`: they were read
+            but do not include this market.
     PmDiscoveryOutcome:
       type: object
       properties:
@@ -6186,6 +6230,9 @@ components:
           description: |
             Per-outcome openability (structural + 0<p<100 live yes fill). null
             when scalars are unavailable.
+        rules:
+          $ref: "#/components/schemas/PmDiscoveryOutcomeRule"
+          description: Present only when the event's `resolution.scope` is `per_outcome`.
     PmDiscoveryQuoteHint:
       type: object
       properties:

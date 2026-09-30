@@ -230,9 +230,14 @@ from .place_spot_order_response_404 import PlaceSpotOrderResponse404
 from .pm_discovery_market import PmDiscoveryMarket
 from .pm_discovery_market_source import PmDiscoveryMarketSource
 from .pm_discovery_outcome import PmDiscoveryOutcome
+from .pm_discovery_outcome_rule import PmDiscoveryOutcomeRule
+from .pm_discovery_outcome_rule_basis import PmDiscoveryOutcomeRuleBasis
+from .pm_discovery_outcome_rule_reason import PmDiscoveryOutcomeRuleReason
+from .pm_discovery_outcome_rule_status import PmDiscoveryOutcomeRuleStatus
 from .pm_discovery_quote_hint import PmDiscoveryQuoteHint
 from .pm_discovery_quote_hint_source import PmDiscoveryQuoteHintSource
 from .pm_discovery_resolution import PmDiscoveryResolution
+from .pm_discovery_resolution_scope import PmDiscoveryResolutionScope
 from .pm_discovery_resolution_settlement_sources_type_0_item import PmDiscoveryResolutionSettlementSourcesType0Item
 from .pm_discovery_response import PmDiscoveryResponse
 from .pm_discovery_response_meta import PmDiscoveryResponseMeta
@@ -613,9 +618,14 @@ __all__ = (
     "PmDiscoveryMarket",
     "PmDiscoveryMarketSource",
     "PmDiscoveryOutcome",
+    "PmDiscoveryOutcomeRule",
+    "PmDiscoveryOutcomeRuleBasis",
+    "PmDiscoveryOutcomeRuleReason",
+    "PmDiscoveryOutcomeRuleStatus",
     "PmDiscoveryQuoteHint",
     "PmDiscoveryQuoteHintSource",
     "PmDiscoveryResolution",
+    "PmDiscoveryResolutionScope",
     "PmDiscoveryResolutionSettlementSourcesType0Item",
     "PmDiscoveryResponse",
     "PmDiscoveryResponseMeta",

@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, cast
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
+
+if TYPE_CHECKING:
+    from ..models.pm_discovery_outcome_rule import PmDiscoveryOutcomeRule
+
 
 T = TypeVar("T", bound="PmDiscoveryOutcome")
 
@@ -21,6 +25,11 @@ class PmDiscoveryOutcome:
         token_id (None | str | Unset):
         eligible (bool | None | Unset): Per-outcome openability (structural + 0<p<100 live yes fill). null
             when scalars are unavailable.
+        rules (PmDiscoveryOutcomeRule | Unset): This outcome's own settlement rule as the provider states it, bound by
+            provider market id (Kalshi ticker = `externalMarketId`), never by title
+            words. `unknown` when the market is not in the provider data, has no
+            rule, or is listed twice with different text (never resolved
+            silently).
     """
 
     external_market_id: str | Unset = UNSET
@@ -28,6 +37,7 @@ class PmDiscoveryOutcome:
     probability: float | Unset = UNSET
     token_id: None | str | Unset = UNSET
     eligible: bool | None | Unset = UNSET
+    rules: PmDiscoveryOutcomeRule | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -49,6 +59,10 @@ class PmDiscoveryOutcome:
         else:
             eligible = self.eligible
 
+        rules: dict[str, Any] | Unset = UNSET
+        if not isinstance(self.rules, Unset):
+            rules = self.rules.to_dict()
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update({})
@@ -62,11 +76,15 @@ class PmDiscoveryOutcome:
             field_dict["tokenId"] = token_id
         if eligible is not UNSET:
             field_dict["eligible"] = eligible
+        if rules is not UNSET:
+            field_dict["rules"] = rules
 
         return field_dict
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        from ..models.pm_discovery_outcome_rule import PmDiscoveryOutcomeRule
+
         d = dict(src_dict)
         external_market_id = d.pop("externalMarketId", UNSET)
 
@@ -92,12 +110,20 @@ class PmDiscoveryOutcome:
 
         eligible = _parse_eligible(d.pop("eligible", UNSET))
 
+        _rules = d.pop("rules", UNSET)
+        rules: PmDiscoveryOutcomeRule | Unset
+        if isinstance(_rules, Unset):
+            rules = UNSET
+        else:
+            rules = PmDiscoveryOutcomeRule.from_dict(_rules)
+
         pm_discovery_outcome = cls(
             external_market_id=external_market_id,
             name=name,
             probability=probability,
             token_id=token_id,
             eligible=eligible,
+            rules=rules,
         )
 
         pm_discovery_outcome.additional_properties = d
