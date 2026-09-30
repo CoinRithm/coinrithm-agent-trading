@@ -232,6 +232,8 @@ from .pm_discovery_market_source import PmDiscoveryMarketSource
 from .pm_discovery_outcome import PmDiscoveryOutcome
 from .pm_discovery_quote_hint import PmDiscoveryQuoteHint
 from .pm_discovery_quote_hint_source import PmDiscoveryQuoteHintSource
+from .pm_discovery_resolution import PmDiscoveryResolution
+from .pm_discovery_resolution_settlement_sources_type_0_item import PmDiscoveryResolutionSettlementSourcesType0Item
 from .pm_discovery_response import PmDiscoveryResponse
 from .pm_discovery_response_meta import PmDiscoveryResponseMeta
 from .pm_discovery_response_meta_source import PmDiscoveryResponseMetaSource
@@ -610,6 +612,8 @@ __all__ = (
     "PmDiscoveryOutcome",
     "PmDiscoveryQuoteHint",
     "PmDiscoveryQuoteHintSource",
+    "PmDiscoveryResolution",
+    "PmDiscoveryResolutionSettlementSourcesType0Item",
     "PmDiscoveryResponse",
     "PmDiscoveryResponseMeta",
     "PmDiscoveryResponseMetaSource",
