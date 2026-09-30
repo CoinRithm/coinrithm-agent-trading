@@ -232,6 +232,7 @@ uv sync --locked
 uv run openapi-python-client generate \
   --path ../../openapi.yaml \
   --config openapi-python-client.yaml \
+  --custom-template-path templates \
   --meta none \
   --output-path coinrithm_sdk \
   --overwrite \
@@ -239,7 +240,12 @@ uv run openapi-python-client generate \
 touch coinrithm_sdk/py.typed
 ```
 
-CI runs the same command and fails if generated code drifts. Keep this
+The datetime template preserves Python 3.10 support by normalizing the API's
+UTC `Z` suffix to `+00:00` before parsing. Explicit offsets stay unchanged.
+Keep the override aligned with the pinned generator when upgrading it.
+
+CI runs the same command and fails if generated code drifts. It also tests
+the installed wheel on Python 3.10, our oldest supported version. Keep this
 README's examples pointing at real endpoint modules — never the generator
 placeholders (`api.example.com`, `MyDataModel`) the backbone audit flagged.
 

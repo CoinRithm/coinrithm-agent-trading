@@ -39,3 +39,25 @@ def test_older_market_context_leaves_eligibility_unknown():
     response = GetMarketContextResponse200.from_dict({"asOf": "2026-09-30T02:19:43+00:00"})
     assert response.futures_entry_eligibility is UNSET
     assert "futuresEntryEligibility" not in response.to_dict()
+
+
+@pytest.mark.parametrize(
+    "timestamp,offset",
+    [
+        ("2026-09-30T02:19:43.015Z", datetime.timedelta(0)),
+        ("2026-09-30T02:19:43.015+00:00", datetime.timedelta(0)),
+        ("2026-09-30T02:19:43.015+05:30", datetime.timedelta(hours=5, minutes=30)),
+        ("2026-09-30T02:19:43.015-04:00", datetime.timedelta(hours=-4)),
+    ],
+)
+def test_market_context_timestamp_preserves_offset(timestamp, offset):
+    response = GetMarketContextResponse200.from_dict({"asOf": timestamp})
+    assert response.as_of.utcoffset() == offset
+    assert response.as_of.microsecond == 15000
+    assert GetMarketContextResponse200.from_dict(response.to_dict()).as_of == response.as_of
+
+
+@pytest.mark.parametrize("timestamp", ["not-a-date", "2026-13-30T02:19:43Z", "2026-09-30T25:19:43Z"])
+def test_market_context_rejects_invalid_timestamp(timestamp):
+    with pytest.raises(ValueError):
+        GetMarketContextResponse200.from_dict({"asOf": timestamp})
