@@ -77,7 +77,7 @@ class PmDiscoveryResponseMetaSourceHealthItem:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                last_ingest_at_type_0 = datetime.datetime.fromisoformat(data)
+                last_ingest_at_type_0 = datetime.datetime.fromisoformat(data.replace("Z", "+00:00"))
 
                 return last_ingest_at_type_0
             except (TypeError, ValueError, AttributeError, KeyError):

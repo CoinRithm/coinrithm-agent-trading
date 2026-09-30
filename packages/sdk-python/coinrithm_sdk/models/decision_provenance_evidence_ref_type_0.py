@@ -82,7 +82,7 @@ class DecisionProvenanceEvidenceRefType0:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                source_captured_at_type_0 = datetime.datetime.fromisoformat(data)
+                source_captured_at_type_0 = datetime.datetime.fromisoformat(data.replace("Z", "+00:00"))
 
                 return source_captured_at_type_0
             except (TypeError, ValueError, AttributeError, KeyError):

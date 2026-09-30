@@ -42,7 +42,7 @@ class PublicPmOrderBookAskEvidence:
         d = dict(src_dict)
         validated = d.pop("validated")
 
-        received_at = datetime.datetime.fromisoformat(d.pop("receivedAt"))
+        received_at = datetime.datetime.fromisoformat(d.pop("receivedAt").replace("Z", "+00:00"))
 
         public_pm_order_book_ask_evidence = cls(
             validated=validated,

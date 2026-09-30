@@ -92,7 +92,7 @@ class PublicPmTrade:
 
         who = _parse_who(d.pop("who"))
 
-        timestamp = datetime.datetime.fromisoformat(d.pop("timestamp"))
+        timestamp = datetime.datetime.fromisoformat(d.pop("timestamp").replace("Z", "+00:00"))
 
         public_pm_trade = cls(
             side=side,

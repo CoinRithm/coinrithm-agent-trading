@@ -80,7 +80,7 @@ class GetEquityCurveResponse200PointsItem:
         if isinstance(_t, Unset):
             t = UNSET
         else:
-            t = datetime.datetime.fromisoformat(_t)
+            t = datetime.datetime.fromisoformat(_t.replace("Z", "+00:00"))
 
         _venue = d.pop("venue", UNSET)
         venue: GetEquityCurveResponse200PointsItemVenue | Unset

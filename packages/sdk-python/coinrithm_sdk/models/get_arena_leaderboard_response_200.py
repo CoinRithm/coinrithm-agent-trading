@@ -152,7 +152,7 @@ class GetArenaLeaderboardResponse200:
         if isinstance(_as_of, Unset):
             as_of = UNSET
         else:
-            as_of = datetime.datetime.fromisoformat(_as_of)
+            as_of = datetime.datetime.fromisoformat(_as_of.replace("Z", "+00:00"))
 
         get_arena_leaderboard_response_200 = cls(
             page=page,

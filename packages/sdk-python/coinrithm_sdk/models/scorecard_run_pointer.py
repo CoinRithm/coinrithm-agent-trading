@@ -49,7 +49,7 @@ class ScorecardRunPointer:
         d = dict(src_dict)
         id = d.pop("id")
 
-        computed_at = datetime.datetime.fromisoformat(d.pop("computedAt"))
+        computed_at = datetime.datetime.fromisoformat(d.pop("computedAt").replace("Z", "+00:00"))
 
         content_hash = d.pop("contentHash")
 

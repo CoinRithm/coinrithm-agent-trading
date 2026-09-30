@@ -594,7 +594,7 @@ class AgentDecisionArtifact:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                settled_at_type_0 = datetime.datetime.fromisoformat(data)
+                settled_at_type_0 = datetime.datetime.fromisoformat(data.replace("Z", "+00:00"))
 
                 return settled_at_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
@@ -608,7 +608,7 @@ class AgentDecisionArtifact:
         if isinstance(_created_at, Unset):
             created_at = UNSET
         else:
-            created_at = datetime.datetime.fromisoformat(_created_at)
+            created_at = datetime.datetime.fromisoformat(_created_at.replace("Z", "+00:00"))
 
         agent_decision_artifact = cls(
             decision_uuid=decision_uuid,

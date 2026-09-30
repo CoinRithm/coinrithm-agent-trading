@@ -395,7 +395,7 @@ class PublicPmEvent:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                start_date_type_0 = datetime.datetime.fromisoformat(data)
+                start_date_type_0 = datetime.datetime.fromisoformat(data.replace("Z", "+00:00"))
 
                 return start_date_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
@@ -412,7 +412,7 @@ class PublicPmEvent:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                end_date_type_0 = datetime.datetime.fromisoformat(data)
+                end_date_type_0 = datetime.datetime.fromisoformat(data.replace("Z", "+00:00"))
 
                 return end_date_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
@@ -429,7 +429,7 @@ class PublicPmEvent:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                resolved_at_type_0 = datetime.datetime.fromisoformat(data)
+                resolved_at_type_0 = datetime.datetime.fromisoformat(data.replace("Z", "+00:00"))
 
                 return resolved_at_type_0
             except (TypeError, ValueError, AttributeError, KeyError):

@@ -129,7 +129,7 @@ class PublicPmEventRevision:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                effective_at_type_0 = datetime.datetime.fromisoformat(data)
+                effective_at_type_0 = datetime.datetime.fromisoformat(data.replace("Z", "+00:00"))
 
                 return effective_at_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
@@ -143,7 +143,7 @@ class PublicPmEventRevision:
         if isinstance(_observed_at, Unset):
             observed_at = UNSET
         else:
-            observed_at = datetime.datetime.fromisoformat(_observed_at)
+            observed_at = datetime.datetime.fromisoformat(_observed_at.replace("Z", "+00:00"))
 
         _evidence = d.pop("evidence", UNSET)
         evidence: PublicPmEventRevisionEvidence | Unset

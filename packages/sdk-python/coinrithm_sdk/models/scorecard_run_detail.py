@@ -172,7 +172,7 @@ class ScorecardRunDetail:
         if isinstance(_computed_at, Unset):
             computed_at = UNSET
         else:
-            computed_at = datetime.datetime.fromisoformat(_computed_at)
+            computed_at = datetime.datetime.fromisoformat(_computed_at.replace("Z", "+00:00"))
 
         evaluation_policy_version = d.pop("evaluationPolicyVersion", UNSET)
 

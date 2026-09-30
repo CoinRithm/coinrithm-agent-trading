@@ -94,7 +94,7 @@ class GetCompetitionBoardResponse200:
         if isinstance(_as_of, Unset):
             as_of = UNSET
         else:
-            as_of = datetime.datetime.fromisoformat(_as_of)
+            as_of = datetime.datetime.fromisoformat(_as_of.replace("Z", "+00:00"))
 
         get_competition_board_response_200 = cls(
             competition=competition,

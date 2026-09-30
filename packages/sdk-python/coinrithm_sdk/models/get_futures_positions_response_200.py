@@ -84,7 +84,7 @@ class GetFuturesPositionsResponse200:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                updated_since_type_0 = datetime.datetime.fromisoformat(data)
+                updated_since_type_0 = datetime.datetime.fromisoformat(data.replace("Z", "+00:00"))
 
                 return updated_since_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
@@ -98,7 +98,7 @@ class GetFuturesPositionsResponse200:
         if isinstance(_as_of, Unset):
             as_of = UNSET
         else:
-            as_of = datetime.datetime.fromisoformat(_as_of)
+            as_of = datetime.datetime.fromisoformat(_as_of.replace("Z", "+00:00"))
 
         get_futures_positions_response_200 = cls(
             positions=positions,

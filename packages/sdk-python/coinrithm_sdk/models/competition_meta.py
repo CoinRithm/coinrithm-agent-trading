@@ -134,14 +134,14 @@ class CompetitionMeta:
         if isinstance(_starts_at, Unset):
             starts_at = UNSET
         else:
-            starts_at = datetime.datetime.fromisoformat(_starts_at)
+            starts_at = datetime.datetime.fromisoformat(_starts_at.replace("Z", "+00:00"))
 
         _ends_at = d.pop("endsAt", UNSET)
         ends_at: datetime.datetime | Unset
         if isinstance(_ends_at, Unset):
             ends_at = UNSET
         else:
-            ends_at = datetime.datetime.fromisoformat(_ends_at)
+            ends_at = datetime.datetime.fromisoformat(_ends_at.replace("Z", "+00:00"))
 
         _status = d.pop("status", UNSET)
         status: CompetitionMetaStatus | Unset
@@ -155,7 +155,7 @@ class CompetitionMeta:
         if isinstance(_created_at, Unset):
             created_at = UNSET
         else:
-            created_at = datetime.datetime.fromisoformat(_created_at)
+            created_at = datetime.datetime.fromisoformat(_created_at.replace("Z", "+00:00"))
 
         entry_count = d.pop("entryCount", UNSET)
 

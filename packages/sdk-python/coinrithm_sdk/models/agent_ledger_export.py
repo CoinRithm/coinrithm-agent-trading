@@ -122,7 +122,7 @@ class AgentLedgerExport:
         if isinstance(_exported_at, Unset):
             exported_at = UNSET
         else:
-            exported_at = datetime.datetime.fromisoformat(_exported_at)
+            exported_at = datetime.datetime.fromisoformat(_exported_at.replace("Z", "+00:00"))
 
         count = d.pop("count", UNSET)
 

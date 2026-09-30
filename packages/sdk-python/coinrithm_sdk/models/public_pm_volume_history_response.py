@@ -67,7 +67,7 @@ class PublicPmVolumeHistoryResponse:
 
             days.append(days_item)
 
-        updated_at = datetime.datetime.fromisoformat(d.pop("updatedAt"))
+        updated_at = datetime.datetime.fromisoformat(d.pop("updatedAt").replace("Z", "+00:00"))
 
         _meta = d.pop("meta", UNSET)
         meta: PublicPmVolumeHistoryResponseMeta | Unset

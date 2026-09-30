@@ -104,7 +104,7 @@ class Freshness:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                as_of_type_0 = datetime.datetime.fromisoformat(data)
+                as_of_type_0 = datetime.datetime.fromisoformat(data.replace("Z", "+00:00"))
 
                 return as_of_type_0
             except (TypeError, ValueError, AttributeError, KeyError):

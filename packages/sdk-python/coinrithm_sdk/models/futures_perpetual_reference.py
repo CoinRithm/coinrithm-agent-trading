@@ -98,7 +98,7 @@ class FuturesPerpetualReference:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                fetched_at_type_0 = datetime.datetime.fromisoformat(data)
+                fetched_at_type_0 = datetime.datetime.fromisoformat(data.replace("Z", "+00:00"))
 
                 return fetched_at_type_0
             except (TypeError, ValueError, AttributeError, KeyError):

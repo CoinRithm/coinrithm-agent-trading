@@ -136,7 +136,7 @@ class AgentRunEvidenceManifest:
         if isinstance(_generated_at, Unset):
             generated_at = UNSET
         else:
-            generated_at = datetime.datetime.fromisoformat(_generated_at)
+            generated_at = datetime.datetime.fromisoformat(_generated_at.replace("Z", "+00:00"))
 
         source = d.pop("source", UNSET)
 

@@ -102,7 +102,7 @@ class GetMarketContextResponse200FuturesEntryEligibility:
 
         max_reference_age_hours = d.pop("maxReferenceAgeHours")
 
-        evaluated_at = datetime.datetime.fromisoformat(d.pop("evaluatedAt"))
+        evaluated_at = datetime.datetime.fromisoformat(d.pop("evaluatedAt").replace("Z", "+00:00"))
 
         def _parse_venue(data: object) -> None | str | Unset:
             if data is None:
@@ -130,7 +130,7 @@ class GetMarketContextResponse200FuturesEntryEligibility:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                reference_fetched_at_type_0 = datetime.datetime.fromisoformat(data)
+                reference_fetched_at_type_0 = datetime.datetime.fromisoformat(data.replace("Z", "+00:00"))
 
                 return reference_fetched_at_type_0
             except (TypeError, ValueError, AttributeError, KeyError):

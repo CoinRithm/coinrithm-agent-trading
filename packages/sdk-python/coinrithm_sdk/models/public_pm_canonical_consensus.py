@@ -104,7 +104,7 @@ class PublicPmCanonicalConsensus:
 
         spread_points = d.pop("spreadPoints")
 
-        computed_at = datetime.datetime.fromisoformat(d.pop("computedAt"))
+        computed_at = datetime.datetime.fromisoformat(d.pop("computedAt").replace("Z", "+00:00"))
 
         methodology_version = d.pop("methodologyVersion")
 
