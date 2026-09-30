@@ -10,6 +10,7 @@ import {
   buildChatBody,
   DECISION_TOOL_NAME,
   NVIDIA_BASE_URL as CAP_NVIDIA_BASE_URL,
+  type DecisionActionExclusion,
 } from "./providerCapabilities.js";
 
 export interface DecideInput {
@@ -19,6 +20,10 @@ export interface DecideInput {
   // Abort the model call after this many ms so a slow/hung provider can never
   // bleed past the agent's cadence. Default DEFAULT_TIMEOUT_MS.
   timeoutMs?: number;
+  // Action variants a schema-enforcing route must not offer this cycle (the
+  // runner withholds futures_open when futures capacity is spent). Transport
+  // only: parseDecision still validates against the full contract.
+  excludeActionTypes?: readonly DecisionActionExclusion[];
 }
 
 export interface DecideRouteAttempt {
@@ -374,6 +379,7 @@ class OpenAiCompatProvider implements Provider {
                 system: input.system,
                 user: input.user,
                 maxTokens: input.maxTokens ?? 1024,
+                excludeActionTypes: input.excludeActionTypes,
               }),
             ),
           });

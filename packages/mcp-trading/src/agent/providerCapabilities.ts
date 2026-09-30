@@ -105,6 +105,39 @@ export function chatShapeFor(
   };
 }
 
+// Action variants a cycle may withhold from a schema-enforcing route. Only
+// futures_open today: the runner withholds it when futures capacity is spent.
+export type DecisionActionExclusion = "futures_open";
+
+// Transport-only restriction: drop the excluded variants from the action oneOf
+// a route decodes against. parseDecision keeps validating the FULL contract, so
+// a route that does not enforce a schema can still propose the action and the
+// validator rejects it. Never returns an empty oneOf.
+export function restrictDecisionSchema(
+  schema: Record<string, unknown>,
+  exclude: readonly DecisionActionExclusion[] | undefined,
+): Record<string, unknown> {
+  if (!exclude?.length) return schema;
+  const properties = schema.properties as Record<string, unknown> | undefined;
+  const actions = properties?.actions as
+    { items?: { oneOf?: unknown[] } } | undefined;
+  const variants = actions?.items?.oneOf;
+  if (!properties || !actions || !Array.isArray(variants)) return schema;
+  const kept = variants.filter((variant) => {
+    const type = (variant as { properties?: { type?: { const?: unknown } } })
+      .properties?.type?.const;
+    return !exclude.includes(type as DecisionActionExclusion);
+  });
+  if (kept.length === variants.length || kept.length === 0) return schema;
+  return {
+    ...schema,
+    properties: {
+      ...properties,
+      actions: { ...actions, items: { ...actions.items, oneOf: kept } },
+    },
+  };
+}
+
 /** Build the chat-completions body for a route from its capability shape. */
 export function buildChatBody(
   shape: ChatShape,
@@ -114,18 +147,22 @@ export function buildChatBody(
     user: string;
     maxTokens: number;
     temperature?: number;
+    excludeActionTypes?: readonly DecisionActionExclusion[];
   },
 ): Record<string, unknown> {
   const system = shape.systemHint
     ? `${shape.systemHint}\n\n${args.system}`
     : args.system;
+  const jsonSchema = shape.jsonSchema
+    ? restrictDecisionSchema(shape.jsonSchema, args.excludeActionTypes)
+    : undefined;
   return {
     model: args.model,
     ...(shape.allowsTemperature
       ? { temperature: args.temperature ?? 0.2 }
       : {}),
     [shape.tokenParam]: args.maxTokens,
-    ...(shape.jsonSchema && shape.jsonSchemaTransport === "tool_call"
+    ...(jsonSchema && shape.jsonSchemaTransport === "tool_call"
       ? {
           tools: [
             {
@@ -134,7 +171,7 @@ export function buildChatBody(
                 name: DECISION_TOOL_NAME,
                 description:
                   "Submit the complete CoinRithm paper-trading decision for this cycle.",
-                parameters: shape.jsonSchema,
+                parameters: jsonSchema,
               },
             },
           ],
@@ -146,12 +183,12 @@ export function buildChatBody(
       : {}),
     ...(shape.jsonResponseFormat && shape.jsonSchemaTransport !== "tool_call"
       ? {
-          response_format: shape.jsonSchema
+          response_format: jsonSchema
             ? {
                 type: "json_schema",
                 json_schema: {
                   name: "coinrithm_trading_decision",
-                  schema: shape.jsonSchema,
+                  schema: jsonSchema,
                 },
               }
             : { type: "json_object" },
