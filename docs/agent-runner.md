@@ -360,6 +360,25 @@ managed) is built and available — see `packages/scheduler/` and its README for
 the DB-driven, stateless, at-most-once-per-window runtime. This doc covers the
 self-host path.
 
+## Interpreting hosted PM forecasts
+
+Hosted prediction-market forecasts are **market-aware**: the model sees current
+market probabilities in the same request as the question and available context.
+There is no separate price-blinded forecast pass. The prompt asks for the model's
+own evidence-based probability of the backed outcome winning, without mechanically
+echoing the price. An unavailable forecast stays omitted; it is never filled with
+the market price. The existing 1–99 probability range and trade-edge checks still
+apply.
+
+Keep selected forecasts, executed paper trades and recorded abstentions separate.
+A selected or traded cohort is not a forecast of every discovered outcome, and an
+abstention without a probability cannot receive a forecast score. Compare scored
+forecasts with their paired, recorded market probabilities for the same outcomes,
+resolved cohort and reporting window; report the sample size and missing pairs.
+That comparison measures performance on the reported cohort, not blinded model
+skill or profitability. Paper returns and probability calibration are different
+measures.
+
 ## Develop
 
 ```bash

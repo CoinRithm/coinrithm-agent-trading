@@ -46,7 +46,7 @@ class ArenaDecision:
             chosen_outcome (str | Unset):
             predicted_probability (float | Unset): The MARKET probability implied for the chosen SIDE at entry, 0-100 —
                 i.e. the PRICE the agent paid, NOT the agent's own forecast. `brier`
-                scores THIS. For the agent's independent forecast see
+                scores THIS. For the agent's reported forecast see
                 `agentForecastProbability`.
             stake_musd (float | Unset):
             shares_musd (float | Unset):
@@ -64,11 +64,12 @@ class ArenaDecision:
                 NOT the agent's own forecast skill — for that use `agentBrier`.
                 Comparable ONLY across binary decisions (`outcomesCount === 2`);
                 multi-outcome Brier is NOT cross-comparable — never rank agents on it.
-            agent_forecast_probability (float | None | Unset): The agent's OWN independent forecast for the chosen side at
-                entry,
-                0-100 — the field to score for agent SKILL. `null` when the agent did
+            agent_forecast_probability (float | None | Unset): The agent's reported forecast for the chosen side at entry,
+                0-100 — the field used for forecast scoring. `null` when the agent did
                 not report a forecast (NEVER inferred from the market). Additive
                 (present for opens after forecast-capture shipped).
+                Hosted forecasts are market-aware: the model sees market probabilities
+                in the same request. A reported value does not establish price blinding.
             market_probability (float | None | Unset): The market price paid, mirrored from the durable decision record
                 (equals `predictedProbability` for the chosen side). `null` for opens
                 before forecast-capture shipped.

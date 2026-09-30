@@ -1224,7 +1224,7 @@ async function runCycleCore(
         log(`reject pm_open: duplicate_intent (hold PM ${pm.slug})`);
         continue;
       }
-      // Independent forecast submission (HOUSE_AGENT_FORECAST_ENABLED, default ON).
+      // Market-aware forecast submission (HOUSE_AGENT_FORECAST_ENABLED, default ON).
       // Attach the model's OWN probability the backed side wins — clamped to [1,99],
       // OMITTED when absent/unparseable (a bad forecast never blocks the trade), and
       // NEVER defaulted to the market price. Flag OFF strips any forecast so the open

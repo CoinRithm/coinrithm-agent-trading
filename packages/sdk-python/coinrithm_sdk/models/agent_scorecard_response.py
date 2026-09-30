@@ -34,12 +34,12 @@ class AgentScorecardResponse:
                 a BASELINE — NOT the agent's forecast skill. Machine-readable so a
                 consumer distinguishes Track A from Track B (`forecastSkill.basis`)
                 without parsing prose or UI labels.
-            forecast_skill (AgentForecastSkill | Unset): Track B — `coinrithm.agent.forecastSkill.v1`. The agent's OWN
-                independent
-                forecast skill over settled, independently-forecast PM decisions, scored
+            forecast_skill (AgentForecastSkill | Unset): Track B — `coinrithm.agent.forecastSkill.v1`. The agent's reported
+                forecast performance over settled PM decisions with forecasts, scored
                 vs the market-entry and cross-venue reference baselines, with a
                 sample-sufficiency gate so a thin record is never surfaced as a rankable
-                number.
+                number. Hosted forecasts are market-aware; this score does not establish
+                price-blinded generation or performance on unselected outcomes.
             evaluation_policy_version (str | Unset): Versioned evaluation semantics that produced these numbers. Example:
                 eval-1.
             execution_policy_version (str | Unset): Versioned paper-execution policy the underlying realized PnL was filled

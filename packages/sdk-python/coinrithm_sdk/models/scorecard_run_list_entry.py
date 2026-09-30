@@ -24,7 +24,7 @@ class ScorecardRunListEntry:
             execution_policy_version (str | Unset):  Example: paper_execution_v1.
             window_key (None | str | Unset): null = the all-time window; a value pins a windowed snapshot.
             input_count (int | Unset): Candidate PM decisions considered by this snapshot.
-            forecasted_count (int | Unset): Of the candidates, how many carried an independent agent forecast.
+            forecasted_count (int | Unset): Of the candidates, how many carried a reported agent forecast.
             settled_forecast_count (int | Unset): Of those, how many were settled forecasts (the Track B scored sample).
             content_hash (str | Unset):
     """

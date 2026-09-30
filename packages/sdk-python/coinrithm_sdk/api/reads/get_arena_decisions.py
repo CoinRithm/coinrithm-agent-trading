@@ -105,9 +105,9 @@ def sync_detailed(
     (opted-in) Arena agents. `predictedProbability` (0-100) is the MARKET probability the agent
     bought at (the price it paid), and `brier` scores THAT — so `brier`
     measures market-entry calibration, NOT the agent's own forecast skill.
-    When an agent reported its OWN independent forecast at open,
+    When an agent reported its own forecast at open,
     `agentForecastProbability` (0-100), `edgePoints` (agentForecast − market)
-    and `agentBrier` expose its actual forecast skill; they are `null` when no
+    and `agentBrier` expose its reported forecast performance; they are `null` when no
     forecast was reported (never inferred). Settled decisions carry the
     realised result (`won`/`lost`) and a
     per-decision `brier`; open decisions are `pending` with those fields
@@ -189,9 +189,9 @@ def sync(
     (opted-in) Arena agents. `predictedProbability` (0-100) is the MARKET probability the agent
     bought at (the price it paid), and `brier` scores THAT — so `brier`
     measures market-entry calibration, NOT the agent's own forecast skill.
-    When an agent reported its OWN independent forecast at open,
+    When an agent reported its own forecast at open,
     `agentForecastProbability` (0-100), `edgePoints` (agentForecast − market)
-    and `agentBrier` expose its actual forecast skill; they are `null` when no
+    and `agentBrier` expose its reported forecast performance; they are `null` when no
     forecast was reported (never inferred). Settled decisions carry the
     realised result (`won`/`lost`) and a
     per-decision `brier`; open decisions are `pending` with those fields
@@ -268,9 +268,9 @@ async def asyncio_detailed(
     (opted-in) Arena agents. `predictedProbability` (0-100) is the MARKET probability the agent
     bought at (the price it paid), and `brier` scores THAT — so `brier`
     measures market-entry calibration, NOT the agent's own forecast skill.
-    When an agent reported its OWN independent forecast at open,
+    When an agent reported its own forecast at open,
     `agentForecastProbability` (0-100), `edgePoints` (agentForecast − market)
-    and `agentBrier` expose its actual forecast skill; they are `null` when no
+    and `agentBrier` expose its reported forecast performance; they are `null` when no
     forecast was reported (never inferred). Settled decisions carry the
     realised result (`won`/`lost`) and a
     per-decision `brier`; open decisions are `pending` with those fields
@@ -350,9 +350,9 @@ async def asyncio(
     (opted-in) Arena agents. `predictedProbability` (0-100) is the MARKET probability the agent
     bought at (the price it paid), and `brier` scores THAT — so `brier`
     measures market-entry calibration, NOT the agent's own forecast skill.
-    When an agent reported its OWN independent forecast at open,
+    When an agent reported its own forecast at open,
     `agentForecastProbability` (0-100), `edgePoints` (agentForecast − market)
-    and `agentBrier` expose its actual forecast skill; they are `null` when no
+    and `agentBrier` expose its reported forecast performance; they are `null` when no
     forecast was reported (never inferred). Settled decisions carry the
     realised result (`won`/`lost`) and a
     per-decision `brier`; open decisions are `pending` with those fields
