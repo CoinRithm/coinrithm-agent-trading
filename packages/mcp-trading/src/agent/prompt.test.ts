@@ -373,7 +373,11 @@ describe("buildUserPrompt — settlement feedback integration", () => {
     );
     expect(withPm).toMatch(/no consensus means unknown, not agreement/);
     spec.venues = ["futures"];
-    expect(buildSystemPrompt(spec, "strategy")).not.toMatch(/consensus/);
+    // The PM consensus paragraph is absent; the coin-venue sentiment caution
+    // ("not current market consensus") is a different line and may appear.
+    const futuresOnly = buildSystemPrompt(spec, "strategy");
+    expect(futuresOnly).not.toMatch(/may carry `consensus`/);
+    expect(futuresOnly).not.toMatch(/no consensus means unknown/);
   });
 
   it("shows the own calibration record only with PM, and explains how to use it", () => {

@@ -3014,6 +3014,9 @@ describe("runner: futures_open withheld from schema routes when capacity is spen
     d.spec.risk.maxConcurrentPositions = 2;
     d.spec.limits.maxOpenMarginMusd = 1000;
     d.spec.limits.maxTradesPerDay = 5;
+    // Fixture only: let both opens reach the slot check instead of stopping
+    // at the per-cycle write budget.
+    d.spec.limits.maxWritesPerCycle = 5;
     const result = await runCycle(d);
     expect(r.inputs[0]).not.toHaveProperty("excludeActionTypes");
     expect(result.planned[0]).toMatchObject({ accepted: true, executed: true });
