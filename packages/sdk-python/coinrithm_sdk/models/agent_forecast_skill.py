@@ -21,11 +21,12 @@ T = TypeVar("T", bound="AgentForecastSkill")
 
 @_attrs_define
 class AgentForecastSkill:
-    """Track B — `coinrithm.agent.forecastSkill.v1`. The agent's OWN independent
-    forecast skill over settled, independently-forecast PM decisions, scored
+    """Track B — `coinrithm.agent.forecastSkill.v1`. The agent's reported
+    forecast performance over settled PM decisions with forecasts, scored
     vs the market-entry and cross-venue reference baselines, with a
     sample-sufficiency gate so a thin record is never surfaced as a rankable
-    number.
+    number. Hosted forecasts are market-aware; this score does not establish
+    price-blinded generation or performance on unselected outcomes.
 
         Attributes:
             schema (AgentForecastSkillSchema | Unset):
@@ -37,7 +38,7 @@ class AgentForecastSkill:
                 `insufficient_data` — the counts are shown but `metrics` stay `null`
                 (no rankable number over a thin sample).
             decided_count (int | Unset): All settled (win/loss) PM decisions in the record (coverage denominator).
-            forecasted_count (int | Unset): Of the decided, how many carried an independent agent forecast we can score.
+            forecasted_count (int | Unset): Of the decided, how many carried a reported agent forecast we can score.
             referenced_count (int | Unset): Of the forecasted, how many also had a cross-venue reference.
             forecast_coverage (float | None | Unset): forecastedCount / decidedCount in [0,1]; `null` when there are no
                 decided trades.

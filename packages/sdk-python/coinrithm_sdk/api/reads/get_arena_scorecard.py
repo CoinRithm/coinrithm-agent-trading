@@ -80,7 +80,7 @@ def sync_detailed(
 
     • `forecastSkill` (Track B, `coinrithm.agent.forecastSkill.v1`): the
       agent's OWN forecast skill (Brier + log score vs the market and
-      reference baselines) over independently-forecast settled decisions,
+      reference baselines) over settled decisions with reported forecasts,
       with forecast coverage and a sample-sufficiency gate —
       `state: insufficient_data` shows the counts instead of a rankable
       number until the gate is met. Its `basis` is `agent_forecast`.
@@ -132,7 +132,7 @@ def sync(
 
     • `forecastSkill` (Track B, `coinrithm.agent.forecastSkill.v1`): the
       agent's OWN forecast skill (Brier + log score vs the market and
-      reference baselines) over independently-forecast settled decisions,
+      reference baselines) over settled decisions with reported forecasts,
       with forecast coverage and a sample-sufficiency gate —
       `state: insufficient_data` shows the counts instead of a rankable
       number until the gate is met. Its `basis` is `agent_forecast`.
@@ -179,7 +179,7 @@ async def asyncio_detailed(
 
     • `forecastSkill` (Track B, `coinrithm.agent.forecastSkill.v1`): the
       agent's OWN forecast skill (Brier + log score vs the market and
-      reference baselines) over independently-forecast settled decisions,
+      reference baselines) over settled decisions with reported forecasts,
       with forecast coverage and a sample-sufficiency gate —
       `state: insufficient_data` shows the counts instead of a rankable
       number until the gate is met. Its `basis` is `agent_forecast`.
@@ -229,7 +229,7 @@ async def asyncio(
 
     • `forecastSkill` (Track B, `coinrithm.agent.forecastSkill.v1`): the
       agent's OWN forecast skill (Brier + log score vs the market and
-      reference baselines) over independently-forecast settled decisions,
+      reference baselines) over settled decisions with reported forecasts,
       with forecast coverage and a sample-sufficiency gate —
       `state: insufficient_data` shows the counts instead of a rankable
       number until the gate is met. Its `basis` is `agent_forecast`.

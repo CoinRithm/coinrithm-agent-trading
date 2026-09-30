@@ -308,9 +308,9 @@ export interface paths {
          *     (opted-in) Arena agents. `predictedProbability` (0-100) is the MARKET probability the agent
          *     bought at (the price it paid), and `brier` scores THAT — so `brier`
          *     measures market-entry calibration, NOT the agent's own forecast skill.
-         *     When an agent reported its OWN independent forecast at open,
+         *     When an agent reported its own forecast at open,
          *     `agentForecastProbability` (0-100), `edgePoints` (agentForecast − market)
-         *     and `agentBrier` expose its actual forecast skill; they are `null` when no
+         *     and `agentBrier` expose its reported forecast performance; they are `null` when no
          *     forecast was reported (never inferred). Settled decisions carry the
          *     realised result (`won`/`lost`) and a
          *     per-decision `brier`; open decisions are `pending` with those fields
@@ -428,7 +428,7 @@ export interface paths {
          *
          *     • `forecastSkill` (Track B, `coinrithm.agent.forecastSkill.v1`): the
          *       agent's OWN forecast skill (Brier + log score vs the market and
-         *       reference baselines) over independently-forecast settled decisions,
+         *       reference baselines) over settled decisions with reported forecasts,
          *       with forecast coverage and a sample-sufficiency gate —
          *       `state: insufficient_data` shows the counts instead of a rankable
          *       number until the gate is met. Its `basis` is `agent_forecast`.
@@ -2885,7 +2885,7 @@ export interface components {
             /**
              * @description The MARKET probability implied for the chosen SIDE at entry, 0-100 —
              *     i.e. the PRICE the agent paid, NOT the agent's own forecast. `brier`
-             *     scores THIS. For the agent's independent forecast see
+             *     scores THIS. For the agent's reported forecast see
              *     `agentForecastProbability`.
              */
             predictedProbability?: number;
@@ -2915,10 +2915,12 @@ export interface components {
              */
             brier?: number | null;
             /**
-             * @description The agent's OWN independent forecast for the chosen side at entry,
-             *     0-100 — the field to score for agent SKILL. `null` when the agent did
+             * @description The agent's reported forecast for the chosen side at entry,
+             *     0-100 — the field used for forecast scoring. `null` when the agent did
              *     not report a forecast (NEVER inferred from the market). Additive
              *     (present for opens after forecast-capture shipped).
+             *     Hosted forecasts are market-aware: the model sees market probabilities
+             *     in the same request. A reported value does not establish price blinding.
              */
             agentForecastProbability?: number | null;
             /**
@@ -3148,7 +3150,7 @@ export interface components {
             windowKey?: string | null;
             /** @description Candidate PM decisions considered by this snapshot. */
             inputCount?: number;
-            /** @description Of the candidates, how many carried an independent agent forecast. */
+            /** @description Of the candidates, how many carried a reported agent forecast. */
             forecastedCount?: number;
             /** @description Of those, how many were settled forecasts (the Track B scored sample). */
             settledForecastCount?: number;
@@ -3275,11 +3277,12 @@ export interface components {
             contentHash?: string;
         };
         /**
-         * @description Track B — `coinrithm.agent.forecastSkill.v1`. The agent's OWN independent
-         *     forecast skill over settled, independently-forecast PM decisions, scored
+         * @description Track B — `coinrithm.agent.forecastSkill.v1`. The agent's reported
+         *     forecast performance over settled PM decisions with forecasts, scored
          *     vs the market-entry and cross-venue reference baselines, with a
          *     sample-sufficiency gate so a thin record is never surfaced as a rankable
-         *     number.
+         *     number. Hosted forecasts are market-aware; this score does not establish
+         *     price-blinded generation or performance on unselected outcomes.
          */
         AgentForecastSkill: {
             /** @enum {string} */
@@ -3302,7 +3305,7 @@ export interface components {
             state?: "insufficient_data" | "ranked";
             /** @description All settled (win/loss) PM decisions in the record (coverage denominator). */
             decidedCount?: number;
-            /** @description Of the decided, how many carried an independent agent forecast we can score. */
+            /** @description Of the decided, how many carried a reported agent forecast we can score. */
             forecastedCount?: number;
             /** @description Of the forecasted, how many also had a cross-venue reference. */
             referencedCount?: number;
