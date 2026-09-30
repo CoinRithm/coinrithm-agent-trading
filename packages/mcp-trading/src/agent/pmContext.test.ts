@@ -6,6 +6,8 @@ import {
   pmDecisionSupportOf,
   pmQualityOf,
   pmSettlementRuleOf,
+  pmRuleTermOf,
+  PM_RULE_TERM_MAX,
   PM_RULES_TEXT_MAX,
   sourceTimestamp,
 } from "./pmContext.js";
@@ -268,5 +270,46 @@ describe("pmSettlementRuleOf (discover `resolution`, backend-v2 #111)", () => {
     )?.text;
     expect(text?.length).toBe(PM_RULES_TEXT_MAX);
     expect(text?.endsWith("…")).toBe(true);
+  });
+
+  it("keeps a known scope and drops an unknown one", () => {
+    expect(
+      pmSettlementRuleOf(resolution({ scope: "per_outcome" }))?.scope,
+    ).toBe("per_outcome");
+    expect(pmSettlementRuleOf(resolution({ scope: "event" }))?.scope).toBe(
+      "event",
+    );
+    expect(
+      pmSettlementRuleOf(resolution({ scope: "PRIVATE_TEXT" })),
+    ).not.toHaveProperty("scope");
+  });
+});
+
+describe("pmRuleTermOf (per-outcome settlement term)", () => {
+  const perOutcome = { published: true, scope: "per_outcome" as const };
+
+  it("carries only the outcome's own term, and only for a per-outcome rule", () => {
+    expect(pmRuleTermOf(perOutcome, { ruleTerm: " 3.6% " })).toBe("3.6%");
+    expect(
+      pmRuleTermOf({ published: true, scope: "event" }, { ruleTerm: "3.6%" }),
+    ).toBeUndefined();
+    expect(pmRuleTermOf({ published: true }, { ruleTerm: "3.6%" })).toBe(
+      undefined,
+    );
+    expect(pmRuleTermOf(null, { ruleTerm: "3.6%" })).toBeUndefined();
+    expect(pmRuleTermOf(undefined, { ruleTerm: "3.6%" })).toBeUndefined();
+  });
+
+  it("is explicitly unknown when the term is missing, junk or too long", () => {
+    for (const ruleTerm of [
+      undefined,
+      null,
+      "",
+      "  ",
+      3.6,
+      "x".repeat(PM_RULE_TERM_MAX + 1),
+    ]) {
+      expect(pmRuleTermOf(perOutcome, { ruleTerm })).toBeNull();
+    }
   });
 });

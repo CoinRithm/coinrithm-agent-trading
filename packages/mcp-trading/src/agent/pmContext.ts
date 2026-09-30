@@ -175,11 +175,32 @@ export function pmSettlementRuleOf(
   const settlementSource = asStr(r.settlementSource)?.trim().slice(0, 120);
   if (settlementSource && !sources.includes(settlementSource))
     sources.unshift(settlementSource);
+  const scope =
+    r.scope === "event" || r.scope === "per_outcome" ? r.scope : undefined;
   return {
     published: r.published,
     ...(text ? { text } : {}),
     ...(sources.length ? { sources: sources.slice(0, 3) } : {}),
+    ...(scope ? { scope } : {}),
   };
+}
+
+// Longest per-outcome term the API emits (backend-v2 AGENT_RULE_TERM_MAX).
+export const PM_RULE_TERM_MAX = 48;
+
+// One discover outcome's own settlement term, only for a per-outcome rule.
+// undefined = the rule is not per-outcome (the row carries no term); null =
+// per-outcome but this outcome's term is unknown (missing, junk or too long).
+export function pmRuleTermOf(
+  rules: PmSettlementRule | null | undefined,
+  outcome: Record<string, unknown>,
+): string | null | undefined {
+  if (rules?.scope !== "per_outcome") return undefined;
+  const term =
+    typeof outcome.ruleTerm === "string"
+      ? outcome.ruleTerm.replace(/\s+/g, " ").trim()
+      : "";
+  return term && term.length <= PM_RULE_TERM_MAX ? term : null;
 }
 
 export const PM_CONSENSUS_KINDS = ["binary", "leader"] as const;

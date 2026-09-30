@@ -34,6 +34,7 @@ import {
   pmConsensusOf,
   pmCalibrationOf,
   pmSettlementRuleOf,
+  pmRuleTermOf,
 } from "./pmContext.js";
 import { deriveCapitalBook, usesCapitalSizing } from "./capitalSizing.js";
 
@@ -824,32 +825,40 @@ function expandPmMarkets(
           .slice(0, 3);
         // Only an absent legacy outcomes field permits the flat fallback. A
         // present empty/malformed/all-rejected array must never resurrect ev.
-        return outcomes.map((o) => ({
-          source,
-          slug,
-          outcomeExternalMarketId:
-            asStr(o.externalMarketId) ?? asStr(o.outcomeExternalMarketId) ?? "",
-          // Carry the odds through: the model needs the outcome label + current
-          // probability to spot a mispriced market and bet it.
-          outcomeName: asStr(o.name) ?? asStr(o.outcomeName) ?? undefined,
-          // Backend returns probability as 0..100 (percent) — normalise to 0..1
-          // to match the prompt's "0..1" framing (probed 2026-06-24).
-          probability: ((p) =>
-            p == null || p < 0 || p > 100 ? undefined : p / 100)(
-            asNum(o.probability),
-          ),
-          title,
-          freshness,
-          quality,
-          decisionSupport,
-          volumeUsd,
-          // Event-level fundamentals from the same payload (slice 2): the
-          // resolution date and the venue-reported liquidity (USD).
-          endDate: asStr(ev.endDate) ?? undefined,
-          liquidityUsd: asNum(ev.liquidity) ?? undefined,
-          ...(consensus !== undefined ? { consensus } : {}),
-          ...(rules !== undefined ? { rules } : {}),
-        }));
+        return outcomes.map((o) => {
+          // This outcome's own term for a per-outcome rule (bound by market
+          // id at the API); undefined when the rule is not per-outcome.
+          const ruleTerm = pmRuleTermOf(rules, o);
+          return {
+            source,
+            slug,
+            outcomeExternalMarketId:
+              asStr(o.externalMarketId) ??
+              asStr(o.outcomeExternalMarketId) ??
+              "",
+            // Carry the odds through: the model needs the outcome label + current
+            // probability to spot a mispriced market and bet it.
+            outcomeName: asStr(o.name) ?? asStr(o.outcomeName) ?? undefined,
+            // Backend returns probability as 0..100 (percent) — normalise to 0..1
+            // to match the prompt's "0..1" framing (probed 2026-06-24).
+            probability: ((p) =>
+              p == null || p < 0 || p > 100 ? undefined : p / 100)(
+              asNum(o.probability),
+            ),
+            title,
+            freshness,
+            quality,
+            decisionSupport,
+            volumeUsd,
+            // Event-level fundamentals from the same payload (slice 2): the
+            // resolution date and the venue-reported liquidity (USD).
+            endDate: asStr(ev.endDate) ?? undefined,
+            liquidityUsd: asNum(ev.liquidity) ?? undefined,
+            ...(consensus !== undefined ? { consensus } : {}),
+            ...(rules !== undefined ? { rules } : {}),
+            ...(ruleTerm !== undefined ? { ruleTerm } : {}),
+          };
+        });
       })
       .filter(
         (m) =>

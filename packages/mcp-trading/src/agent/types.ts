@@ -502,6 +502,10 @@ export interface PmMarket {
   // Absent = older backend; null = the row carried nothing usable. Either
   // way the terms are unknown, never assumed from the title.
   rules?: PmSettlementRule | null;
+  // This outcome's own settlement term when `rules.scope` is "per_outcome"
+  // (fills {term} in rules.text). null = unknown for this outcome; absent when
+  // the rule is not per-outcome.
+  ruleTerm?: string | null;
 }
 
 // The agent's OWN settled PM forecast record, from the optional
@@ -529,6 +533,9 @@ export interface PmSettlementRule {
   text?: string; // bounded; ends in "…" when cut
   // Named outlets the venue says it settles from (Kalshi), at most 3.
   sources?: string[];
+  // "per_outcome": text is a template whose {term} each row's ruleTerm fills.
+  // "event": the text applies to every outcome. Absent = not determined.
+  scope?: "event" | "per_outcome";
 }
 
 export interface PmConsensus {

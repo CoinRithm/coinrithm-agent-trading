@@ -430,6 +430,13 @@ export function buildUserPrompt(
       "capitalSizingPolicy is the opt-in paper sizing policy (percent fields use percentage points). capitalBook is captured owned-book collateral plus marked spot, reduced only by negative futures/PM marks on its walletId; positive open-position gains are excluded, so this is NOT complete marked equity. Positions on other walletIds remain visible for management but their collateral, marks and close proceeds do not fund this book. Missing/unavailable capitalBook means no new entries; otherwise-valid closes, protection, cancellations and spot sells remain available.",
     );
   }
+  // Only when a per-outcome rule is on the board, so the default system prompt
+  // and the shared cache prefix stay unchanged.
+  if (hasPm && obs.pmMarkets.some((m) => m.rules?.scope === "per_outcome")) {
+    lines.push(
+      "Some pmMarkets events settle per outcome (rules.scope \"per_outcome\"): that event's rules.text is a template, and each row's ruleTerm replaces {term} for that row only, never another row's term. ruleTerm null means that outcome's exact settlement terms are unknown.",
+    );
+  }
   if (opts.dailyRiskBudget) {
     const entryActions = [
       ...(hasFutures ? ["futures_open (including adds)"] : []),
@@ -597,6 +604,9 @@ export function buildUserPrompt(
                 ) === i
                   ? m.rules
                   : undefined,
+              // This outcome's own term for a per-outcome rule, on every row
+              // (null = unknown); absent when the rule is not per-outcome.
+              ruleTerm: m.ruleTerm,
             })),
           }
         : {}),

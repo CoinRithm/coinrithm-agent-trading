@@ -6174,6 +6174,18 @@ components:
             properties:
               name: { type: string }
               url: { type: [string, "null"], description: "http(s) only; anything else is null" }
+        scope:
+          type: string
+          enum: [event, per_outcome]
+          description: |
+            Present only when the venue's per-market rules were read (Kalshi);
+            absent means not determined. `event`: every market states the same
+            rule, so `rules` applies to every outcome. `per_outcome`: `rules`
+            is a template in which `{term}` stands for each outcome's own
+            `ruleTerm` (bound by market id, never by title words), plus text
+            true for every outcome. When the markets differ in more than one
+            short span, the template is withheld: `published` is false and
+            every `ruleTerm` is null (terms unknown).
     PmDiscoveryOutcome:
       type: object
       properties:
@@ -6186,6 +6198,14 @@ components:
           description: |
             Per-outcome openability (structural + 0<p<100 live yes fill). null
             when scalars are unavailable.
+        ruleTerm:
+          type: [string, "null"]
+          maxLength: 48
+          description: |
+            Present only when the event's `resolution.scope` is `per_outcome`:
+            this outcome's own settlement term (e.g. "3.6%"), which fills
+            `{term}` in `resolution.rules`. null = this outcome's terms are
+            unknown; never another outcome's term.
     PmDiscoveryQuoteHint:
       type: object
       properties:

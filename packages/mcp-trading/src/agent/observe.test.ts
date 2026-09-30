@@ -767,6 +767,70 @@ describe("observe", () => {
     expect(byId.yes.rules).toEqual(rules);
     expect(byId.no.rules).toEqual(rules);
     expect(byId.z).not.toHaveProperty("rules");
+    expect(byId.yes).not.toHaveProperty("ruleTerm");
+  });
+
+  it("gives each ladder line its own settlement term, and unknown stays null", async () => {
+    const pmSpec = {
+      ...spec,
+      venues: ["pm", "futures"] as ("spot" | "futures" | "pm")[],
+    };
+    const template =
+      "If the Consumer Price Index (CPI) increases by more than {term} in the twelve months ending September 2026, then the market resolves to Yes.";
+    const c = fakeClient({
+      pmPositions: async () => okData({ positions: [] }),
+      discoverPmMarkets: async () =>
+        okData({
+          data: [
+            {
+              source: "kalshi",
+              slug: "kxcpiyoy-26sep",
+              title: "Inflation in September 2026 (CPI YoY)",
+              resolution: {
+                published: true,
+                rules: template,
+                rulesTruncated: false,
+                settlementSource: null,
+                settlementSources: [
+                  { name: "Bureau of Labor Statistics", url: null },
+                ],
+                scope: "per_outcome",
+              },
+              outcomes: [
+                {
+                  externalMarketId: "KXCPIYOY-26SEP-T3.5",
+                  name: "Above 3.5%",
+                  probability: 83,
+                  ruleTerm: "3.5%",
+                },
+                {
+                  externalMarketId: "KXCPIYOY-26SEP-T3.6",
+                  name: "Above 3.6%",
+                  probability: 41,
+                  ruleTerm: "3.6%",
+                },
+                {
+                  externalMarketId: "KXCPIYOY-26SEP-T3.7",
+                  name: "Above 3.7%",
+                  probability: 11,
+                  ruleTerm: null,
+                },
+              ],
+            },
+          ],
+        }),
+    });
+    const { observation } = await observe(c, pmSpec, newState("r"));
+    const byId = Object.fromEntries(
+      observation.pmMarkets.map((m) => [m.outcomeExternalMarketId, m]),
+    );
+    expect(byId["KXCPIYOY-26SEP-T3.6"].rules).toMatchObject({
+      scope: "per_outcome",
+      text: template,
+    });
+    expect(byId["KXCPIYOY-26SEP-T3.5"].ruleTerm).toBe("3.5%");
+    expect(byId["KXCPIYOY-26SEP-T3.6"].ruleTerm).toBe("3.6%");
+    expect(byId["KXCPIYOY-26SEP-T3.7"].ruleTerm).toBeNull();
   });
 
   // ── crypto-targeted secondary discover (pm_ref hallucination fix) ────────────

@@ -428,6 +428,51 @@ describe("buildUserPrompt — settlement feedback integration", () => {
     expect(data.pmMarkets[0].rules).toEqual(rules);
     expect(data.pmMarkets[1]).not.toHaveProperty("rules");
     expect(data.pmMarkets[2]).not.toHaveProperty("rules");
+    expect(data.pmMarkets[0]).not.toHaveProperty("ruleTerm");
+    expect(prompt).not.toMatch(/settle per outcome/);
+  });
+
+  it("prints each ladder row's own term and explains the template only when present", () => {
+    const rules = {
+      published: true,
+      text: "If CPI increases by more than {term} in the twelve months ending September 2026, then the market resolves to Yes.",
+      scope: "per_outcome" as const,
+    };
+    const row = {
+      source: "kalshi",
+      slug: "kxcpiyoy-26sep",
+      probability: 0.4,
+      rules,
+    };
+    const prompt = buildUserPrompt(
+      baseObs({
+        pmMarkets: [
+          {
+            ...row,
+            ref: "pm1",
+            outcomeExternalMarketId: "KXCPIYOY-26SEP-T3.6",
+            outcomeName: "Above 3.6%",
+            ruleTerm: "3.6%",
+          },
+          {
+            ...row,
+            ref: "pm2",
+            outcomeExternalMarketId: "KXCPIYOY-26SEP-T3.7",
+            outcomeName: "Above 3.7%",
+            ruleTerm: null,
+          },
+        ],
+      }),
+      undefined,
+      { venues: ["pm"] },
+    );
+    const data = JSON.parse(prompt.match(/```json\n(.*)\n```/)![1]);
+    expect(data.pmMarkets[0].rules).toEqual(rules);
+    expect(data.pmMarkets[1]).not.toHaveProperty("rules");
+    expect(data.pmMarkets[0].ruleTerm).toBe("3.6%");
+    expect(data.pmMarkets[1].ruleTerm).toBeNull();
+    expect(prompt).toMatch(/settle per outcome/);
+    expect(prompt).toMatch(/ruleTerm null means that outcome's exact/);
   });
 
   it("explains settlement rules only when PM is enabled, and a missing rule stays neutral", () => {
