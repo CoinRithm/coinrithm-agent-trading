@@ -20,8 +20,8 @@ export interface FuturesEntryEligibility {
   venue: string | null;
   symbol: string | null;
   referenceFetchedAt: string | null;
-  maxReferenceAgeHours: number | null;
-  evaluatedAt: string | null;
+  maxReferenceAgeHours: number;
+  evaluatedAt: string;
 }
 
 const STATUSES: readonly FuturesEntryEligibilityStatus[] = [
@@ -30,9 +30,15 @@ const STATUSES: readonly FuturesEntryEligibilityStatus[] = [
   "reference_unavailable",
 ];
 
+const isIsoDate = (v: unknown): v is string =>
+  typeof v === "string" && v.trim() !== "" && Number.isFinite(Date.parse(v));
+
 /**
- * Strict parse of the market context field. Anything missing or malformed
- * (an older API, a partial response) is `undefined` = UNKNOWN, which never
+ * Strict parse of the market context field against its contract (backend-v2
+ * #106). Anything missing or malformed (an older API, a partial response, an
+ * unknown status, a non-boolean referenceRequired, a missing or invalid
+ * evaluatedAt, a non-positive or non-finite maxReferenceAgeHours, or a present
+ * but invalid referenceFetchedAt) is `undefined` = UNKNOWN. Unknown never
  * blocks: the runner keeps today's behaviour and the server gate decides.
  */
 export function futuresEntryEligibilityOf(
@@ -43,15 +49,19 @@ export function futuresEntryEligibilityOf(
   if (!status || !STATUSES.includes(status)) return undefined;
   if (typeof raw.referenceRequired !== "boolean") return undefined;
   const hours = raw.maxReferenceAgeHours;
+  if (typeof hours !== "number" || !Number.isFinite(hours) || hours <= 0)
+    return undefined;
+  if (!isIsoDate(raw.evaluatedAt)) return undefined;
+  const fetchedAt = raw.referenceFetchedAt;
+  if (fetchedAt != null && !isIsoDate(fetchedAt)) return undefined;
   return {
     status,
     referenceRequired: raw.referenceRequired,
     venue: asStr(raw.venue) ?? null,
     symbol: asStr(raw.symbol) ?? null,
-    referenceFetchedAt: asStr(raw.referenceFetchedAt) ?? null,
-    maxReferenceAgeHours:
-      typeof hours === "number" && Number.isFinite(hours) ? hours : null,
-    evaluatedAt: asStr(raw.evaluatedAt) ?? null,
+    referenceFetchedAt: fetchedAt ?? null,
+    maxReferenceAgeHours: hours,
+    evaluatedAt: raw.evaluatedAt,
   };
 }
 
@@ -86,7 +96,7 @@ export function futuresEntryPreflight(
   const entry = observation.watch.find((w) => baseSymbol(w.symbol) === base);
   const e = entry?.futuresEntryEligibility;
   if (!e || !e.referenceRequired || e.status === "eligible") return null;
-  const when = e.evaluatedAt ? ` at ${e.evaluatedAt}` : "";
+  const when = ` at ${e.evaluatedAt}`;
   if (e.status === "reference_stale") {
     return {
       code: "futures_reference_stale",

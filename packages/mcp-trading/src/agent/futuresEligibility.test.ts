@@ -143,5 +143,41 @@ describe("futuresEntryEligibilityOf", () => {
         futuresEntryEligibility: { status: "eligible" },
       }),
     ).toBeUndefined();
+    // Explicit unavailable/stale with broken contract fields is UNKNOWN, never a block.
+    const bad: Array<Record<string, unknown>> = [
+      {
+        ...eligibility({ status: "reference_unavailable" }),
+        evaluatedAt: undefined,
+      },
+      {
+        ...eligibility({ status: "reference_unavailable" }),
+        evaluatedAt: "yesterday",
+      },
+      {
+        ...eligibility({ status: "reference_stale" }),
+        maxReferenceAgeHours: 0,
+      },
+      {
+        ...eligibility({ status: "reference_stale" }),
+        maxReferenceAgeHours: "6",
+      },
+      {
+        ...eligibility({ status: "reference_stale" }),
+        maxReferenceAgeHours: Number.NaN,
+      },
+      {
+        ...eligibility({ status: "reference_stale" }),
+        referenceFetchedAt: "not a date",
+      },
+      {
+        ...eligibility({ status: "reference_unavailable" }),
+        referenceRequired: "true",
+      },
+    ];
+    for (const futuresEntryEligibility of bad) {
+      expect(
+        futuresEntryEligibilityOf({ futuresEntryEligibility }),
+      ).toBeUndefined();
+    }
   });
 });

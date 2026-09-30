@@ -2831,3 +2831,75 @@ describe("runCycle — mechanical BENCHMARK agents (no LLM call)", () => {
     expect(client.openPmPosition).not.toHaveBeenCalled();
   });
 });
+
+describe("runner: supported futures reference preflight (backend-v2 #106)", () => {
+  const UNAVAILABLE = {
+    status: "reference_unavailable",
+    referenceRequired: true,
+    venue: null,
+    symbol: null,
+    referenceFetchedAt: null,
+    maxReferenceAgeHours: 6,
+    evaluatedAt: "2026-09-30T01:00:00.000Z",
+  };
+  const marketWith = (futuresEntryEligibility?: unknown) => async () =>
+    okData({
+      price: { usd: 67000, change1h: 1, change24h: 2 },
+      observation: { freshness: { status: "fresh" } },
+      ...(futuresEntryEligibility ? { futuresEntryEligibility } : {}),
+    });
+
+  it("explicit unavailability is recorded in planned and never quotes or opens", async () => {
+    const client = baseClient({ market: marketWith(UNAVAILABLE) });
+    const d = deps({ live: true }, client);
+    const result = await runCycle(d);
+    expect(result.planned[0]).toMatchObject({
+      accepted: false,
+      code: "futures_reference_unavailable",
+      reason: expect.stringContaining("no supported perpetual reference"),
+    });
+    expect(client.futuresQuote).not.toHaveBeenCalled();
+    expect(client.openFutures).not.toHaveBeenCalled();
+  });
+
+  it("an older API without the field still reaches the futures quote", async () => {
+    const client = baseClient({ market: marketWith(undefined) });
+    await runCycle(deps({ live: true }, client));
+    expect(client.futuresQuote).toHaveBeenCalled();
+  });
+
+  it("position management on a held coin stays reachable under explicit unavailability", async () => {
+    const client = baseClient({
+      market: marketWith(UNAVAILABLE),
+      futuresPositions: async () =>
+        okData({
+          positions: [
+            {
+              id: 7,
+              status: "open",
+              side: "long",
+              marginMusd: 50,
+              leverage: 2,
+              coin: { symbol: "BTC", ucid: "1" },
+              entryPrice: 66000,
+              markPrice: 67000,
+              stopLossPrice: 65000,
+              unrealizedPnlMusd: 10,
+            },
+          ],
+        }),
+    });
+    const d = deps(
+      { live: true },
+      client,
+      provider({
+        decision: "act",
+        confidence: 0.8,
+        actions: [{ type: "futures_close", positionId: 7 }],
+      }),
+    );
+    const result = await runCycle(d);
+    expect(result.planned[0]).toMatchObject({ accepted: true, executed: true });
+    expect(client.closeFutures).toHaveBeenCalledOnce();
+  });
+});
