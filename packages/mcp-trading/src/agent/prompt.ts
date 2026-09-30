@@ -410,7 +410,7 @@ export function buildUserPrompt(
   const capacity = hasFutures ? opts.futuresCapacity : undefined;
   if (capacity) {
     lines.push(
-      "futuresCapacity below is how much futures room is left right now: every futures_open, including an add to a position you hold, needs a free position slot (slotsLeft > 0) and its marginMusd must fit marginHeadroomMusd. The runner rejects anything beyond either cap.",
+      "futuresCapacity below is how much futures room is left right now: every futures_open, including an add to a position you hold, needs a free position slot (slotsLeft > 0) and its marginMusd must fit marginHeadroomMusd. Multiple opens/adds in one decision share slotsLeft and marginHeadroomMusd. The runner rejects anything beyond either cap.",
       ...(capacity.slotsLeft === 0
         ? [
             `All ${capacity.maxPositions} futures position slots are in use: propose NO futures_open this cycle (it would be rejected as max_positions). Manage, protect or close what you hold, use another enabled venue, or skip.`,

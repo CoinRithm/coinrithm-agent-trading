@@ -716,6 +716,10 @@ describe("futuresCapacity context (max_positions / open_margin_exceeds_cap waste
       futuresCapacity: buildFuturesCapacity(spec(), obs),
     });
     expect(dataOf(roomy).futuresCapacity.slotsLeft).toBe(2);
+    // The numbers are a pre-cycle snapshot: several actions spend them together.
+    expect(roomy).toContain(
+      "Multiple opens/adds in one decision share slotsLeft and marginHeadroomMusd.",
+    );
     expect(roomy).not.toContain("propose NO futures_open");
     const pmOnly = buildUserPrompt(obs, undefined, {
       venues: ["pm"],
