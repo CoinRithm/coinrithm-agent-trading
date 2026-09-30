@@ -104,6 +104,12 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
   });
 
   it("runs with the restricted role and refuses DDL, ledger writes and unrelated data access", async () => {
+    await pool.query(`DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'coinrithm_app') THEN
+        CREATE ROLE coinrithm_app NOLOGIN;
+      END IF;
+    END $$;
+    GRANT SELECT, INSERT, UPDATE, DELETE ON agent_runtime.schema_migrations TO coinrithm_app`);
     await pool.query(`CREATE TABLE IF NOT EXISTS public."ApiKey" (
       id integer PRIMARY KEY, "userId" integer, "revokedAt" timestamptz
     )`);
@@ -113,6 +119,13 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
         "utf8",
       ),
     );
+    expect(
+      (
+        await pool.query(
+          "SELECT has_table_privilege('coinrithm_app', 'agent_runtime.schema_migrations', 'INSERT,UPDATE,DELETE') AS writable",
+        )
+      ).rows[0].writable,
+    ).toBe(false);
     await pool.query(
       "ALTER ROLE coinrithm_scheduler LOGIN PASSWORD 'disposable-fixture-only'",
     );

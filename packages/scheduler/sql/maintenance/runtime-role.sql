@@ -17,7 +17,13 @@ BEGIN
     RAISE EXCEPTION 'Existing scheduler role has unexpected authority; inspect before provisioning';
   END IF;
   EXECUTE format('GRANT CONNECT ON DATABASE %I TO coinrithm_scheduler', current_database());
+  -- The production owner has default DML grants to coinrithm_app in this
+  -- schema. Migration receipts are operator evidence, not application data.
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'coinrithm_app') THEN
+    REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON agent_runtime.schema_migrations FROM coinrithm_app;
+  END IF;
 END $$;
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON agent_runtime.schema_migrations FROM PUBLIC, coinrithm_scheduler;
 GRANT USAGE ON SCHEMA agent_runtime, public TO coinrithm_scheduler;
 GRANT SELECT, INSERT, UPDATE, DELETE ON
   agent_runtime.agents,
