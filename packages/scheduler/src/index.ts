@@ -6,7 +6,7 @@ import { createServer } from "node:http";
 import { loadConfig } from "./config.js";
 import {
   createPool,
-  migrate,
+  assertSchemaReady,
   migrateAgentsOffEolModels,
   migrateHouseAgentsOffGroq,
   retryDatabaseStartup,
@@ -21,7 +21,7 @@ async function main(): Promise<void> {
   // A database container restart is operationally routine, not a fatal setup
   // error. Stay alive and reconnect with bounded backoff instead of exhausting
   // Coolify's process-restart budget while Postgres is still recovering.
-  await retryDatabaseStartup(() => migrate(pool), {
+  await retryDatabaseStartup(() => assertSchemaReady(pool), {
     onRetry: (attempt, delayMs, code) =>
       console.error(
         `[scheduler] database unavailable (${code}); startup retry ${attempt} in ${delayMs}ms`,

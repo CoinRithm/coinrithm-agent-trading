@@ -80,16 +80,43 @@ Operational must-knows:
 - **Configure the shared providers before starting the fleet.** House agents
   without BYO credentials need an eligible shared route. Router mode can use
   configured fallback providers; missing capacity is not proof of provider health.
-- **Migration startup is serialized.** Numbered SQL files replay in lexical
-  order on one connection, inside one transaction holding a database advisory
-  lock. Concurrent replicas wait; interruption rolls back the transaction and
-  releases the lock. Lock waits are bounded at 30 seconds and statements at
-  120 seconds; a timeout fails startup rather than serving a partially migrated
-  schema. New migrations must remain transactional (no `CONCURRENTLY` or
-  embedded transaction control). This does not replace the shared capacity
-  backend required for multiple replicas.
+- **Startup checks the schema; it never runs DDL.** The runtime connects as
+  `coinrithm_scheduler`, with DML on its seven runtime tables and read access
+  to migration receipts and the three API-key identity fields used by the
+  existing startup repair. Startup refuses missing/changed migration receipts,
+  superuser authority, role membership, schema creation or ledger writes.
+  Run migrations explicitly with a separate privileged connection before
+  deploying a schema change (see below). Shared capacity remains necessary
+  for multiple replicas.
 - **Keep the Docker healthcheck enabled.** The image sets `HEALTH_PORT=8080`;
   `/healthz` checks the scheduler heartbeat as well as process liveness.
+
+## Schema deployment and runtime role
+
+1. Build the scheduler image and retain the previous image and runtime secret
+   configuration. Record the database target and take the established backup.
+2. Run `node scripts/migrate-schema.mjs --maintenance-confirmed` in an isolated
+   operator process with `MIGRATION_DATABASE_URL` supplied through the secret
+   manager. Do not configure that variable on the scheduler application.
+   Migration SQL and its SHA-256 receipt commit together under the existing
+   maintenance lock. First adoption explicitly reapplies the existing idempotent
+   files before recording them; it does not infer their historical execution.
+   Later runs apply only new files and reject changes to recorded files.
+3. Apply `sql/maintenance/runtime-role.sql` with `psql -X -v ON_ERROR_STOP=1` on
+   the same database. The API's `public."ApiKey"` table must already exist.
+   Provision the new role's login/password securely and configure the scheduler's
+   runtime-only `DATABASE_URL` to use it. Other applications keep their own roles.
+4. Deploy the scheduler and verify the exact revision, heartbeat, read-only
+   schema check and a natural completed cycle. A readiness failure must be fixed
+   with the operator process, never by granting runtime DDL.
+
+New numbered files must remain transactional (no `CONCURRENTLY` or embedded
+transaction control); use new files instead of editing recorded migrations.
+SQL checksums normalize CRLF to LF. Extra receipts from later additive migrations
+do not prevent an older compatible image from starting. Review schema rollback
+compatibility separately. Rolling back to a pre-separation image also requires
+restoring its previous runtime connection, since those images replay DDL; retain
+that secret configuration securely until those rollback images are retired.
 
 ## Offline credential rotation and recovery
 
