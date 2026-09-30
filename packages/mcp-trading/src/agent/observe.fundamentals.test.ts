@@ -9,6 +9,7 @@ import { renderFolderOfOne } from "./templates.js";
 import { newState } from "./state.js";
 import { CoinRithmClient } from "./client.js";
 import type { Venue } from "./types.js";
+import { buildSystemPrompt, buildUserPrompt } from "./prompt.js";
 
 const okData = (data: unknown) => ({ ok: true, status: 200, data });
 
@@ -54,8 +55,14 @@ const marketCtx = (coinId: string) => {
       bearishVotes: 5,
       totalVotes: 15,
       bullishPct: 67,
+      dayUtc: "2026-08-20T00:00:00.000Z",
+      updatedAt: "2026-08-20T12:00:00.000Z",
     },
-    fearGreed: { value: 52, label: "Neutral" },
+    fearGreed: {
+      value: 52,
+      label: "Neutral",
+      fetchedAt: "2026-09-01T12:00:00.000Z",
+    },
     relatedMarkets: [],
     similarCoins: [],
     asOf: "2026-09-02T12:00:00.000Z",
@@ -176,6 +183,57 @@ function fakeClient(over: Record<string, unknown> = {}): CoinRithmClient {
 }
 
 describe("observe: coin fundamentals", () => {
+  it("keeps sentiment sample/date and collection clock through the actual decision prompt", async () => {
+    const spec = baseSpec();
+    const { observation } = await observe(fakeClient(), spec, newState("r"));
+    expect(observation.watch[0]).toMatchObject({
+      sentimentBullishPct: 67,
+      sentimentTotalVotes: 15,
+      sentimentDayUtc: "2026-08-20T00:00:00.000Z",
+      sentimentUpdatedAt: "2026-08-20T12:00:00.000Z",
+    });
+    expect(observation.marketMood?.fetchedAt).toBe("2026-09-01T12:00:00.000Z");
+    const prompt = buildUserPrompt(observation);
+    expect(prompt).toContain('"sentimentTotalVotes":15');
+    expect(prompt).toContain("2026-08-20T00:00:00.000Z");
+    expect(prompt).toContain("2026-09-01T12:00:00.000Z");
+    expect(buildSystemPrompt(spec, "strategy")).toContain(
+      "Missing counts/dates are unknown",
+    );
+  });
+
+  it.each([
+    { bullishPct: 100 },
+    { bullishPct: 100, totalVotes: -1, dayUtc: "1", updatedAt: "invalid" },
+    { bullishPct: 100, totalVotes: 1.5, dayUtc: null },
+  ])(
+    "does not invent a sample or date from older/malformed context: %j",
+    async (sentiment) => {
+      const { observation } = await observe(
+        fakeClient({
+          market: async () =>
+            okData({
+              sentiment,
+              fearGreed: {
+                value: 0,
+                label: "Extreme Fear",
+                fetchedAt: "invalid",
+              },
+            }),
+        }),
+        baseSpec(),
+        newState("r"),
+      );
+      expect(observation.watch[0].sentimentTotalVotes).toBeUndefined();
+      expect(observation.watch[0].sentimentDayUtc).toBeUndefined();
+      expect(observation.watch[0].sentimentUpdatedAt).toBeUndefined();
+      expect(observation.marketMood).toEqual({
+        fearGreed: 0,
+        label: "Extreme Fear",
+      });
+    },
+  );
+
   it("carries categories (max 3), rank, market cap and the slug from the market context alone", async () => {
     const { observation } = await observe(
       fakeClient(),
@@ -407,6 +465,11 @@ describe("observe: coin fundamentals", () => {
                 categories: ["Layer 2 (L2)"],
               },
               price: { usd: 0.0017, marketCapUsd: 90_000_000 }, // no change24h here
+              sentiment: {
+                bullishPct: null,
+                totalVotes: 0,
+                dayUtc: "2026-09-02T00:00:00.000Z",
+              },
               observation: {
                 freshness: { status: "fresh" },
                 dataset: { coinId, coinSlug: "eclipse-3" },
@@ -416,6 +479,9 @@ describe("observe: coin fundamentals", () => {
     const { observation } = await observe(client, spec, newState("r"));
     const es = observation.watch.find((w) => w.symbol === "ES");
     expect(es?.discovered).toBe(true);
+    expect(es?.sentimentTotalVotes).toBe(0);
+    expect(es?.sentimentBullishPct).toBeUndefined();
+    expect(es?.sentimentDayUtc).toBe("2026-09-02T00:00:00.000Z");
     expect(es?.slug).toBe("eclipse-3");
     expect(es?.change24h).toBe(72.34); // was undefined: strict asNum on "72.34"
     expect(es?.fundamentals).toEqual({

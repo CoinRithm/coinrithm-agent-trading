@@ -538,11 +538,23 @@ paths:
                       bearishVotes: { type: integer }
                       totalVotes: { type: integer }
                       bullishPct: { type: [integer, "null"] }
+                      dayUtc:
+                        type: [string, "null"]
+                        format: date-time
+                        description: UTC day of this vote cohort; may be older than the response or price.
+                      updatedAt:
+                        type: [string, "null"]
+                        format: date-time
+                        description: Last write to this vote cohort; not the price clock.
                   fearGreed:
                     type: [object, "null"]
                     properties:
                       value: { type: integer }
                       label: { type: string }
+                      fetchedAt:
+                        type: [string, "null"]
+                        format: date-time
+                        description: Last successful collection time. The provider observation timestamp is not retained.
                   futuresEntryEligibility:
                     type: object
                     description: |
