@@ -90,7 +90,11 @@ def sync_detailed(
      Never mutates state. Returns the live execution price, estimated cost
     (price × quantity), your available balance, and whether the fill is
     `eligible` — quote BEFORE `spot/order` instead of buying blind. Price
-    age is informational `freshness`. Requires scope `read`.
+    age is informational `freshness`. Optional `priceTiming` adds the
+    venue's own snapshot time next to CoinRithm's write time; it is
+    informational only: `freshness`, `eligible`/`blockReasons` and the
+    order path's guards still measure the row write time and are
+    unchanged. Requires scope `read`.
 
     Args:
         body (SpotQuoteRequest):
@@ -124,7 +128,11 @@ def sync(
      Never mutates state. Returns the live execution price, estimated cost
     (price × quantity), your available balance, and whether the fill is
     `eligible` — quote BEFORE `spot/order` instead of buying blind. Price
-    age is informational `freshness`. Requires scope `read`.
+    age is informational `freshness`. Optional `priceTiming` adds the
+    venue's own snapshot time next to CoinRithm's write time; it is
+    informational only: `freshness`, `eligible`/`blockReasons` and the
+    order path's guards still measure the row write time and are
+    unchanged. Requires scope `read`.
 
     Args:
         body (SpotQuoteRequest):
@@ -153,7 +161,11 @@ async def asyncio_detailed(
      Never mutates state. Returns the live execution price, estimated cost
     (price × quantity), your available balance, and whether the fill is
     `eligible` — quote BEFORE `spot/order` instead of buying blind. Price
-    age is informational `freshness`. Requires scope `read`.
+    age is informational `freshness`. Optional `priceTiming` adds the
+    venue's own snapshot time next to CoinRithm's write time; it is
+    informational only: `freshness`, `eligible`/`blockReasons` and the
+    order path's guards still measure the row write time and are
+    unchanged. Requires scope `read`.
 
     Args:
         body (SpotQuoteRequest):
@@ -185,7 +197,11 @@ async def asyncio(
      Never mutates state. Returns the live execution price, estimated cost
     (price × quantity), your available balance, and whether the fill is
     `eligible` — quote BEFORE `spot/order` instead of buying blind. Price
-    age is informational `freshness`. Requires scope `read`.
+    age is informational `freshness`. Optional `priceTiming` adds the
+    venue's own snapshot time next to CoinRithm's write time; it is
+    informational only: `freshness`, `eligible`/`blockReasons` and the
+    order path's guards still measure the row write time and are
+    unchanged. Requires scope `read`.
 
     Args:
         body (SpotQuoteRequest):

@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from ..models.agent_observation import AgentObservation
     from ..models.execution_model import ExecutionModel
     from ..models.freshness import Freshness
+    from ..models.spot_price_timing import SpotPriceTiming
     from ..models.spot_quote_response_available import SpotQuoteResponseAvailable
     from ..models.spot_quote_response_coin import SpotQuoteResponseCoin
 
@@ -67,6 +68,11 @@ class SpotQuoteResponse:
         freshness (Freshness | Unset): Data-freshness descriptor. Futures + spot use ageSeconds; PM uses
             ageMinutes. `status` is a freshness label; `basis` (PM only) names which
             timestamp the age was measured against.
+        price_timing (SpotPriceTiming | Unset): Source-vs-row timing of the spot price (optional: absent on older API
+            versions). Informational only: `freshness`, `eligible` and the write
+            path's mark guard still measure the row WRITE time and are unchanged.
+            `sourceObservedAt` is a venue snapshot/ticker time, NOT a last-trade
+            time and NOT a per-fill receipt.
         as_of (datetime.datetime | Unset):
         observation (AgentObservation | Unset): Compact provenance block for an agent-facing market observation. It is
             also stored in the private ledger responseSummary when the request uses
@@ -86,6 +92,7 @@ class SpotQuoteResponse:
     execution_model: ExecutionModel | Unset = UNSET
     available: SpotQuoteResponseAvailable | Unset = UNSET
     freshness: Freshness | Unset = UNSET
+    price_timing: SpotPriceTiming | Unset = UNSET
     as_of: datetime.datetime | Unset = UNSET
     observation: AgentObservation | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -139,6 +146,10 @@ class SpotQuoteResponse:
         if not isinstance(self.freshness, Unset):
             freshness = self.freshness.to_dict()
 
+        price_timing: dict[str, Any] | Unset = UNSET
+        if not isinstance(self.price_timing, Unset):
+            price_timing = self.price_timing.to_dict()
+
         as_of: str | Unset = UNSET
         if not isinstance(self.as_of, Unset):
             as_of = self.as_of.isoformat()
@@ -174,6 +185,8 @@ class SpotQuoteResponse:
             field_dict["available"] = available
         if freshness is not UNSET:
             field_dict["freshness"] = freshness
+        if price_timing is not UNSET:
+            field_dict["priceTiming"] = price_timing
         if as_of is not UNSET:
             field_dict["asOf"] = as_of
         if observation is not UNSET:
@@ -186,6 +199,7 @@ class SpotQuoteResponse:
         from ..models.agent_observation import AgentObservation
         from ..models.execution_model import ExecutionModel
         from ..models.freshness import Freshness
+        from ..models.spot_price_timing import SpotPriceTiming
         from ..models.spot_quote_response_available import SpotQuoteResponseAvailable
         from ..models.spot_quote_response_coin import SpotQuoteResponseCoin
 
@@ -262,6 +276,13 @@ class SpotQuoteResponse:
         else:
             freshness = Freshness.from_dict(_freshness)
 
+        _price_timing = d.pop("priceTiming", UNSET)
+        price_timing: SpotPriceTiming | Unset
+        if isinstance(_price_timing, Unset):
+            price_timing = UNSET
+        else:
+            price_timing = SpotPriceTiming.from_dict(_price_timing)
+
         _as_of = d.pop("asOf", UNSET)
         as_of: datetime.datetime | Unset
         if isinstance(_as_of, Unset):
@@ -289,6 +310,7 @@ class SpotQuoteResponse:
             execution_model=execution_model,
             available=available,
             freshness=freshness,
+            price_timing=price_timing,
             as_of=as_of,
             observation=observation,
         )
