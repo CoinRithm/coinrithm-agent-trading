@@ -862,17 +862,28 @@ async function runCycleCore(
       estimatedCostUsd: 0,
     };
   } else {
-    const system = buildSystemPrompt(spec, mergedProse, {
-      includeForecast: forecastEnabled,
-    });
     const futuresCapacity = spec.venues.includes("futures")
       ? buildFuturesCapacity(spec, observation)
       : undefined;
+    // One exclusion drives both the textual action menu and transport schema.
+    // It is a proposal hint only; parsing and validation stay unchanged.
+    const capacitySpent =
+      futuresCapacity !== undefined &&
+      (futuresCapacity.slotsLeft === 0 ||
+        futuresCapacity.marginHeadroomMusd <= 0);
+    const actionAvailability = capacitySpent
+      ? { excludeActionTypes: ["futures_open"] as const }
+      : {};
+    const system = buildSystemPrompt(spec, mergedProse, {
+      includeForecast: forecastEnabled,
+      ...actionAvailability,
+    });
     const user = buildUserPrompt(observation, state.journal, {
       venues: spec.venues,
       dailyRiskBudget: buildDailyRiskBudget(spec, state),
       ...(usesCapitalSizing(spec) ? { capitalSizing: spec.capitalSizing } : {}),
       ...(futuresCapacity ? { futuresCapacity } : {}),
+      ...actionAvailability,
     });
     const tokensInEst = Math.round((system.length + user.length) / 4);
     // Prompt-size + trigger visibility in the live terminal.
@@ -883,10 +894,6 @@ async function runCycleCore(
     // With either futures cap spent, a schema-enforcing route is not offered
     // futures_open at all. Other routes can still propose it; the validator
     // rejects it there exactly as before.
-    const capacitySpent =
-      futuresCapacity !== undefined &&
-      (futuresCapacity.slotsLeft === 0 ||
-        futuresCapacity.marginHeadroomMusd <= 0);
     if (capacitySpent) {
       log(
         `futures capacity spent (slotsLeft ${futuresCapacity.slotsLeft}, marginHeadroomMusd ${futuresCapacity.marginHeadroomMusd}): futures_open withheld from schema-enforcing routes`,
@@ -895,9 +902,7 @@ async function runCycleCore(
     const res = await provider.decide({
       system,
       user,
-      ...(capacitySpent
-        ? { excludeActionTypes: ["futures_open"] as const }
-        : {}),
+      ...actionAvailability,
     });
     const route = res.route;
     const actualCallMade = route

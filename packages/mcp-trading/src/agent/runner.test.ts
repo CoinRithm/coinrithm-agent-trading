@@ -2938,6 +2938,97 @@ describe("runner: futures_open withheld from schema routes when capacity is spen
     return { prov, inputs };
   }
   const WITHHELD = "futures_open withheld from schema-enforcing routes";
+  it.each([
+    ["slots", 1, 1000],
+    ["margin", 5, 50],
+  ])(
+    "sends coherent text and tool actions when %s are exhausted",
+    async (_cause, maxPositions, maxOpenMargin) => {
+      const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json({
+          choices: [
+            {
+              message: {
+                content: null,
+                tool_calls: [
+                  {
+                    function: {
+                      name: "submit_trading_decision",
+                      arguments: '{"decision":"skip","actions":[]}',
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+      );
+      const d = deps({}, withHeld());
+      d.spec.venues = ["futures", "spot", "pm"];
+      d.spec.model = { provider: "nvidia", name: "nvidia/nemotron-3-super" };
+      d.spec.risk.maxConcurrentPositions = maxPositions;
+      d.spec.limits.maxOpenMarginMusd = maxOpenMargin;
+      d.provider = selectProvider(
+        d.spec,
+        { NVIDIA_API_KEY: "fixture-key" },
+        fetchFn,
+      );
+      await runCycle(d);
+      expect(fetchFn).toHaveBeenCalledOnce();
+      const body = JSON.parse(String(fetchFn.mock.calls[0][1]?.body));
+      const system = body.messages.find(
+        (message: { role: string }) => message.role === "system",
+      ).content as string;
+      const user = body.messages.find(
+        (message: { role: string }) => message.role === "user",
+      ).content as string;
+      const textActions = [...system.matchAll(/^- \{"type":"([^"]+)"/gm)].map(
+        (match) => match[1],
+      );
+      const toolActions =
+        body.tools[0].function.parameters.properties.actions.items.oneOf.map(
+          (variant: { properties: { type: { const: string } } }) =>
+            variant.properties.type.const,
+        );
+      expect(textActions).not.toContain("futures_open");
+      expect(toolActions).not.toContain("futures_open");
+      for (const type of [
+        "futures_close",
+        "futures_set_sltp",
+        "spot_order",
+        "spot_cancel",
+        "pm_open",
+      ]) {
+        expect(textActions).toContain(type);
+        expect(toolActions).toContain(type);
+      }
+      expect(system).not.toMatch(
+        /TAKE THE POSITION|Skip ONLY|ADD only if|you may ADD/,
+      );
+      expect(user).toContain("propose NO futures_open this cycle");
+      // Recover capacity in the next cycle: neither the prompt nor shared schema
+      // may retain the previous exclusion.
+      d.spec.risk.maxConcurrentPositions = 5;
+      d.spec.limits.maxOpenMarginMusd = 1000;
+      fetchFn.mockResolvedValue(
+        Response.json({
+          choices: [
+            { message: { content: '{"decision":"skip","actions":[]}' } },
+          ],
+        }),
+      );
+      await runCycle(d);
+      const recovered = JSON.parse(String(fetchFn.mock.calls[1][1]?.body));
+      expect(recovered.messages[0].content).toContain('"type":"futures_open"');
+      expect(
+        recovered.tools[0].function.parameters.properties.actions.items.oneOf.map(
+          (variant: { properties: { type: { const: string } } }) =>
+            variant.properties.type.const,
+        ),
+      ).toContain("futures_open");
+    },
+  );
+
   const diagnostics = (log: ReturnType<typeof vi.fn>) =>
     log.mock.calls
       .map(([line]) => String(line))
