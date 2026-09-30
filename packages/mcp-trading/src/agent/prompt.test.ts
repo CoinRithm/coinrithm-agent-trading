@@ -439,7 +439,7 @@ describe("buildUserPrompt — settlement feedback integration", () => {
   });
 });
 
-describe("buildSystemPrompt — independent forecast (pm_open forecastProbability)", () => {
+describe("buildSystemPrompt — market-aware forecast (pm_open forecastProbability)", () => {
   const specWithPm = () => {
     const spec = parseSkill(renderFolderOfOne("a", "conservative")).spec;
     spec.venues = ["pm", "futures", "spot"];
@@ -458,8 +458,40 @@ describe("buildSystemPrompt — independent forecast (pm_open forecastProbabilit
     });
     expect(out).toMatch(/"forecastProbability":1\.\.99/);
     expect(out).toMatch(/FORECAST RULE/);
-    // The rule must tell the model NOT to echo/anchor on the market price.
-    expect(out).toMatch(/do NOT copy, round, or anchor/i);
+    expect(out).toContain("market-aware estimate, not a blinded forecast");
+    expect(out).toContain("current market probability is already included");
+    expect(out).toContain("own evidence-based probability");
+    expect(out).toContain("outcome you are backing actually WINS");
+    expect(out).toContain("do NOT mechanically copy or round");
+    expect(out).toContain("OMIT the field rather than parroting the market");
+    expect(out).toContain(
+      "if it is not above what the outcome currently costs, the open is rejected",
+    );
+    expect(out).not.toMatch(
+      /before you look|independently formed|independent view/,
+    );
+  });
+
+  it("keeps the actual market probability in the same decision input", () => {
+    const observation = baseObs({
+      pmMarkets: [
+        {
+          ref: "pm1",
+          source: "kalshi",
+          slug: "fixture",
+          outcomeExternalMarketId: "no",
+          outcomeName: "No",
+          probability: 0.6,
+        },
+      ],
+    });
+    const user = buildUserPrompt(observation, undefined, { venues: ["pm"] });
+    const input = JSON.parse(user.match(/```json\n(.*)\n```/)![1]);
+    expect(input.pmMarkets[0]).toMatchObject({
+      ref: "pm1",
+      outcome: "No",
+      prob: 0.6,
+    });
   });
 });
 
