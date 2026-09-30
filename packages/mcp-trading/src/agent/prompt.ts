@@ -111,6 +111,7 @@ export function buildSystemPrompt(
       '{"type":"futures_close","positionId","fraction"}',
       '{"type":"futures_set_sltp","positionId","stopLossPrice","takeProfitPrice"}',
       "FUTURES TRIGGER RULES (the server rejects the WHOLE open otherwise): a LONG's takeProfitPrice must be ABOVE the current mark and stopLossPrice BELOW it (and above liquidationPrice); a SHORT is inverted (TP below mark, SL above). Every open position in observation.openPositions shows entryPrice, markPrice, liquidationPrice, stopLossPrice, takeProfitPrice — read them and place triggers on the correct side. NEVER attach stopLossPrice/takeProfitPrice to a futures_open for a symbol you ALREADY hold (the server treats it as an add and rejects it) — adjust that position with futures_set_sltp on its positionId instead.",
+      'FUTURES AVAILABILITY: a watch entry whose futuresEntryEligibility.status is not "eligible" has no supported perpetual reference right now, so the server refuses a NEW futures_open on it. Consider spot for that coin (if spot is one of your venues) or another coin for futures. This never limits managing a position you already hold.',
     );
   }
   if (hasSpot) {

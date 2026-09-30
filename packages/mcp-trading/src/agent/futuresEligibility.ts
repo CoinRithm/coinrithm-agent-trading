@@ -1,0 +1,100 @@
+// Futures entry eligibility (API >= backend-v2 #106): GET /api/agent/market/{coinId}
+// carries `futuresEntryEligibility`, what the server entry gate's own
+// perpetual-reference rule says about a NEW futures open on the coin. Before it,
+// universe_scan surfaced coins with no supported perpetual reference (tokenized
+// ETFs such as SLVON/NAKA) and the runner spent a futures quote only to be
+// refused with perpetual_reference_unavailable (J-74). The server gate stays
+// authoritative: eligibility can change between observation and execution.
+
+import { asObj, asStr } from "./extract.js";
+import { baseSymbol } from "./setups.js";
+import type { Observation, ProposedAction } from "./types.js";
+
+export type FuturesEntryEligibilityStatus =
+  "eligible" | "reference_stale" | "reference_unavailable";
+
+export interface FuturesEntryEligibility {
+  status: FuturesEntryEligibilityStatus;
+  /** Whether the server gate currently requires a reference for NEW opens. */
+  referenceRequired: boolean;
+  venue: string | null;
+  symbol: string | null;
+  referenceFetchedAt: string | null;
+  maxReferenceAgeHours: number | null;
+  evaluatedAt: string | null;
+}
+
+const STATUSES: readonly FuturesEntryEligibilityStatus[] = [
+  "eligible",
+  "reference_stale",
+  "reference_unavailable",
+];
+
+/**
+ * Strict parse of the market context field. Anything missing or malformed
+ * (an older API, a partial response) is `undefined` = UNKNOWN, which never
+ * blocks: the runner keeps today's behaviour and the server gate decides.
+ */
+export function futuresEntryEligibilityOf(
+  marketContext: unknown,
+): FuturesEntryEligibility | undefined {
+  const raw = asObj(asObj(marketContext).futuresEntryEligibility);
+  const status = asStr(raw.status) as FuturesEntryEligibilityStatus | undefined;
+  if (!status || !STATUSES.includes(status)) return undefined;
+  if (typeof raw.referenceRequired !== "boolean") return undefined;
+  const hours = raw.maxReferenceAgeHours;
+  return {
+    status,
+    referenceRequired: raw.referenceRequired,
+    venue: asStr(raw.venue) ?? null,
+    symbol: asStr(raw.symbol) ?? null,
+    referenceFetchedAt: asStr(raw.referenceFetchedAt) ?? null,
+    maxReferenceAgeHours:
+      typeof hours === "number" && Number.isFinite(hours) ? hours : null,
+    evaluatedAt: asStr(raw.evaluatedAt) ?? null,
+  };
+}
+
+export interface FuturesEntryPreflightRejection {
+  code: "futures_reference_unavailable" | "futures_reference_stale";
+  reason: string;
+}
+
+/**
+ * Pre-quote check for a NEW futures open. Returns a rejection only when the
+ * observation EXPLICITLY reports that the server gate requires a reference and
+ * has none (or only a stale one) for this coin. Everything else passes:
+ * - non-futures_open actions (spot, PM, futures_close / futures_set_sltp);
+ * - any open futures position on the same coin (the open is an add or position
+ *   management, which the server never refuses for the reference);
+ * - unknown eligibility (field absent on an older API);
+ * - referenceRequired false.
+ */
+export function futuresEntryPreflight(
+  action: ProposedAction,
+  observation: Observation,
+): FuturesEntryPreflightRejection | null {
+  if (action.type !== "futures_open") return null;
+  const base = baseSymbol(action.symbol);
+  const holdsCoin = (observation.openPositions ?? []).some(
+    (p) =>
+      p.venue === "futures" &&
+      (p.status ?? "open") === "open" &&
+      baseSymbol(p.symbol) === base,
+  );
+  if (holdsCoin) return null;
+  const entry = observation.watch.find((w) => baseSymbol(w.symbol) === base);
+  const e = entry?.futuresEntryEligibility;
+  if (!e || !e.referenceRequired || e.status === "eligible") return null;
+  const when = e.evaluatedAt ? ` at ${e.evaluatedAt}` : "";
+  if (e.status === "reference_stale") {
+    return {
+      code: "futures_reference_stale",
+      reason: `${action.symbol}: the perpetual reference${e.venue ? ` (${e.venue})` : ""} is older than the server allows for a NEW futures open${when}; the server would refuse it (perpetual_reference_stale). Trade another coin or wait for a fresh reference.`,
+    };
+  }
+  return {
+    code: "futures_reference_unavailable",
+    reason: `${action.symbol}: CoinRithm has no supported perpetual reference for this coin${when}, so the server refuses a NEW futures open (perpetual_reference_unavailable). Use spot for it, or another coin for futures.`,
+  };
+}

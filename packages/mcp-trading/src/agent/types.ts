@@ -6,6 +6,7 @@
 // these caps, and acts via the CoinRithm paper API. Nothing here touches real
 // money.
 
+import type { FuturesEntryEligibility } from "./futuresEligibility.js";
 import { IndicatorSet } from "./indicators.js";
 import type { DecisionInputRecord } from "./decisionReceipt.js";
 
@@ -338,6 +339,10 @@ export interface WatchEntry {
   // context this entry was built from, plus the one /news call the `news`
   // capability already pays for). Omitted when nothing is known.
   fundamentals?: CoinFundamentals;
+  // What the server entry gate's perpetual-reference rule says about a NEW
+  // futures open on this coin (GET /api/agent/market futuresEntryEligibility,
+  // backend-v2 #106). Absent = unknown (older API): never blocks by itself.
+  futuresEntryEligibility?: FuturesEntryEligibility;
 }
 
 // Compact per-coin fundamentals. Sources are ONLY calls the runner already

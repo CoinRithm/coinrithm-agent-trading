@@ -30,6 +30,7 @@ import {
 import { decideMechanical } from "./mechanical.js";
 import { evaluateGate, noteLlmCall, estimateCostUsd } from "./gate.js";
 import { baseSymbol, scanSetups } from "./setups.js";
+import { futuresEntryPreflight } from "./futuresEligibility.js";
 import { reconcileObservation } from "./reconcileObservation.js";
 import { createOpportunityReporter } from "./opportunityReporter.js";
 import { enrichWhaleContext, observe } from "./observe.js";
@@ -1287,6 +1288,23 @@ async function runCycleCore(
           continue;
         }
       }
+    }
+    // Supported-reference preflight (backend-v2 #106, J-74): skip a NEW futures
+    // open on a coin the observation EXPLICITLY reports has no supported (or only
+    // a stale) perpetual reference, before spending a quote the server gate would
+    // refuse. Unknown eligibility, adds/management on a held coin, spot and PM
+    // pass; the server gate stays authoritative at quote/open time.
+    const preflight = futuresEntryPreflight(action, observation);
+    if (preflight) {
+      planned.push({
+        action,
+        accepted: false,
+        code: preflight.code,
+        ...(capitalSizing ? { capitalSizing } : {}),
+        reason: preflight.reason,
+      });
+      log(`reject ${action.type}: ${preflight.code}`);
+      continue;
     }
     const quote = await fetchQuote(client, action, observation, baseTrace, {
       pmMinEntryProbabilityPct: spec.risk.pmMinEntryProbabilityPct,
