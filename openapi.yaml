@@ -538,11 +538,23 @@ paths:
                       bearishVotes: { type: integer }
                       totalVotes: { type: integer }
                       bullishPct: { type: [integer, "null"] }
+                      dayUtc:
+                        type: [string, "null"]
+                        format: date-time
+                        description: UTC day of this vote cohort; may be older than the response or price.
+                      updatedAt:
+                        type: [string, "null"]
+                        format: date-time
+                        description: Last write to this vote cohort; not the price clock.
                   fearGreed:
                     type: [object, "null"]
                     properties:
                       value: { type: integer }
                       label: { type: string }
+                      fetchedAt:
+                        type: [string, "null"]
+                        format: date-time
+                        description: Last successful collection time. The provider observation timestamp is not retained.
                   futuresEntryEligibility:
                     type: object
                     description: |
@@ -5583,6 +5595,15 @@ components:
         it carries the resting-order terms.
       properties:
         message: { type: string }
+        orderId:
+          type: integer
+          description: |
+            Market fills (and their idempotent replays) only: the immutable
+            ClosedOrder id of this fill, the same id `/api/agent/trades` lists
+            for the spot row. It correlates the response with the ledger; it
+            does not prove the fill used a particular quote. Limit/stop
+            placement responses carry no order id; list resting orders with
+            `/api/agent/orders/open`.
         summary:
           type: object
           properties:
@@ -5590,10 +5611,26 @@ components:
             quantity: { type: number }
             executionPrice: { type: number, description: "market only; fill price after spread+slippage" }
             totalCost: { type: number, description: "market only" }
-            pnl: { type: number, description: "market only; realized PnL in USD, net of fee" }
-            feeUsd: { type: number, description: "market only; taker fee charged on this fill" }
-            slippageUsd: { type: number, description: "market only; modeled slippage cost" }
-            executionModel: { $ref: "#/components/schemas/ExecutionModel" }
+            pnl: { type: [number, "null"], description: "market only; realized PnL in USD, net of fee. null on buys" }
+            feeUsd: { type: [number, "null"], description: "market only; taker fee charged on this fill" }
+            slippageUsd: { type: [number, "null"], description: "market only; modeled slippage cost" }
+            executionModel:
+              anyOf:
+                - { $ref: "#/components/schemas/ExecutionModel" }
+                - { type: "null" }
+              description: |
+                Market only. null on an idempotent replay: the fill's
+                historical model parameters are not retained (see
+                `executionModelStatus`).
+            executionModelStatus:
+              type: string
+              enum: [historical_parameters_not_retained]
+              description: Market idempotent replay only.
+            executionVersion:
+              type: [string, "null"]
+              description: |
+                Market idempotent replay only. The fill's execution version,
+                e.g. "paper_execution_v1"; null for a pre-realism fill.
             limitPrice: { type: number, description: "limit/stop only" }
             orderType: { type: string, description: "limit/stop only" }
         idempotentReplay:

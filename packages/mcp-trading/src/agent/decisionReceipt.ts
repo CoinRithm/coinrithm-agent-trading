@@ -28,7 +28,10 @@ export interface DecisionInputRecord {
   version: "coinrithm.decision-input.v1";
   // Additive projection revision: older v1 records remain readable, but must
   // never be mistaken for records that retained these newer nested fields.
-  projectionVersion?: "coinrithm.decision-input-projection.v2";
+  // v3 adds the sentiment sample/clocks on watch rows and marketMood.
+  projectionVersion?:
+    | "coinrithm.decision-input-projection.v2"
+    | "coinrithm.decision-input-projection.v3";
   visibility: "private";
   completeness: "partial";
   phase: DecisionInputPhase;
@@ -41,6 +44,9 @@ export interface DecisionInputRecord {
   dailyRiskBudget: DailyRiskBudget | null;
   guardState: Record<string, number | boolean | null>;
   account: Record<string, number | boolean | string | null> | null;
+  // Fear & Greed value and its COLLECTION time (the provider's own observation
+  // time is not retained). The label is excluded. v3 only; absent before.
+  marketMood?: { fearGreed: number | null; fetchedAt: string | null } | null;
   lists: Record<string, Row[]>;
   counts: Record<string, { source: number; retained: number; omitted: number }>;
   omissions: string[];
@@ -88,6 +94,21 @@ const numeric = (
   keys: readonly string[],
 ): Record<string, number | null> =>
   Object.fromEntries(keys.map((key) => [key, num(raw[key])]));
+const count = (value: unknown): number | null =>
+  Number.isSafeInteger(value) && (value as number) >= 0
+    ? (value as number)
+    : null;
+const fearGreed = (value: unknown): number | null => {
+  const v = num(value);
+  return v !== null && v >= 0 && v <= 100 ? v : null;
+};
+const PROJECTION_V3 = "coinrithm.decision-input-projection.v3";
+// Watch-row fields that exist only from projection v3 on.
+const SENTIMENT_V3_KEYS = [
+  "sentimentTotalVotes",
+  "sentimentDayUtc",
+  "sentimentUpdatedAt",
+];
 const freshness = (value: unknown): Record<string, Scalar> => {
   const raw = obj(parseFreshness({ freshness: value }));
   return {
@@ -119,7 +140,7 @@ export function buildDecisionInputRecord(
   const budget = buildDailyRiskBudget(input.spec, input.state);
   const record: DecisionInputRecord = {
     version: "coinrithm.decision-input.v1",
-    projectionVersion: "coinrithm.decision-input-projection.v2",
+    projectionVersion: PROJECTION_V3,
     visibility: "private",
     completeness: "partial",
     phase: input.phase,
@@ -188,6 +209,12 @@ export function buildDecisionInputRecord(
     equityMusd: num(obs.equityMusd),
     polledBeforeWrite: bool(obs.polledBeforeWrite),
   };
+  record.marketMood = obs.marketMood
+    ? {
+        fearGreed: fearGreed(obs.marketMood.fearGreed),
+        fetchedAt: sourceTimestamp(obs.marketMood.fetchedAt) ?? null,
+      }
+    : null;
   const add = (
     name: string,
     items: unknown,
@@ -214,6 +241,10 @@ export function buildDecisionInputRecord(
       "change7d",
       "sentimentBullishPct",
     ]),
+    // The sample and its own clocks; null = unknown, never "fresh".
+    sentimentTotalVotes: count(r.sentimentTotalVotes),
+    sentimentDayUtc: sourceTimestamp(r.sentimentDayUtc) ?? null,
+    sentimentUpdatedAt: sourceTimestamp(r.sentimentUpdatedAt) ?? null,
     freshness: freshness(r.freshness),
     ...(r.indicatorContext
       ? {
@@ -445,6 +476,7 @@ const LIST_KEYS: Record<string, string[]> = {
     "change24h",
     "change7d",
     "sentimentBullishPct",
+    ...SENTIMENT_V3_KEYS,
     "freshness",
     "indicators",
     "indicatorContext",
@@ -554,8 +586,17 @@ function validRow(value: unknown, keys: string[]): boolean {
   return Object.entries(obj(value)).every(([key, v]) => {
     if (v === null) return true;
     if (NESTED_KEYS[key]) return validRow(v, NESTED_KEYS[key]);
-    if (key === "asOf" || key === "assessedAt" || key === "openedAt")
+    if (
+      [
+        "asOf",
+        "assessedAt",
+        "openedAt",
+        "sentimentDayUtc",
+        "sentimentUpdatedAt",
+      ].includes(key)
+    )
       return sourceTimestamp(v) === v;
+    if (key === "sentimentTotalVotes") return count(v) !== null;
     if (key === "basis") return code(v, FRESHNESS_BASES) !== null;
     if (key === "range") return code(v, ["1D"]) !== null;
     if (key === "intervalStatus")
@@ -662,6 +703,7 @@ export function sanitizeDecisionInputRecord(
         "dailyRiskBudget",
         "guardState",
         "account",
+        "marketMood",
         "lists",
         "counts",
         "omissions",
@@ -670,7 +712,28 @@ export function sanitizeDecisionInputRecord(
       return undefined;
     if (
       r.projectionVersion !== undefined &&
-      r.projectionVersion !== "coinrithm.decision-input-projection.v2"
+      r.projectionVersion !== "coinrithm.decision-input-projection.v2" &&
+      r.projectionVersion !== PROJECTION_V3
+    )
+      return undefined;
+    // An older record must never carry, or be mistaken for, v3 fields.
+    const v3 = r.projectionVersion === PROJECTION_V3;
+    if (
+      !v3 &&
+      (r.marketMood !== undefined ||
+        arr(obj(r.lists).watch).some((row) =>
+          SENTIMENT_V3_KEYS.some((k) => k in obj(row)),
+        ))
+    )
+      return undefined;
+    if (
+      r.marketMood !== undefined &&
+      r.marketMood !== null &&
+      (!keysOnly(r.marketMood, ["fearGreed", "fetchedAt"]) ||
+        (r.marketMood.fearGreed !== null &&
+          fearGreed(r.marketMood.fearGreed) === null) ||
+        (r.marketMood.fetchedAt !== null &&
+          sourceTimestamp(r.marketMood.fetchedAt) !== r.marketMood.fetchedAt))
     )
       return undefined;
     if (

@@ -234,6 +234,11 @@ export function buildSystemPrompt(
         ]
       : []),
     `- abstention.minConfidence ${spec.abstention.minConfidence}: opens below this are rejected, so act with genuine conviction — but routine caution is no reason to sit out a clear setup`,
+    ...(hasCoinVenue
+      ? [
+          "- Community sentiment is a dated sample: read sentimentBullishPct WITH sentimentTotalVotes and sentimentDayUtc. A tiny or old cohort is weak evidence, not current market consensus. sentimentUpdatedAt is the cohort's write time. Missing counts/dates are unknown; price freshness does not date sentiment. marketMood.fetchedAt is Fear & Greed collection time, not its provider observation time. Compare each clock with observation.asOf; never invent currentness from a missing date.",
+        ]
+      : []),
     ...(spec.capabilities.includes("indicators")
       ? [
           "",

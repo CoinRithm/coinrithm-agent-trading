@@ -13,7 +13,7 @@ import { parseSkill } from "./skill.js";
 import { renderFolderOfOne } from "./templates.js";
 import { newState } from "./state.js";
 import { CoinRithmClient } from "./client.js";
-import { Provider, selectProvider } from "./providers.js";
+import { Provider, selectProvider, type DecideInput } from "./providers.js";
 import {
   DECISION_INPUT_MAX_BYTES,
   type DecisionInputRecord,
@@ -2901,5 +2901,129 @@ describe("runner: supported futures reference preflight (backend-v2 #106)", () =
     const result = await runCycle(d);
     expect(result.planned[0]).toMatchObject({ accepted: true, executed: true });
     expect(client.closeFutures).toHaveBeenCalledOnce();
+  });
+});
+
+describe("runner: futures_open withheld from schema routes when capacity is spent", () => {
+  const heldEth = {
+    id: 7,
+    status: "open",
+    side: "long",
+    marginMusd: 50,
+    leverage: 2,
+    coin: { symbol: "ETH", ucid: "1027" },
+    entryPrice: 66000,
+    markPrice: 67000,
+    stopLossPrice: 65000,
+    unrealizedPnlMusd: 10,
+  };
+  const withHeld = () =>
+    baseClient({
+      futuresPositions: async () => okData({ positions: [heldEth] }),
+      resolve: async (q: string) =>
+        okData({ match: { coinId: q === "BTC" ? "1" : "5426", name: q } }),
+    });
+  function recording(decision: unknown) {
+    const inputs: DecideInput[] = [];
+    const prov: Provider = {
+      label: "recording",
+      decide: async (input) => {
+        inputs.push(input);
+        return { ok: true, text: JSON.stringify(decision) };
+      },
+    };
+    return { prov, inputs };
+  }
+  const WITHHELD = "futures_open withheld from schema-enforcing routes";
+
+  it.each([
+    ["no position slot", 1, 1000],
+    ["no margin headroom", 5, 50],
+  ])(
+    "withholds futures_open with %s and says so once",
+    async (_case, maxPositions, maxOpenMargin) => {
+      const log = vi.fn();
+      const r = recording({ decision: "skip", actions: [] });
+      const d = deps({ log }, withHeld(), r.prov);
+      d.spec.venues = ["futures"];
+      d.spec.risk.maxConcurrentPositions = maxPositions;
+      d.spec.limits.maxOpenMarginMusd = maxOpenMargin;
+      await runCycle(d);
+      expect(r.inputs).toHaveLength(1);
+      expect(r.inputs[0].excludeActionTypes).toEqual(["futures_open"]);
+      expect(
+        log.mock.calls.filter(([line]) => String(line).includes(WITHHELD)),
+      ).toHaveLength(1);
+    },
+  );
+
+  it("offers every action while capacity remains, or when futures is not a venue", async () => {
+    const roomy = recording({ decision: "skip", actions: [] });
+    const d = deps({}, withHeld(), roomy.prov);
+    d.spec.venues = ["futures"];
+    d.spec.risk.maxConcurrentPositions = 5;
+    d.spec.limits.maxOpenMarginMusd = 1000;
+    await runCycle(d);
+    expect(roomy.inputs[0]).not.toHaveProperty("excludeActionTypes");
+
+    const pmOnly = recording({ decision: "skip", actions: [] });
+    const p = deps({}, withHeld(), pmOnly.prov);
+    p.spec.venues = ["pm"];
+    p.spec.risk.maxConcurrentPositions = 1;
+    await runCycle(p);
+    expect(pmOnly.inputs[0]).not.toHaveProperty("excludeActionTypes");
+  });
+
+  it("a route that ignores the restriction still gets its close executed and the open rejected", async () => {
+    const client = withHeld();
+    const r = recording({
+      decision: "act",
+      confidence: 0.8,
+      actions: [
+        { type: "futures_close", positionId: 7 },
+        VALID_OPEN.actions[0],
+      ],
+    });
+    const d = deps({ live: true }, client, r.prov);
+    d.spec.venues = ["futures"];
+    d.spec.risk.maxConcurrentPositions = 1;
+    d.spec.limits.maxOpenMarginMusd = 1000;
+    const result = await runCycle(d);
+    expect(r.inputs[0].excludeActionTypes).toEqual(["futures_open"]);
+    expect(result.planned[0]).toMatchObject({ accepted: true, executed: true });
+    expect(result.planned[1]).toMatchObject({
+      accepted: false,
+      code: "max_positions",
+    });
+    expect(client.closeFutures).toHaveBeenCalledOnce();
+    expect(client.openFutures).not.toHaveBeenCalled();
+  });
+
+  it("two opens racing for the last slot: nothing is withheld and the validator rejects the second", async () => {
+    const client = withHeld();
+    const r = recording({
+      decision: "act",
+      confidence: 0.8,
+      actions: [
+        VALID_OPEN.actions[0],
+        { ...VALID_OPEN.actions[0], symbol: "SOL" },
+      ],
+    });
+    const d = deps({ live: true }, client, r.prov);
+    d.spec.venues = ["futures"];
+    d.spec.risk.maxConcurrentPositions = 2;
+    d.spec.limits.maxOpenMarginMusd = 1000;
+    d.spec.limits.maxTradesPerDay = 5;
+    // Fixture only: let both opens reach the slot check instead of stopping
+    // at the per-cycle write budget.
+    d.spec.limits.maxWritesPerCycle = 5;
+    const result = await runCycle(d);
+    expect(r.inputs[0]).not.toHaveProperty("excludeActionTypes");
+    expect(result.planned[0]).toMatchObject({ accepted: true, executed: true });
+    expect(result.planned[1]).toMatchObject({
+      accepted: false,
+      code: "max_positions",
+    });
+    expect(client.openFutures).toHaveBeenCalledOnce();
   });
 });

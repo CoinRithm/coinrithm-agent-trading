@@ -172,6 +172,45 @@ describe("direct NVIDIA same-model retry", () => {
       fetchFn,
     );
 
+  it("both same-model attempts carry the cycle's withheld action variants", async () => {
+    vi.useFakeTimers();
+    const fetchFn = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(serverError, { status: 500 }))
+      .mockResolvedValueOnce(success());
+    const pending = direct(fetchFn).decide({
+      system: "STRATEGY",
+      user: "OBSERVATION",
+      excludeActionTypes: ["futures_open"],
+    });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect((await pending).ok).toBe(true);
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+    for (const [, init] of fetchFn.mock.calls) {
+      const body = JSON.parse(init?.body as string) as {
+        tools: Array<{
+          function: {
+            parameters: {
+              properties: {
+                actions: {
+                  items: {
+                    oneOf: Array<{ properties: { type: { const: string } } }>;
+                  };
+                };
+              };
+            };
+          };
+        }>;
+      };
+      const types =
+        body.tools[0].function.parameters.properties.actions.items.oneOf.map(
+          (v) => v.properties.type.const,
+        );
+      expect(types).toContain("futures_close");
+      expect(types).not.toContain("futures_open");
+    }
+  });
+
   it("retains capacity classification for both same-model ResourceExhausted attempts", async () => {
     vi.useFakeTimers();
     const fetchFn = vi

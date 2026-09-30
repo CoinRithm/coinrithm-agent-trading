@@ -42,6 +42,39 @@ export interface ObserveOutput {
   skip?: string;
 }
 
+function contextTimestamp(value: unknown): string | undefined {
+  const text = asStr(value);
+  return text &&
+    text.length <= 40 &&
+    /^\d{4}-\d{2}-\d{2}T/.test(text) &&
+    Number.isFinite(Date.parse(text))
+    ? text
+    : undefined;
+}
+
+/** Keep sentiment's sample and dates together on both watchlist paths. */
+function sentimentContextOf(
+  market: Record<string, unknown>,
+): Pick<
+  WatchEntry,
+  | "sentimentBullishPct"
+  | "sentimentTotalVotes"
+  | "sentimentDayUtc"
+  | "sentimentUpdatedAt"
+> {
+  const sentiment = asObj(market.sentiment);
+  const votes = asNum(sentiment.totalVotes);
+  return {
+    sentimentBullishPct: asNum(sentiment.bullishPct),
+    sentimentTotalVotes:
+      votes !== undefined && Number.isSafeInteger(votes) && votes >= 0
+        ? votes
+        : undefined,
+    sentimentDayUtc: contextTimestamp(sentiment.dayUtc),
+    sentimentUpdatedAt: contextTimestamp(sentiment.updatedAt),
+  };
+}
+
 const WHALE_READ_TIMEOUT_MS = 5_000;
 const MAX_WHALE_TRADES = 10;
 const MAX_WHALE_WALLETS = 2;
@@ -975,7 +1008,7 @@ export async function observe(
   let resolvedAny = false;
   // Bounded RAG: the market-wide Fear & Greed regime, captured once from the first
   // coin's /market context (it's market-wide, identical across coins).
-  let marketMood: { fearGreed: number; label: string } | undefined;
+  let marketMood: Observation["marketMood"];
   const wantIndicators = spec.capabilities.includes("indicators");
   const wantNews = spec.capabilities.includes("news");
   for (const symbol of spec.risk.watchlist) {
@@ -999,7 +1032,7 @@ export async function observe(
       change24h: asNum(price.change24h),
       change7d: asNum(price.change7d),
       // Community sentiment (already in the /market context, was stripped).
-      sentimentBullishPct: asNum(asObj(m.sentiment).bullishPct) ?? undefined,
+      ...sentimentContextOf(m),
       // Freshness lives under the response's `observation` block.
       freshness: freshnessOf(asObj(m.observation)),
       // Server futures-reference eligibility (undefined = unknown, older API).
@@ -1016,8 +1049,13 @@ export async function observe(
     if (!marketMood) {
       const fg = asObj(m.fearGreed);
       const v = asNum(fg.value);
+      const fetchedAt = contextTimestamp(fg.fetchedAt);
       if (v != null)
-        marketMood = { fearGreed: v, label: asStr(fg.label) ?? "" };
+        marketMood = {
+          fearGreed: v,
+          label: asStr(fg.label) ?? "",
+          ...(fetchedAt ? { fetchedAt } : {}),
+        };
     }
     // `indicators` capability: enrich the observation with computed TA so the
     // model reasons over structure (trend/momentum/volatility/breakout) instead
@@ -1090,8 +1128,7 @@ export async function observe(
           change1h: asNum(price.change1h),
           change24h: asNum(price.change24h) ?? row.change24hPct,
           change7d: asNum(price.change7d),
-          sentimentBullishPct:
-            asNum(asObj(m.sentiment).bullishPct) ?? undefined,
+          ...sentimentContextOf(m),
           freshness: freshnessOf(asObj(m.observation)),
           futuresEntryEligibility: futuresEntryEligibilityOf(m),
           discovered: true,

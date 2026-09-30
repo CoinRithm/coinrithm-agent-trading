@@ -22,17 +22,26 @@ class SpotOrderResponse:
 
         Attributes:
             message (str | Unset):
+            order_id (int | Unset): Market fills (and their idempotent replays) only: the immutable
+                ClosedOrder id of this fill, the same id `/api/agent/trades` lists
+                for the spot row. It correlates the response with the ledger; it
+                does not prove the fill used a particular quote. Limit/stop
+                placement responses carry no order id; list resting orders with
+                `/api/agent/orders/open`.
             summary (SpotOrderResponseSummary | Unset):
             idempotent_replay (bool | Unset): present (true) when this is a replay of a prior intent
     """
 
     message: str | Unset = UNSET
+    order_id: int | Unset = UNSET
     summary: SpotOrderResponseSummary | Unset = UNSET
     idempotent_replay: bool | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         message = self.message
+
+        order_id = self.order_id
 
         summary: dict[str, Any] | Unset = UNSET
         if not isinstance(self.summary, Unset):
@@ -45,6 +54,8 @@ class SpotOrderResponse:
         field_dict.update({})
         if message is not UNSET:
             field_dict["message"] = message
+        if order_id is not UNSET:
+            field_dict["orderId"] = order_id
         if summary is not UNSET:
             field_dict["summary"] = summary
         if idempotent_replay is not UNSET:
@@ -59,6 +70,8 @@ class SpotOrderResponse:
         d = dict(src_dict)
         message = d.pop("message", UNSET)
 
+        order_id = d.pop("orderId", UNSET)
+
         _summary = d.pop("summary", UNSET)
         summary: SpotOrderResponseSummary | Unset
         if isinstance(_summary, Unset):
@@ -70,6 +83,7 @@ class SpotOrderResponse:
 
         spot_order_response = cls(
             message=message,
+            order_id=order_id,
             summary=summary,
             idempotent_replay=idempotent_replay,
         )

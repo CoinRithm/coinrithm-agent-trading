@@ -625,6 +625,37 @@ describe("shared route deadline", () => {
     ]);
   });
 
+  it("carries the cycle's withheld action variants to every route attempt", async () => {
+    const chain = resolveRouteChain({
+      configured: { provider: "nvidia", model: NEMOTRON_NANO },
+      byo: false,
+      openAiBackup: false,
+    });
+    const h = harness([]);
+    const seen: unknown[] = [];
+    const provider = new RoutedProvider(
+      chain.profile,
+      chain.routes,
+      false,
+      () => ({
+        label: "exclusion-test",
+        decide: async (request) => {
+          seen.push(request.excludeActionTypes);
+          return seen.length === 1
+            ? { ok: false, error: "connection reset" }
+            : ok();
+        },
+      }),
+      h.hooks,
+    );
+    const result = await provider.decide({
+      ...input,
+      excludeActionTypes: ["futures_open"],
+    });
+    expect(result.ok).toBe(true);
+    expect(seen).toEqual([["futures_open"], ["futures_open"]]);
+  });
+
   it("does not start a fallback after the deadline or hide the primary failure", async () => {
     let clock = 0;
     const chain = resolveRouteChain({

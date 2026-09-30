@@ -865,13 +865,14 @@ async function runCycleCore(
     const system = buildSystemPrompt(spec, mergedProse, {
       includeForecast: forecastEnabled,
     });
+    const futuresCapacity = spec.venues.includes("futures")
+      ? buildFuturesCapacity(spec, observation)
+      : undefined;
     const user = buildUserPrompt(observation, state.journal, {
       venues: spec.venues,
       dailyRiskBudget: buildDailyRiskBudget(spec, state),
       ...(usesCapitalSizing(spec) ? { capitalSizing: spec.capitalSizing } : {}),
-      ...(spec.venues.includes("futures")
-        ? { futuresCapacity: buildFuturesCapacity(spec, observation) }
-        : {}),
+      ...(futuresCapacity ? { futuresCapacity } : {}),
     });
     const tokensInEst = Math.round((system.length + user.length) / 4);
     // Prompt-size + trigger visibility in the live terminal.
@@ -879,7 +880,25 @@ async function runCycleCore(
       `prompt ~${tokensInEst} tok ` +
         `(pm ${observation.pmMarkets.length}, trades ${observation.newClosedTrades.length}, watch ${observation.watch.length}, setups ${observation.setups.length}, triggers ${gate.codes.join("|") || "none"})`,
     );
-    const res = await provider.decide({ system, user });
+    // With either futures cap spent, a schema-enforcing route is not offered
+    // futures_open at all. Other routes can still propose it; the validator
+    // rejects it there exactly as before.
+    const capacitySpent =
+      futuresCapacity !== undefined &&
+      (futuresCapacity.slotsLeft === 0 ||
+        futuresCapacity.marginHeadroomMusd <= 0);
+    if (capacitySpent) {
+      log(
+        `futures capacity spent (slotsLeft ${futuresCapacity.slotsLeft}, marginHeadroomMusd ${futuresCapacity.marginHeadroomMusd}): futures_open withheld from schema-enforcing routes`,
+      );
+    }
+    const res = await provider.decide({
+      system,
+      user,
+      ...(capacitySpent
+        ? { excludeActionTypes: ["futures_open"] as const }
+        : {}),
+    });
     const route = res.route;
     const actualCallMade = route
       ? route.attempts.some((attempt) => attempt.outcome !== "deferred")

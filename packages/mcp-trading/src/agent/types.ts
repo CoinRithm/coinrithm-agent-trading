@@ -321,6 +321,11 @@ export interface WatchEntry {
   // /market context but previously stripped. A light regime read the model can lean
   // on (crowd lopsidedly bullish into a downtrend = a contrarian's tell).
   sentimentBullishPct?: number;
+  // Sample count and UTC cohort day belong to the sentiment itself, not the
+  // price/response clock. Missing fields mean unknown, not a fresh large sample.
+  sentimentTotalVotes?: number;
+  sentimentDayUtc?: string;
+  sentimentUpdatedAt?: string;
   freshness?: Freshness;
   // Compact technical-indicator bundle (RSI/EMA/ATR/Bollinger/breakout) computed
   // from candles when the agent declares the `indicators` capability. Omitted
@@ -691,7 +696,7 @@ export interface Observation {
   setups: SetupSignal[]; // deterministic per-cycle structure flags (see SetupSignal)
   // Market-wide mood (the Fear & Greed index) — a one-line regime read fetched once
   // from the /market context. Risk-on/off colour for every decision this cycle.
-  marketMood?: { fearGreed: number; label: string };
+  marketMood?: { fearGreed: number; label: string; fetchedAt?: string };
   syncCursor: string | null; // advanced from /trades
   newClosedTrades: Array<Record<string, unknown>>; // fired stops/liqs/settlements
   polledBeforeWrite: boolean; // whether this cycle synced /trades first

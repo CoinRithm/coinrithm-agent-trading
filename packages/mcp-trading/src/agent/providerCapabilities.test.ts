@@ -4,6 +4,7 @@ import {
   buildChatBody,
   NVIDIA_BASE_URL,
 } from "./providerCapabilities.js";
+import { DECISION_JSON_SCHEMA } from "./decision.js";
 
 describe("chatShapeFor", () => {
   it("openai provider uses max_completion_tokens and forbids temperature (gpt-5 contract)", () => {
@@ -124,5 +125,62 @@ describe("buildChatBody", () => {
     expect(openai).not.toHaveProperty("max_tokens");
     expect(openai).not.toHaveProperty("temperature");
     expect(openai.response_format).toEqual({ type: "json_object" });
+  });
+});
+
+describe("buildChatBody action exclusion (transport only)", () => {
+  const nemotronModel = "nvidia/nemotron-3-nano-30b-a3b";
+  const nemotron = chatShapeFor("nvidia", nemotronModel, NVIDIA_BASE_URL);
+  const args = { model: nemotronModel, system: "S", user: "U", maxTokens: 512 };
+  const variantTypes = (schema: unknown) =>
+    (
+      schema as {
+        properties: {
+          actions: {
+            items: {
+              oneOf: Array<{ properties: { type: { const: string } } }>;
+            };
+          };
+        };
+      }
+    ).properties.actions.items.oneOf.map((v) => v.properties.type.const);
+  const toolSchema = (body: Record<string, unknown>) =>
+    (body.tools as Array<{ function: { parameters: unknown } }>)[0].function
+      .parameters;
+  const fullTypes = variantTypes(DECISION_JSON_SCHEMA);
+
+  it("drops only the excluded variant from the forced tool-call schema", () => {
+    const body = buildChatBody(nemotron, {
+      ...args,
+      excludeActionTypes: ["futures_open"],
+    });
+    const types = variantTypes(toolSchema(body));
+    expect(fullTypes).toContain("futures_open");
+    expect(types).not.toContain("futures_open");
+    expect(types).toEqual(fullTypes.filter((t) => t !== "futures_open"));
+    // Everything else in the contract is untouched, and the shared constant
+    // the parser and other cycles rely on is not mutated.
+    expect(toolSchema(body)).toMatchObject({
+      required: DECISION_JSON_SCHEMA.required,
+      allOf: DECISION_JSON_SCHEMA.allOf,
+    });
+    expect(variantTypes(DECISION_JSON_SCHEMA)).toEqual(fullTypes);
+  });
+
+  it("sends the full contract when nothing is excluded", () => {
+    expect(toolSchema(buildChatBody(nemotron, args))).toBe(
+      DECISION_JSON_SCHEMA,
+    );
+    expect(
+      toolSchema(buildChatBody(nemotron, { ...args, excludeActionTypes: [] })),
+    ).toBe(DECISION_JSON_SCHEMA);
+  });
+
+  it("changes nothing on a route that does not enforce a schema", () => {
+    const openai = chatShapeFor("openai", "gpt-5-nano");
+    const plain = { ...args, model: "gpt-5-nano" };
+    expect(
+      buildChatBody(openai, { ...plain, excludeActionTypes: ["futures_open"] }),
+    ).toEqual(buildChatBody(openai, plain));
   });
 });

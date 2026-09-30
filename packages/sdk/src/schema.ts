@@ -3776,6 +3776,15 @@ export interface components {
          */
         SpotOrderResponse: {
             message?: string;
+            /**
+             * @description Market fills (and their idempotent replays) only: the immutable
+             *     ClosedOrder id of this fill, the same id `/api/agent/trades` lists
+             *     for the spot row. It correlates the response with the ledger; it
+             *     does not prove the fill used a particular quote. Limit/stop
+             *     placement responses carry no order id; list resting orders with
+             *     `/api/agent/orders/open`.
+             */
+            orderId?: number;
             summary?: {
                 side?: string;
                 quantity?: number;
@@ -3783,13 +3792,28 @@ export interface components {
                 executionPrice?: number;
                 /** @description market only */
                 totalCost?: number;
-                /** @description market only; realized PnL in USD, net of fee */
-                pnl?: number;
+                /** @description market only; realized PnL in USD, net of fee. null on buys */
+                pnl?: number | null;
                 /** @description market only; taker fee charged on this fill */
-                feeUsd?: number;
+                feeUsd?: number | null;
                 /** @description market only; modeled slippage cost */
-                slippageUsd?: number;
-                executionModel?: components["schemas"]["ExecutionModel"];
+                slippageUsd?: number | null;
+                /**
+                 * @description Market only. null on an idempotent replay: the fill's
+                 *     historical model parameters are not retained (see
+                 *     `executionModelStatus`).
+                 */
+                executionModel?: components["schemas"]["ExecutionModel"] | null;
+                /**
+                 * @description Market idempotent replay only.
+                 * @enum {string}
+                 */
+                executionModelStatus?: "historical_parameters_not_retained";
+                /**
+                 * @description Market idempotent replay only. The fill's execution version,
+                 *     e.g. "paper_execution_v1"; null for a pre-realism fill.
+                 */
+                executionVersion?: string | null;
                 /** @description limit/stop only */
                 limitPrice?: number;
                 /** @description limit/stop only */
@@ -5004,10 +5028,25 @@ export interface operations {
                             bearishVotes?: number;
                             totalVotes?: number;
                             bullishPct?: number | null;
+                            /**
+                             * Format: date-time
+                             * @description UTC day of this vote cohort; may be older than the response or price.
+                             */
+                            dayUtc?: string | null;
+                            /**
+                             * Format: date-time
+                             * @description Last write to this vote cohort; not the price clock.
+                             */
+                            updatedAt?: string | null;
                         };
                         fearGreed?: {
                             value?: number;
                             label?: string;
+                            /**
+                             * Format: date-time
+                             * @description Last successful collection time. The provider observation timestamp is not retained.
+                             */
+                            fetchedAt?: string | null;
                         } | null;
                         /**
                          * @description What the server entry gate's perpetual-reference rule says
