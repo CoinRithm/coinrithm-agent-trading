@@ -112,6 +112,7 @@ describe("provider configuration and response contracts", () => {
       expect(await configured.decide(input)).toEqual({
         ok: true,
         text,
+        responseSource: "content",
         usage: { promptTokens: 0, completionTokens: 0 },
       });
       expect(fetchFn).toHaveBeenCalledWith(
@@ -150,6 +151,7 @@ describe("provider configuration and response contracts", () => {
     expect(await provider.decide({ ...input, maxTokens: 77 })).toEqual({
       ok: true,
       text,
+      responseSource: "content",
       usage: { promptTokens: 0, completionTokens: 0 },
     });
     expect(JSON.parse(String(fetchFn.mock.calls[0]![1]!.body))).toMatchObject({
@@ -195,7 +197,70 @@ describe("provider configuration and response contracts", () => {
     expect(await provider.decide(input)).toEqual({
       ok: true,
       text,
+      responseSource: "tool_call",
       usage: undefined,
+    });
+  });
+  it.each([
+    [undefined, "content_fallback", text],
+    [
+      [{ function: { name: "other", arguments: "private-other-tool" } }],
+      "content_fallback",
+      text,
+    ],
+    [[{ function: { name: DECISION_TOOL_NAME } }], "content_fallback", text],
+    [
+      [{ function: { name: DECISION_TOOL_NAME, arguments: text } }],
+      "tool_call",
+      "private-unused-prose",
+    ],
+  ])(
+    "attributes the consumed forced-tool response without retaining its envelope (%s)",
+    async (tool_calls, responseSource, content) => {
+      const provider = providerForRoute(
+        { provider: "nvidia", model: "nvidia/nemotron-3-super" },
+        "fixture",
+        vi.fn<typeof fetch>().mockResolvedValue(
+          Response.json({
+            choices: [{ message: { content, tool_calls } }],
+          }),
+        ),
+      );
+      expect(
+        await provider.decide({
+          ...input,
+          excludeActionTypes: ["futures_open"],
+        }),
+      ).toEqual({
+        ok: true,
+        text,
+        usage: undefined,
+        responseSource,
+      });
+    },
+  );
+  it("does not relabel empty decision-tool arguments as content fallback", async () => {
+    const provider = providerForRoute(
+      { provider: "nvidia", model: "nvidia/nemotron-3-super" },
+      "fixture",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json({
+          choices: [
+            {
+              message: {
+                content: text,
+                tool_calls: [
+                  { function: { name: DECISION_TOOL_NAME, arguments: "" } },
+                ],
+              },
+            },
+          ],
+        }),
+      ),
+    );
+    expect(await provider.decide(input)).toEqual({
+      ok: false,
+      error: "provider returned empty content",
     });
   });
   it.each(["anthropic", "openai"] as ProviderName[])(

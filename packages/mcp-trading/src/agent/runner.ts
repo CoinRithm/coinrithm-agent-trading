@@ -1065,6 +1065,27 @@ async function runCycleCore(
     state.consecutivePermanentModelErrors = 0;
     delete state.permanentModelErrorRoute;
     const parsed = parseDecision(res.text);
+    if (capacitySpent) {
+      // Persist only route provenance and a parsed action-presence bit in the
+      // existing cycle log. Unknown adapters and malformed decisions must not
+      // be miscounted as tool compliance; raw output stays unretained.
+      const responseSource =
+        res.responseSource === "tool_call" ||
+        res.responseSource === "content_fallback" ||
+        res.responseSource === "content"
+          ? res.responseSource
+          : "unknown";
+      log(
+        `capacity-response ${JSON.stringify({
+          responseSource,
+          withheldActionProposed: parsed.ok
+            ? parsed.decision.actions.some(
+                (action) => action.type === "futures_open",
+              )
+            : null,
+        })}`,
+      );
+    }
     if (!parsed.ok) {
       state.consecutiveModelFailures += 1;
       saveState(stateFile, state);
