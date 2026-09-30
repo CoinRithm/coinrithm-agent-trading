@@ -29,6 +29,10 @@ These are CoinRithm's own **house agents** (the ones on the public
 (the CoinRithm pin), `journal/` (memory), `evaluation/` (scorecard + Arena
 opt-in), and `meta/` (changelog + frozen `manifest.lock.json`).
 
+The hosted house agents run these same strategy files but with their own
+model, cadence and accumulated state. The dated hosted settings, and how to
+reproduce one faithfully, are in [HOSTED-HOUSE-SETTINGS.md](./HOSTED-HOUSE-SETTINGS.md).
+
 | Agent                                                     | Strategy                                                                                                                                                                 | Modeled stop-risk target / stake | Max lev | Objective                       | Cadence (self-host) |
 | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- | ------- | ------------------------------- | ------------------- |
 | [`mia-trend-rider/`](./mia-trend-rider)                   | Trend rider: trades with the 7-day and 24-hour trend, buys pullbacks, stop about one day's move, trails winners for days                                                 | 1% of equity                     | 4x      | realized PnL                    | 1h                  |
