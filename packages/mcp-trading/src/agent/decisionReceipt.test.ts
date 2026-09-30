@@ -99,7 +99,7 @@ describe("private partial decision input record", () => {
       },
     ];
     const r = buildDecisionInputRecord(i);
-    expect(r.projectionVersion).toBe("coinrithm.decision-input-projection.v2");
+    expect(r.projectionVersion).toBe("coinrithm.decision-input-projection.v3");
     expect(r.lists.watch[0].indicators).toEqual(indicators);
     expect(r.lists.watch[0].indicatorContext).toEqual(indicatorContext);
     expect(r.lists.universeMovers).toEqual([
@@ -142,6 +142,14 @@ describe("private partial decision input record", () => {
     const r = buildDecisionInputRecord(input());
     const legacy = structuredClone(r);
     delete legacy.projectionVersion;
+    // A pre-v2 record never had the v3 sentiment clocks or market mood.
+    delete legacy.marketMood;
+    for (const key of [
+      "sentimentTotalVotes",
+      "sentimentDayUtc",
+      "sentimentUpdatedAt",
+    ])
+      delete legacy.lists.watch[0][key];
     delete (legacy.lists.watch[0].indicators as Record<string, unknown>)
       .bollinger;
     delete (legacy.lists.watch[0].indicators as Record<string, unknown>)
@@ -184,6 +192,10 @@ describe("private partial decision input record", () => {
       change1h: 1.23,
       change24h: 12.34,
       change7d: 23.45,
+      sentimentBullishPct: 67,
+      sentimentTotalVotes: 12345,
+      sentimentDayUtc: "2026-09-30T00:00:00.000Z",
+      sentimentUpdatedAt: "2026-09-30T07:12:03.412Z",
       indicators,
       fundamentals: {
         marketCapRank: 100,
@@ -211,8 +223,14 @@ describe("private partial decision input record", () => {
       unrealizedPnlMusd: 10,
       openedAt: "2026-09-14T00:41:35.908Z",
     }));
+    i.observation!.marketMood = {
+      fearGreed: 44,
+      label: "Fear",
+      fetchedAt: "2026-09-30T06:00:04.000Z",
+    };
     const r = buildDecisionInputRecord(i);
     expect(r.counts.watch).toEqual({ source: 16, retained: 16, omitted: 0 });
+    expect(r.omissions).not.toContain("byte_budget_exceeded");
     expect(r.counts.universeMovers).toEqual({
       source: 9,
       retained: 9,
@@ -422,5 +440,167 @@ describe("private partial decision input record", () => {
     const detached = sanitizeDecisionInputRecord(r)!;
     detached.lists.watch[0].priceUsd = 1;
     expect(r.lists.watch[0].priceUsd).toBe(67000);
+  });
+});
+
+describe("decision input projection v3: sentiment sample and market mood clocks", () => {
+  const withSentiment = () => {
+    const i = input();
+    Object.assign(i.observation!.watch[0], {
+      sentimentBullishPct: 67,
+      sentimentTotalVotes: 12,
+      sentimentDayUtc: "2026-09-29T00:00:00.000Z",
+      sentimentUpdatedAt: "2026-09-29T18:04:11.250Z",
+    });
+    i.observation!.marketMood = {
+      fearGreed: 44,
+      label: "PRIVATE_LABEL",
+      fetchedAt: "2026-09-30T06:00:04.000Z",
+    };
+    return i;
+  };
+
+  it("retains the vote count, cohort day, write time and Fear & Greed collection time", () => {
+    const r = buildDecisionInputRecord(withSentiment());
+    expect(r.projectionVersion).toBe("coinrithm.decision-input-projection.v3");
+    expect(r.lists.watch[0]).toMatchObject({
+      sentimentBullishPct: 67,
+      sentimentTotalVotes: 12,
+      sentimentDayUtc: "2026-09-29T00:00:00.000Z",
+      sentimentUpdatedAt: "2026-09-29T18:04:11.250Z",
+    });
+    expect(r.marketMood).toEqual({
+      fearGreed: 44,
+      fetchedAt: "2026-09-30T06:00:04.000Z",
+    });
+    expect(JSON.stringify(r)).not.toContain("PRIVATE_LABEL");
+    expect(sanitizeDecisionInputRecord(r)).toEqual(r);
+  });
+
+  it("records unknown or malformed counts and dates as null, never as current", () => {
+    const i = withSentiment();
+    Object.assign(i.observation!.watch[0], {
+      sentimentTotalVotes: 1.5,
+      sentimentDayUtc: "2026-09-29",
+      sentimentUpdatedAt: "PRIVATE_TEXT",
+    });
+    i.observation!.marketMood = { fearGreed: 44, label: "Fear" };
+    const partial = buildDecisionInputRecord(i);
+    expect(partial.lists.watch[0]).toMatchObject({
+      sentimentTotalVotes: null,
+      sentimentDayUtc: null,
+      sentimentUpdatedAt: null,
+    });
+    expect(partial.marketMood).toEqual({ fearGreed: 44, fetchedAt: null });
+    expect(sanitizeDecisionInputRecord(partial)).toEqual(partial);
+
+    const absent = input();
+    delete absent.observation!.marketMood;
+    const r = buildDecisionInputRecord(absent);
+    expect(r.lists.watch[0]).toMatchObject({
+      sentimentTotalVotes: null,
+      sentimentDayUtc: null,
+      sentimentUpdatedAt: null,
+    });
+    expect(r.marketMood).toBeNull();
+    expect(sanitizeDecisionInputRecord(r)).toEqual(r);
+    for (const votes of [-1, Number.NaN]) {
+      const bad = withSentiment();
+      bad.observation!.watch[0].sentimentTotalVotes = votes;
+      expect(
+        buildDecisionInputRecord(bad).lists.watch[0].sentimentTotalVotes,
+      ).toBeNull();
+    }
+  });
+
+  it("rejects invalid or smuggled v3 values at the storage boundary", () => {
+    const r = buildDecisionInputRecord(withSentiment());
+    const cases: Array<(x: typeof r) => void> = [
+      (x) => (x.lists.watch[0].sentimentTotalVotes = -1),
+      (x) => (x.lists.watch[0].sentimentTotalVotes = 2.5),
+      (x) => (x.lists.watch[0].sentimentDayUtc = "PRIVATE_TEXT"),
+      (x) => (x.lists.watch[0].sentimentUpdatedAt = "2026-09-29"),
+      (x) => (x.marketMood = { fearGreed: 101, fetchedAt: null }),
+      (x) =>
+        (x.marketMood = {
+          fearGreed: 44,
+          fetchedAt: "not a time",
+        }),
+      (x) =>
+        ((x.marketMood as Record<string, unknown>).label = "PRIVATE_LABEL"),
+    ];
+    for (const mutate of cases) {
+      const bad = structuredClone(r);
+      mutate(bad);
+      expect(sanitizeDecisionInputRecord(bad)).toBeUndefined();
+    }
+  });
+
+  it("keeps older records readable and never lets them carry v3 fields", () => {
+    const r = buildDecisionInputRecord(withSentiment());
+    const v2 = structuredClone(r);
+    v2.projectionVersion = "coinrithm.decision-input-projection.v2";
+    delete v2.marketMood;
+    for (const key of [
+      "sentimentTotalVotes",
+      "sentimentDayUtc",
+      "sentimentUpdatedAt",
+    ])
+      delete v2.lists.watch[0][key];
+    expect(sanitizeDecisionInputRecord(v2)).toEqual(v2);
+    const legacy = structuredClone(v2);
+    delete legacy.projectionVersion;
+    expect(sanitizeDecisionInputRecord(legacy)).toEqual(legacy);
+
+    const v2WithMood = structuredClone(v2);
+    v2WithMood.marketMood = r.marketMood;
+    expect(sanitizeDecisionInputRecord(v2WithMood)).toBeUndefined();
+    const v2WithVotes = structuredClone(v2);
+    v2WithVotes.lists.watch[0].sentimentTotalVotes = 12;
+    expect(sanitizeDecisionInputRecord(v2WithVotes)).toBeUndefined();
+  });
+
+  it("stays inside the 16 KiB cap at 40 fully populated rows, dropping tails with exact counts", () => {
+    const i = withSentiment();
+    const indicators = computeIndicators(
+      Array.from({ length: 288 }, (_, n) => ({
+        open: 65000 + n,
+        high: 67000 + n,
+        low: 64000 + n,
+        close: 66000 + n,
+      })),
+    )!;
+    i.observation!.watch = Array.from({ length: 40 }, (_, n) => ({
+      symbol: `COIN${n}`,
+      coinId: String(n),
+      priceUsd: 67000.123456,
+      change1h: 1.23,
+      change24h: 12.34,
+      change7d: 23.45,
+      sentimentBullishPct: 67,
+      sentimentTotalVotes: 12345,
+      sentimentDayUtc: "2026-09-30T00:00:00.000Z",
+      sentimentUpdatedAt: "2026-09-30T07:12:03.412Z",
+      indicators,
+      fundamentals: {
+        marketCapRank: 100,
+        marketCapUsd: 1000000000,
+        volume24hUsd: 123456789,
+      },
+    }));
+    const r = buildDecisionInputRecord(i);
+    expect(Buffer.byteLength(JSON.stringify(r))).toBeLessThanOrEqual(
+      DECISION_INPUT_MAX_BYTES,
+    );
+    expect(r.counts.watch.source).toBe(40);
+    expect(r.counts.watch.omitted).toBeGreaterThan(0);
+    expect(r.counts.watch.retained + r.counts.watch.omitted).toBe(40);
+    expect(r.lists.watch).toHaveLength(r.counts.watch.retained);
+    expect(r.omissions).toContain("byte_budget_exceeded");
+    expect(r.marketMood).toEqual({
+      fearGreed: 44,
+      fetchedAt: "2026-09-30T06:00:04.000Z",
+    });
+    expect(sanitizeDecisionInputRecord(r)).toEqual(r);
   });
 });

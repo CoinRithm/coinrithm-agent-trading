@@ -1008,7 +1008,7 @@ export async function observe(
   let resolvedAny = false;
   // Bounded RAG: the market-wide Fear & Greed regime, captured once from the first
   // coin's /market context (it's market-wide, identical across coins).
-  let marketMood: { fearGreed: number; label: string } | undefined;
+  let marketMood: Observation["marketMood"];
   const wantIndicators = spec.capabilities.includes("indicators");
   const wantNews = spec.capabilities.includes("news");
   for (const symbol of spec.risk.watchlist) {
@@ -1049,13 +1049,12 @@ export async function observe(
     if (!marketMood) {
       const fg = asObj(m.fearGreed);
       const v = asNum(fg.value);
+      const fetchedAt = contextTimestamp(fg.fetchedAt);
       if (v != null)
         marketMood = {
           fearGreed: v,
           label: asStr(fg.label) ?? "",
-          ...(contextTimestamp(fg.fetchedAt)
-            ? { fetchedAt: contextTimestamp(fg.fetchedAt) }
-            : {}),
+          ...(fetchedAt ? { fetchedAt } : {}),
         };
     }
     // `indicators` capability: enrich the observation with computed TA so the
