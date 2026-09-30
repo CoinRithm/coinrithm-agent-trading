@@ -144,7 +144,7 @@ class GetMyTradesResponse200TradesItem:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                closed_at_type_0 = datetime.datetime.fromisoformat(data)
+                closed_at_type_0 = datetime.datetime.fromisoformat(data.replace("Z", "+00:00"))
 
                 return closed_at_type_0
             except (TypeError, ValueError, AttributeError, KeyError):

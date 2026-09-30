@@ -2,6 +2,7 @@
 // before any write (polledBeforeWrite=true only after that succeeds). If a
 // required read fails, or no watchlist symbol resolves, the cycle SKIPS writes.
 
+import { futuresEntryEligibilityOf } from "./futuresEligibility.js";
 import { CoinRithmClient } from "./client.js";
 import {
   AgentSpec,
@@ -996,6 +997,8 @@ export async function observe(
       sentimentBullishPct: asNum(asObj(m.sentiment).bullishPct) ?? undefined,
       // Freshness lives under the response's `observation` block.
       freshness: freshnessOf(asObj(m.observation)),
+      // Server futures-reference eligibility (undefined = unknown, older API).
+      futuresEntryEligibility: futuresEntryEligibilityOf(m),
       // Canonical slug (the news graph's key): from the resolve match, else
       // the market context's observation.dataset.coinSlug.
       slug:
@@ -1085,6 +1088,7 @@ export async function observe(
           sentimentBullishPct:
             asNum(asObj(m.sentiment).bullishPct) ?? undefined,
           freshness: freshnessOf(asObj(m.observation)),
+          futuresEntryEligibility: futuresEntryEligibilityOf(m),
           discovered: true,
           slug: row.slug ?? asStr(asObj(asObj(m.observation).dataset).coinSlug),
         };

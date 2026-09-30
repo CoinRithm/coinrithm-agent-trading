@@ -139,7 +139,7 @@ class AgentObservation:
         if isinstance(_observed_at, Unset):
             observed_at = UNSET
         else:
-            observed_at = datetime.datetime.fromisoformat(_observed_at)
+            observed_at = datetime.datetime.fromisoformat(_observed_at.replace("Z", "+00:00"))
 
         def _parse_source_as_of(data: object) -> datetime.datetime | None | Unset:
             if data is None:
@@ -149,7 +149,7 @@ class AgentObservation:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                source_as_of_type_0 = datetime.datetime.fromisoformat(data)
+                source_as_of_type_0 = datetime.datetime.fromisoformat(data.replace("Z", "+00:00"))
 
                 return source_as_of_type_0
             except (TypeError, ValueError, AttributeError, KeyError):

@@ -171,7 +171,7 @@ class EntryContext:
         if isinstance(_captured_at, Unset):
             captured_at = UNSET
         else:
-            captured_at = datetime.datetime.fromisoformat(_captured_at)
+            captured_at = datetime.datetime.fromisoformat(_captured_at.replace("Z", "+00:00"))
 
         def _parse_market_as_of(data: object) -> datetime.datetime | None | Unset:
             if data is None:
@@ -181,7 +181,7 @@ class EntryContext:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                market_as_of_type_0 = datetime.datetime.fromisoformat(data)
+                market_as_of_type_0 = datetime.datetime.fromisoformat(data.replace("Z", "+00:00"))
 
                 return market_as_of_type_0
             except (TypeError, ValueError, AttributeError, KeyError):

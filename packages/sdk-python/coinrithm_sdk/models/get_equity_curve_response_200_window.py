@@ -51,7 +51,7 @@ class GetEquityCurveResponse200Window:
         if isinstance(_from_, Unset):
             from_ = UNSET
         else:
-            from_ = datetime.datetime.fromisoformat(_from_)
+            from_ = datetime.datetime.fromisoformat(_from_.replace("Z", "+00:00"))
 
         get_equity_curve_response_200_window = cls(
             days=days,

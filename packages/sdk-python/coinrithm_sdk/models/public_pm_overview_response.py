@@ -129,7 +129,7 @@ class PublicPmOverviewResponse:
 
             by_category.append(by_category_item)
 
-        updated_at = datetime.datetime.fromisoformat(d.pop("updatedAt"))
+        updated_at = datetime.datetime.fromisoformat(d.pop("updatedAt").replace("Z", "+00:00"))
 
         public_pm_overview_response = cls(
             stats=stats,

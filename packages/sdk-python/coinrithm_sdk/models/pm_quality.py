@@ -96,7 +96,7 @@ class PmQuality:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                assessed_at_type_0 = datetime.datetime.fromisoformat(data)
+                assessed_at_type_0 = datetime.datetime.fromisoformat(data.replace("Z", "+00:00"))
 
                 return assessed_at_type_0
             except (TypeError, ValueError, AttributeError, KeyError):

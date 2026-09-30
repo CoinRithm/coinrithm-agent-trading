@@ -175,7 +175,7 @@ class OpenOrder:
         if isinstance(_created_at, Unset):
             created_at = UNSET
         else:
-            created_at = datetime.datetime.fromisoformat(_created_at)
+            created_at = datetime.datetime.fromisoformat(_created_at.replace("Z", "+00:00"))
 
         open_order = cls(
             id=id,

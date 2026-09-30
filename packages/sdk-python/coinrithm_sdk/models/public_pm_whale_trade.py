@@ -150,7 +150,7 @@ class PublicPmWhaleTrade:
 
         availability = PublicPmWhaleTradeAvailability(d.pop("availability"))
 
-        observed_at = datetime.datetime.fromisoformat(d.pop("observedAt"))
+        observed_at = datetime.datetime.fromisoformat(d.pop("observedAt").replace("Z", "+00:00"))
 
         source_name = d.pop("sourceName", UNSET)
 
@@ -182,7 +182,7 @@ class PublicPmWhaleTrade:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                traded_at_type_0 = datetime.datetime.fromisoformat(data)
+                traded_at_type_0 = datetime.datetime.fromisoformat(data.replace("Z", "+00:00"))
 
                 return traded_at_type_0
             except (TypeError, ValueError, AttributeError, KeyError):

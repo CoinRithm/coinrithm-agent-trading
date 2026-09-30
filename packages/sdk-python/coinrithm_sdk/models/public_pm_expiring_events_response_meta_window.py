@@ -39,9 +39,9 @@ class PublicPmExpiringEventsResponseMetaWindow:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        from_ = datetime.datetime.fromisoformat(d.pop("from"))
+        from_ = datetime.datetime.fromisoformat(d.pop("from").replace("Z", "+00:00"))
 
-        to = datetime.datetime.fromisoformat(d.pop("to"))
+        to = datetime.datetime.fromisoformat(d.pop("to").replace("Z", "+00:00"))
 
         public_pm_expiring_events_response_meta_window = cls(
             from_=from_,

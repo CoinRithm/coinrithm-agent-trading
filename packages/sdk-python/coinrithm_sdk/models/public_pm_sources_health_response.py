@@ -87,7 +87,7 @@ class PublicPmSourcesHealthResponse:
         from ..models.public_pm_sources_health_response_thresholds import PublicPmSourcesHealthResponseThresholds
 
         d = dict(src_dict)
-        as_of = datetime.datetime.fromisoformat(d.pop("asOf"))
+        as_of = datetime.datetime.fromisoformat(d.pop("asOf").replace("Z", "+00:00"))
 
         summary = PublicPmSourcesHealthResponseSummary.from_dict(d.pop("summary"))
 

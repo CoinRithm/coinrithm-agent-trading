@@ -60,14 +60,14 @@ class PublicPmOutcomePriorProbabilityType0:
         if isinstance(_as_of, Unset):
             as_of = UNSET
         else:
-            as_of = datetime.datetime.fromisoformat(_as_of)
+            as_of = datetime.datetime.fromisoformat(_as_of.replace("Z", "+00:00"))
 
         _cutoff = d.pop("cutoff", UNSET)
         cutoff: datetime.datetime | Unset
         if isinstance(_cutoff, Unset):
             cutoff = UNSET
         else:
-            cutoff = datetime.datetime.fromisoformat(_cutoff)
+            cutoff = datetime.datetime.fromisoformat(_cutoff.replace("Z", "+00:00"))
 
         public_pm_outcome_prior_probability_type_0 = cls(
             value=value,

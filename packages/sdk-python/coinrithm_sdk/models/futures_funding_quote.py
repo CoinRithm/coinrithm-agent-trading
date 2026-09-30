@@ -96,9 +96,9 @@ class FuturesFundingQuote:
 
         interval_hours = d.pop("intervalHours")
 
-        next_funding_time = datetime.datetime.fromisoformat(d.pop("nextFundingTime"))
+        next_funding_time = datetime.datetime.fromisoformat(d.pop("nextFundingTime").replace("Z", "+00:00"))
 
-        as_of = datetime.datetime.fromisoformat(d.pop("asOf"))
+        as_of = datetime.datetime.fromisoformat(d.pop("asOf").replace("Z", "+00:00"))
 
         def _parse_estimated_per_interval_musd(data: object) -> float | None:
             if data is None:

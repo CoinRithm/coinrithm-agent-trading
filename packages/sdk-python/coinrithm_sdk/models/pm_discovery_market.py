@@ -204,7 +204,7 @@ class PmDiscoveryMarket:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                end_date_type_0 = datetime.datetime.fromisoformat(data)
+                end_date_type_0 = datetime.datetime.fromisoformat(data.replace("Z", "+00:00"))
 
                 return end_date_type_0
             except (TypeError, ValueError, AttributeError, KeyError):

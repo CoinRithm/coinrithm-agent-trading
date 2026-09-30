@@ -103,7 +103,7 @@ class AgentLedgerResponse:
         if isinstance(_as_of, Unset):
             as_of = UNSET
         else:
-            as_of = datetime.datetime.fromisoformat(_as_of)
+            as_of = datetime.datetime.fromisoformat(_as_of.replace("Z", "+00:00"))
 
         agent_ledger_response = cls(
             data=data,

@@ -153,7 +153,7 @@ class GetPublicPredictionMarketWhaleWalletsResponse200WalletsItem:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                first_seen_type_0 = datetime.datetime.fromisoformat(data)
+                first_seen_type_0 = datetime.datetime.fromisoformat(data.replace("Z", "+00:00"))
 
                 return first_seen_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
@@ -170,7 +170,7 @@ class GetPublicPredictionMarketWhaleWalletsResponse200WalletsItem:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                last_seen_type_0 = datetime.datetime.fromisoformat(data)
+                last_seen_type_0 = datetime.datetime.fromisoformat(data.replace("Z", "+00:00"))
 
                 return last_seen_type_0
             except (TypeError, ValueError, AttributeError, KeyError):

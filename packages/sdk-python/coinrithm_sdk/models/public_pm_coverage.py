@@ -305,7 +305,7 @@ class PublicPmCoverage:
         if isinstance(_computed_at, Unset):
             computed_at = UNSET
         else:
-            computed_at = datetime.datetime.fromisoformat(_computed_at)
+            computed_at = datetime.datetime.fromisoformat(_computed_at.replace("Z", "+00:00"))
 
         _completeness_class = d.pop("completenessClass", UNSET)
         completeness_class: PublicPmCoverageCompletenessClass | Unset
@@ -510,7 +510,7 @@ class PublicPmCoverage:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                last_full_reconciliation_at_type_0 = datetime.datetime.fromisoformat(data)
+                last_full_reconciliation_at_type_0 = datetime.datetime.fromisoformat(data.replace("Z", "+00:00"))
 
                 return last_full_reconciliation_at_type_0
             except (TypeError, ValueError, AttributeError, KeyError):

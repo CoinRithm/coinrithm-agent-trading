@@ -54,7 +54,7 @@ class DecisionProvenanceReportEvidenceRef:
         if isinstance(_source_captured_at, Unset):
             source_captured_at = UNSET
         else:
-            source_captured_at = datetime.datetime.fromisoformat(_source_captured_at)
+            source_captured_at = datetime.datetime.fromisoformat(_source_captured_at.replace("Z", "+00:00"))
 
         decision_provenance_report_evidence_ref = cls(
             snapshot_ids=snapshot_ids,

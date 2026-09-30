@@ -75,6 +75,7 @@ jobs:
           uv run openapi-python-client generate \
             --path ../../openapi.yaml \
             --config openapi-python-client.yaml \
+            --custom-template-path templates \
             --meta none \
             --output-path coinrithm_sdk \
             --overwrite \
@@ -87,6 +88,15 @@ jobs:
           uv build
           uv run --isolated --no-project --with ./dist/coinrithm_sdk-*.whl \
             python -c "from coinrithm_sdk import Client; assert Client(base_url='https://api.coinrithm.com')"
+
+      - name: Python SDK — installed wheel on minimum supported Python
+        run: |
+          wheel=$(realpath dist/coinrithm_sdk-*.whl)
+          tests=$(realpath tests)
+          cd "$RUNNER_TEMP"
+          uv run --python 3.10 --isolated --no-project \
+            --with "$wheel" --with 'pytest>=8.3,<9' \
+            python -m pytest -q -o addopts='' "$tests"
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()

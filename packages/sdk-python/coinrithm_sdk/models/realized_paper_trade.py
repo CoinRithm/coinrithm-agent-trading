@@ -84,7 +84,7 @@ class RealizedPaperTrade:
 
         return_on_stake_pct = d.pop("returnOnStakePct")
 
-        settled_at = datetime.datetime.fromisoformat(d.pop("settledAt"))
+        settled_at = datetime.datetime.fromisoformat(d.pop("settledAt").replace("Z", "+00:00"))
 
         cost_basis = RealizedPaperTradeCostBasis(d.pop("costBasis"))
 

@@ -121,7 +121,7 @@ class GetAgentNewsResponse200ItemsItem:
         if isinstance(_published_at, Unset):
             published_at = UNSET
         else:
-            published_at = datetime.datetime.fromisoformat(_published_at)
+            published_at = datetime.datetime.fromisoformat(_published_at.replace("Z", "+00:00"))
 
         age_minutes = d.pop("ageMinutes", UNSET)
 

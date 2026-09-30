@@ -148,6 +148,12 @@ from .get_healthz_response_200 import GetHealthzResponse200
 from .get_market_context_response_200 import GetMarketContextResponse200
 from .get_market_context_response_200_coin import GetMarketContextResponse200Coin
 from .get_market_context_response_200_fear_greed_type_0 import GetMarketContextResponse200FearGreedType0
+from .get_market_context_response_200_futures_entry_eligibility import (
+    GetMarketContextResponse200FuturesEntryEligibility,
+)
+from .get_market_context_response_200_futures_entry_eligibility_status import (
+    GetMarketContextResponse200FuturesEntryEligibilityStatus,
+)
 from .get_market_context_response_200_price_type_0 import GetMarketContextResponse200PriceType0
 from .get_market_context_response_200_related_markets_item import GetMarketContextResponse200RelatedMarketsItem
 from .get_market_context_response_200_sentiment import GetMarketContextResponse200Sentiment
@@ -550,6 +556,8 @@ __all__ = (
     "GetMarketContextResponse200",
     "GetMarketContextResponse200Coin",
     "GetMarketContextResponse200FearGreedType0",
+    "GetMarketContextResponse200FuturesEntryEligibility",
+    "GetMarketContextResponse200FuturesEntryEligibilityStatus",
     "GetMarketContextResponse200PriceType0",
     "GetMarketContextResponse200RelatedMarketsItem",
     "GetMarketContextResponse200Sentiment",

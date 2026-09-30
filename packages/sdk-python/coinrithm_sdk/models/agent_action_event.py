@@ -397,7 +397,7 @@ class AgentActionEvent:
         if isinstance(_started_at, Unset):
             started_at = UNSET
         else:
-            started_at = datetime.datetime.fromisoformat(_started_at)
+            started_at = datetime.datetime.fromisoformat(_started_at.replace("Z", "+00:00"))
 
         def _parse_completed_at(data: object) -> datetime.datetime | None | Unset:
             if data is None:
@@ -407,7 +407,7 @@ class AgentActionEvent:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                completed_at_type_0 = datetime.datetime.fromisoformat(data)
+                completed_at_type_0 = datetime.datetime.fromisoformat(data.replace("Z", "+00:00"))
 
                 return completed_at_type_0
             except (TypeError, ValueError, AttributeError, KeyError):

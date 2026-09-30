@@ -185,7 +185,7 @@ class CompetitionBoardRow:
         if isinstance(_joined_at, Unset):
             joined_at = UNSET
         else:
-            joined_at = datetime.datetime.fromisoformat(_joined_at)
+            joined_at = datetime.datetime.fromisoformat(_joined_at.replace("Z", "+00:00"))
 
         competition_board_row = cls(
             rank=rank,

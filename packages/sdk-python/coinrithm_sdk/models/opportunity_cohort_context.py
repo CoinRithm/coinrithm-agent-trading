@@ -92,7 +92,7 @@ class OpportunityCohortContext:
         if isinstance(_captured_at, Unset):
             captured_at = UNSET
         else:
-            captured_at = datetime.datetime.fromisoformat(_captured_at)
+            captured_at = datetime.datetime.fromisoformat(_captured_at.replace("Z", "+00:00"))
 
         def _parse_universe_size(data: object) -> int | None | Unset:
             if data is None:

@@ -446,7 +446,7 @@ class ArenaOpportunity:
         if isinstance(_created_at, Unset):
             created_at = UNSET
         else:
-            created_at = datetime.datetime.fromisoformat(_created_at)
+            created_at = datetime.datetime.fromisoformat(_created_at.replace("Z", "+00:00"))
 
         def _parse_entry_context(data: object) -> EntryContext | None | Unset:
             if data is None:

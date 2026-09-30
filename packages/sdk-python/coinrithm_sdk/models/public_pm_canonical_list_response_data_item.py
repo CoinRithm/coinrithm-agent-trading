@@ -99,14 +99,14 @@ class PublicPmCanonicalListResponseDataItem:
         if isinstance(_created_at, Unset):
             created_at = UNSET
         else:
-            created_at = datetime.datetime.fromisoformat(_created_at)
+            created_at = datetime.datetime.fromisoformat(_created_at.replace("Z", "+00:00"))
 
         _updated_at = d.pop("updatedAt", UNSET)
         updated_at: datetime.datetime | Unset
         if isinstance(_updated_at, Unset):
             updated_at = UNSET
         else:
-            updated_at = datetime.datetime.fromisoformat(_updated_at)
+            updated_at = datetime.datetime.fromisoformat(_updated_at.replace("Z", "+00:00"))
 
         public_pm_canonical_list_response_data_item = cls(
             uuid=uuid,

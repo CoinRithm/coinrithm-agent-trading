@@ -287,7 +287,7 @@ class AuditFuturesPosition:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                entry_price_as_of_type_0 = datetime.datetime.fromisoformat(data)
+                entry_price_as_of_type_0 = datetime.datetime.fromisoformat(data.replace("Z", "+00:00"))
 
                 return entry_price_as_of_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
@@ -374,7 +374,7 @@ class AuditFuturesPosition:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                opened_at_type_0 = datetime.datetime.fromisoformat(data)
+                opened_at_type_0 = datetime.datetime.fromisoformat(data.replace("Z", "+00:00"))
 
                 return opened_at_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
@@ -391,7 +391,7 @@ class AuditFuturesPosition:
             try:
                 if not isinstance(data, str):
                     raise TypeError()
-                closed_at_type_0 = datetime.datetime.fromisoformat(data)
+                closed_at_type_0 = datetime.datetime.fromisoformat(data.replace("Z", "+00:00"))
 
                 return closed_at_type_0
             except (TypeError, ValueError, AttributeError, KeyError):
@@ -405,7 +405,7 @@ class AuditFuturesPosition:
         if isinstance(_created_at, Unset):
             created_at = UNSET
         else:
-            created_at = datetime.datetime.fromisoformat(_created_at)
+            created_at = datetime.datetime.fromisoformat(_created_at.replace("Z", "+00:00"))
 
         audit_futures_position = cls(
             id=id,
