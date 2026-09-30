@@ -6,8 +6,9 @@ import type {
   PmConsensus,
   PmDecisionSupport,
   PmQuality,
+  PmSettlementRule,
 } from "./types.js";
-import { asArr, asNum, asObj } from "./extract.js";
+import { asArr, asNum, asObj, asStr } from "./extract.js";
 
 export const PM_BLOCK_REASONS = [
   "structurally_invalid",
@@ -139,6 +140,45 @@ export function pmQualityOf(value: unknown): PmQuality | undefined {
       raw.reasonsOmitted === true ||
       omitted(raw.warningReasons, PM_WARNING_REASONS) ||
       omitted(raw.blockReasons, PM_BLOCK_REASONS),
+  };
+}
+
+// Prompt budget for one event's settlement text. The API bounds it at 700
+// characters; the board shows up to ~10 events, so the runner keeps the
+// condition and its "otherwise" branch and cuts the rest.
+export const PM_RULES_TEXT_MAX = 500;
+
+// The discover event's optional `resolution` (backend-v2 #111) for the prompt.
+// undefined when the key is absent (older backend), null when it is null or
+// unusable. A rule the venue never published stays published:false with no
+// text: unknown terms, never a rule inferred from the title.
+export function pmSettlementRuleOf(
+  event: Record<string, unknown>,
+): PmSettlementRule | null | undefined {
+  if (!Object.hasOwn(event, "resolution")) return undefined;
+  const raw = event.resolution;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.published !== "boolean") return null;
+  const rules =
+    typeof r.rules === "string" ? r.rules.replace(/\s+/g, " ").trim() : "";
+  const text =
+    !r.published || !rules
+      ? undefined
+      : rules.length > PM_RULES_TEXT_MAX
+        ? `${rules.slice(0, PM_RULES_TEXT_MAX - 1).trimEnd()}…`
+        : rules;
+  const sources = asArr(r.settlementSources)
+    .map((s) => asStr(asObj(s).name)?.trim().slice(0, 60))
+    .filter((name): name is string => !!name)
+    .slice(0, 3);
+  const settlementSource = asStr(r.settlementSource)?.trim().slice(0, 120);
+  if (settlementSource && !sources.includes(settlementSource))
+    sources.unshift(settlementSource);
+  return {
+    published: r.published,
+    ...(text ? { text } : {}),
+    ...(sources.length ? { sources: sources.slice(0, 3) } : {}),
   };
 }
 

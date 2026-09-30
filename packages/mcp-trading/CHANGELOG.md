@@ -7,6 +7,13 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
 ## Unreleased (runner source only, not part of the prepared 0.7.15)
 
+- PM board rows carry how the event settles, from the discover row's optional
+  `resolution` (backend-v2 #111): `rules` = `{ published, text?, sources? }`,
+  the same rule the public event page shows, cut to 500 characters. It is
+  printed once per event (on its first row), so a three-outcome event does not
+  pay for it three times. `published: false` tells the model the venue
+  publishes no rule; an absent field (older API) carries no information and
+  changes nothing.
 - The PM system prompt no longer claims a "genuine information edge" on crypto
   price markets or makes a PM bet REQUIRED. It says the market already prices
   the same public data, that short-dated price markets are usually efficient,

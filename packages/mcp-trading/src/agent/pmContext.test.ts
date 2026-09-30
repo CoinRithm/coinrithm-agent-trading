@@ -5,6 +5,8 @@ import {
   pmConsensusOf,
   pmDecisionSupportOf,
   pmQualityOf,
+  pmSettlementRuleOf,
+  PM_RULES_TEXT_MAX,
   sourceTimestamp,
 } from "./pmContext.js";
 
@@ -213,5 +215,58 @@ describe("own settled PM calibration record (pmCalibration)", () => {
     });
     expect(out?.bands).toHaveLength(10);
     expect(out?.bands[0]).toEqual(band(0));
+  });
+});
+
+describe("pmSettlementRuleOf (discover `resolution`, backend-v2 #111)", () => {
+  const resolution = (over: Record<string, unknown> = {}) => ({
+    resolution: {
+      published: true,
+      rules:
+        'This market will resolve to "Yes" if MicroStrategy sells any of its Bitcoin by the named outcome, 11:59 PM ET. Otherwise, this market will resolve to "No".',
+      rulesTruncated: false,
+      settlementSource: null,
+      settlementSources: null,
+      ...over,
+    },
+  });
+
+  it("keeps omission (older backend) distinct from an explicit null or junk", () => {
+    expect(pmSettlementRuleOf({})).toBeUndefined();
+    expect(pmSettlementRuleOf({ resolution: null })).toBeNull();
+    expect(pmSettlementRuleOf({ resolution: "rules" })).toBeNull();
+    expect(pmSettlementRuleOf(resolution({ published: "yes" }))).toBeNull();
+  });
+
+  it("carries the published rule text and the named outlets", () => {
+    expect(
+      pmSettlementRuleOf(
+        resolution({
+          settlementSources: [
+            { name: "Associated Press", url: "https://apnews.com" },
+            { name: "" },
+            { name: "Reuters", url: null },
+          ],
+        }),
+      ),
+    ).toEqual({
+      published: true,
+      text: 'This market will resolve to "Yes" if MicroStrategy sells any of its Bitcoin by the named outcome, 11:59 PM ET. Otherwise, this market will resolve to "No".',
+      sources: ["Associated Press", "Reuters"],
+    });
+  });
+
+  it("an unpublished rule never carries text, whatever the row says", () => {
+    expect(
+      pmSettlementRuleOf(resolution({ published: false, rules: "Who wins?" })),
+    ).toEqual({ published: false });
+  });
+
+  it("bounds long text for the prompt and marks the cut", () => {
+    const text = pmSettlementRuleOf(
+      resolution({ rules: "Condition. ".repeat(100) }),
+    )?.text;
+    expect(text?.length).toBe(PM_RULES_TEXT_MAX);
+    expect(text?.endsWith("…")).toBe(true);
   });
 });

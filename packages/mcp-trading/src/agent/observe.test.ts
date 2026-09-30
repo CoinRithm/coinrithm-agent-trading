@@ -717,6 +717,58 @@ describe("observe", () => {
     expect(byId.z).not.toHaveProperty("consensus");
   });
 
+  it("carries the discover row's settlement rule onto its outcome rows, and absence stays absent", async () => {
+    const pmSpec = {
+      ...spec,
+      venues: ["pm", "futures"] as ("spot" | "futures" | "pm")[],
+    };
+    const c = fakeClient({
+      pmPositions: async () => okData({ positions: [] }),
+      discoverPmMarkets: async () =>
+        okData({
+          data: [
+            {
+              source: "kalshi",
+              slug: "btc-120k-2026",
+              title: "Bitcoin above $120k in 2026?",
+              resolution: {
+                published: true,
+                rules:
+                  "Resolves Yes if the CF Benchmarks BRTI is above $120,000.",
+                rulesTruncated: false,
+                settlementSource: null,
+                settlementSources: [{ name: "CF Benchmarks", url: null }],
+              },
+              outcomes: [
+                { externalMarketId: "yes", name: "Yes", probability: 40 },
+                { externalMarketId: "no", name: "No", probability: 60 },
+              ],
+            },
+            {
+              source: "polymarket",
+              slug: "btc-200k-2026",
+              title: "Bitcoin above $200k in 2026?",
+              outcomes: [
+                { externalMarketId: "z", name: "Yes", probability: 3 },
+              ],
+            },
+          ],
+        }),
+    });
+    const { observation } = await observe(c, pmSpec, newState("r"));
+    const byId = Object.fromEntries(
+      observation.pmMarkets.map((m) => [m.outcomeExternalMarketId, m]),
+    );
+    const rules = {
+      published: true,
+      text: "Resolves Yes if the CF Benchmarks BRTI is above $120,000.",
+      sources: ["CF Benchmarks"],
+    };
+    expect(byId.yes.rules).toEqual(rules);
+    expect(byId.no.rules).toEqual(rules);
+    expect(byId.z).not.toHaveProperty("rules");
+  });
+
   // ── crypto-targeted secondary discover (pm_ref hallucination fix) ────────────
   it("does NOT fire a second discover when the primary board already lists the top analyzed coin (budget)", async () => {
     // Conservative watchlist top coin is BTC; the board lists a Bitcoin market, so

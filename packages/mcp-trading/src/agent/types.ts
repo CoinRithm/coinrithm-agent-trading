@@ -492,6 +492,11 @@ export interface PmMarket {
   // re-oriented here. Absent = older backend; null = no current consensus or
   // an unusable payload. Either way it is unknown, never agreement.
   consensus?: PmConsensus | null;
+  // Event-level settlement terms from the discover row's `resolution`
+  // (backend-v2 #111): the same rule the public event page shows, bounded.
+  // Absent = older backend; null = the row carried nothing usable. Either
+  // way the terms are unknown, never assumed from the title.
+  rules?: PmSettlementRule | null;
 }
 
 // The agent's OWN settled PM forecast record, from the optional
@@ -511,6 +516,14 @@ export interface PmCalibration {
     meanForecastPct: number;
     winRatePct: number;
   }>;
+}
+
+export interface PmSettlementRule {
+  // False when the venue publishes no real rule (a question-only body).
+  published: boolean;
+  text?: string; // bounded; ends in "…" when cut
+  // Named outlets the venue says it settles from (Kalshi), at most 3.
+  sources?: string[];
 }
 
 export interface PmConsensus {

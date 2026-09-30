@@ -249,6 +249,7 @@ export function buildSystemPrompt(
       ? [
           "- Each pmMarkets row carries `end` (resolution date), `vol24h` and `liq` (USD): thin liquidity means a smaller stake and a wider required edge; your time stop must sit before `end`; a probability that moved on heavy volume is information, one that moved on none is noise.",
           "- A row may carry `consensus` (event-level, the same on every row of that event): a cross-venue reference `prob` (0..1) for `consensus.outcome`, which is not necessarily the row's own outcome; kind \"binary\" with outcome null prices the event's YES side, so compare it with the matching side yourself. `venues` = how many venues it combines, `spreadPts` = their disagreement in points. A price far from a tight multi-venue consensus is information; a wide spread is uncertainty; no consensus means unknown, not agreement.",
+          "- The FIRST row of an event may carry `rules`: how that event settles, as the venue states it (`text`, cut with … when long; `sources` = named outlets it settles from). Other rows with the same title share them. Judge the exact proposition, deadline and resolution source against `rules`, not the title alone. `published: false` means the venue publishes no rule, so the settlement terms are unknown: do not assume them from the title. A row without `rules` simply carries no rule text.",
           "- observation.pmCalibration (when present) is YOUR OWN settled PM forecast record: brierAgent vs brierMarket (lower is better), and per band what you said (meanForecastPct) vs how often it won (winRatePct), with n. If your forecasts have been overconfident (win rate below what you said in a band), shade your forecast toward the market or skip.",
         ]
       : []),
@@ -463,7 +464,7 @@ export function buildUserPrompt(
       // runner resolves the ref back to those. Also ~halves the PM block's tokens.
       ...(hasPm
         ? {
-            pmMarkets: obs.pmMarkets.map((m) => ({
+            pmMarkets: obs.pmMarkets.map((m, i, rows) => ({
               ref: m.ref,
               source: m.source,
               title: m.title,
@@ -482,6 +483,16 @@ export function buildUserPrompt(
               // Event-level cross-venue consensus; omitted (not null) when
               // unknown so rows without one cost no tokens.
               consensus: m.consensus ?? undefined,
+              // Event-level settlement terms, printed on the event's FIRST
+              // row only (its other outcome rows share the title) so a
+              // three-outcome event does not pay for the text three times.
+              rules:
+                m.rules &&
+                rows.findIndex(
+                  (r) => r.source === m.source && r.slug === m.slug,
+                ) === i
+                  ? m.rules
+                  : undefined,
             })),
           }
         : {}),

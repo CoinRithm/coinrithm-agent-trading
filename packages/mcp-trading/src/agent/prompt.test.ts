@@ -313,6 +313,55 @@ describe("buildUserPrompt — settlement feedback integration", () => {
     expect(data.pmMarkets[2]).not.toHaveProperty("consensus");
   });
 
+  it("prints an event's settlement rules once, on its first row", () => {
+    const rules = {
+      published: true,
+      text: 'Resolves "Yes" if MicroStrategy sells any Bitcoin by the date.',
+      sources: ["MSTR filings"],
+    };
+    const row = {
+      source: "polymarket",
+      slug: "mstr-sells-btc",
+      outcomeName: "Yes",
+      probability: 0.1,
+      rules,
+    };
+    const prompt = buildUserPrompt(
+      baseObs({
+        pmMarkets: [
+          { ...row, ref: "pm1", outcomeExternalMarketId: "a" },
+          { ...row, ref: "pm2", outcomeExternalMarketId: "b" },
+          {
+            ...row,
+            slug: "other-event",
+            ref: "pm3",
+            outcomeExternalMarketId: "c",
+            rules: null,
+          },
+        ],
+      }),
+      undefined,
+      { venues: ["pm"] },
+    );
+    const data = JSON.parse(prompt.match(/```json\n(.*)\n```/)![1]);
+    expect(data.pmMarkets[0].rules).toEqual(rules);
+    expect(data.pmMarkets[1]).not.toHaveProperty("rules");
+    expect(data.pmMarkets[2]).not.toHaveProperty("rules");
+  });
+
+  it("explains settlement rules only when PM is enabled, and a missing rule stays neutral", () => {
+    const spec = parseSkill(renderFolderOfOne("a", "conservative")).spec;
+    spec.venues = ["pm"];
+    const withPm = buildSystemPrompt(spec, "strategy");
+    expect(withPm).toMatch(/may carry `rules`/);
+    expect(withPm).toMatch(
+      /`published: false` means the venue publishes no rule/,
+    );
+    expect(withPm).toMatch(/A row without `rules` simply carries no rule text/);
+    spec.venues = ["futures"];
+    expect(buildSystemPrompt(spec, "strategy")).not.toMatch(/`rules`/);
+  });
+
   it("explains consensus only when PM is enabled", () => {
     const spec = parseSkill(renderFolderOfOne("a", "conservative")).spec;
     spec.venues = ["pm"];
