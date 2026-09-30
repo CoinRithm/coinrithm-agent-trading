@@ -5640,8 +5640,48 @@ components:
             usdtAvailableMusd: { type: number, description: "spendable cash for a BUY" }
             coinAvailable: { type: number, description: "coin units held for a SELL" }
         freshness: { $ref: "#/components/schemas/Freshness" }
+        priceTiming:
+          $ref: "#/components/schemas/SpotPriceTiming"
         asOf: { type: string, format: date-time }
         observation: { $ref: "#/components/schemas/AgentObservation" }
+    SpotPriceTiming:
+      type: object
+      description: |
+        Source-vs-row timing of the spot price (optional: absent on older API
+        versions). Informational only: `freshness`, `eligible` and the write
+        path's mark guard still measure the row WRITE time and are unchanged.
+        `sourceObservedAt` is a venue snapshot/ticker time, NOT a last-trade
+        time and NOT a per-fill receipt.
+      required: [rowWrittenAt, sourceObservedAt, sourceAgeSeconds, writeLagSeconds, coverage, basis]
+      properties:
+        rowWrittenAt:
+          type: [string, "null"]
+          format: date-time
+          description: When CoinRithm wrote the price row; the same instant as freshness.asOf. null when there is no row.
+        sourceObservedAt:
+          type: [string, "null"]
+          format: date-time
+          description: |
+            The OLDEST venue snapshot time among the winning price cluster's
+            members that carry one. null when no member carries one.
+        sourceAgeSeconds:
+          type: [number, "null"]
+          description: max(0, now - sourceObservedAt), the same clamp as freshness.ageSeconds.
+        writeLagSeconds:
+          type: [number, "null"]
+          description: |
+            rowWrittenAt - sourceObservedAt in seconds, SIGNED. Negative means
+            the venue's clock ran ahead of CoinRithm's (the writer admits up to
+            5 minutes); it is never clamped.
+        coverage:
+          type: string
+          enum: [recorded, not_recorded, no_row]
+          description: |
+            recorded: at least one cluster member carried a source time. It may
+            be PARTIAL: members without a stamp (e.g. Kraken, Gate.io) are not
+            represented. not_recorded: the row has no source time (unknown,
+            never fresh). no_row: there is no price row.
+        basis: { type: string, const: venue_snapshot_time }
     OpenOrder:
       type: object
       properties:
