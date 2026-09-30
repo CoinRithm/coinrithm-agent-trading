@@ -30,8 +30,16 @@ const STATUSES: readonly FuturesEntryEligibilityStatus[] = [
   "reference_unavailable",
 ];
 
+// A zoned ISO 8601 date-time (the contract's `format: date-time`):
+// YYYY-MM-DDTHH:MM[:SS[.fraction]] with Z or a +/-HH:MM offset. Date-only,
+// zone-less and bare numbers ("0") are rejected even though Date.parse
+// accepts them.
+const ZONED_DATE_TIME =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:\d{2})$/;
 const isIsoDate = (v: unknown): v is string =>
-  typeof v === "string" && v.trim() !== "" && Number.isFinite(Date.parse(v));
+  typeof v === "string" &&
+  ZONED_DATE_TIME.test(v) &&
+  Number.isFinite(Date.parse(v));
 
 /**
  * Strict parse of the market context field against its contract (backend-v2
@@ -100,7 +108,7 @@ export function futuresEntryPreflight(
   if (e.status === "reference_stale") {
     return {
       code: "futures_reference_stale",
-      reason: `${action.symbol}: the perpetual reference${e.venue ? ` (${e.venue})` : ""} is older than the server allows for a NEW futures open${when}; the server would refuse it (perpetual_reference_stale). Trade another coin or wait for a fresh reference.`,
+      reason: `${action.symbol}: the perpetual reference${e.venue ? ` (${e.venue})` : ""} is stale or unusable for a NEW futures open${when} (too old, or its refresh time is missing, invalid or in the future); the server would refuse it (perpetual_reference_stale). Trade another coin or wait for a fresh reference.`,
     };
   }
   return {

@@ -174,6 +174,29 @@ describe("futuresEntryEligibilityOf", () => {
         referenceRequired: "true",
       },
     ];
+    // Not a zoned ISO date-time, although Date.parse accepts each of them.
+    for (const notZoned of [
+      "0",
+      "2026-09-30",
+      "2026-09-30T01:00:00",
+      "2026-09-30 01:00:00Z",
+    ]) {
+      bad.push({
+        ...eligibility({ status: "reference_unavailable" }),
+        evaluatedAt: notZoned,
+      });
+      bad.push({
+        ...eligibility({ status: "reference_stale" }),
+        referenceFetchedAt: notZoned,
+      });
+    }
+    expect(
+      futuresEntryEligibilityOf({
+        futuresEntryEligibility: eligibility({
+          evaluatedAt: "2026-09-30T02:00:00+01:00",
+        }),
+      })?.evaluatedAt,
+    ).toBe("2026-09-30T02:00:00+01:00");
     for (const futuresEntryEligibility of bad) {
       expect(
         futuresEntryEligibilityOf({ futuresEntryEligibility }),
