@@ -2923,18 +2923,82 @@ describe("runner: futures_open withheld from schema routes when capacity is spen
       resolve: async (q: string) =>
         okData({ match: { coinId: q === "BTC" ? "1" : "5426", name: q } }),
     });
-  function recording(decision: unknown) {
+  function recording(
+    decision: unknown,
+    responseSource?: "tool_call" | "content_fallback" | "content",
+  ) {
     const inputs: DecideInput[] = [];
     const prov: Provider = {
       label: "recording",
       decide: async (input) => {
         inputs.push(input);
-        return { ok: true, text: JSON.stringify(decision) };
+        return { ok: true, text: JSON.stringify(decision), responseSource };
       },
     };
     return { prov, inputs };
   }
   const WITHHELD = "futures_open withheld from schema-enforcing routes";
+  const diagnostics = (log: ReturnType<typeof vi.fn>) =>
+    log.mock.calls
+      .map(([line]) => String(line))
+      .filter((line) => line.startsWith("capacity-response "))
+      .map((line) => JSON.parse(line.slice("capacity-response ".length)));
+
+  it.each([
+    ["tool_call", true],
+    ["content_fallback", true],
+    ["tool_call", false],
+    ["content_fallback", false],
+    ["content", true],
+  ] as const)(
+    "records only response source %s and withheld proposal %s",
+    async (responseSource, proposed) => {
+      const log = vi.fn();
+      const client = withHeld();
+      const r = recording(
+        proposed
+          ? { ...VALID_OPEN, rationale: "private rationale" }
+          : { decision: "skip", actions: [], reason: "private reason" },
+        responseSource,
+      );
+      const d = deps({ log, live: true }, client, r.prov);
+      d.spec.venues = ["futures"];
+      d.spec.risk.maxConcurrentPositions = 1;
+      d.spec.limits.maxOpenMarginMusd = 1000;
+      const result = await runCycle(d);
+      expect(diagnostics(log)).toEqual([
+        { responseSource, withheldActionProposed: proposed },
+      ]);
+      expect(result.rawModelOutput).toBeUndefined();
+      expect(client.openFutures).not.toHaveBeenCalled();
+      if (proposed)
+        expect(result.planned[0]).toMatchObject({
+          accepted: false,
+          code: "max_positions",
+        });
+    },
+  );
+
+  it("marks unparseable output as unknown proposal, without retaining raw text or an untrusted source", async () => {
+    const log = vi.fn();
+    const r = recording(
+      "private raw response",
+      "private-source" as "tool_call",
+    );
+    const d = deps({ log }, withHeld(), r.prov);
+    d.spec.venues = ["futures"];
+    d.spec.risk.maxConcurrentPositions = 1;
+    const result = await runCycle(d);
+    expect(diagnostics(log)).toEqual([
+      { responseSource: "unknown", withheldActionProposed: null },
+    ]);
+    expect(result.modelFailed).toBe(true);
+    expect(result.rawModelOutput).toBeUndefined();
+    expect(log.mock.calls.flat().join("\n")).not.toContain(
+      "private raw response",
+    );
+    expect(log.mock.calls.flat().join("\n")).not.toContain("private-source");
+  });
 
   it.each([
     ["no position slot", 1, 1000],
@@ -2954,12 +3018,16 @@ describe("runner: futures_open withheld from schema routes when capacity is spen
       expect(
         log.mock.calls.filter(([line]) => String(line).includes(WITHHELD)),
       ).toHaveLength(1);
+      expect(diagnostics(log)).toEqual([
+        { responseSource: "unknown", withheldActionProposed: false },
+      ]);
     },
   );
 
   it("offers every action while capacity remains, or when futures is not a venue", async () => {
     const roomy = recording({ decision: "skip", actions: [] });
-    const d = deps({}, withHeld(), roomy.prov);
+    const log = vi.fn();
+    const d = deps({ log }, withHeld(), roomy.prov);
     d.spec.venues = ["futures"];
     d.spec.risk.maxConcurrentPositions = 5;
     d.spec.limits.maxOpenMarginMusd = 1000;
@@ -2967,11 +3035,12 @@ describe("runner: futures_open withheld from schema routes when capacity is spen
     expect(roomy.inputs[0]).not.toHaveProperty("excludeActionTypes");
 
     const pmOnly = recording({ decision: "skip", actions: [] });
-    const p = deps({}, withHeld(), pmOnly.prov);
+    const p = deps({ log }, withHeld(), pmOnly.prov);
     p.spec.venues = ["pm"];
     p.spec.risk.maxConcurrentPositions = 1;
     await runCycle(p);
     expect(pmOnly.inputs[0]).not.toHaveProperty("excludeActionTypes");
+    expect(diagnostics(log)).toEqual([]);
   });
 
   it("a route that ignores the restriction still gets its close executed and the open rejected", async () => {

@@ -57,6 +57,10 @@ export type DecideResult =
   | {
       ok: true;
       text: string;
+      // Provenance of the consumed decision text only, never model content.
+      // content_fallback means a forced tool route returned usable content
+      // without arguments for the named decision tool.
+      responseSource?: "tool_call" | "content_fallback" | "content";
       // Provider-reported token usage when available (for slice-2 metering).
       usage?: { promptTokens: number; completionTokens: number };
       route?: DecideRouteMeta;
@@ -323,7 +327,7 @@ class AnthropicProvider implements Provider {
               }
             : undefined;
           return text
-            ? { ok: true, text, usage }
+            ? { ok: true, text, usage, responseSource: "content" }
             : { ok: false, error: "anthropic returned empty content" };
         },
       );
@@ -420,7 +424,17 @@ class OpenAiCompatProvider implements Provider {
               }
             : undefined;
           return text
-            ? { ok: true, text, usage }
+            ? {
+                ok: true,
+                text,
+                usage,
+                responseSource:
+                  decisionArguments != null
+                    ? "tool_call"
+                    : shape.jsonSchemaTransport === "tool_call"
+                      ? "content_fallback"
+                      : "content",
+              }
             : { ok: false, error: "provider returned empty content" };
         },
       );

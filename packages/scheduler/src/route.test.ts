@@ -45,6 +45,28 @@ function harness(results: DecideResult[], unavailable = new Set<string>()) {
 }
 
 describe("routed failure attribution in the real runner", () => {
+  it("preserves the consumed response source after provider fallback", async () => {
+    const h = harness([
+      { ok: false, error: "capacity", status: 429 },
+      { ...ok(), responseSource: "content_fallback" } as DecideResult,
+    ]);
+    const provider = new RoutedProvider(
+      "fast",
+      [
+        { provider: "nvidia", model: "model-a", keyRef: "test-a" },
+        { provider: "nvidia", model: "model-b", keyRef: "test-b" },
+      ],
+      false,
+      h.buildProvider,
+      h.hooks,
+    );
+    const result = await provider.decide(input);
+    expect(result).toMatchObject({
+      ok: true,
+      responseSource: "content_fallback",
+    });
+    expect(result.route.effectiveModel).toBe("model-b");
+  });
   it.each(["404-429", "429-404", "404-deferred"])(
     "%s holds the model that returned the permanent error and preserves actual-call metering",
     async (sequence) => {

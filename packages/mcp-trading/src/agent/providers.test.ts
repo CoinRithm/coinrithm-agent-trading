@@ -120,6 +120,7 @@ describe.each(["nvidia", "anthropic"] as const)(
       expect(result).toEqual({
         ok: true,
         text: decision,
+        responseSource: "content",
         usage: { promptTokens: 7, completionTokens: 3 },
       });
       expect(vi.getTimerCount()).toBe(0);
