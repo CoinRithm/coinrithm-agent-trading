@@ -175,6 +175,86 @@ describe("daily entry/add risk budget context", () => {
   });
 });
 
+describe("capacity-aware action guidance", () => {
+  const excluded = { excludeActionTypes: ["futures_open"] as const };
+  const examples = (prompt: string) =>
+    [...prompt.matchAll(/^- \{"type":"([^"]+)"/gm)].map((match) => match[1]);
+
+  it("withholds only the entry example while retaining management and enabled venues", () => {
+    const spec = parseSkill(renderFolderOfOne("a", "conservative")).spec;
+    spec.venues = ["futures", "spot", "pm"];
+    const ordinary = buildSystemPrompt(spec, "strategy", {
+      includeForecast: true,
+    });
+    const spent = buildSystemPrompt(spec, "strategy", {
+      includeForecast: true,
+      ...excluded,
+    });
+    expect(examples(spent)).toEqual(
+      examples(ordinary).filter((type) => type !== "futures_open"),
+    );
+    expect(examples(spent)).toEqual([
+      "futures_close",
+      "futures_set_sltp",
+      "spot_order",
+      "spot_cancel",
+      "pm_open",
+    ]);
+    expect(spent).toContain("Every opening action (spot_order / pm_open)");
+    expect(spent).toContain("market-aware estimate, not a blinded forecast");
+    expect(spent).toContain("otherwise skip PM");
+    expect(spent).not.toMatch(
+      /TAKE THE POSITION|Skip ONLY|ADD only if|you may ADD|act on the strongest/,
+    );
+    expect(spent).toContain("capacity-constrained skip is valid");
+    expect(spent).toContain("Trigger rules still apply");
+    expect(spent).toContain("a SHORT is inverted (TP below mark, SL above)");
+    const marker = "Each action is one of:\n";
+    expect(spent.split(marker)[0]).toBe(ordinary.split(marker)[0]);
+  });
+
+  it("restores unchanged available-capacity guidance and ignores futures exclusion for other venues", () => {
+    const spec = parseSkill(renderFolderOfOne("a", "conservative")).spec;
+    const ordinary = buildSystemPrompt(spec, "strategy");
+    expect(
+      buildSystemPrompt(spec, "strategy", { excludeActionTypes: [] }),
+    ).toBe(ordinary);
+    buildSystemPrompt(spec, "strategy", excluded);
+    expect(buildSystemPrompt(spec, "strategy")).toBe(ordinary);
+    expect(examples(ordinary)).toContain("futures_open");
+    spec.venues = ["spot", "pm"];
+    expect(buildSystemPrompt(spec, "strategy", excluded)).toBe(
+      buildSystemPrompt(spec, "strategy"),
+    );
+  });
+
+  it.each([false, true])(
+    "flat exhausted futures keeps only other enabled entries (spot enabled: %s)",
+    (withSpot) => {
+      const spec = parseSkill(renderFolderOfOne("a", "conservative")).spec;
+      spec.venues = withSpot ? ["futures", "spot"] : ["futures"];
+      const system = buildSystemPrompt(spec, "strategy", excluded);
+      const user = buildUserPrompt(baseObs(), undefined, {
+        venues: spec.venues,
+        ...excluded,
+      });
+      expect(user).not.toContain("OPEN the best available setup (futures_open");
+      expect(user).not.toContain("OPEN the best available setup ()");
+      expect(system).not.toContain("Every opening action (futures_open");
+      if (withSpot) {
+        expect(user).toContain("OPEN the best available setup (spot_order)");
+        expect(system).toContain('"type":"spot_order"');
+      } else {
+        expect(user).toContain(
+          "No entry action is available this cycle; skip.",
+        );
+        expect(system).not.toContain("Every opening action (");
+        expect(examples(system)).toEqual(["futures_close", "futures_set_sltp"]);
+      }
+    },
+  );
+});
+
 describe("formatPmResolutions", () => {
   it("returns nothing for an empty list (no block, no token cost)", () => {
     expect(formatPmResolutions([])).toEqual([]);

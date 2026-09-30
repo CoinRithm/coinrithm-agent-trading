@@ -1,11 +1,14 @@
 // Build the system + user prompts for one decide step. The system prompt is the
-// static character (cached prefix); the user prompt is the fresh observation.
+// character and caps (cached prefix); the user prompt is the fresh observation.
+// Capacity changes only the later action/menu guidance, keeping the common
+// prefix stable and avoiding balances or counts in the system prompt.
 // The model only PROPOSES — the runner re-checks every action against the caps,
 // so the prompt states the caps but never relies on the model to honor them.
 
 import { AgentSpec, Observation, PmResolution, RunState } from "./types.js";
 import { pmQualityOf, pmDecisionSupportOf } from "./pmContext.js";
 import { usesCapitalSizing } from "./capitalSizing.js";
+import type { DecisionActionExclusion } from "./providerCapabilities.js";
 
 // Prompt-only context, not an Observation receipt or a new persisted counter.
 export interface DailyRiskBudget {
@@ -118,11 +121,16 @@ export function buildSystemPrompt(
   // when true, pm_open asks for a market-aware forecastProbability (1..99):
   // the model already sees market prices in the same request. Ask for its own
   // evidence-based estimate, not a mechanical echo, for public calibration.
-  opts: { includeForecast?: boolean } = {},
+  opts: {
+    includeForecast?: boolean;
+    excludeActionTypes?: readonly DecisionActionExclusion[];
+  } = {},
 ): string {
   const r = spec.risk;
   const v = spec.venues;
   const hasFutures = v.includes("futures");
+  const futuresOpenWithheld =
+    hasFutures && opts.excludeActionTypes?.includes("futures_open") === true;
   const hasSpot = v.includes("spot");
   const hasPm = v.includes("pm");
   const hasCoinVenue = hasFutures || hasSpot;
@@ -137,7 +145,7 @@ export function buildSystemPrompt(
     ...(hasPm ? ["PM stake"] : []),
   ];
   const openKinds = [
-    ...(hasFutures ? ["futures_open"] : []),
+    ...(hasFutures && !futuresOpenWithheld ? ["futures_open"] : []),
     ...(hasSpot ? ["spot_order"] : []),
     ...(hasPm ? ["pm_open"] : []),
   ];
@@ -147,11 +155,21 @@ export function buildSystemPrompt(
   const actions: string[] = [];
   if (hasFutures) {
     actions.push(
-      '{"type":"futures_open","symbol","side":"long"|"short","leverage","marginMusd","stopLossPrice","takeProfitPrice","confidence":0..1,"thesis":{"summary","invalidation":{"priceBelow"|"priceAbove","maxHoldMinutes","catalyst"}}}',
+      ...(futuresOpenWithheld
+        ? []
+        : [
+            '{"type":"futures_open","symbol","side":"long"|"short","leverage","marginMusd","stopLossPrice","takeProfitPrice","confidence":0..1,"thesis":{"summary","invalidation":{"priceBelow"|"priceAbove","maxHoldMinutes","catalyst"}}}',
+          ]),
       '{"type":"futures_close","positionId","fraction"}',
       '{"type":"futures_set_sltp","positionId","stopLossPrice","takeProfitPrice"}',
-      "FUTURES TRIGGER RULES (the server rejects the WHOLE open otherwise): a LONG's takeProfitPrice must be ABOVE the current mark and stopLossPrice BELOW it (and above liquidationPrice); a SHORT is inverted (TP below mark, SL above). Every open position in observation.openPositions shows entryPrice, markPrice, liquidationPrice, stopLossPrice, takeProfitPrice — read them and place triggers on the correct side. NEVER attach stopLossPrice/takeProfitPrice to a futures_open for a symbol you ALREADY hold (the server treats it as an add and rejects it) — adjust that position with futures_set_sltp on its positionId instead.",
-      'FUTURES AVAILABILITY (watch[].futuresEntryEligibility): only when referenceRequired is true does it limit a NEW futures_open. status "reference_unavailable" = CoinRithm holds no supported perpetual reference for that coin, so the server refuses a new open; "reference_stale" = a reference exists but is stale or unusable right now (too old, or with a missing, invalid or future refresh time), so the server refuses a new open until it is refreshed. "eligible", referenceRequired false, or the field ABSENT (unknown) = no limit from this field; the server decides at quote time. For a limited coin consider spot (if spot is one of your venues) or another coin for futures. It never limits closing, adjusting or adding to a position you already hold.',
+      ...(futuresOpenWithheld
+        ? [
+            "FUTURES CAPACITY: futures_open, including adds to held positions, is unavailable this cycle. Otherwise-valid futures_close and futures_set_sltp remain available on existing positionIds. Read each held position's markPrice, liquidationPrice and current triggers before adjusting protection; never invent a positionId. Trigger rules still apply: a LONG's takeProfitPrice must be ABOVE the current mark and stopLossPrice BELOW it (and above liquidationPrice); a SHORT is inverted (TP below mark, SL above).",
+          ]
+        : [
+            "FUTURES TRIGGER RULES (the server rejects the WHOLE open otherwise): a LONG's takeProfitPrice must be ABOVE the current mark and stopLossPrice BELOW it (and above liquidationPrice); a SHORT is inverted (TP below mark, SL above). Every open position in observation.openPositions shows entryPrice, markPrice, liquidationPrice, stopLossPrice, takeProfitPrice — read them and place triggers on the correct side. NEVER attach stopLossPrice/takeProfitPrice to a futures_open for a symbol you ALREADY hold (the server treats it as an add and rejects it) — adjust that position with futures_set_sltp on its positionId instead.",
+            'FUTURES AVAILABILITY (watch[].futuresEntryEligibility): only when referenceRequired is true does it limit a NEW futures_open. status "reference_unavailable" = CoinRithm holds no supported perpetual reference for that coin, so the server refuses a new open; "reference_stale" = a reference exists but is stale or unusable right now (too old, or with a missing, invalid or future refresh time), so the server refuses a new open until it is refreshed. "eligible", referenceRequired false, or the field ABSENT (unknown) = no limit from this field; the server decides at quote time. For a limited coin consider spot (if spot is one of your venues) or another coin for futures. It never limits closing, adjusting or adding to a position you already hold.',
+          ]),
     );
   }
   if (hasSpot) {
@@ -304,10 +322,20 @@ export function buildSystemPrompt(
     'Decision/action consistency is mandatory: decision="act" requires at least one complete action object; decision="skip" requires actions=[]. Never describe entering or managing a trade while returning an empty actions array.',
     "Each action is one of:",
     ...actions.map((a) => `- ${a}`),
-    `Set each opening action's "confidence" (0..1) to your honest conviction — the runner REJECTS any open below abstention.minConfidence (${spec.abstention.minConfidence}). The decision-level "confidence" is the fallback when an action omits its own.`,
+    ...(openKinds.length > 0
+      ? [
+          `Set each opening action's "confidence" (0..1) to your honest conviction — the runner REJECTS any open below abstention.minConfidence (${spec.abstention.minConfidence}). The decision-level "confidence" is the fallback when an action omits its own.`,
+        ]
+      : []),
     "",
-    "## Thesis on every open, and thesis exits (the runner enforces the exit)",
-    `Every opening action (${openKinds.join(" / ")}) MUST carry a \`thesis\`: \`summary\` = one sentence with the edge and why NOW; \`invalidation\` = what proves it wrong, with at least ONE machine-checkable condition:`,
+    openKinds.length > 0
+      ? "## Thesis on every open, and thesis exits (the runner enforces the exit)"
+      : "## Existing position theses and exits (the runner enforces the exit)",
+    ...(openKinds.length > 0
+      ? [
+          `Every opening action (${openKinds.join(" / ")}) MUST carry a \`thesis\`: \`summary\` = one sentence with the edge and why NOW; \`invalidation\` = what proves it wrong, with at least ONE machine-checkable condition:`,
+        ]
+      : []),
     ...(hasCoinVenue
       ? [
           "- coins: `priceBelow` for a long or `priceAbove` for a short = the level at which the idea is dead (a real structure level inside your stop-loss); and/or `maxHoldMinutes` = a time stop (minimum 60, at most 43200) after which an idea that has not worked is closed.",
@@ -332,13 +360,22 @@ export function buildSystemPrompt(
     "Each open position shows its `thesis` with `status` (intact | invalidated), `holdMinutes` and, when broken, `invalidatedBy`. While the status is intact, HOLD: a discretionary close must name the broken condition or the resolved catalyst in its `rationaleSummary`. A small loss, an early profit below your target or a wiggle against you is not an exit. A position with no thesis (opened before this rule) is managed by its stop and target only.",
     "",
     "## How to act — a decisive trader in character, not a bystander",
-    "You ARE the character in the strategy above; trade like it. When you have a clear read — even a moderate-confidence one — TAKE THE POSITION, sized within your caps and protected with a stop. You wake every cycle and people watch you live: an agent that watches forever and never commits is useless to them and to itself.",
-    "Skip ONLY when the read is genuinely contradictory (signals fight each other), the data is stale, or you truly have no edge this cycle. A quiet tape where your thesis still has a small but REAL edge is an ACT, not a skip — take it, small, with a stop. Do not confuse caution with paralysis.",
-    'In "rationale" (shown LIVE in your public terminal) speak in YOUR voice and commit to a view in 1-2 vivid, specific sentences — what you see and what you are DOING about it, like a trader posting their move, not a risk report. Good: "ETH broke its recent20 high with EMA20 above EMA50 — long here with a stop under the breakout, this is exactly my setup." Weak: "conditions are mixed, waiting for clarity." Keep "reason" a short label.',
+    ...(futuresOpenWithheld
+      ? [
+          `Futures entry/add capacity is exhausted this cycle. Manage or protect existing positions when appropriate${openKinds.length > 0 ? `; consider only available entry actions (${openKinds.join(" / ")}) under their own caps and evidence rules` : ""}, or skip. A clear setup never overrides unavailable capacity. Do not force a trade in another venue because futures is unavailable.`,
+          'In "rationale" (shown LIVE in your public terminal) explain your evidence and chosen available action or skip in 1-2 sentences. Keep "reason" a short label; a capacity-constrained skip is valid.',
+        ]
+      : [
+          "You ARE the character in the strategy above; trade like it. When you have a clear read — even a moderate-confidence one — TAKE THE POSITION, sized within your caps and protected with a stop. You wake every cycle and people watch you live: an agent that watches forever and never commits is useless to them and to itself.",
+          "Skip ONLY when the read is genuinely contradictory (signals fight each other), the data is stale, or you truly have no edge this cycle. A quiet tape where your thesis still has a small but REAL edge is an ACT, not a skip — take it, small, with a stop. Do not confuse caution with paralysis.",
+          'In "rationale" (shown LIVE in your public terminal) speak in YOUR voice and commit to a view in 1-2 vivid, specific sentences — what you see and what you are DOING about it, like a trader posting their move, not a risk report. Good: "ETH broke its recent20 high with EMA20 above EMA50 — long here with a stop under the breakout, this is exactly my setup." Weak: "conditions are mixed, waiting for clarity." Keep "reason" a short label.',
+        ]),
     "",
     "## Flagged setups this cycle — your wake-up list (observation.setups)",
     "A deterministic scan already checked every watchlist coin and put the ones with real, tradeable structure RIGHT NOW into observation.setups — each has symbol, kind, bias, strength, and a factual note (trend / RSI / breakout / ATR reads). This is your shortlist; you do NOT need to re-derive whether a setup exists.",
-    '- If observation.setups is NON-EMPTY: act on the strongest one that fits YOUR strategy. The `bias` is the trend-following read; if you are a contrarian / mean-reversion trader, FADE it with the same facts (e.g. a downtrend that is also "RSI oversold" is YOUR long). Skipping a flagged setup needs a SPECIFIC reason tied to your thesis — "no clear setup" is NOT a valid skip when setups are listed.',
+    futuresOpenWithheld
+      ? "- If observation.setups is NON-EMPTY: use it to reassess existing positions or an entry in another enabled venue that independently satisfies its rules. It does not restore futures capacity; managing, protecting or skipping remains valid."
+      : '- If observation.setups is NON-EMPTY: act on the strongest one that fits YOUR strategy. The `bias` is the trend-following read; if you are a contrarian / mean-reversion trader, FADE it with the same facts (e.g. a downtrend that is also "RSI oversold" is YOUR long). Skipping a flagged setup needs a SPECIFIC reason tied to your thesis — "no clear setup" is NOT a valid skip when setups are listed.',
     // The act-pressure above must never outrank a hard cap: without this
     // release valve a direction-constrained agent, staring at only wrong-way
     // setups, is squeezed between "skipping needs a specific reason" and a
@@ -352,14 +389,16 @@ export function buildSystemPrompt(
     hasPm
       ? "- If observation.setups is EMPTY: no coin has a flagged structure right now; skip new coin entries and just manage any open positions. PM is judged separately by the PM BAR: an empty setups list is not a reason to open a PM bet, and skipping PM stays valid."
       : "- If observation.setups is EMPTY: no coin has a flagged structure right now — skip new entries and just manage any open positions.",
-    "- A setup tagged `held` (held: long|short) is a position you ALREADY hold. Do NOT propose a new open on it — that only hits the margin cap and wastes the cycle. MANAGE it instead: trail the stop toward your target, ADD only if you have margin room AND fresh conviction, or cut if the thesis broke.",
+    `- A setup tagged \`held\` (held: long|short) is a position you ALREADY hold. Do NOT propose a new open on it — that only hits the margin cap and wastes the cycle. MANAGE it instead: trail the stop toward your target, ${futuresOpenWithheld ? "" : "ADD only if you have margin room AND fresh conviction, "}or cut if the thesis broke.`,
     "",
     "## After you act — hold with conviction, do not churn",
     "A position is a thesis that needs TIME to work. Once you are in WITH a stop, let the stop or your target close it: do NOT bail on the next cycle over a small adverse tick, and do NOT manually close a fresh position unless the thesis is structurally invalidated (the level broke, the trend flipped) — not merely because price wiggled against you. A trade opened and closed minutes later just donates the round-trip fee + spread to noise.",
-    "Place each stop at a real structural level with ROOM to breathe — past the swing or extreme by a sensible margin — and size the position DOWN to keep the risk small. A stop hugging your entry gets clipped by normal volatility and bleeds you a cut at a time. After a stop-out, do not immediately re-enter the same name and direction (that level is hot — wait for a genuinely fresh setup). Decisive entries, patient holds.",
+    futuresOpenWithheld
+      ? "Keep protection at a real structural level with room to breathe. A stop-out does not restore futures entry/add availability in this cycle; manage remaining positions or skip."
+      : "Place each stop at a real structural level with ROOM to breathe — past the swing or extreme by a sensible margin — and size the position DOWN to keep the risk small. A stop hugging your entry gets clipped by normal volatility and bleeds you a cut at a time. After a stop-out, do not immediately re-enter the same name and direction (that level is hot — wait for a genuinely fresh setup). Decisive entries, patient holds.",
     "",
     "## Manage your open positions — ride winners, cut losers",
-    "Each cycle, look at your OPEN positions FIRST, not just new entries. A position that is working is your best opportunity: once it moves your way, move the stop to breakeven and then TRAIL it behind the move with futures_set_sltp so a winner keeps running instead of being cut early — and you may ADD to a confirming winner (scale in, never beyond your caps). A position that is clearly wrong (its `thesis.status` reads invalidated, the level broke, the catalyst resolved against you) is cut cleanly instead of nursed; a position whose thesis is intact is held. Riding one good trade beats opening ten fresh ones.",
+    `Each cycle, look at your OPEN positions FIRST, not just new entries. A position that is working is your best opportunity: once it moves your way, move the stop to breakeven and then TRAIL it behind the move with futures_set_sltp so a winner keeps running instead of being cut early${futuresOpenWithheld ? "" : " — and you may ADD to a confirming winner (scale in, never beyond your caps)"}. A position that is clearly wrong (its \`thesis.status\` reads invalidated, the level broke, the catalyst resolved against you) is cut cleanly instead of nursed; a position whose thesis is intact is held. Riding one good trade beats opening ten fresh ones.`,
   ].join("\n");
 }
 
@@ -371,6 +410,7 @@ export function buildUserPrompt(
     dailyRiskBudget?: DailyRiskBudget;
     capitalSizing?: AgentSpec["capitalSizing"];
     futuresCapacity?: FuturesCapacity;
+    excludeActionTypes?: readonly DecisionActionExclusion[];
   } = {},
 ): string {
   // Default to every venue for backwards-compatible direct callers and probes.
@@ -378,6 +418,8 @@ export function buildUserPrompt(
   // empty observation blocks never consume prompt space or invite invalid acts.
   const venues = opts.venues ?? ["futures", "spot", "pm"];
   const hasFutures = venues.includes("futures");
+  const futuresOpenWithheld =
+    hasFutures && opts.excludeActionTypes?.includes("futures_open") === true;
   const hasSpot = venues.includes("spot");
   const hasPm = venues.includes("pm");
   const lines: string[] = [
@@ -437,7 +479,7 @@ export function buildUserPrompt(
     (!hasPm || (obs.pmPositions?.length ?? 0) === 0)
   ) {
     const openingActions = [
-      ...(hasFutures ? ["futures_open"] : []),
+      ...(hasFutures && !futuresOpenWithheld ? ["futures_open"] : []),
       ...(hasSpot ? ["spot_order"] : []),
       ...(hasPm ? ["pm_open"] : []),
     ];
@@ -446,7 +488,7 @@ export function buildUserPrompt(
       ...(hasSpot ? ["spot_cancel"] : []),
     ];
     lines.push(
-      `You currently hold NO open positions${hasPm ? " and NO prediction-market positions" : ""} and NO resting orders — there is NOTHING to manage or close this cycle.${forbiddenActions.length > 0 ? ` Do NOT emit any ${forbiddenActions.join(", ")} action (you have no position/order id to act on; doing so just wastes the cycle).` : ""} Your ONLY moves are to OPEN the best available setup (${openingActions.join(" / ")}) or to skip.`,
+      `You currently hold NO open positions${hasPm ? " and NO prediction-market positions" : ""} and NO resting orders — there is NOTHING to manage or close this cycle.${forbiddenActions.length > 0 ? ` Do NOT emit any ${forbiddenActions.join(", ")} action (you have no position/order id to act on; doing so just wastes the cycle).` : ""} ${openingActions.length > 0 ? `Your ONLY moves are to OPEN the best available setup (${openingActions.join(" / ")}) or to skip.` : "No entry action is available this cycle; skip."}`,
     );
   }
   // Slice-3 memory: the agent's own recent moves, so it manages with continuity —
