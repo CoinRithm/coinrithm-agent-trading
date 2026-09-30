@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   loadConfig: vi.fn(),
   createPool: vi.fn(),
   migrate: vi.fn(),
+  assertSchemaReady: vi.fn(),
   retryDatabaseStartup: vi.fn(),
   migrateHouseAgentsOffGroq: vi.fn(),
   migrateAgentsOffEolModels: vi.fn(),
@@ -52,7 +53,7 @@ beforeEach(async () => {
   });
   mocks.loadConfig.mockReturnValue(config);
   mocks.createPool.mockReturnValue({ end: mocks.end });
-  mocks.migrate.mockResolvedValue(undefined);
+  mocks.assertSchemaReady.mockResolvedValue(undefined);
   mocks.retryDatabaseStartup.mockImplementation(async (operation, options) => {
     options.onRetry(1, 1000, "ECONNREFUSED");
     await operation();
@@ -89,9 +90,10 @@ describe("scheduler process lifecycle", () => {
     mocks.migrateAgentsOffEolModels.mockResolvedValue([1, 1]);
     await boot();
     expect(config.openAiBackupEligible).toBe(true);
-    expect(mocks.migrate).toHaveBeenCalledWith(
+    expect(mocks.assertSchemaReady).toHaveBeenCalledWith(
       mocks.createPool.mock.results[0].value,
     );
+    expect(mocks.migrate).not.toHaveBeenCalled();
     const res = { writeHead: vi.fn(), end: vi.fn() };
     health({} as IncomingMessage, res as unknown as ServerResponse);
     expect(res.writeHead).toHaveBeenLastCalledWith(200, {
@@ -161,7 +163,7 @@ describe("scheduler process lifecycle", () => {
   it.each([new Error("fixture startup error"), "fixture startup error"])(
     "fails startup closed: %s",
     async (error) => {
-      mocks.migrate.mockRejectedValue(error);
+      mocks.assertSchemaReady.mockRejectedValue(error);
       await import("./index.js");
       await vi.waitFor(() => expect(process.exit).toHaveBeenCalledWith(1));
       expect(console.error).toHaveBeenCalledWith(
