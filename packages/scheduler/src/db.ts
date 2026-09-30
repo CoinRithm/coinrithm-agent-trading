@@ -1,9 +1,6 @@
 import { Pool } from "pg";
-import { readdirSync, readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
 import { sanitizeDecisionInputRecord } from "@coinrithm/mcp-trading/engine";
-import { maintenanceTransaction } from "./maintenance.js";
+export { migrate, assertSchemaReady } from "./schema.js";
 
 export interface AgentRow {
   id: number;
@@ -142,22 +139,6 @@ export async function retryDatabaseStartup(
       await sleep(delayMs);
     }
   }
-}
-
-export async function migrate(pool: Pool): Promise<void> {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const sqlDir = join(here, "..", "sql");
-  // Run every numbered migration in lexical order (001, 002, …). All are
-  // idempotent (CREATE … IF NOT EXISTS / ADD COLUMN IF NOT EXISTS), so a full
-  // replay on every boot is safe and keeps new migrations from being forgotten.
-  const files = readdirSync(sqlDir)
-    .filter((f) => /^\d+_.*\.sql$/.test(f))
-    .sort();
-  await maintenanceTransaction(pool, async (client) => {
-    for (const f of files) {
-      await client.query(readFileSync(join(sqlDir, f), "utf8"));
-    }
-  });
 }
 
 // Idempotent safety migration: move agents off the hosted Groq lane onto NVIDIA.

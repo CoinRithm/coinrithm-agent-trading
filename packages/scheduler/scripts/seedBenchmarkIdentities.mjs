@@ -4,12 +4,14 @@
 // baselines appear on the Arena board) — then run the kit's benchmark seeder
 // to write the agent_runtime rows.
 //
-// Run INSIDE the deployed scheduler container (has DATABASE_URL +
-// ENCRYPTION_KEY + dist/):
+// Run INSIDE the deployed scheduler container (has ENCRYPTION_KEY + dist/),
+// with OPERATOR_DATABASE_URL supplied for this run only: it writes
+// public."User" and public."ApiKey", which the scheduler runtime role is not
+// granted, so it refuses to run as coinrithm_scheduler.
 //
 //   C=$(docker ps --format "{{.Names}}" | grep s1tsfnu80)
 //   docker cp packages/scheduler/scripts/seedBenchmarkIdentities.mjs "$C":/tmp/
-//   docker exec "$C" node /tmp/seedBenchmarkIdentities.mjs
+//   docker exec -e OPERATOR_DATABASE_URL "$C" node /tmp/seedBenchmarkIdentities.mjs
 //
 // Safety: aborts if ANY bench-* agent row already exists (first-run only).
 // Raw keys are minted in-process, encrypted into agent_runtime.agents by the
@@ -21,6 +23,10 @@ import pg from "pg";
 import { BENCHMARK_AGENTS } from "@coinrithm/mcp-trading/engine";
 import { seedBenchmarkAgents } from "../dist/benchmarkSeed.js";
 import { loadMasterKey } from "../dist/crypto.js";
+import {
+  assertOperatorConnection,
+  operatorDatabaseUrl,
+} from "../dist/operatorConnection.js";
 
 // Mirrors backend-v2 src/lib/apiKeys.ts exactly: crk_live_<base62(32B)>_<6-hex checksum>.
 const BASE62 =
@@ -46,7 +52,8 @@ const genKey = () => {
   };
 };
 
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 3 });
+const pool = new pg.Pool({ connectionString: operatorDatabaseUrl(), max: 3 });
+await assertOperatorConnection(pool, "seedBenchmarkIdentities");
 const existing = await pool.query(
   "SELECT handle FROM agent_runtime.agents WHERE handle LIKE 'bench-%'",
 );

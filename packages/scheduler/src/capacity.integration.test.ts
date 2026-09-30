@@ -1,4 +1,5 @@
 import { Pool } from "pg";
+import { readFileSync } from "node:fs";
 import { maintenanceTransaction, MAINTENANCE_LOCK } from "./maintenance.js";
 import { rotateCredentials } from "./rotateCredentials.js";
 import { encrypt, decrypt } from "./crypto.js";
@@ -9,6 +10,7 @@ import {
 } from "./capacity.js";
 import {
   migrate,
+  assertSchemaReady,
   claimDueAgents,
   saveStateJson,
   loadStateJson,
@@ -52,7 +54,7 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
       );
     }
     pool = new Pool({ connectionString: databaseUrl });
-    // Simultaneous cold starts exercise the actual numbered migration files.
+    // Concurrent operator runs exercise the actual numbered migration files.
     await Promise.all([migrate(pool), migrate(pool), migrate(pool)]);
   });
   afterAll(async () => {
@@ -99,6 +101,159 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
         ).rows[0].acquired,
       ).toBe(true);
     });
+  });
+
+  it("runs with the restricted role and refuses DDL, ledger writes and unrelated data access", async () => {
+    await pool.query(`DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'coinrithm_app') THEN
+        CREATE ROLE coinrithm_app NOLOGIN;
+      END IF;
+    END $$;
+    GRANT SELECT, INSERT, UPDATE, DELETE ON agent_runtime.schema_migrations TO coinrithm_app`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS public."ApiKey" (
+      id integer PRIMARY KEY, "userId" integer, "revokedAt" timestamptz
+    )`);
+    await pool.query(
+      readFileSync(
+        new URL("../sql/maintenance/runtime-role.sql", import.meta.url),
+        "utf8",
+      ),
+    );
+    expect(
+      (
+        await pool.query(
+          "SELECT has_table_privilege('coinrithm_app', 'agent_runtime.schema_migrations', 'INSERT,UPDATE,DELETE') AS writable",
+        )
+      ).rows[0].writable,
+    ).toBe(false);
+    await pool.query(
+      "ALTER ROLE coinrithm_scheduler LOGIN PASSWORD 'disposable-fixture-only'",
+    );
+    const runtimeUrl = new URL(databaseUrl!);
+    runtimeUrl.username = "coinrithm_scheduler";
+    runtimeUrl.password = "disposable-fixture-only";
+    const runtime = new Pool({
+      connectionString: runtimeUrl.toString(),
+      max: 1,
+    });
+    try {
+      await assertSchemaReady(runtime);
+      await runtime.query(
+        'SELECT id, "userId", "revokedAt" FROM public."ApiKey" LIMIT 0',
+      );
+      await expect(
+        runtime.query('DELETE FROM public."ApiKey"'),
+      ).rejects.toMatchObject({ code: "42501" });
+      await expect(
+        runtime.query("CREATE TABLE agent_runtime.forbidden (id int)"),
+      ).rejects.toMatchObject({ code: "42501" });
+      await expect(
+        runtime.query(
+          "UPDATE agent_runtime.schema_migrations SET checksum = repeat('0',64)",
+        ),
+      ).rejects.toMatchObject({ code: "42501" });
+      await expect(
+        runtime.query("TRUNCATE agent_runtime.agents"),
+      ).rejects.toMatchObject({ code: "42501" });
+      await expect(runtime.query("SET ROLE postgres")).rejects.toMatchObject({
+        code: "42501",
+      });
+      await runtime.query(`INSERT INTO agent_runtime.agents
+        (handle, display_name, cadence_seconds, model_provider, model_name, spec, prose, coinrithm_key_enc)
+        VALUES ('restricted-fixture', 'Fixture', 60, 'fixture', 'fixture', '{}', '', 'encrypted-fixture')`);
+      const agent = (
+        await runtime.query(
+          "SELECT id FROM agent_runtime.agents WHERE handle = 'restricted-fixture'",
+        )
+      ).rows[0];
+      await saveStateJson(runtime, Number(agent.id), { sequence: 1 });
+      expect(await loadStateJson(runtime, Number(agent.id))).toEqual({
+        sequence: 1,
+      });
+      await recordCycle(runtime, Number(agent.id), {
+        decision: "skip",
+        skipReason: "fixture",
+      });
+      expect(await reserveProviderCapacity(runtime, limit)).toMatchObject({
+        ok: true,
+      });
+      // Readiness asserts every grant on its own: one missing privilege (the
+      // rest still held, so a comma-list ANY check would pass) fails startup
+      // by name instead of on the first live write.
+      await pool.query(
+        "REVOKE DELETE ON agent_runtime.agent_cycles FROM coinrithm_scheduler",
+      );
+      try {
+        await expect(assertSchemaReady(runtime)).rejects.toThrow(
+          "missing required grants: DELETE on agent_runtime.agent_cycles",
+        );
+      } finally {
+        await pool.query(
+          "GRANT DELETE ON agent_runtime.agent_cycles TO coinrithm_scheduler",
+        );
+      }
+      await pool.query(
+        'REVOKE SELECT ("revokedAt") ON public."ApiKey" FROM coinrithm_scheduler',
+      );
+      try {
+        await expect(assertSchemaReady(runtime)).rejects.toThrow(
+          'SELECT on public."ApiKey"(revokedAt)',
+        );
+      } finally {
+        await pool.query(
+          'GRANT SELECT ("revokedAt") ON public."ApiKey" TO coinrithm_scheduler',
+        );
+      }
+      await assertSchemaReady(runtime);
+    } finally {
+      await runtime.end();
+    }
+    await expect(assertSchemaReady(pool)).rejects.toThrow("DML-only");
+  });
+
+  it("refuses missing and changed migration receipts without replaying SQL", async () => {
+    const before = (
+      await pool.query(
+        "SELECT filename, checksum FROM agent_runtime.schema_migrations ORDER BY filename",
+      )
+    ).rows;
+    const first = before[0];
+    await pool.query(
+      "UPDATE agent_runtime.schema_migrations SET checksum = repeat('0',64) WHERE filename = $1",
+      [first.filename],
+    );
+    try {
+      await expect(migrate(pool)).rejects.toThrow("checksum changed");
+      await expect(assertSchemaReady(pool)).rejects.toThrow(
+        "schema is not ready",
+      );
+    } finally {
+      await pool.query(
+        "UPDATE agent_runtime.schema_migrations SET checksum = $2 WHERE filename = $1",
+        [first.filename, first.checksum],
+      );
+    }
+    expect(
+      (
+        await pool.query(
+          "SELECT filename, checksum FROM agent_runtime.schema_migrations ORDER BY filename",
+        )
+      ).rows,
+    ).toEqual(before);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        "DELETE FROM agent_runtime.schema_migrations WHERE filename = $1",
+        [first.filename],
+      );
+      await expect(
+        assertSchemaReady(client as unknown as Pool),
+      ).rejects.toThrow("schema is not ready");
+    } finally {
+      await client.query("ROLLBACK");
+      client.release();
+    }
   });
 
   it("rehearses credential rotation, interrupted rollback, rerun and reverse recovery", async () => {
