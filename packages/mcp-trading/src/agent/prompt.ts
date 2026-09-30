@@ -35,6 +35,46 @@ export function buildDailyRiskBudget(
   };
 }
 
+// Prompt-only context: how much futures room is left, from the SAME arithmetic
+// the runner validates with (runner.ts openCount = observation.openPositions,
+// open margin = their marginMusd, against spec.risk.maxConcurrentPositions and
+// spec.limits.maxOpenMarginMusd). The system prompt already states the caps;
+// production showed agents at 3 of 3 proposing a new futures_open on most
+// cycles (max_positions 222 and open_margin_exceeds_cap 116 rejections in 6h,
+// 2026-09-30), each a wasted model call, because the model never counts. Not
+// a control: the validator still enforces both caps.
+export interface FuturesCapacity {
+  version: "coinrithm.futures-capacity.v1";
+  openPositions: number;
+  maxPositions: number;
+  slotsLeft: number;
+  openMarginMusd: number;
+  maxOpenMarginMusd: number;
+  marginHeadroomMusd: number;
+}
+
+export function buildFuturesCapacity(
+  spec: AgentSpec,
+  obs: Pick<Observation, "openPositions">,
+): FuturesCapacity {
+  const openPositions = obs.openPositions.length;
+  const openMarginMusd = obs.openPositions
+    .filter((p) => p.venue === "futures")
+    .reduce((sum, p) => sum + (p.marginMusd ?? 0), 0);
+  const maxPositions = spec.risk.maxConcurrentPositions;
+  const maxOpenMarginMusd = spec.limits.maxOpenMarginMusd;
+  return {
+    version: "coinrithm.futures-capacity.v1",
+    openPositions,
+    maxPositions,
+    slotsLeft: Math.max(0, maxPositions - openPositions),
+    openMarginMusd: Math.round(openMarginMusd * 100) / 100,
+    maxOpenMarginMusd,
+    marginHeadroomMusd:
+      Math.round(Math.max(0, maxOpenMarginMusd - openMarginMusd) * 100) / 100,
+  };
+}
+
 // Whole-dollar rendering for the compact PM rows (tokens, not precision).
 const roundUsd = (v?: number): number | undefined =>
   typeof v === "number" && Number.isFinite(v) ? Math.round(v) : undefined;
@@ -325,6 +365,7 @@ export function buildUserPrompt(
     venues?: AgentSpec["venues"];
     dailyRiskBudget?: DailyRiskBudget;
     capitalSizing?: AgentSpec["capitalSizing"];
+    futuresCapacity?: FuturesCapacity;
   } = {},
 ): string {
   // Default to every venue for backwards-compatible direct callers and probes.
@@ -364,6 +405,21 @@ export function buildUserPrompt(
             "Today's entry/add budget is EXHAUSTED until the next UTC day: propose no new entries or adds. Manage/protect existing positions and orders where valid, or skip; a flagged setup does not override this budget.",
           ]
         : []),
+    );
+  }
+  const capacity = hasFutures ? opts.futuresCapacity : undefined;
+  if (capacity) {
+    lines.push(
+      "futuresCapacity below is how much futures room is left right now: every futures_open, including an add to a position you hold, needs a free position slot (slotsLeft > 0) and its marginMusd must fit marginHeadroomMusd. The runner rejects anything beyond either cap.",
+      ...(capacity.slotsLeft === 0
+        ? [
+            `All ${capacity.maxPositions} futures position slots are in use: propose NO futures_open this cycle (it would be rejected as max_positions). Manage, protect or close what you hold, use another enabled venue, or skip.`,
+          ]
+        : capacity.marginHeadroomMusd <= 0
+          ? [
+              "Futures margin is at its cap (marginHeadroomMusd 0): propose NO futures_open this cycle (it would be rejected as open_margin_exceeds_cap). Manage, protect or close what you hold, use another enabled venue, or skip.",
+            ]
+          : []),
     );
   }
   // Flat-state steer: when the agent holds NOTHING, weaker models (Llama 3.1 8B)
@@ -448,6 +504,7 @@ export function buildUserPrompt(
       ...(opts.dailyRiskBudget
         ? { dailyRiskBudget: opts.dailyRiskBudget }
         : {}),
+      ...(capacity ? { futuresCapacity: capacity } : {}),
       cashAvailableMusd: obs.cashAvailableMusd,
       equityMusd: obs.equityMusd,
       ...(opts.capitalSizing

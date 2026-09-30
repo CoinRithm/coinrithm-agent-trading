@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildDailyRiskBudget,
+  buildFuturesCapacity,
   buildSystemPrompt,
   buildUserPrompt,
   formatPmResolutions,
@@ -642,5 +643,84 @@ describe("PM entry floor in the hard caps", () => {
     expect(
       buildSystemPrompt({ ...pmSpec, venues: ["futures"] }, "strategy"),
     ).not.toContain("PM ENTRY FLOOR");
+  });
+});
+
+describe("futuresCapacity context (max_positions / open_margin_exceeds_cap waste)", () => {
+  const spec = () => {
+    const parsed = parseSkill(renderFolderOfOne("a", "conservative")).spec;
+    parsed.venues = ["futures"];
+    parsed.risk.maxConcurrentPositions = 3;
+    parsed.limits.maxOpenMarginMusd = 300;
+    return parsed;
+  };
+  const held = (n: number, marginMusd = 50) =>
+    Array.from({ length: n }, (_, i) => ({
+      venue: "futures" as const,
+      id: i + 1,
+      symbol: `C${i}`,
+      side: "long" as const,
+      status: "open",
+      marginMusd,
+    }));
+  const dataOf = (prompt: string) =>
+    JSON.parse(prompt.match(/```json\n(.*)\n```/)![1]);
+
+  it("counts slots and margin exactly as the validator does", () => {
+    expect(
+      buildFuturesCapacity(spec(), { openPositions: held(2, 60.5) } as any),
+    ).toEqual({
+      version: "coinrithm.futures-capacity.v1",
+      openPositions: 2,
+      maxPositions: 3,
+      slotsLeft: 1,
+      openMarginMusd: 121,
+      maxOpenMarginMusd: 300,
+      marginHeadroomMusd: 179,
+    });
+    expect(
+      buildFuturesCapacity(spec(), { openPositions: held(4, 100) } as any),
+    ).toMatchObject({ slotsLeft: 0, marginHeadroomMusd: 0 });
+  });
+
+  it("with every slot used, says plainly that no futures_open can pass", () => {
+    const obs = baseObs({ openPositions: held(3) as any });
+    const prompt = buildUserPrompt(obs, undefined, {
+      venues: ["futures"],
+      futuresCapacity: buildFuturesCapacity(spec(), obs),
+    });
+    expect(dataOf(prompt).futuresCapacity).toMatchObject({
+      openPositions: 3,
+      maxPositions: 3,
+      slotsLeft: 0,
+    });
+    expect(prompt).toContain(
+      "All 3 futures position slots are in use: propose NO futures_open this cycle",
+    );
+  });
+
+  it("with slots free but margin at the cap, names the margin cap instead", () => {
+    const obs = baseObs({ openPositions: held(2, 150) as any });
+    const prompt = buildUserPrompt(obs, undefined, {
+      venues: ["futures"],
+      futuresCapacity: buildFuturesCapacity(spec(), obs),
+    });
+    expect(prompt).toContain("Futures margin is at its cap");
+    expect(prompt).not.toContain("position slots are in use");
+  });
+
+  it("room left: the numbers only, no steer; futures off: nothing at all", () => {
+    const obs = baseObs({ openPositions: held(1) as any });
+    const roomy = buildUserPrompt(obs, undefined, {
+      venues: ["futures"],
+      futuresCapacity: buildFuturesCapacity(spec(), obs),
+    });
+    expect(dataOf(roomy).futuresCapacity.slotsLeft).toBe(2);
+    expect(roomy).not.toContain("propose NO futures_open");
+    const pmOnly = buildUserPrompt(obs, undefined, {
+      venues: ["pm"],
+      futuresCapacity: buildFuturesCapacity(spec(), obs),
+    });
+    expect(pmOnly).not.toContain("futuresCapacity");
   });
 });

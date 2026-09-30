@@ -36,6 +36,7 @@ import { createOpportunityReporter } from "./opportunityReporter.js";
 import { enrichWhaleContext, observe } from "./observe.js";
 import {
   buildDailyRiskBudget,
+  buildFuturesCapacity,
   buildSystemPrompt,
   buildUserPrompt,
 } from "./prompt.js";
@@ -868,6 +869,9 @@ async function runCycleCore(
       venues: spec.venues,
       dailyRiskBudget: buildDailyRiskBudget(spec, state),
       ...(usesCapitalSizing(spec) ? { capitalSizing: spec.capitalSizing } : {}),
+      ...(spec.venues.includes("futures")
+        ? { futuresCapacity: buildFuturesCapacity(spec, observation) }
+        : {}),
     });
     const tokensInEst = Math.round((system.length + user.length) / 4);
     // Prompt-size + trigger visibility in the live terminal.
