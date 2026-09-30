@@ -399,6 +399,7 @@ from .spot_order_request_order_type import SpotOrderRequestOrderType
 from .spot_order_request_side import SpotOrderRequestSide
 from .spot_order_response import SpotOrderResponse
 from .spot_order_response_summary import SpotOrderResponseSummary
+from .spot_order_response_summary_execution_model_status import SpotOrderResponseSummaryExecutionModelStatus
 from .spot_price_timing import SpotPriceTiming
 from .spot_price_timing_coverage import SpotPriceTimingCoverage
 from .spot_quote_request import SpotQuoteRequest
@@ -775,6 +776,7 @@ __all__ = (
     "SpotOrderRequestSide",
     "SpotOrderResponse",
     "SpotOrderResponseSummary",
+    "SpotOrderResponseSummaryExecutionModelStatus",
     "SpotPriceTiming",
     "SpotPriceTimingCoverage",
     "SpotQuoteRequest",

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 from collections.abc import Mapping
 from typing import Any, TypeVar, cast
 
@@ -19,12 +20,17 @@ class GetMarketContextResponse200Sentiment:
         bearish_votes (int | Unset):
         total_votes (int | Unset):
         bullish_pct (int | None | Unset):
+        day_utc (datetime.datetime | None | Unset): UTC day of this vote cohort; may be older than the response or
+            price.
+        updated_at (datetime.datetime | None | Unset): Last write to this vote cohort; not the price clock.
     """
 
     bullish_votes: int | Unset = UNSET
     bearish_votes: int | Unset = UNSET
     total_votes: int | Unset = UNSET
     bullish_pct: int | None | Unset = UNSET
+    day_utc: datetime.datetime | None | Unset = UNSET
+    updated_at: datetime.datetime | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -40,6 +46,22 @@ class GetMarketContextResponse200Sentiment:
         else:
             bullish_pct = self.bullish_pct
 
+        day_utc: None | str | Unset
+        if isinstance(self.day_utc, Unset):
+            day_utc = UNSET
+        elif isinstance(self.day_utc, datetime.datetime):
+            day_utc = self.day_utc.isoformat()
+        else:
+            day_utc = self.day_utc
+
+        updated_at: None | str | Unset
+        if isinstance(self.updated_at, Unset):
+            updated_at = UNSET
+        elif isinstance(self.updated_at, datetime.datetime):
+            updated_at = self.updated_at.isoformat()
+        else:
+            updated_at = self.updated_at
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update({})
@@ -51,6 +73,10 @@ class GetMarketContextResponse200Sentiment:
             field_dict["totalVotes"] = total_votes
         if bullish_pct is not UNSET:
             field_dict["bullishPct"] = bullish_pct
+        if day_utc is not UNSET:
+            field_dict["dayUtc"] = day_utc
+        if updated_at is not UNSET:
+            field_dict["updatedAt"] = updated_at
 
         return field_dict
 
@@ -72,11 +98,47 @@ class GetMarketContextResponse200Sentiment:
 
         bullish_pct = _parse_bullish_pct(d.pop("bullishPct", UNSET))
 
+        def _parse_day_utc(data: object) -> datetime.datetime | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, str):
+                    raise TypeError()
+                day_utc_type_0 = datetime.datetime.fromisoformat(data.replace("Z", "+00:00"))
+
+                return day_utc_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(datetime.datetime | None | Unset, data)
+
+        day_utc = _parse_day_utc(d.pop("dayUtc", UNSET))
+
+        def _parse_updated_at(data: object) -> datetime.datetime | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, str):
+                    raise TypeError()
+                updated_at_type_0 = datetime.datetime.fromisoformat(data.replace("Z", "+00:00"))
+
+                return updated_at_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(datetime.datetime | None | Unset, data)
+
+        updated_at = _parse_updated_at(d.pop("updatedAt", UNSET))
+
         get_market_context_response_200_sentiment = cls(
             bullish_votes=bullish_votes,
             bearish_votes=bearish_votes,
             total_votes=total_votes,
             bullish_pct=bullish_pct,
+            day_utc=day_utc,
+            updated_at=updated_at,
         )
 
         get_market_context_response_200_sentiment.additional_properties = d

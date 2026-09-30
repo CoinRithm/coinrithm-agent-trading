@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
+from ..models.spot_order_response_summary_execution_model_status import SpotOrderResponseSummaryExecutionModelStatus
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
@@ -23,34 +24,15 @@ class SpotOrderResponseSummary:
         quantity (float | Unset):
         execution_price (float | Unset): market only; fill price after spread+slippage
         total_cost (float | Unset): market only
-        pnl (float | Unset): market only; realized PnL in USD, net of fee
-        fee_usd (float | Unset): market only; taker fee charged on this fill
-        slippage_usd (float | Unset): market only; modeled slippage cost
-        execution_model (ExecutionModel | Unset): Paper Execution Realism v1 cost disclosure. Paper fills apply a
-            deterministic, fully-disclosed cost so simulated PnL reflects real
-            trading friction (a flat round-trip is a small loss, not a free
-            breakeven). This is a rehearsal cost model, NOT an exchange fill
-            guarantee. Per venue:
-                - spot: a taker fee (`feeBps`) on notional, with market orders also
-                  filling at an adverse price (half-spread + slippage). Futures use
-                  the default-off legacy mark fill unless `futures_fill_v1` is
-                  pinned; that model applies deterministic half-spread, slippage,
-                  and square-root size-scaled impact, with adverse cost embedded in
-                  the executed price.
-              - PM: fills at the ask (mid + half the ingested bid-ask spread) with
-                size/liquidity-based slippage and a Polymarket-shaped taker fee
-                (~1.8% near 50%, ~0 at the extremes), folded into `sharesMusd`.
-                `feeBps`/`spreadBps` are positive and `slippageBps` scales with
-                order size; `entryProbability` stays the mid for calibration.
-            Futures quote funding is estimated from the latest venue rate when
-            available and may change before settlement. Covered futures charges are
-            applied from recorded settled venue history; `fundingMode` is a
-            venue-specific mode such as `binance_perp_rate_v1`,
-            `bybit_perp_rate_v1`, or `gateio_perp_rate_v1`, and is
-            `not_modeled` when no latest rate is available. Funding does not apply
-            to spot or PM. Futures liquidation forfeits margin without adverse fill
-            cost, and fixed-price SL/TP triggers fill at their set price. Order-book
-            depth, latency, and partial fills are not modeled.
+        pnl (float | None | Unset): market only; realized PnL in USD, net of fee. null on buys
+        fee_usd (float | None | Unset): market only; taker fee charged on this fill
+        slippage_usd (float | None | Unset): market only; modeled slippage cost
+        execution_model (ExecutionModel | None | Unset): Market only. null on an idempotent replay: the fill's
+            historical model parameters are not retained (see
+            `executionModelStatus`).
+        execution_model_status (SpotOrderResponseSummaryExecutionModelStatus | Unset): Market idempotent replay only.
+        execution_version (None | str | Unset): Market idempotent replay only. The fill's execution version,
+            e.g. "paper_execution_v1"; null for a pre-realism fill.
         limit_price (float | Unset): limit/stop only
         order_type (str | Unset): limit/stop only
     """
@@ -59,15 +41,19 @@ class SpotOrderResponseSummary:
     quantity: float | Unset = UNSET
     execution_price: float | Unset = UNSET
     total_cost: float | Unset = UNSET
-    pnl: float | Unset = UNSET
-    fee_usd: float | Unset = UNSET
-    slippage_usd: float | Unset = UNSET
-    execution_model: ExecutionModel | Unset = UNSET
+    pnl: float | None | Unset = UNSET
+    fee_usd: float | None | Unset = UNSET
+    slippage_usd: float | None | Unset = UNSET
+    execution_model: ExecutionModel | None | Unset = UNSET
+    execution_model_status: SpotOrderResponseSummaryExecutionModelStatus | Unset = UNSET
+    execution_version: None | str | Unset = UNSET
     limit_price: float | Unset = UNSET
     order_type: str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        from ..models.execution_model import ExecutionModel
+
         side = self.side
 
         quantity = self.quantity
@@ -76,15 +62,41 @@ class SpotOrderResponseSummary:
 
         total_cost = self.total_cost
 
-        pnl = self.pnl
+        pnl: float | None | Unset
+        if isinstance(self.pnl, Unset):
+            pnl = UNSET
+        else:
+            pnl = self.pnl
 
-        fee_usd = self.fee_usd
+        fee_usd: float | None | Unset
+        if isinstance(self.fee_usd, Unset):
+            fee_usd = UNSET
+        else:
+            fee_usd = self.fee_usd
 
-        slippage_usd = self.slippage_usd
+        slippage_usd: float | None | Unset
+        if isinstance(self.slippage_usd, Unset):
+            slippage_usd = UNSET
+        else:
+            slippage_usd = self.slippage_usd
 
-        execution_model: dict[str, Any] | Unset = UNSET
-        if not isinstance(self.execution_model, Unset):
+        execution_model: dict[str, Any] | None | Unset
+        if isinstance(self.execution_model, Unset):
+            execution_model = UNSET
+        elif isinstance(self.execution_model, ExecutionModel):
             execution_model = self.execution_model.to_dict()
+        else:
+            execution_model = self.execution_model
+
+        execution_model_status: str | Unset = UNSET
+        if not isinstance(self.execution_model_status, Unset):
+            execution_model_status = self.execution_model_status.value
+
+        execution_version: None | str | Unset
+        if isinstance(self.execution_version, Unset):
+            execution_version = UNSET
+        else:
+            execution_version = self.execution_version
 
         limit_price = self.limit_price
 
@@ -109,6 +121,10 @@ class SpotOrderResponseSummary:
             field_dict["slippageUsd"] = slippage_usd
         if execution_model is not UNSET:
             field_dict["executionModel"] = execution_model
+        if execution_model_status is not UNSET:
+            field_dict["executionModelStatus"] = execution_model_status
+        if execution_version is not UNSET:
+            field_dict["executionVersion"] = execution_version
         if limit_price is not UNSET:
             field_dict["limitPrice"] = limit_price
         if order_type is not UNSET:
@@ -129,18 +145,65 @@ class SpotOrderResponseSummary:
 
         total_cost = d.pop("totalCost", UNSET)
 
-        pnl = d.pop("pnl", UNSET)
+        def _parse_pnl(data: object) -> float | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(float | None | Unset, data)
 
-        fee_usd = d.pop("feeUsd", UNSET)
+        pnl = _parse_pnl(d.pop("pnl", UNSET))
 
-        slippage_usd = d.pop("slippageUsd", UNSET)
+        def _parse_fee_usd(data: object) -> float | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(float | None | Unset, data)
 
-        _execution_model = d.pop("executionModel", UNSET)
-        execution_model: ExecutionModel | Unset
-        if isinstance(_execution_model, Unset):
-            execution_model = UNSET
+        fee_usd = _parse_fee_usd(d.pop("feeUsd", UNSET))
+
+        def _parse_slippage_usd(data: object) -> float | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(float | None | Unset, data)
+
+        slippage_usd = _parse_slippage_usd(d.pop("slippageUsd", UNSET))
+
+        def _parse_execution_model(data: object) -> ExecutionModel | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                execution_model_type_0 = ExecutionModel.from_dict(data)
+
+                return execution_model_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(ExecutionModel | None | Unset, data)
+
+        execution_model = _parse_execution_model(d.pop("executionModel", UNSET))
+
+        _execution_model_status = d.pop("executionModelStatus", UNSET)
+        execution_model_status: SpotOrderResponseSummaryExecutionModelStatus | Unset
+        if isinstance(_execution_model_status, Unset):
+            execution_model_status = UNSET
         else:
-            execution_model = ExecutionModel.from_dict(_execution_model)
+            execution_model_status = SpotOrderResponseSummaryExecutionModelStatus(_execution_model_status)
+
+        def _parse_execution_version(data: object) -> None | str | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(None | str | Unset, data)
+
+        execution_version = _parse_execution_version(d.pop("executionVersion", UNSET))
 
         limit_price = d.pop("limitPrice", UNSET)
 
@@ -155,6 +218,8 @@ class SpotOrderResponseSummary:
             fee_usd=fee_usd,
             slippage_usd=slippage_usd,
             execution_model=execution_model,
+            execution_model_status=execution_model_status,
+            execution_version=execution_version,
             limit_price=limit_price,
             order_type=order_type,
         )
