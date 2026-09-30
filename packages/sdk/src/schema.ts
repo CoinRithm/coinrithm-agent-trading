@@ -1499,7 +1499,11 @@ export interface paths {
          * @description Never mutates state. Returns the live execution price, estimated cost
          *     (price × quantity), your available balance, and whether the fill is
          *     `eligible` — quote BEFORE `spot/order` instead of buying blind. Price
-         *     age is informational `freshness`. Requires scope `read`.
+         *     age is informational `freshness`. Optional `priceTiming` adds the
+         *     venue's own snapshot time next to CoinRithm's write time; it is
+         *     informational only: `freshness`, `eligible`/`blockReasons` and the
+         *     order path's guards still measure the row write time and are
+         *     unchanged. Requires scope `read`.
          */
         post: operations["spotQuote"];
         delete?: never;
@@ -3834,9 +3838,48 @@ export interface components {
                 coinAvailable?: number;
             };
             freshness?: components["schemas"]["Freshness"];
+            priceTiming?: components["schemas"]["SpotPriceTiming"];
             /** Format: date-time */
             asOf?: string;
             observation?: components["schemas"]["AgentObservation"];
+        };
+        /**
+         * @description Source-vs-row timing of the spot price (optional: absent on older API
+         *     versions). Informational only: `freshness`, `eligible` and the write
+         *     path's mark guard still measure the row WRITE time and are unchanged.
+         *     `sourceObservedAt` is a venue snapshot/ticker time, NOT a last-trade
+         *     time and NOT a per-fill receipt.
+         */
+        SpotPriceTiming: {
+            /**
+             * Format: date-time
+             * @description When CoinRithm wrote the price row; the same instant as freshness.asOf. null when there is no row.
+             */
+            rowWrittenAt: string | null;
+            /**
+             * Format: date-time
+             * @description The OLDEST venue snapshot time among the winning price cluster's
+             *     members that carry one. null when no member carries one.
+             */
+            sourceObservedAt: string | null;
+            /** @description max(0, now - sourceObservedAt), the same clamp as freshness.ageSeconds. */
+            sourceAgeSeconds: number | null;
+            /**
+             * @description rowWrittenAt - sourceObservedAt in seconds, SIGNED. Negative means
+             *     the venue's clock ran ahead of CoinRithm's (the writer admits up to
+             *     5 minutes); it is never clamped.
+             */
+            writeLagSeconds: number | null;
+            /**
+             * @description recorded: at least one cluster member carried a source time. It may
+             *     be PARTIAL: members without a stamp (e.g. Kraken, Gate.io) are not
+             *     represented. not_recorded: the row has no source time (unknown,
+             *     never fresh). no_row: there is no price row.
+             * @enum {string}
+             */
+            coverage: "recorded" | "not_recorded" | "no_row";
+            /** @constant */
+            basis: "venue_snapshot_time";
         };
         OpenOrder: {
             id?: number;

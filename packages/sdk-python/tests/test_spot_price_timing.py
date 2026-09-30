@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+
 from coinrithm_sdk.models.spot_quote_response import SpotQuoteResponse
 from coinrithm_sdk.types import UNSET
 
@@ -23,10 +25,17 @@ QUOTE = {
 
 
 def test_price_timing_parses_and_round_trips() -> None:
-    quote = SpotQuoteResponse.from_dict(QUOTE)
-    assert quote.price_timing.coverage == "recorded"
-    assert quote.price_timing.write_lag_seconds == 25
-    assert quote.to_dict()["priceTiming"]["sourceObservedAt"] == "2026-09-30T05:59:15.000Z"
+    for observed_at in ("2026-09-30T05:59:15.000Z", "2026-09-30T05:59:15.123Z"):
+        quote = SpotQuoteResponse.from_dict({
+            **QUOTE, "priceTiming": {**QUOTE["priceTiming"], "sourceObservedAt": observed_at},
+        })
+        assert quote.price_timing.coverage == "recorded"
+        assert quote.price_timing.write_lag_seconds == 25
+        expected = datetime.fromisoformat(observed_at.replace("Z", "+00:00"))
+        actual = datetime.fromisoformat(quote.to_dict()["priceTiming"]["sourceObservedAt"].replace("Z", "+00:00"))
+        assert actual == expected
+        assert actual.utcoffset() == timedelta(0)
+        assert actual.microsecond == expected.microsecond
 
 
 def test_negative_lag_and_unrecorded_timing_stay_explicit() -> None:
