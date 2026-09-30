@@ -7,6 +7,13 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
 ## Unreleased (runner source only, not part of the prepared 0.7.15)
 
+- Futures agents see `futuresCapacity` in the user prompt: open vs maximum
+  positions, slots left and margin headroom, computed exactly as the runner
+  validates. With no slot or no margin left, the prompt says plainly that no
+  futures_open (new or add) can pass. Production showed agents at 3 of 3
+  positions proposing a new open on most cycles (max_positions 222 and
+  open_margin_exceeds_cap 116 rejections in 6h), each a wasted model call.
+  The validator still enforces both caps.
 - The PM system prompt no longer claims a "genuine information edge" on crypto
   price markets or makes a PM bet REQUIRED. It says the market already prices
   the same public data, that short-dated price markets are usually efficient,
