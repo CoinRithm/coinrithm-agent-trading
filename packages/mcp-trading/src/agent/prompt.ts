@@ -35,6 +35,46 @@ export function buildDailyRiskBudget(
   };
 }
 
+// Prompt-only context: how much futures room is left, from the SAME arithmetic
+// the runner validates with (runner.ts openCount = observation.openPositions,
+// open margin = their marginMusd, against spec.risk.maxConcurrentPositions and
+// spec.limits.maxOpenMarginMusd). The system prompt already states the caps;
+// production showed agents at 3 of 3 proposing a new futures_open on most
+// cycles (max_positions 222 and open_margin_exceeds_cap 116 rejections in 6h,
+// 2026-09-30), each a wasted model call, because the model never counts. Not
+// a control: the validator still enforces both caps.
+export interface FuturesCapacity {
+  version: "coinrithm.futures-capacity.v1";
+  openPositions: number;
+  maxPositions: number;
+  slotsLeft: number;
+  openMarginMusd: number;
+  maxOpenMarginMusd: number;
+  marginHeadroomMusd: number;
+}
+
+export function buildFuturesCapacity(
+  spec: AgentSpec,
+  obs: Pick<Observation, "openPositions">,
+): FuturesCapacity {
+  const openPositions = obs.openPositions.length;
+  const openMarginMusd = obs.openPositions
+    .filter((p) => p.venue === "futures")
+    .reduce((sum, p) => sum + (p.marginMusd ?? 0), 0);
+  const maxPositions = spec.risk.maxConcurrentPositions;
+  const maxOpenMarginMusd = spec.limits.maxOpenMarginMusd;
+  return {
+    version: "coinrithm.futures-capacity.v1",
+    openPositions,
+    maxPositions,
+    slotsLeft: Math.max(0, maxPositions - openPositions),
+    openMarginMusd: Math.round(openMarginMusd * 100) / 100,
+    maxOpenMarginMusd,
+    marginHeadroomMusd:
+      Math.round(Math.max(0, maxOpenMarginMusd - openMarginMusd) * 100) / 100,
+  };
+}
+
 // Whole-dollar rendering for the compact PM rows (tokens, not precision).
 const roundUsd = (v?: number): number | undefined =>
   typeof v === "number" && Number.isFinite(v) ? Math.round(v) : undefined;
@@ -249,6 +289,7 @@ export function buildSystemPrompt(
       ? [
           "- Each pmMarkets row carries `end` (resolution date), `vol24h` and `liq` (USD): thin liquidity means a smaller stake and a wider required edge; your time stop must sit before `end`; a probability that moved on heavy volume is information, one that moved on none is noise.",
           "- A row may carry `consensus` (event-level, the same on every row of that event): a cross-venue reference `prob` (0..1) for `consensus.outcome`, which is not necessarily the row's own outcome; kind \"binary\" with outcome null prices the event's YES side, so compare it with the matching side yourself. `venues` = how many venues it combines, `spreadPts` = their disagreement in points. A price far from a tight multi-venue consensus is information; a wide spread is uncertainty; no consensus means unknown, not agreement.",
+          "- The FIRST row of an event may carry `rules`: how that event settles, as the venue states it (`text`, cut with … when long; `sources` = named outlets it settles from). Other rows with the same title share them. Judge the exact proposition, deadline and resolution source against `rules`, not the title alone. `published: false` means the venue publishes no rule, so the settlement terms are unknown: do not assume them from the title. A row without `rules` simply carries no rule text.",
           "- observation.pmCalibration (when present) is YOUR OWN settled PM forecast record: brierAgent vs brierMarket (lower is better), and per band what you said (meanForecastPct) vs how often it won (winRatePct), with n. If your forecasts have been overconfident (win rate below what you said in a band), shade your forecast toward the market or skip.",
         ]
       : []),
@@ -324,6 +365,7 @@ export function buildUserPrompt(
     venues?: AgentSpec["venues"];
     dailyRiskBudget?: DailyRiskBudget;
     capitalSizing?: AgentSpec["capitalSizing"];
+    futuresCapacity?: FuturesCapacity;
   } = {},
 ): string {
   // Default to every venue for backwards-compatible direct callers and probes.
@@ -363,6 +405,21 @@ export function buildUserPrompt(
             "Today's entry/add budget is EXHAUSTED until the next UTC day: propose no new entries or adds. Manage/protect existing positions and orders where valid, or skip; a flagged setup does not override this budget.",
           ]
         : []),
+    );
+  }
+  const capacity = hasFutures ? opts.futuresCapacity : undefined;
+  if (capacity) {
+    lines.push(
+      "futuresCapacity below is how much futures room is left right now: every futures_open, including an add to a position you hold, needs a free position slot (slotsLeft > 0) and its marginMusd must fit marginHeadroomMusd. Multiple opens/adds in one decision share slotsLeft and marginHeadroomMusd. The runner rejects anything beyond either cap.",
+      ...(capacity.slotsLeft === 0
+        ? [
+            `All ${capacity.maxPositions} futures position slots are in use: propose NO futures_open this cycle (it would be rejected as max_positions). Manage, protect or close what you hold, use another enabled venue, or skip.`,
+          ]
+        : capacity.marginHeadroomMusd <= 0
+          ? [
+              "Futures margin is at its cap (marginHeadroomMusd 0): propose NO futures_open this cycle (it would be rejected as open_margin_exceeds_cap). Manage, protect or close what you hold, use another enabled venue, or skip.",
+            ]
+          : []),
     );
   }
   // Flat-state steer: when the agent holds NOTHING, weaker models (Llama 3.1 8B)
@@ -447,6 +504,7 @@ export function buildUserPrompt(
       ...(opts.dailyRiskBudget
         ? { dailyRiskBudget: opts.dailyRiskBudget }
         : {}),
+      ...(capacity ? { futuresCapacity: capacity } : {}),
       cashAvailableMusd: obs.cashAvailableMusd,
       equityMusd: obs.equityMusd,
       ...(opts.capitalSizing
@@ -463,7 +521,7 @@ export function buildUserPrompt(
       // runner resolves the ref back to those. Also ~halves the PM block's tokens.
       ...(hasPm
         ? {
-            pmMarkets: obs.pmMarkets.map((m) => ({
+            pmMarkets: obs.pmMarkets.map((m, i, rows) => ({
               ref: m.ref,
               source: m.source,
               title: m.title,
@@ -482,6 +540,16 @@ export function buildUserPrompt(
               // Event-level cross-venue consensus; omitted (not null) when
               // unknown so rows without one cost no tokens.
               consensus: m.consensus ?? undefined,
+              // Event-level settlement terms, printed on the event's FIRST
+              // row only (its other outcome rows share the title) so a
+              // three-outcome event does not pay for the text three times.
+              rules:
+                m.rules &&
+                rows.findIndex(
+                  (r) => r.source === m.source && r.slug === m.slug,
+                ) === i
+                  ? m.rules
+                  : undefined,
             })),
           }
         : {}),

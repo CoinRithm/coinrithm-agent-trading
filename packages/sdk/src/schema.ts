@@ -4223,7 +4223,37 @@ export interface components {
             liquidity?: number;
             spread?: number | null;
             decisionSupport?: components["schemas"]["DecisionSupport"] | null;
+            /**
+             * @description How this market settles, bounded for a candidate list: the same
+             *     rule the public event page shows (same builder and sanitizer).
+             *     null = the event carries no rule text and no named settlement
+             *     outlets; never an inferred rule. The full text stays on
+             *     GET /api/prediction-markets/events/{source}/{slug}. Absent on
+             *     older API versions.
+             */
+            resolution?: components["schemas"]["PmDiscoveryResolution"] | null;
             quoteHint?: components["schemas"]["PmDiscoveryQuoteHint"];
+        };
+        PmDiscoveryResolution: {
+            /**
+             * @description False when the venue publishes no real rule (a question-only
+             *     body); `rules` is then null and the settlement terms are unknown.
+             */
+            published: boolean;
+            /**
+             * @description The de-duplicated rule text joined into one string: the
+             *     condition, the "otherwise" branch and the resolution source when
+             *     the venue states them. Cut at 700 characters with "…".
+             */
+            rules: string | null;
+            rulesTruncated: boolean;
+            settlementSource: string | null;
+            /** @description Named outlets the venue says it settles from (Kalshi); null elsewhere. */
+            settlementSources: {
+                name: string;
+                /** @description http(s) only; anything else is null */
+                url: string | null;
+            }[] | null;
         };
         PmDiscoveryOutcome: {
             externalMarketId?: string;

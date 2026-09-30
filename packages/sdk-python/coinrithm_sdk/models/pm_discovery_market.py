@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from ..models.freshness import Freshness
     from ..models.pm_discovery_outcome import PmDiscoveryOutcome
     from ..models.pm_discovery_quote_hint import PmDiscoveryQuoteHint
+    from ..models.pm_discovery_resolution import PmDiscoveryResolution
     from ..models.pm_quality import PmQuality
 
 
@@ -52,6 +53,13 @@ class PmDiscoveryMarket:
         liquidity (float | Unset):
         spread (float | None | Unset):
         decision_support (DecisionSupport | None | Unset):
+        resolution (None | PmDiscoveryResolution | Unset): How this market settles, bounded for a candidate list: the
+            same
+            rule the public event page shows (same builder and sanitizer).
+            null = the event carries no rule text and no named settlement
+            outlets; never an inferred rule. The full text stays on
+            GET /api/prediction-markets/events/{source}/{slug}. Absent on
+            older API versions.
         quote_hint (PmDiscoveryQuoteHint | Unset):
     """
 
@@ -69,11 +77,13 @@ class PmDiscoveryMarket:
     liquidity: float | Unset = UNSET
     spread: float | None | Unset = UNSET
     decision_support: DecisionSupport | None | Unset = UNSET
+    resolution: None | PmDiscoveryResolution | Unset = UNSET
     quote_hint: PmDiscoveryQuoteHint | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         from ..models.decision_support import DecisionSupport
+        from ..models.pm_discovery_resolution import PmDiscoveryResolution
 
         source: str | Unset = UNSET
         if not isinstance(self.source, Unset):
@@ -136,6 +146,14 @@ class PmDiscoveryMarket:
         else:
             decision_support = self.decision_support
 
+        resolution: dict[str, Any] | None | Unset
+        if isinstance(self.resolution, Unset):
+            resolution = UNSET
+        elif isinstance(self.resolution, PmDiscoveryResolution):
+            resolution = self.resolution.to_dict()
+        else:
+            resolution = self.resolution
+
         quote_hint: dict[str, Any] | Unset = UNSET
         if not isinstance(self.quote_hint, Unset):
             quote_hint = self.quote_hint.to_dict()
@@ -171,6 +189,8 @@ class PmDiscoveryMarket:
             field_dict["spread"] = spread
         if decision_support is not UNSET:
             field_dict["decisionSupport"] = decision_support
+        if resolution is not UNSET:
+            field_dict["resolution"] = resolution
         if quote_hint is not UNSET:
             field_dict["quoteHint"] = quote_hint
 
@@ -182,6 +202,7 @@ class PmDiscoveryMarket:
         from ..models.freshness import Freshness
         from ..models.pm_discovery_outcome import PmDiscoveryOutcome
         from ..models.pm_discovery_quote_hint import PmDiscoveryQuoteHint
+        from ..models.pm_discovery_resolution import PmDiscoveryResolution
         from ..models.pm_quality import PmQuality
 
         d = dict(src_dict)
@@ -279,6 +300,23 @@ class PmDiscoveryMarket:
 
         decision_support = _parse_decision_support(d.pop("decisionSupport", UNSET))
 
+        def _parse_resolution(data: object) -> None | PmDiscoveryResolution | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                resolution_type_0 = PmDiscoveryResolution.from_dict(data)
+
+                return resolution_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(None | PmDiscoveryResolution | Unset, data)
+
+        resolution = _parse_resolution(d.pop("resolution", UNSET))
+
         _quote_hint = d.pop("quoteHint", UNSET)
         quote_hint: PmDiscoveryQuoteHint | Unset
         if isinstance(_quote_hint, Unset):
@@ -301,6 +339,7 @@ class PmDiscoveryMarket:
             liquidity=liquidity,
             spread=spread,
             decision_support=decision_support,
+            resolution=resolution,
             quote_hint=quote_hint,
         )
 
