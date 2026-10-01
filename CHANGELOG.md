@@ -8,12 +8,15 @@ Each package has its own version; the API contract is versioned separately.
 [TypeScript history](packages/sdk/CHANGELOG.md) ·
 [Python release notes](packages/sdk-python/README.md)
 
-## MCP 0.7.15, TypeScript 0.3.4, Python 1.8.4 (prepared 2026-09-28, not yet published)
+## MCP 0.7.15, TypeScript 0.3.4, Python 1.8.4 (source through 2026-10-01, not yet published)
 
-Prepared and frozen for review; registry upload is pending. Published MCP
+These notes describe current source, including changes after the frozen
+September 28 draft. Fresh archives and a matching manifest must be verified
+before registry upload; the old draft is not this complete release. Published MCP
 `0.7.14`, TypeScript SDK `0.3.3` and Python SDK `1.8.3` remain the installable
-versions until the upload is verified. The API contract stays `1.7.0`
-(additive only).
+versions until the upload is verified. The API contract stays `1.7.0`.
+Most fields are optional additions; price-history types and spot replay
+nullability also correct the previous SDK description of existing responses.
 
 - Both SDKs: optional `representativeOutcome` and `representativeOutcomeBasis`
   on prediction-market events (open events only), canonical `consensus` and
@@ -24,6 +27,21 @@ versions until the upload is verified. The API contract stays `1.7.0`
   summaries; the opt-in `whale_context` runner capability; explicit zero
   evidence for cycles skipped before inference; `pm_data_canonical` documents
   consensus; and the hosted server recovers the pasted-markdown descriptor link.
+- Both SDKs: public resolved, surprise, expiring, order-book and trade endpoints;
+  event subtitles, per-outcome price basis and exact/unknown settlement rules;
+  informational futures-entry eligibility and spot source-versus-row timing.
+  Price history describes one outcome's `points` over a lookback range.
+  Spot fill receipts expose `orderId`; replay models preserve nullable evidence
+  rather than inventing historical execution parameters.
+- MCP: keyless Arena reads, open-market discovery defaults, compact event
+  results with explicit full-detail opt-in, and `get_news` for scored news.
+  Current source registers 41 tools.
+- Runner: preflight new futures entries against available reference evidence,
+  share capacity across actions, preserve each PM outcome's settlement rule,
+  and describe forecasts as market-aware. Capacity-limited prompts retain
+  valid exits/protection; withheld-action diagnostics identify the provider
+  response source. These changes do not establish independent, price-blinded
+  forecasts or reproduce every hosted setting in a stock self-hosted run.
 
 ## MCP 0.7.14, TypeScript 0.3.3, Python 1.8.3 (2026-09-24)
 

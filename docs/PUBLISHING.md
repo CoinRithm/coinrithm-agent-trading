@@ -40,7 +40,7 @@ Clean-install Node/Python checks passed. The GitHub release is published, and
 the official MCP Registry lists **0.7.14** as active and latest after the
 [registry workflow](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/36003403675).
 
-## Prepared delivery, 28 September 2026 (not yet uploaded)
+## Frozen draft, 28 September 2026 (not yet uploaded)
 
 | Registry | Package                  | Version  | Files                                                                |
 | -------- | ------------------------ | -------- | -------------------------------------------------------------------- |
@@ -49,11 +49,41 @@ the official MCP Registry lists **0.7.14** as active and latest after the
 | PyPI     | `coinrithm-sdk`          | `1.8.4`  | `coinrithm_sdk-1.8.4-py3-none-any.whl`, `coinrithm_sdk-1.8.4.tar.gz` |
 
 The four archives, `release-manifest.json` and `SHA256SUMS.txt` are frozen
-together with a GitHub draft release. The manifest records the archive build
-source. The upload needs the authorized publishing accounts and follows the
-public API contract check for the new fields. Until verification, published
-versions stay 0.7.14, 0.3.3 and 1.8.3, and public install/example pins stay on
-them.
+together with a GitHub draft release. Their archive build source is
+`b8130033e89014ed9739c1916bf5b8495495ae3d`; the draft targets the reviewed
+`6ba6bb79356f5529b55879553a75fce70009a0eb`, whose subsequent changes affect only
+the root README. These archives do not contain the contract, SDK and runner
+changes merged after that preparation. **Do not treat the September 28 archives
+as a release of current source**, even though the package version numbers have
+not changed.
+
+The upload needs the authorized publishing accounts and the public API contract
+check for the selected release. Until verification, published versions stay
+0.7.14, 0.3.3 and 1.8.3, and public install/example pins stay on them.
+
+## Prepare a release from newer source
+
+To include changes made after the frozen draft:
+
+1. Select an exact reviewed source revision and confirm its package versions
+   are still available to publish. Align the release notes and package
+   documentation with the features included in that revision.
+2. Regenerate both SDKs from that revision's canonical `openapi.yaml`, using
+   the committed generator configuration and Python templates. Follow the
+   package and compatibility checks in [CI](../.github/workflows/ci.yml),
+   reusing valid evidence only for unchanged source and dependencies.
+3. Build the MCP archive, TypeScript SDK archive, and Python wheel and source
+   archive from the selected source. Collect all four in a fresh artifact
+   directory; do not mix them with the September 28 archives. Record the exact
+   build revision, versions, filenames and SHA-256 values in a new
+   `release-manifest.json` and matching `SHA256SUMS.txt`.
+4. Verify the new archives and their clean-install checks, then update the
+   GitHub draft's target, notes, complete archive set and manifest together.
+   Retain the previous preparation's receipt as history, clearly identifying
+   which artifact set is selected for upload.
+
+This procedure does not record a completed replacement artifact set or registry
+upload. A successful source CI run alone does not update the frozen draft.
 
 ## Before uploading
 
@@ -83,8 +113,10 @@ its runnable examples are pinned to these published SDK versions.
 
 ## Upload the exact archives
 
-Run these commands from the reviewed artifact directory. Use the authorized
-publishing accounts. Keep credentials in the local login/password prompts.
+Run these commands from the selected, reviewed artifact directory after the
+checks above. The examples use the prepared version numbers; confirm every
+filename against the selected manifest. Use the authorized publishing accounts.
+Keep credentials in the local login/password prompts.
 
 ```powershell
 npm login --auth-type=web --registry=https://registry.npmjs.org/
@@ -116,8 +148,9 @@ describe the underlying upload commands.
    target commit, attached archives and checksums must match the reviewed source
    and uploads. Keep the previous release available.
 3. Dispatch `.github/workflows/publish-mcp.yml` against the exact release ref
-   after npm 0.7.15 exists. The workflow publishes **MCP Registry metadata only**;
-   it does not upload an npm package. Verify the resulting registry entry.
+   after the matching npm version exists. The workflow publishes **MCP Registry
+   metadata only**; it does not upload an npm package. Verify the resulting
+   registry entry.
 4. Update the README, changelog and release-status records from prepared to
    verified publication. Update runnable-example SDK pins to the published
    versions and run their existing tests before rebuilding Pages.

@@ -5,15 +5,17 @@ ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (t
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
 versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
-## Unreleased (runner source only, not part of the prepared 0.7.15)
+## 0.7.15 (current source, not yet published)
 
-- PM board rows carry how the event settles, from the discover row's optional
-  `resolution` (backend-v2 #111): `rules` = `{ published, text?, sources? }`,
-  the same rule the public event page shows, cut to 500 characters. It is
-  printed once per event (on its first row), so a three-outcome event does not
-  pay for it three times. `published: false` tells the model the venue
-  publishes no rule; an absent field (older API) carries no information and
-  changes nothing.
+These notes include source changes through 1 October 2026. The frozen
+September 28 draft archives omit later changes and must be replaced with a
+new reviewed artifact set before this complete release is uploaded.
+
+- PM board rows carry event settlement context from discovery's optional
+  `resolution`. Where `scope` is `per_outcome`, each row also carries its own
+  provider-bound `outcomeRule`, preserving exact primary/secondary terms or
+  explicit unknown status. Event-level text does not substitute for another
+  outcome's rule. Missing fields on older APIs remain unknown.
 - Futures agents see `futuresCapacity` in the user prompt: open vs maximum
   positions, slots left and margin headroom, computed exactly as the runner
   validates. With no slot or no margin left, the prompt says plainly that no
@@ -39,7 +41,19 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
   settled forecasts. It is read at most once per 30 minutes per credential,
   without retries, and omitted on any failure.
 
-## 0.7.15 (prepared, not yet published)
+- Preflight new futures entries using informational reference eligibility;
+  validate the available position and margin capacity across actions in the
+  same cycle. Adds/exits retain their separate rules, and the API rechecks
+  execution-time eligibility. Preserve reported capacity and spot fill
+  receipts in decision evidence without claiming full historical replay.
+- Describe forecasts as market-aware, not price-blinded. A capacity-limited
+  agent may still exit or adjust protection. Withheld-action diagnostics are
+  attributed to the provider response that produced them.
+- Add `get_news` for scored crypto news, bringing the source MCP surface to
+  41 tools. Arena reads work without a key; discovery defaults to open
+  markets. Default event results remain compact, with `detail: "full"` for
+  the complete event response. Preserve event subtitles and per-outcome
+  price basis in bounded output.
 
 - The hosted HTTP server recovers the pasted-markdown descriptor link
   (`/mcp` followed by `](`, literal or percent-encoded): GET/HEAD redirect to

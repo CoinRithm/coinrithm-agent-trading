@@ -25,8 +25,17 @@ for registry availability. The notes and examples below describe version 1.8.4.
   its own outcome label). `listings` may be a subset of the contributing venues.
 - Outcomes type the optional `has_observed_price` flag and nullable
   `source_observation` provenance.
-- All additive; generated from API contract 1.7.0. The basis and consensus
-  kind are strict enums, so a future value needs a matching SDK release.
+- Adds public resolved/surprise/expiring, order-book and trade endpoints;
+  event subtitles, price basis and per-outcome settlement rules.
+- Adds optional futures-entry eligibility, spot `price_timing`, fill `order_id`
+  and replay evidence. Snapshot timing is informational, not a per-fill receipt.
+- Corrects price-history models to one outcome's `points` over a lookback
+  interval and fixes parsing of nullable spot replay evidence. These corrections
+  describe existing wire behavior and may require caller adjustments.
+- Generated from API contract 1.7.0. Most other fields are optional additions.
+  The basis and consensus kind are strict enums, so a future value needs a
+  matching SDK release. These notes include changes after the frozen
+  September 28 draft; that draft is not the complete current release.
 
 ## 1.8.3
 

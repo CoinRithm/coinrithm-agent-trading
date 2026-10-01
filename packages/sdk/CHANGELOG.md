@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.4 (prepared, not yet published)
+## 0.3.4 (current source, not yet published)
 
 - Adds optional `representativeOutcome` (a full `PublicPmOutcome`, or `null`)
   and `representativeOutcomeBasis` (`threshold_ladder_line` or
@@ -15,8 +15,18 @@
   subset of the contributing venues.
 - Types the optional per-outcome `hasObservedPrice` flag and nullable
   `sourceObservation` provenance.
-- All additive; generated from API contract 1.7.0. The basis and consensus
-  kind are strict enums, so a future value needs a matching SDK release.
+- Adds types for public resolved/surprise/expiring events, order books and
+  trades, event subtitles, price basis and per-outcome settlement rules.
+- Adds optional futures-entry eligibility, spot quote `priceTiming`, fill
+  `orderId` and replay evidence. Timing is informational; source snapshot
+  time is neither a last-trade timestamp nor a per-fill receipt.
+- Corrects price-history types to describe one outcome's `points` and a
+  lookback interval; corrects nullable spot replay fields. These corrections
+  describe existing wire behavior and may require changes in typed callers.
+- Generated from API contract 1.7.0. Most fields are optional additions. The
+  basis and consensus kind are strict enums, so a future value needs a
+  matching SDK release. These notes include changes after the frozen
+  September 28 draft; that draft is not the complete current release.
 
 ## 0.3.3
 
