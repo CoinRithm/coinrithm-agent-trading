@@ -270,8 +270,10 @@ is versioned separately. Registry publication was verified on **24 September 202
 | `@coinrithm/sdk` (TypeScript)                          | **0.3.3**                  | **0.3.4**      |
 | `coinrithm-sdk` (Python)                               | **1.8.3**                  | **1.8.4**      |
 
-Source versions **0.7.15**, **0.3.4** and **1.8.4** were prepared on
-**28 September 2026** and are not yet published; see the
+Source versions **0.7.15**, **0.3.4** and **1.8.4** are not yet published.
+Their release notes now include source changes through **1 October 2026**;
+the older **28 September** draft archives do not include all of those changes.
+Use the newly reviewed archive set when it is prepared; see the
 [changelog](CHANGELOG.md) and [publishing record](docs/PUBLISHING.md).
 
 All four published npm/PyPI archives match the reviewed release manifest byte for byte

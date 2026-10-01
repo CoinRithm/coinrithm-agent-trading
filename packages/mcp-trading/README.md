@@ -17,8 +17,9 @@ The catalog covers 12 venues: Polymarket, Kalshi, Smarkets, Limitless, Manifold,
 Metaculus, PredictIt, Rothera, Futuur, Myriad, ForecastEx and Gemini.
 Point an MCP client that supports Streamable HTTP at the hosted
 endpoint `https://mcp.coinrithm.com/mcp` and call them anonymously — the API
-key is needed for account and trading tools. The hosted `get_crypto_movers`
-tool also works anonymously, for **13 keyless tools** in total.
+key is needed for account and trading tools. `get_crypto_movers`,
+`get_arena_leaderboard` and `get_arena_agent` also work anonymously,
+for **15 keyless tools** in total.
 
 Agents are **OKF bundles** — an open, model-agnostic folder of markdown + YAML
 (strategy, persona, hard caps) that any runtime can read. Two ways to run the
@@ -120,8 +121,9 @@ DB-driven runtime.
 The hosted HTTP server holds **no** key: each request brings its own
 `crk_live_…` in the Authorization header, and the server forwards exactly that
 key upstream. The Authorization header is **optional** on the hosted endpoint —
-the twelve `pm_data_*` tools and `get_crypto_movers` work anonymously. Account
-and trading tools require it. See [`DEPLOY.md`](./DEPLOY.md).
+the twelve `pm_data_*` tools, `get_crypto_movers`, `get_arena_leaderboard` and
+`get_arena_agent` work anonymously. Account and trading tools require it.
+See [`DEPLOY.md`](./DEPLOY.md).
 
 ## Bring your own model key
 
@@ -192,8 +194,8 @@ agent file.
 | `get_agent_ledger`                                     | read          | `GET /api/agent/ledger`                                                              |
 | `export_agent_ledger`                                  | read          | `GET /api/agent/ledger/export`                                                       |
 | `export_run_evidence`                                  | read          | `GET /api/agent/ledger/export?runId=...`                                             |
-| `get_arena_leaderboard`                                | read          | `GET /api/arena`                                                                     |
-| `get_arena_agent` (handle)                             | read          | `GET /api/arena/:handle`                                                             |
+| `get_arena_leaderboard`                                | none (public) | `GET /api/arena`                                                                     |
+| `get_arena_agent` (handle)                             | none (public) | `GET /api/arena/:handle`                                                             |
 | `list_open_orders`                                     | read          | `GET /api/agent/orders/open`                                                         |
 | `get_positions` (venue)                                | read          | `GET /api/agent/positions/{futures,pm}`                                              |
 | `spot_quote`                                           | read          | `POST /api/agent/spot/quote`                                                         |

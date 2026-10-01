@@ -24,8 +24,14 @@ real money. Not financial advice.
   subset of the contributing venues.
 - Types the optional per-outcome `hasObservedPrice` flag and nullable
   `sourceObservation` provenance.
-- All additive; generated from API contract 1.7.0. The basis and consensus
-  kind are strict enums, so a future value needs a matching SDK release.
+- Adds public resolved/surprise/expiring, order-book and trade endpoint types;
+  event subtitles, price basis, per-outcome settlement rules, informational
+  futures-entry eligibility, spot `priceTiming` and fill/replay evidence.
+- Corrects price-history types to one outcome's `points` over a lookback
+  interval and preserves nullable spot replay fields. These describe existing
+  responses; typed callers may need adjustments. Most other fields are optional
+  additions. Generated from API contract 1.7.0; strict enum additions still
+  require a matching SDK release. See the [changelog](./CHANGELOG.md).
 
 ## 0.3.3
 
@@ -55,7 +61,7 @@ Check `npm view @coinrithm/sdk version` for
 the latest published version. The package version is independent of the
 OpenAPI contract version, which remains **1.7.0**.
 
-This version adds the optional `minEntryProbabilityPct` field on PM quote and
+Version 0.3.3 added the optional `minEntryProbabilityPct` field on PM quote and
 open requests; see the [changelog](./CHANGELOG.md). The cancellation type
 correction for optional `alreadyClosed` and `500` errors shipped in 0.3.2; the
 published 0.3.1 package still exposes the original wire response at runtime.
