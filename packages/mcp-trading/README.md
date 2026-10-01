@@ -120,7 +120,7 @@ DB-driven runtime.
 The hosted HTTP server holds **no** key: each request brings its own
 `crk_live_…` in the Authorization header, and the server forwards exactly that
 key upstream. The Authorization header is **optional** on the hosted endpoint —
-the ten `pm_data_*` tools and `get_crypto_movers` work anonymously. Account
+the twelve `pm_data_*` tools and `get_crypto_movers` work anonymously. Account
 and trading tools require it. See [`DEPLOY.md`](./DEPLOY.md).
 
 ## Bring your own model key
@@ -244,8 +244,12 @@ includes `crossSourceMatches` (the same real-world question priced on other
 venues), `referenceProbability`, `volumeHistory`, and resolution evidence.
 Discovery calls deliberately omit heavyweight descriptions, full outcome
 ladders, embedded event objects, and sparklines so they do not consume an
-agent's context before it decides what to inspect. Event search returns the
-five highest-probability outcomes plus `outcomeCount`; follow with
+agent's context before it decides what to inspect. Event search returns up to
+five outcomes plus `outcomeCount`. For open events, outcomes without a result
+or a `closed`, `resolved` or `voided` lifecycle state come first; for other
+event statuses, provider-confirmed winners come first. Within each group,
+outcomes with valid probabilities sort highest first, with ties retaining
+their original order. Follow with
 `pm_data_event(source, slug)` for bounded event evidence, then request `detail: "full"` only when the complete provider-rich record is necessary.
 Bounded outcome summaries may include `hasObservedPrice` and
 `sourceObservation`: `hasObservedPrice:false` means the provider supplied no
@@ -282,8 +286,9 @@ and closes, which all require one; reuse replays the original result).
 
 Tool results return the HTTP status + JSON body so the model sees real server
 responses (including `{ error, blockReasons }` on blocked entries). Public
-discovery tools use the bounded summary shape described above; action and
-event-detail tools preserve the full response body.
+discovery tools use the bounded summary shape described above. `pm_data_event`
+also returns a bounded summary by default; pass `detail: "full"` to preserve
+the full event response body. Action tools preserve the full response body.
 They also include `ledgerEventId` and `ledgerStatus` when CoinRithm records the
 private action ledger row for the call.
 
