@@ -750,8 +750,10 @@ export async function persistCycleResult(
       );
     }
     if (args.disableReason) {
+      // A cycle may finish after the owner paused/disconnected/revoked it.
+      // Keep that newer authoritative status and reason intact.
       await client.query(
-        "UPDATE agent_runtime.agents SET status = 'disabled', disabled_reason = $2, updated_at = now() WHERE id = $1",
+        "UPDATE agent_runtime.agents SET status = 'disabled', disabled_reason = $2, updated_at = now() WHERE id = $1 AND status = 'active'",
         [agentId, args.disableReason.slice(0, 500)],
       );
     } else {
@@ -887,8 +889,10 @@ export async function disableAgent(
   agentId: number,
   reason: string,
 ): Promise<void> {
+  // Setup work can also finish after an owner stop. Only disable an agent
+  // that is still running; never replace an existing pause or stop reason.
   await pool.query(
-    "UPDATE agent_runtime.agents SET status = 'disabled', disabled_reason = $2, updated_at = now() WHERE id = $1",
+    "UPDATE agent_runtime.agents SET status = 'disabled', disabled_reason = $2, updated_at = now() WHERE id = $1 AND status = 'active'",
     [agentId, reason.slice(0, 500)],
   );
 }
@@ -899,6 +903,8 @@ export async function disableAgent(
 //   - ANY user agent the SYSTEM stopped on a RECOVERABLE fault — a flaky-model
 //     streak, rate-limit pressure, a reject run, or an unknown disable.
 // It deliberately does NOT revive:
+//   - explicit owner stops (disconnect or API-key revocation). Match the API's
+//     existing 'by owner' reason contract; only the owner may resume these.
 //   - ANY agent (house included, since 2026-08-27) stopped by its own DRAWDOWN
 //     limit (a real, intended risk stop) or a SETUP error (a broken config that
 //     would just re-fail). House agents were exempt from this until live
@@ -932,6 +938,7 @@ export async function reviveDisabledAgents(pool: Pool): Promise<string[]> {
       `UPDATE agent_runtime.agents
           SET status = 'active', disabled_reason = NULL, next_run_at = now(), updated_at = now()
         WHERE status = 'disabled'
+          AND COALESCE(disabled_reason, '') NOT ILIKE '%by owner%'
           AND COALESCE(disabled_reason, '') NOT ILIKE 'model_unavailable%'
           AND COALESCE(disabled_reason, '') NOT ILIKE 'key_invalid%'
           AND COALESCE(disabled_reason, '') NOT ILIKE '%drawdown%'

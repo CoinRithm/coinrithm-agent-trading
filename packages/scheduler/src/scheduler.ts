@@ -140,9 +140,9 @@ export async function runScheduler(
       staleLoggedFor = undefined;
     }
     try {
-      // Self-heal FIRST so a revived agent is also claimed this same tick: the
-      // Arena must never be a graveyard when a visitor lands (a flaky-model streak
-      // or any house stop is undone automatically, no manual re-seed).
+      // Recover transient failures FIRST so revived agents can run this tick.
+      // Owner stops, pauses and permanent/risk failures remain authoritative,
+      // including for house agents.
       const revived = await reviveDisabledAgents(pool);
       if (revived.length > 0)
         logFn(
