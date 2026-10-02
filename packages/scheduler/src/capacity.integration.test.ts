@@ -18,6 +18,8 @@ import {
   costByOwnerSince,
   recordCycle,
   reviveDisabledAgents,
+  disableAgent,
+  persistCycleResult,
   migrateHouseAgentsOffGroq,
   migrateAgentsOffEolModels,
 } from "./db.js";
@@ -754,18 +756,22 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
     expect(await migrateAgentsOffEolModels(pool)).toEqual([0, 0]);
   });
 
-  it("revives only recoverable failures and retains risk stops and daily counters", async () => {
+  it("revives only recoverable failures and retains owner/risk stops and daily counters", async () => {
     const recoverable = await addAgent(
       "recoverable",
       101,
       "temporary failures",
     );
-    for (const reason of [
+    const protectedReasons = [
       "drawdown stop",
       "model_unavailable",
       "key_invalid",
       "setup error",
-    ])
+      "stopped by owner (API key revoked)",
+      "disconnected by owner",
+      "Stopped By Owner",
+    ];
+    for (const reason of protectedReasons)
       await addAgent(reason.replaceAll(" ", "-"), 101, reason);
     await saveStateJson(pool, recoverable, {
       disabled: true,
@@ -786,7 +792,83 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
           [recoverable],
         )
       ).rows,
-    ).toEqual(Array.from({ length: 4 }, () => ({ status: "disabled" })));
+    ).toEqual(
+      Array.from({ length: protectedReasons.length }, () => ({
+        status: "disabled",
+      })),
+    );
     expect(await reviveDisabledAgents(pool)).toEqual([]);
   });
+
+  it("still recovers a null reason while leaving paused agents alone", async () => {
+    const recoverable = await addAgent("null-reason");
+    const paused = await addAgent("owner-paused");
+    await pool.query(
+      "UPDATE agent_runtime.agents SET status = 'disabled' WHERE id = $1",
+      [recoverable],
+    );
+    await pool.query(
+      "UPDATE agent_runtime.agents SET status = 'paused' WHERE id = $1",
+      [paused],
+    );
+    expect(await reviveDisabledAgents(pool)).toEqual(["null-reason"]);
+    expect(await agentRow(paused)).toMatchObject({
+      status: "paused",
+      disabled_reason: null,
+    });
+  });
+
+  it.each(["cycle", "setup"] as const)(
+    "a late %s failure cannot replace an owner stop or pause",
+    async (writer) => {
+      const active = await addAgent("still-active");
+      const stopped = await addAgent(
+        "owner-revoked",
+        101,
+        "stopped by owner (API key revoked)",
+      );
+      const disconnected = await addAgent(
+        "owner-disconnected",
+        101,
+        "disconnected by owner",
+      );
+      const paused = await addAgent("owner-paused");
+      await pool.query(
+        "UPDATE agent_runtime.agents SET status = 'paused' WHERE id = $1",
+        [paused],
+      );
+      const before = await pool.query(
+        "SELECT id, status, disabled_reason, next_run_at, updated_at FROM agent_runtime.agents WHERE id <> $1 ORDER BY id",
+        [active],
+      );
+      for (const id of [active, stopped, disconnected, paused]) {
+        if (writer === "cycle") {
+          await persistCycleResult(pool, id, {
+            state: { disabled: true, disabledReason: "temporary failures" },
+            cycle: { decision: "skip", disabled: true, actions: [] },
+            disableReason: "temporary failures",
+          });
+        } else {
+          await disableAgent(pool, id, "temporary failures");
+        }
+      }
+      expect(await agentRow(active)).toMatchObject({
+        status: "disabled",
+        disabled_reason: "temporary failures",
+      });
+      expect(await reviveDisabledAgents(pool)).toEqual(["still-active"]);
+      const after = await pool.query(
+        "SELECT id, status, disabled_reason, next_run_at, updated_at FROM agent_runtime.agents WHERE id <> $1 ORDER BY id",
+        [active],
+      );
+      expect(after.rows).toEqual(before.rows);
+      if (writer === "cycle") {
+        const { rows } = await pool.query(
+          "SELECT count(*)::int AS count FROM agent_runtime.agent_cycles WHERE agent_id = ANY($1::bigint[])",
+          [[active, stopped, disconnected, paused]],
+        );
+        expect(rows).toEqual([{ count: 4 }]);
+      }
+    },
+  );
 });
