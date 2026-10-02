@@ -21,6 +21,69 @@ import {
   type CycleRecord,
 } from "./db.js";
 
+describe("model diagnostic persistence boundary", () => {
+  it("retains fixed categories on malformed attempts and drops free text or misplaced diagnostics", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const pool = { query } as unknown as Pool;
+    for (const [
+      outcome,
+      failureClass,
+      diagnostic,
+      responseSource,
+      retained,
+    ] of [
+      [
+        "failed",
+        "malformed",
+        "json_array_nonempty_valid_decision",
+        "tool_call",
+        true,
+      ],
+      ["failed", "malformed", "PRIVATE_OUTPUT", "PRIVATE_OUTPUT", false],
+      [
+        "success",
+        undefined,
+        "json_array_nonempty_valid_decision",
+        "tool_call",
+        false,
+      ],
+      [
+        "failed",
+        "transient",
+        "json_array_nonempty_valid_decision",
+        "tool_call",
+        false,
+      ],
+    ] as const) {
+      query.mockClear();
+      await recordCycle(pool, 1, {
+        decision: "skip",
+        routeAttempts: [
+          {
+            provider: "nvidia",
+            model: "fixture",
+            outcome,
+            failureClass,
+            latencyMs: 1,
+            actionsStringDiagnostic: diagnostic,
+            responseSource,
+            rawModelOutput: "PRIVATE_OUTPUT",
+          },
+        ],
+      });
+      const audit = JSON.parse(String(query.mock.calls[0][1][24]))[0];
+      if (retained) {
+        expect(audit.actionsStringDiagnostic).toBe(diagnostic);
+        expect(audit.responseSource).toBe(responseSource);
+      } else {
+        expect(audit).not.toHaveProperty("actionsStringDiagnostic");
+        expect(audit).not.toHaveProperty("responseSource");
+      }
+      expect(JSON.stringify(audit)).not.toContain("PRIVATE_OUTPUT");
+    }
+  });
+});
+
 // No-CoT privacy policy (see f778338 + the DB write boundary hardening in
 // db.ts): agent_runtime.agent_cycles.raw_model_output must NEVER receive raw
 // model text, no matter what a caller passes. CycleRecord no longer even

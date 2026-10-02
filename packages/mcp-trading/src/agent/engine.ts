@@ -27,7 +27,11 @@ export {
   type DecideRouteAttempt,
   type DecideRouteMeta,
 } from "./providers.js";
-export { parseDecision } from "./decision.js";
+export {
+  parseDecision,
+  ACTIONS_STRING_DIAGNOSTICS,
+  type ActionsStringDiagnostic,
+} from "./decision.js";
 // Reliability slice A: the declarative request-capability table and the
 // representative decision probe (route eligibility = a REAL parsed decision,
 // never a bare HTTP 200 — the 62f3a12 lesson).

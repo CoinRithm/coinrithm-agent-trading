@@ -1,5 +1,8 @@
 import { Pool } from "pg";
-import { sanitizeDecisionInputRecord } from "@coinrithm/mcp-trading/engine";
+import {
+  sanitizeDecisionInputRecord,
+  ACTIONS_STRING_DIAGNOSTICS,
+} from "@coinrithm/mcp-trading/engine";
 export { migrate, assertSchemaReady } from "./schema.js";
 
 export interface AgentRow {
@@ -566,6 +569,18 @@ function sanitizeRouteAttempts(value: unknown): unknown[] {
             .slice(0, 200)
         : undefined;
     const rawReasons = raw.admissionReasons;
+    const diagnostic =
+      outcome === "failed" && failureClass === "malformed"
+        ? ACTIONS_STRING_DIAGNOSTICS.find(
+            (value) => value === raw.actionsStringDiagnostic,
+          )
+        : undefined;
+    const responseSource =
+      outcome === "failed" && failureClass === "malformed"
+        ? ["content", "tool_call", "content_fallback"].find(
+            (value) => value === raw.responseSource,
+          )
+        : undefined;
     const reasons =
       outcome === "deferred" && Array.isArray(rawReasons)
         ? admissionReasons.filter((reason) => rawReasons.includes(reason))
@@ -585,6 +600,8 @@ function sanitizeRouteAttempts(value: unknown): unknown[] {
         latencyMs: boundedNumber(raw.latencyMs, 3_600_000) ?? 0,
         ...(error ? { error } : {}),
         ...(reasons.length ? { admissionReasons: reasons } : {}),
+        ...(diagnostic ? { actionsStringDiagnostic: diagnostic } : {}),
+        ...(responseSource ? { responseSource } : {}),
       },
     ];
   });

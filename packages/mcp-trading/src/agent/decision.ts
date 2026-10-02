@@ -388,8 +388,47 @@ function coerceJson(text: string): unknown {
   return JSON.parse(s); // throws on invalid JSON -> caller treats as fail-closed
 }
 
+// Fixed, non-content diagnostics only. Never retain model text, identifiers,
+// action values or reasoning to investigate a provider's encoding failures.
+export const ACTIONS_STRING_DIAGNOSTICS = [
+  "json_array_empty_valid_decision",
+  "json_array_nonempty_valid_decision",
+  "json_array_invalid_decision",
+  "json_nonarray",
+  "invalid_json",
+  "over_size_limit",
+] as const;
+export type ActionsStringDiagnostic =
+  (typeof ACTIONS_STRING_DIAGNOSTICS)[number];
+
+function diagnoseActionsString(
+  obj: unknown,
+): ActionsStringDiagnostic | undefined {
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return undefined;
+  const record = obj as Record<string, unknown>;
+  if (typeof record.actions !== "string") return undefined;
+  if (record.actions.length > 65_536) return "over_size_limit";
+  let actions: unknown;
+  try {
+    actions = JSON.parse(record.actions);
+  } catch {
+    return "invalid_json";
+  }
+  if (!Array.isArray(actions)) return "json_nonarray";
+  if (!decisionSchema.safeParse({ ...record, actions }).success)
+    return "json_array_invalid_decision";
+  return actions.length === 0
+    ? "json_array_empty_valid_decision"
+    : "json_array_nonempty_valid_decision";
+}
+
 export type ParseDecisionResult =
-  { ok: true; decision: Decision } | { ok: false; error: string };
+  | { ok: true; decision: Decision }
+  | {
+      ok: false;
+      error: string;
+      actionsStringDiagnostic?: ActionsStringDiagnostic;
+    };
 
 export function parseDecision(text: string): ParseDecisionResult {
   let obj: unknown;
@@ -408,6 +447,7 @@ export function parseDecision(text: string): ParseDecisionResult {
       error: res.error.issues
         .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
         .join("; "),
+      actionsStringDiagnostic: diagnoseActionsString(obj),
     };
   }
   const d = res.data;

@@ -81,8 +81,11 @@ describe.skipIf(!databaseUrl)("phase grid on PostgreSQL", () => {
     Array<{ id: number; ahead: number; onGrid: boolean }>
   > {
     const { rows } = await client.query<{ id: string; e: string; n: string }>(
-      `SELECT id, extract(epoch FROM next_run_at)::bigint AS e,
-              extract(epoch FROM now())::bigint AS n
+      // PostgreSQL rounds a numeric-to-bigint cast. Within the final half
+      // second before a valid future slot that erased the positive delta,
+      // intermittently reporting zero. Preserve the database's precision.
+      `SELECT id, extract(epoch FROM next_run_at) AS e,
+              extract(epoch FROM now()) AS n
          FROM agent_runtime.agents
         WHERE id = ANY($1::bigint[]) ORDER BY id`,
       [inserted],
