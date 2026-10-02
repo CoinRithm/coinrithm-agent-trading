@@ -262,43 +262,44 @@ Base URL: `https://api.coinrithm.com` (live). Hosted MCP: `https://mcp.coinrithm
 
 `info.version` in `openapi.yaml` (currently **1.7.0**) is the API contract
 version. The MCP package (`@coinrithm/mcp-trading`, currently **0.7.15** in this source checkout)
-is versioned separately. Registry publication was verified on **24 September 2026**:
+is versioned separately. Registry publication was verified on **2 October 2026**:
 
 | Package                                                | Published registry version | Source version |
 | ------------------------------------------------------ | -------------------------- | -------------- |
-| `@coinrithm/mcp-trading` (MCP server and agent runner) | **0.7.14**                 | **0.7.15**     |
-| `@coinrithm/sdk` (TypeScript)                          | **0.3.3**                  | **0.3.4**      |
-| `coinrithm-sdk` (Python)                               | **1.8.3**                  | **1.8.4**      |
+| `@coinrithm/mcp-trading` (MCP server and agent runner) | **0.7.15**                 | **0.7.15**     |
+| `@coinrithm/sdk` (TypeScript)                          | **0.3.4**                  | **0.3.4**      |
+| `coinrithm-sdk` (Python)                               | **1.8.4**                  | **1.8.4**      |
 
-Source versions **0.7.15**, **0.3.4** and **1.8.4** are not yet published.
-Their release notes now include source changes through **1 October 2026**;
-the older **28 September** draft archives do not include all of those changes.
-Use the newly reviewed archive set when it is prepared; see the
+All four published npm/PyPI archives match the reviewed release manifest byte
+for byte; npm integrity also matches. The archive build source
+`50d04c34c0349091d615519a16d93466df446e98` has the same tree as release revision
+`04ecd28b7bf5e89a0117f72bfb40be56e66c7e3a`. These archives include changes through
+**1 October 2026** and supersede the older **28 September** preparation. See the
 [changelog](CHANGELOG.md) and [publishing record](docs/PUBLISHING.md).
 
-All four published npm/PyPI archives match the reviewed release manifest byte for byte
-for source `c374e782a87d01ee3b7a2fbff304ac6e6edb7123`. The official MCP Registry
-separately lists **0.7.14** as active and latest, verified after the
-[registry workflow](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/36003403675).
-Hosted deployments were checked separately on **24 September 2026**. The MCP
-reports **0.7.14**, with **40 tools**, including **13 keyless data tools**.
-Both the scheduler (deployment 2672) and MCP (deployment 2673) run source
+The [GitHub release](https://github.com/CoinRithm/coinrithm-agent-trading/releases/tag/mcp-trading-v0.7.15)
+is published. The official MCP Registry separately lists **0.7.15** as active
+and latest after the
+[registry workflow](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/36950719862).
+npm/PyPI publication does not change hosted deployments.
+
+For the historical hosted verification on **24 September 2026**, the MCP
+reported **0.7.14**, with **40 tools**, including **13 keyless data tools**.
+Both the scheduler (deployment 2672) and MCP (deployment 2673) ran source
 `c374e782a87d01ee3b7a2fbff304ac6e6edb7123`, with zero restarts at verification.
 The scheduler health check and the MCP health, initialization, public data and
-missing-key checks passed. Casa remains active with its strategy, model and key
-preserved; permanent-error attribution now follows the failing provider/model.
+missing-key checks passed. Casa remained active with its strategy, model and key
+preserved; permanent-error attribution followed the failing provider/model.
 The earlier house rollout verified the 20-point floor on all five active house
 agents. Hosted delivery does not publish the npm/PyPI archives; their status
 remains in the table above and the [changelog](./CHANGELOG.md).
 
-Published versions **0.7.14**, **0.3.3** and **1.8.3** are verified against the
-reviewed archives. Per the [MCP/runner changelog](./packages/mcp-trading/CHANGELOG.md),
-0.7.14 adds compiled definition checks, strategy-section loading, candle
-provenance, the configured prediction-market entry floor with its preflight
-enforcement, futures stop/target preflight safeguards, and per-route permanent
-model-error streaks; the SDK releases add the matching optional entry-floor
-request field. Package publication and hosted deployments are separate; a
-source version is not a claim about a published archive.
+Published MCP **0.7.15** includes 41 tools, including 15 keyless data tools,
+compact event results with explicit full detail, scored-news reads, and the
+runner's opt-in whale context. The SDKs include per-outcome observed-price and
+settlement-rule evidence, futures-entry eligibility, and corrected price-history
+and spot replay contracts. See the [release notes](./CHANGELOG.md) for scope and
+the [MCP/runner changelog](./packages/mcp-trading/CHANGELOG.md) for package history.
 
 The published SDKs include whale-wallet summary/detail reads, the house-only
 open-decision view, optional thesis/advisory fields, venue terms, funding and

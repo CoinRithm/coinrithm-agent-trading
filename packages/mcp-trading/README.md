@@ -106,7 +106,7 @@ summaries to the model observation for non-mechanical providers. The read is bes
 availability status; it never expands PM candidates or bypasses risk and write
 gates. Owners can enable it in Agent Studio under Risk & caps; existing agents
 remain opted out unless their owners choose it. It ships in package version
-0.7.15; published MCP `0.7.14` does not include it.
+0.7.15; earlier MCP `0.7.14` does not include it.
 The CoinRithm hosted scheduler runs this same engine for you — see the
 [scheduler README](https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/packages/scheduler/README.md) for the built,
 DB-driven runtime.
