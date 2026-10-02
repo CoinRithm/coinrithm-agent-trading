@@ -1,6 +1,62 @@
 import { describe, it, expect } from "vitest";
 import { DECISION_JSON_SCHEMA, parseDecision } from "./decision.js";
 
+describe("actions string diagnostics retain rejection and no response content", () => {
+  it.each([
+    ["[]", "json_array_empty_valid_decision"],
+    [
+      JSON.stringify([{ type: "spot_cancel", orderId: 123 }]),
+      "json_array_nonempty_valid_decision",
+    ],
+    [
+      JSON.stringify([{ type: "unknown", secret: "PRIVATE_OUTPUT" }]),
+      "json_array_invalid_decision",
+    ],
+    ["{}", "json_nonarray"],
+    ['"[]"', "json_nonarray"],
+    ["null", "json_nonarray"],
+    ["PRIVATE_OUTPUT", "invalid_json"],
+    ["[".repeat(65_537), "over_size_limit"],
+  ])(
+    "classifies encoded value %# without accepting it",
+    (actions, diagnostic) => {
+      const result = parseDecision(
+        JSON.stringify({ decision: "act", actions }),
+      );
+      expect(result).toMatchObject({
+        ok: false,
+        actionsStringDiagnostic: diagnostic,
+      });
+      expect(result).not.toHaveProperty("decision");
+      expect(JSON.stringify(result)).not.toContain("PRIVATE_OUTPUT");
+    },
+  );
+
+  it("validates the complete decision and every decoded action diagnostically", () => {
+    for (const obj of [
+      { decision: "act", extra: true, actions: "[]" },
+      {
+        decision: "act",
+        actions: JSON.stringify([
+          { type: "spot_cancel", orderId: 1 },
+          { type: "unknown" },
+        ]),
+      },
+    ]) {
+      expect(parseDecision(JSON.stringify(obj))).toMatchObject({
+        ok: false,
+        actionsStringDiagnostic: "json_array_invalid_decision",
+      });
+    }
+    expect(
+      parseDecision('{"decision":"act","actions":null}'),
+    ).not.toHaveProperty("actionsStringDiagnostic", expect.any(String));
+    expect(parseDecision('{"decision":"skip","actions":[]}')).toMatchObject({
+      ok: true,
+    });
+  });
+});
+
 const open = {
   type: "futures_open",
   symbol: "BTC",

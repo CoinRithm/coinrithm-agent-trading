@@ -5,6 +5,7 @@ import {
   type DecideResult,
   type Provider,
   type ProviderName,
+  type ActionsStringDiagnostic,
 } from "@coinrithm/mcp-trading/engine";
 import type { ProviderCapacityDenialReason } from "./capacity.js";
 
@@ -48,6 +49,8 @@ export interface RouteAttempt {
   error?: string;
   /** Local admission only; all blocking conditions, never provider health. */
   admissionReasons?: AdmissionReason[];
+  actionsStringDiagnostic?: ActionsStringDiagnostic;
+  responseSource?: "content" | "tool_call" | "content_fallback";
 }
 
 export interface RouteMetadata {
@@ -370,6 +373,8 @@ export class RoutedProvider<Lease = unknown> implements Provider {
           failureClass: "malformed",
           latencyMs,
           error: this.clean(parsed.error),
+          actionsStringDiagnostic: parsed.actionsStringDiagnostic,
+          responseSource: result.responseSource,
         };
         attempts.push(attempt);
         await this.hooks.observe(route, attempt);

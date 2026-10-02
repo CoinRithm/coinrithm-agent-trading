@@ -45,6 +45,37 @@ function harness(results: DecideResult[], unavailable = new Set<string>()) {
 }
 
 describe("routed failure attribution in the real runner", () => {
+  it("retains only diagnostic categories for a rejected encoded array before fallback", async () => {
+    const h = harness([
+      {
+        ok: true,
+        text: '{"decision":"act","actions":"[]"}',
+        responseSource: "tool_call",
+      },
+      ok(),
+    ]);
+    const provider = new RoutedProvider(
+      "fast",
+      [
+        { provider: "nvidia", model: "model-a", keyRef: "test-a" },
+        { provider: "nvidia", model: "model-b", keyRef: "test-b" },
+      ],
+      false,
+      h.buildProvider,
+      h.hooks,
+    );
+    const result = await provider.decide(input);
+    expect(result.ok).toBe(true);
+    expect(result.route.attempts).toHaveLength(2);
+    expect(result.route.attempts[0]).toMatchObject({
+      outcome: "failed",
+      failureClass: "malformed",
+      actionsStringDiagnostic: "json_array_empty_valid_decision",
+      responseSource: "tool_call",
+    });
+    expect(result.route.attempts[1].outcome).toBe("success");
+    expect(result.route.effectiveModel).toBe("model-b");
+  });
   it("preserves the consumed response source after provider fallback", async () => {
     const h = harness([
       { ok: false, error: "capacity", status: 429 },
