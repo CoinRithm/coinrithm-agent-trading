@@ -226,15 +226,14 @@ included). `websearch` is reserved — accepted by the validator but not yet
 implemented; declaring it does nothing today.
 
 `whale_context` is an opt-in, post-gate prediction-market context read available
-in the hosted scheduler and repository source. It is fetched only when `pm` is
-in the venue scope and the cycle will call a
+in the hosted scheduler and published package version 0.7.15. It is fetched only
+when `pm` is in the venue scope and the cycle will call a
 non-mechanical provider. The runner joins a bounded public tape sample to the
 cycle's own PM markets/positions, and may fetch up to two validated public
 wallet movement summaries. It never widens candidates or bypasses risk checks.
 `available`, `partial` and `unavailable` status are explicit; an empty sample does
 not prove no activity. Hosted owners can enable it in Agent Studio under Risk &
-caps. It ships in package version 0.7.15; published MCP `0.7.14` does not
-include it.
+caps. Earlier package version 0.7.14 does not include it.
 
 Also inactive: the four `abstention` booleans (`onStaleData`, `onWeakSignal`,
 `onMissingQuote`, `onInsufficientBalance`) parse and default to `true`, but no

@@ -8,13 +8,20 @@ Each package has its own version; the API contract is versioned separately.
 [TypeScript history](packages/sdk/CHANGELOG.md) ·
 [Python release notes](packages/sdk-python/README.md)
 
-## MCP 0.7.15, TypeScript 0.3.4, Python 1.8.4 (source through 2026-10-01, not yet published)
+## MCP 0.7.15, TypeScript 0.3.4, Python 1.8.4 (2026-10-02)
 
-These notes describe current source, including changes after the frozen
-September 28 draft. Fresh archives and a matching manifest must be verified
-before registry upload; the old draft is not this complete release. Published MCP
-`0.7.14`, TypeScript SDK `0.3.3` and Python SDK `1.8.3` remain the installable
-versions until the upload is verified. The API contract stays `1.7.0`.
+Published to npm/PyPI and verified on 2 October 2026. All four registry downloads
+match the reviewed SHA-256 manifest; npm integrity also matches. Archive source
+`50d04c34c0349091d615519a16d93466df446e98` and release revision
+`04ecd28b7bf5e89a0117f72bfb40be56e66c7e3a` share the same source tree. This release
+includes changes through 1 October and supersedes the September 28 preparation.
+The [GitHub release](https://github.com/CoinRithm/coinrithm-agent-trading/releases/tag/mcp-trading-v0.7.15)
+is published. The official MCP Registry lists **0.7.15** as active and latest
+after the
+[registry workflow](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/36950719862).
+Clean-install Node/Python checks passed, including MCP discovery (41 tools) and
+runner interruption/recovery checks. Package publication does not change hosted
+deployments. The API contract stays `1.7.0`.
 Most fields are optional additions; price-history types and spot replay
 nullability also correct the previous SDK description of existing responses.
 

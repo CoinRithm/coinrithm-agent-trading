@@ -26,8 +26,8 @@ node sdk/events.mjs
 ```
 
 The runnable files are plain JavaScript modules using the maintained TypeScript
-SDK, pinned to `@coinrithm/sdk@0.3.3`. In your own JavaScript or TypeScript project,
-install it with `npm install @coinrithm/sdk@0.3.3`, then copy an example. TypeScript
+SDK, pinned to `@coinrithm/sdk@0.3.4`. In your own JavaScript or TypeScript project,
+install it with `npm install @coinrithm/sdk@0.3.4`, then copy an example. TypeScript
 also infers request and response types from the same `createClient` interface.
 
 ## Python SDK
@@ -52,18 +52,18 @@ On macOS or Linux:
 .venv/bin/python python/events.py
 ```
 
-This uses the published `coinrithm-sdk==1.8.3`, not a local unreleased SDK build.
+This uses the published `coinrithm-sdk==1.8.4`.
 
 ## Choose a request
 
 Replace `events` in the command with another file name:
 
-| File       | Request                                      | Access        | What to inspect                                                                                                                           |
-| ---------- | -------------------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| File       | Request                                                  | Access        | What to inspect                                                                                                                           |
+| ---------- | -------------------------------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | `events`   | `GET /api/prediction-markets/events?status=open&limit=3` | Anonymous     | `data`, `pagination`, `meta`; each event's freshness, quality and decision support.                                                       |
-| `identity` | `GET /api/agent/me`                          | Any valid key | Account identity and key scopes.                                                                                                          |
-| `quote`    | `POST /api/agent/spot/quote`                 | `read` scope  | A hypothetical buy of 0.01 units of coin ID `1`. Check `eligible`, `blockReasons`, costs and freshness. A quote does not submit an order. |
-| `trades`   | `GET /api/agent/trades?limit=3`              | `read` scope  | Realized paper results and `asOf`. An empty `trades` array is valid.                                                                      |
+| `identity` | `GET /api/agent/me`                                      | Any valid key | Account identity and key scopes.                                                                                                          |
+| `quote`    | `POST /api/agent/spot/quote`                             | `read` scope  | A hypothetical buy of 0.01 units of coin ID `1`. Check `eligible`, `blockReasons`, costs and freshness. A quote does not submit an order. |
+| `trades`   | `GET /api/agent/trades?limit=3`                          | `read` scope  | Realized paper results and `asOf`. An empty `trades` array is valid.                                                                      |
 
 For protected requests, set `COINRITHM_API_KEY` in your local environment using
 your normal secret-management method. See [creating a key](../../QUICKSTART.md#1-create-an-api-key).

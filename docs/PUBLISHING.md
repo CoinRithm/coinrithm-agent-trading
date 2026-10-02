@@ -40,7 +40,7 @@ Clean-install Node/Python checks passed. The GitHub release is published, and
 the official MCP Registry lists **0.7.14** as active and latest after the
 [registry workflow](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/36003403675).
 
-## Frozen draft, 28 September 2026 (not yet uploaded)
+## Verified delivery — 2 October 2026
 
 | Registry | Package                  | Version  | Files                                                                |
 | -------- | ------------------------ | -------- | -------------------------------------------------------------------- |
@@ -48,18 +48,41 @@ the official MCP Registry lists **0.7.14** as active and latest after the
 | npm      | `@coinrithm/sdk`         | `0.3.4`  | `coinrithm-sdk-0.3.4.tgz`                                            |
 | PyPI     | `coinrithm-sdk`          | `1.8.4`  | `coinrithm_sdk-1.8.4-py3-none-any.whl`, `coinrithm_sdk-1.8.4.tar.gz` |
 
-The four archives, `release-manifest.json` and `SHA256SUMS.txt` are frozen
-together with a GitHub draft release. Their archive build source is
-`b8130033e89014ed9739c1916bf5b8495495ae3d`; the draft targets the reviewed
+All four public registry downloads match the reviewed `release-manifest.json`
+and `SHA256SUMS.txt` byte for byte; npm integrity also matches. The archive build
+source is `50d04c34c0349091d615519a16d93466df446e98`, with source tree
+`61093354cce641c66b10c9efa40af479d85adb89`, identical to release revision
+`04ecd28b7bf5e89a0117f72bfb40be56e66c7e3a`. The reviewed archive directory is
+`output/release-20261001` in the shared workspace; registry verification is dated
+2 October. These immutable versions are already uploaded; do not upload again.
+
+The npm archives and Python wheel are the exact artifacts from
+[CI run 36936874687](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/36936874687).
+The source archive was built from the same reviewed source with poetry-core
+2.5.0; its 455 package files and metadata match the wheel. Twine and the isolated
+source-install smoke check passed before upload. Fresh installs of the downloaded
+npm packages and Python wheel passed Node/Python smoke checks, including 41-tool
+MCP discovery and runner interruption/recovery checks.
+
+The [GitHub release](https://github.com/CoinRithm/coinrithm-agent-trading/releases/tag/mcp-trading-v0.7.15)
+is published at the exact release revision above. The official MCP Registry
+lists **0.7.15** as active and latest after
+[workflow 36950719862](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/36950719862).
+This publication does not restart hosted MCP or scheduler services.
+
+### Superseded preparation — 28 September 2026
+
+The older four archives and manifest used archive build source
+`b8130033e89014ed9739c1916bf5b8495495ae3d`; that draft targeted the reviewed
 `6ba6bb79356f5529b55879553a75fce70009a0eb`, whose subsequent changes affect only
 the root README. These archives do not contain the contract, SDK and runner
 changes merged after that preparation. **Do not treat the September 28 archives
 as a release of current source**, even though the package version numbers have
 not changed.
 
-The upload needs the authorized publishing accounts and the public API contract
-check for the selected release. Until verification, published versions stay
-0.7.14, 0.3.3 and 1.8.3, and public install/example pins stay on them.
+The October 2 verified delivery replaces that preparation. The old receipt is
+retained as history; its archives were not the ones published. Runnable examples
+now pin the verified TypeScript 0.3.4 and Python 1.8.4 releases.
 
 ## Prepare a release from newer source
 
@@ -82,8 +105,8 @@ To include changes made after the frozen draft:
    Retain the previous preparation's receipt as history, clearly identifying
    which artifact set is selected for upload.
 
-This procedure does not record a completed replacement artifact set or registry
-upload. A successful source CI run alone does not update the frozen draft.
+A successful source CI run alone does not update release assets or publish
+packages. The completed October 2 delivery is recorded above.
 
 ## Before uploading
 
@@ -107,15 +130,16 @@ An npm `E404` can also occur while an accepted upload is still processing.
 Check the original upload result and allow propagation before retrying. If a
 target version already exists, verify its files instead of uploading again.
 
-As verified on 24 September 2026, the registry versions are MCP 0.7.14,
-TypeScript 0.3.3 and Python 1.8.3. The API reference follows the current contract;
+As verified on 2 October 2026, the registry versions are MCP 0.7.15,
+TypeScript 0.3.4 and Python 1.8.4. The API reference follows the current contract;
 its runnable examples are pinned to these published SDK versions.
 
 ## Upload the exact archives
 
 Run these commands from the selected, reviewed artifact directory after the
-checks above. The examples use the prepared version numbers; confirm every
-filename against the selected manifest. Use the authorized publishing accounts.
+checks above. The examples record the completed October 2 upload; future
+releases must use their own unpublished versions and reviewed filenames.
+Use the authorized publishing accounts.
 Keep credentials in the local login/password prompts.
 
 ```powershell
