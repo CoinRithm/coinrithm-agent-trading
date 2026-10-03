@@ -118,6 +118,27 @@ const open = {
 };
 
 describe("parseDecision", () => {
+  it.each([
+    "PRIVATE_MODEL_OUTPUT",
+    '{"decision":PRIVATE_MODEL_OUTPUT}',
+    '{"decision":"PRIVATE_MODEL_OUTPUT","actions":[]}',
+    '{"decision":"skip","actions":[],"PRIVATE_MODEL_OUTPUT":true}',
+    '{"decision":"act","actions":[{"type":"PRIVATE_MODEL_OUTPUT"}]}',
+    '{"decision":"act","actions":[{"type":"spot_cancel","orderId":1,"PRIVATE_MODEL_OUTPUT":true}]}',
+  ])("never includes rejected model content in parser error %#", (text) => {
+    const result = parseDecision(text);
+    expect(result.ok).toBe(false);
+    expect(JSON.stringify(result)).not.toContain("PRIVATE_MODEL_OUTPUT");
+  });
+
+  it("preserves useful field/type diagnostics without accepting encoded actions", () => {
+    expect(parseDecision('{"decision":"act","actions":"[]"}')).toMatchObject({
+      ok: false,
+      error: "actions: Expected array, received string",
+      actionsStringDiagnostic: "json_array_empty_valid_decision",
+    });
+  });
+
   it("publishes a provider contract that makes act-without-actions impossible", () => {
     const conditions = DECISION_JSON_SCHEMA.allOf;
     expect(conditions[0].then.properties.actions.minItems).toBe(1);

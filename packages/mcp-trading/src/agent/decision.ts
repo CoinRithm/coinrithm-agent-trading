@@ -463,14 +463,30 @@ export type ParseDecisionResult =
       actionsStringDiagnostic?: ActionsStringDiagnostic;
     };
 
+function safeIssueMessage(issue: z.ZodIssue): string {
+  // These Zod messages echo model-supplied values or unknown field names.
+  // Other messages in this fixed schema describe types or contract limits.
+  switch (issue.code) {
+    case "invalid_enum_value":
+      return "Invalid enum value";
+    case "invalid_literal":
+      return "Invalid literal value";
+    case "unrecognized_keys":
+      return "Unrecognized field(s)";
+    default:
+      return issue.message;
+  }
+}
+
 export function parseDecision(text: string): ParseDecisionResult {
   let obj: unknown;
   try {
     obj = normalizeDecisionVerb(coerceJson(text));
-  } catch (err) {
+  } catch {
     return {
       ok: false,
-      error: `model output is not valid JSON: ${err instanceof Error ? err.message : String(err)}`,
+      // Node's JSON syntax errors can include excerpts of private model text.
+      error: "model output is not valid JSON",
     };
   }
   const res = decisionSchema.safeParse(obj);
@@ -478,7 +494,7 @@ export function parseDecision(text: string): ParseDecisionResult {
     return {
       ok: false,
       error: res.error.issues
-        .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+        .map((i) => `${i.path.join(".") || "(root)"}: ${safeIssueMessage(i)}`)
         .join("; "),
       actionsStringDiagnostic: diagnoseActionsString(obj),
     };
