@@ -5,11 +5,20 @@ ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (t
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
 versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
-## 0.7.15 (current source, not yet published)
+## 0.7.16 (unpublished)
 
-These notes include source changes through 1 October 2026. The frozen
-September 28 draft archives omit later changes and must be replaced with a
-new reviewed artifact set before this complete release is uploaded.
+- Reject OpenAI-compatible responses that explicitly end at the output token
+  limit, even if their partial decision text happens to be valid JSON. No action
+  from that incomplete response reaches execution. Preserve reported token usage
+  and the hosted router's existing bounded malformed-response fallback.
+- Classify rejected actions strings with bounded, fixed diagnostic categories.
+  JSON5 is used only for diagnostics; string-valued actions remain rejected.
+  No raw model output is retained by this diagnostic path.
+
+## 0.7.15 (published 2026-10-02)
+
+The verified release includes source changes through 1 October 2026. Its public
+archive and MCP Registry delivery are recorded in the repository publishing log.
 
 - PM board rows carry event settlement context from discovery's optional
   `resolution`. Where `scope` is `per_outcome`, each row also carries its own
@@ -203,9 +212,9 @@ Source changes following the published 0.7.9 release. The TypeScript SDK remains
 - Pin workflow actions and verify release-tool checksums. Add installed-package
   compatibility and restart smoke checks across operating systems and runtimes.
 
-0.7.10 was published and deployed on 2026-09-15. Registry and GitHub downloads
-matched the CI-tested archive; hosted MCP and scheduler deployments finished.
-See the [release record](https://github.com/CoinRithm/coinrithm-agent-trading/releases/tag/mcp-trading-v0.7.10).
+  0.7.10 was published and deployed on 2026-09-15. Registry and GitHub downloads
+  matched the CI-tested archive; hosted MCP and scheduler deployments finished.
+  See the [release record](https://github.com/CoinRithm/coinrithm-agent-trading/releases/tag/mcp-trading-v0.7.10).
 
 ## 0.7.9 - 2026-09-15
 

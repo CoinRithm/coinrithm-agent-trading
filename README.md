@@ -261,14 +261,18 @@ Base URL: `https://api.coinrithm.com` (live). Hosted MCP: `https://mcp.coinrithm
 ## Version clarity
 
 `info.version` in `openapi.yaml` (currently **1.7.0**) is the API contract
-version. The MCP package (`@coinrithm/mcp-trading`, currently **0.7.15** in this source checkout)
+version. The MCP package (`@coinrithm/mcp-trading`, currently **0.7.16** in this source checkout)
 is versioned separately. Registry publication was verified on **2 October 2026**:
 
 | Package                                                | Published registry version | Source version |
 | ------------------------------------------------------ | -------------------------- | -------------- |
-| `@coinrithm/mcp-trading` (MCP server and agent runner) | **0.7.15**                 | **0.7.15**     |
+| `@coinrithm/mcp-trading` (MCP server and agent runner) | **0.7.15**                 | **0.7.16**     |
 | `@coinrithm/sdk` (TypeScript)                          | **0.3.4**                  | **0.3.4**      |
 | `coinrithm-sdk` (Python)                               | **1.8.4**                  | **1.8.4**      |
+
+Source version **0.7.16 is not yet published**. It adds incomplete-response
+rejection and bounded shape diagnostics; npm users remain on the verified
+0.7.15 release until a new registry delivery is confirmed.
 
 All four published npm/PyPI archives match the reviewed release manifest byte
 for byte; npm integrity also matches. The archive build source

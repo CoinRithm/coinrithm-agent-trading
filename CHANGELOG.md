@@ -8,6 +8,16 @@ Each package has its own version; the API contract is versioned separately.
 [TypeScript history](packages/sdk/CHANGELOG.md) ·
 [Python release notes](packages/sdk-python/README.md)
 
+## MCP 0.7.16 (unpublished)
+
+The agent runner now rejects OpenAI-compatible output explicitly stopped at the
+completion-token limit, even when a partial payload looks like valid decision
+JSON. Reported usage is preserved; existing retries and fallback limits remain.
+Bounded actions-string diagnostics retain only fixed categories and never accept
+string-valued actions. See the [MCP changelog](packages/mcp-trading/CHANGELOG.md).
+TypeScript 0.3.4, Python 1.8.4 and API contract 1.7.0 are unchanged. This source
+version does not establish npm or MCP Registry publication.
+
 ## MCP 0.7.15, TypeScript 0.3.4, Python 1.8.4 (2026-10-02)
 
 Published to npm/PyPI and verified on 2 October 2026. All four registry downloads

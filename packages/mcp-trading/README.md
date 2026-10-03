@@ -44,9 +44,16 @@ This package ships two binaries:
 
 > **Paper trading only** — virtual funds (50,000 mUSD). Not financial advice.
 
-## Version 0.7.15
+## Version 0.7.16 (unpublished)
 
-This release preserves observed-price evidence in public market summaries
+The runner rejects explicitly incomplete provider responses before execution,
+including valid-looking prefixes, and preserves their token usage. Bounded
+shape diagnostics still reject string-valued actions. These guards do not raise
+completion limits, repair model proposals or change customer strategies.
+
+The preceding published version, 0.7.15, includes the following capabilities.
+
+It preserves observed-price evidence in public market summaries
 (`hasObservedPrice` and bounded `sourceObservation`, including both sides of
 venue comparisons), keeps full public `walletAddress` values in whale summaries
 for `pm_data_whale_wallet` follow-up, adds the opt-in `whale_context` runner
