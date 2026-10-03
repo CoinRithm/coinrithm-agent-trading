@@ -4,6 +4,7 @@
 // fields, or a missing required field — fails closed (the runner skips).
 
 import { z } from "zod";
+import JSON5 from "json5";
 import { Decision, ProposedAction } from "./types.js";
 import { coerceThesis } from "./thesis.js";
 
@@ -399,6 +400,8 @@ export const ACTIONS_STRING_DIAGNOSTICS = [
   "empty_string_valid_skip",
   "empty_string_other_decision",
   "non_json_array_text",
+  "json5_array_valid_decision",
+  "json5_array_invalid_decision",
   "over_size_limit",
 ] as const;
 export type ActionsStringDiagnostic =
@@ -422,7 +425,27 @@ function diagnoseActionsString(
   try {
     actions = JSON.parse(record.actions);
   } catch {
-    return text.startsWith("[") ? "non_json_array_text" : "invalid_json";
+    if (!text.startsWith("[")) return "invalid_json";
+    // Diagnostic only: identify alternate literal encodings without accepting
+    // them or retaining content. JSON5 never evaluates expressions. Requiring
+    // finite JSON values keeps Infinity/NaN from looking like usable actions.
+    try {
+      const candidate: unknown = JSON5.parse(text);
+      JSON.stringify(candidate, (key, value: unknown) => {
+        if (
+          ["__proto__", "constructor", "prototype"].includes(key) ||
+          (typeof value === "number" && !Number.isFinite(value))
+        )
+          throw new Error("Unsafe diagnostic value");
+        return value;
+      });
+      return Array.isArray(candidate) &&
+        decisionSchema.safeParse({ ...record, actions: candidate }).success
+        ? "json5_array_valid_decision"
+        : "json5_array_invalid_decision";
+    } catch {
+      return "non_json_array_text";
+    }
   }
   if (!Array.isArray(actions)) return "json_nonarray";
   if (!decisionSchema.safeParse({ ...record, actions }).success)

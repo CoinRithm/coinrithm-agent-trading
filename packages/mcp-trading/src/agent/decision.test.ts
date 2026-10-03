@@ -18,7 +18,20 @@ describe("actions string diagnostics retain rejection and no response content", 
     ["PRIVATE_OUTPUT", "invalid_json"],
     ["", "empty_string_other_decision"],
     ["  \n", "empty_string_other_decision"],
-    ["[{'type': 'spot_cancel'}]", "non_json_array_text"],
+    ["[{'type': 'spot_cancel'}]", "json5_array_invalid_decision"],
+    ["[{'type': 'spot_cancel', 'orderId': 1}]", "json5_array_valid_decision"],
+    ["[{type: 'spot_cancel', orderId: 1,},]", "json5_array_valid_decision"],
+    [
+      "[{'type': 'unknown', 'secret': 'PRIVATE_OUTPUT'}]",
+      "json5_array_invalid_decision",
+    ],
+    ["[{'type': 'spot_cancel', 'orderId': Infinity}]", "non_json_array_text"],
+    ["[{'type': 'spot_cancel', 'orderId': NaN}]", "non_json_array_text"],
+    [
+      "[{'type': 'spot_cancel', 'orderId': process.exit(1)}]",
+      "non_json_array_text",
+    ],
+    ["[{'type': 'spot_cancel', 'orderId': 1}", "non_json_array_text"],
     ["[".repeat(65_537), "over_size_limit"],
   ])(
     "classifies encoded value %# without accepting it",
@@ -61,6 +74,31 @@ describe("actions string diagnostics retain rejection and no response content", 
         actionsStringDiagnostic: "json_array_invalid_decision",
       });
     }
+    expect(
+      parseDecision(
+        JSON.stringify({
+          decision: "act",
+          extra: true,
+          actions: "[{'type': 'spot_cancel', 'orderId': 1}]",
+        }),
+      ),
+    ).toMatchObject({
+      ok: false,
+      actionsStringDiagnostic: "json5_array_invalid_decision",
+    });
+    expect(
+      parseDecision(
+        JSON.stringify({
+          decision: "act",
+          actions:
+            "[{'type': 'spot_cancel', 'orderId': 1, '__proto__': {'polluted': true}}]",
+        }),
+      ),
+    ).toMatchObject({
+      ok: false,
+      actionsStringDiagnostic: "non_json_array_text",
+    });
+    expect(Object.prototype).not.toHaveProperty("polluted");
     expect(
       parseDecision('{"decision":"act","actions":null}'),
     ).not.toHaveProperty("actionsStringDiagnostic", expect.any(String));
