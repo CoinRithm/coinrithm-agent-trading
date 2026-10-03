@@ -91,7 +91,11 @@ export interface RouteHooks<Lease = unknown> {
     lease: Lease | undefined,
     result: DecideResult,
   ): Promise<void>;
-  observe(route: ModelRoute, attempt: RouteAttempt): Promise<void>;
+  observe(
+    route: ModelRoute,
+    attempt: RouteAttempt,
+    callStartedAt?: number,
+  ): Promise<void>;
 }
 
 const MAX_ROUTE_ATTEMPTS = 2;
@@ -353,7 +357,7 @@ export class RoutedProvider<Lease = unknown> implements Provider {
             latencyMs,
           };
           attempts.push(attempt);
-          await this.hooks.observe(route, attempt);
+          await this.hooks.observe(route, attempt, started);
           return {
             ...result,
             route: {

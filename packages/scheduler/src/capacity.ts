@@ -184,38 +184,66 @@ export async function reserveProviderCapacity(
  * Share a provider-requested cooldown (normally HTTP 429 Retry-After) across
  * every scheduler replica using this quota key. The caller supplies a bounded
  * duration; repeated failures only extend, never shorten, an existing hold.
+ * Without Retry-After, start at 10-15s and double recent backoff up to 120-125s.
+ * The row lock of ON CONFLICT makes escalation consistent across replicas.
  */
 export async function coolDownProviderCapacity(
   pool: Pool,
   routeKey: string,
   provider: string,
   model: string,
-  durationMs: number,
+  durationMs: number | undefined,
   failureClass = "rate_limit",
 ): Promise<void> {
-  if (!Number.isFinite(durationMs) || durationMs < 0) {
+  if (
+    durationMs !== undefined &&
+    (!Number.isFinite(durationMs) || durationMs < 0)
+  ) {
     throw new Error("durationMs must be a finite non-negative number");
   }
-  const boundedMs = Math.min(
-    3_600_000,
-    Math.max(1_000, Math.floor(durationMs)),
-  );
+  const boundedMs =
+    durationMs === undefined
+      ? null
+      : Math.min(3_600_000, Math.max(1_000, Math.floor(durationMs)));
+  const jitterMs = Math.floor(Math.random() * 5_001);
   await pool.query(
     `INSERT INTO agent_runtime.provider_route_cooldowns
        (route_key, provider, model, blocked_until, last_failure_class,
         last_failure_at, updated_at)
      VALUES ($1, $2, $3,
-             clock_timestamp() + ($4::double precision * interval '1 millisecond'),
+             clock_timestamp() + (COALESCE($4::double precision, 10000 + $6) * interval '1 millisecond'),
              $5, clock_timestamp(), clock_timestamp())
      ON CONFLICT (route_key, model) DO UPDATE SET
        blocked_until = GREATEST(
          agent_runtime.provider_route_cooldowns.blocked_until,
-         EXCLUDED.blocked_until
+         CASE WHEN $4::double precision IS NOT NULL THEN EXCLUDED.blocked_until
+         ELSE clock_timestamp() + ((CASE
+           WHEN agent_runtime.provider_route_cooldowns.last_failure_at > clock_timestamp() - interval '5 minutes'
+           THEN LEAST(120000, GREATEST(10000,
+             extract(epoch FROM (agent_runtime.provider_route_cooldowns.blocked_until - agent_runtime.provider_route_cooldowns.last_failure_at)) * 1000) * 2)
+           ELSE 10000 END + $6) * interval '1 millisecond') END
        ),
        last_failure_class = EXCLUDED.last_failure_class,
        last_failure_at = clock_timestamp(),
        updated_at = clock_timestamp()`,
-    [routeKey, provider, model, boundedMs, failureClass.slice(0, 80)],
+    [routeKey, provider, model, boundedMs, failureClass.slice(0, 80), jitterMs],
+  );
+}
+
+/** A successful call resets old backoff, never a failure newer than that call. */
+export async function clearProviderCapacityBackoff(
+  pool: Pool,
+  routeKey: string,
+  model: string,
+  callStartedAt: number,
+): Promise<void> {
+  if (!Number.isFinite(callStartedAt))
+    throw new Error("Invalid call start time");
+  await pool.query(
+    `DELETE FROM agent_runtime.provider_route_cooldowns
+      WHERE route_key = $1 AND model = $2
+        AND last_failure_at <= to_timestamp($3::double precision / 1000)`,
+    [routeKey, model, callStartedAt],
   );
 }
 

@@ -58,6 +58,11 @@ describe("provider capacity config", () => {
   it("enables durable routing with rollback flags and conservative shared limits", () => {
     const config = loadConfig(baseEnv());
     expect(config.capacityEnabled).toBe(true);
+    expect(config.adaptiveCooldownEnabled).toBe(true);
+    expect(
+      loadConfig({ ...baseEnv(), SCHEDULER_ADAPTIVE_COOLDOWN_ENABLED: "false" })
+        .adaptiveCooldownEnabled,
+    ).toBe(false);
     expect(config.routerEnabled).toBe(true);
     expect(config.nvidiaRpm).toBe(15);
     expect(config.nvidiaTpm).toBe(100_000);

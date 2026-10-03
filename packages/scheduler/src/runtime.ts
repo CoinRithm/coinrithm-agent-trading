@@ -38,6 +38,7 @@ import {
   reserveProviderCapacity,
   releaseProviderCapacity,
   coolDownProviderCapacity,
+  clearProviderCapacityBackoff,
   isProviderRouteCoolingDown,
   type ProviderCapacityLease,
 } from "./capacity.js";
@@ -247,10 +248,18 @@ function routedProviderFor(
           (error) => hookFailure("capacity release", error),
         );
       },
-      observe: async (route, attempt: RouteAttempt) => {
+      observe: async (route, attempt: RouteAttempt, callStartedAt) => {
         try {
           if (attempt.outcome === "success") {
             await clearProviderCircuit(pool, route.provider, route.model);
+            if (config.adaptiveCooldownEnabled && callStartedAt !== undefined) {
+              await clearProviderCapacityBackoff(
+                pool,
+                route.keyRef,
+                route.model,
+                callStartedAt,
+              );
+            }
             return;
           }
           // A local capacity defer is expected backpressure, not evidence that
@@ -262,7 +271,8 @@ function routedProviderFor(
               route.keyRef,
               route.provider,
               route.model,
-              attempt.retryAfterMs ?? 60_000,
+              attempt.retryAfterMs ??
+                (config.adaptiveCooldownEnabled ? undefined : 60_000),
               "rate_limit",
             );
             return;
