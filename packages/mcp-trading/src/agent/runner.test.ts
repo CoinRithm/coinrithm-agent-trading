@@ -2024,7 +2024,8 @@ describe("runCycle", () => {
         }),
       ),
     );
-    const d = deps({ live: true }, baseClient());
+    const client = baseClient();
+    const d = deps({ live: true }, client);
     d.spec.model = { provider: "nvidia", name: "test-model" };
     d.provider = selectProvider(
       d.spec,
@@ -2039,11 +2040,14 @@ describe("runCycle", () => {
       tokensIn: 700,
       tokensOut: 1024,
       planned: [],
-      executed: [],
       writeAttempted: 0,
       writeAccepted: 0,
     });
     expect(d.state.consecutiveModelFailures).toBe(1);
+    expect(client.openFutures).not.toHaveBeenCalled();
+    expect(client.closeFutures).not.toHaveBeenCalled();
+    expect(client.placeSpotOrder).not.toHaveBeenCalled();
+    expect(client.openPmPosition).not.toHaveBeenCalled();
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 
