@@ -45,6 +45,35 @@ function harness(results: DecideResult[], unavailable = new Set<string>()) {
 }
 
 describe("routed failure attribution in the real runner", () => {
+  it("does not retain syntax-error excerpts in failed attempts before fallback", async () => {
+    const h = harness([
+      { ok: true, text: '{"decision":PRIVATE_MODEL_OUTPUT}' },
+      ok(),
+    ]);
+    const provider = new RoutedProvider(
+      "fast",
+      [
+        { provider: "nvidia", model: "model-a", keyRef: "test-a" },
+        { provider: "nvidia", model: "model-b", keyRef: "test-b" },
+      ],
+      false,
+      h.buildProvider,
+      h.hooks,
+    );
+    const result = await provider.decide(input);
+    expect(result.ok).toBe(true);
+    expect(result.route.attempts).toHaveLength(2);
+    expect(result.route.attempts[0]).toMatchObject({
+      outcome: "failed",
+      failureClass: "malformed",
+      error: "model output is not valid JSON",
+    });
+    expect(JSON.stringify(result)).not.toContain("PRIVATE_MODEL_OUTPUT");
+    expect(JSON.stringify(h.observe.mock.calls)).not.toContain(
+      "PRIVATE_MODEL_OUTPUT",
+    );
+  });
+
   it("retains only diagnostic categories for a rejected encoded array before fallback", async () => {
     const h = harness([
       {

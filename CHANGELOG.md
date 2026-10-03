@@ -16,6 +16,8 @@ even when a partial payload looks like valid decision JSON. Reported usage and
 malformed classification are preserved; existing retries and fallback limits remain.
 Bounded actions-string diagnostics retain only fixed categories and never accept
 string-valued actions. See the [MCP changelog](packages/mcp-trading/CHANGELOG.md).
+Parser errors omit rejected model text, enum values and unknown field names
+before they reach cycle logs or fallback-attempt evidence.
 TypeScript 0.3.4, Python 1.8.4 and API contract 1.7.0 are unchanged. This source
 version does not establish npm or MCP Registry publication.
 

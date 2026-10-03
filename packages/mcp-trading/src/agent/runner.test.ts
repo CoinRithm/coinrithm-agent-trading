@@ -2002,6 +2002,36 @@ describe("runCycle", () => {
   );
 
   it.each([
+    '{"decision":PRIVATE_MODEL_OUTPUT}',
+    '{"decision":"PRIVATE_MODEL_OUTPUT","actions":[]}',
+    '{"decision":"skip","actions":[],"PRIVATE_MODEL_OUTPUT":true}',
+  ])(
+    "keeps rejected response %# out of retained errors and cycle logs",
+    async (text) => {
+      const log = vi.fn();
+      const client = baseClient();
+      const provider: Provider = {
+        label: "synthetic",
+        decide: async () => ({ ok: true, text }),
+      };
+      const result = await runCycle(
+        deps({ live: true, log }, client, provider),
+      );
+      expect(result.modelFailed).toBe(true);
+      expect(result.rawModelOutput).toBeUndefined();
+      expect(result.skipReason).toContain("model output invalid:");
+      expect(JSON.stringify(result)).not.toContain("PRIVATE_MODEL_OUTPUT");
+      expect(JSON.stringify(log.mock.calls)).not.toContain(
+        "PRIVATE_MODEL_OUTPUT",
+      );
+      expect(client.openFutures).not.toHaveBeenCalled();
+      expect(client.closeFutures).not.toHaveBeenCalled();
+      expect(client.placeSpotOrder).not.toHaveBeenCalled();
+      expect(client.openPmPosition).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
     { provider: "nvidia", stopReason: "length" },
     { provider: "anthropic", stopReason: "max_tokens" },
     { provider: "anthropic", stopReason: "model_context_window_exceeded" },

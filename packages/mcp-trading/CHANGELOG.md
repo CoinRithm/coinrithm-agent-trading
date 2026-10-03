@@ -7,6 +7,9 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
 ## 0.7.16 (unpublished)
 
+- Keep rejected model text out of retained parser errors: JSON syntax errors
+  omit input excerpts, and schema errors omit rejected enum values and unknown
+  field names. Useful field/type diagnostics remain; validation is unchanged.
 - Reject OpenAI-compatible and Anthropic responses that explicitly end at the
   output token limit, and Anthropic responses stopped at the context-window
   limit, even if their partial decision text happens to be valid JSON. No action
