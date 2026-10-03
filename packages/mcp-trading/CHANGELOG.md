@@ -7,10 +7,12 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
 ## 0.7.16 (unpublished)
 
-- Reject OpenAI-compatible responses that explicitly end at the output token
+- Reject OpenAI-compatible and Anthropic responses that explicitly end at the
+  output token limit, and Anthropic responses stopped at the context-window
   limit, even if their partial decision text happens to be valid JSON. No action
   from that incomplete response reaches execution. Preserve reported token usage
-  and the hosted router's existing bounded malformed-response fallback.
+  and the hosted router's existing bounded malformed-response fallback. A
+  truncated direct-provider retry also retains its malformed classification.
 - Classify rejected actions strings with bounded, fixed diagnostic categories.
   JSON5 is used only for diagnostics; string-valued actions remain rejected.
   No raw model output is retained by this diagnostic path.

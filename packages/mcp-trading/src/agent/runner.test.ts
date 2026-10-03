@@ -2001,55 +2001,70 @@ describe("runCycle", () => {
     },
   );
 
-  it("never executes a valid-looking decision stopped by the output limit", async () => {
-    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          choices: [
-            {
-              finish_reason: "length",
-              message: {
-                tool_calls: [
-                  {
-                    function: {
-                      name: "submit_trading_decision",
-                      arguments: JSON.stringify(VALID_OPEN),
+  it.each([
+    { provider: "nvidia", stopReason: "length" },
+    { provider: "anthropic", stopReason: "max_tokens" },
+    { provider: "anthropic", stopReason: "model_context_window_exceeded" },
+  ] as const)(
+    "never executes a valid-looking $provider decision stopped by $stopReason",
+    async ({ provider, stopReason }) => {
+      const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(
+          JSON.stringify(
+            provider === "anthropic"
+              ? {
+                  stop_reason: stopReason,
+                  content: [{ type: "text", text: JSON.stringify(VALID_OPEN) }],
+                  usage: { input_tokens: 700, output_tokens: 1024 },
+                }
+              : {
+                  choices: [
+                    {
+                      finish_reason: stopReason,
+                      message: {
+                        tool_calls: [
+                          {
+                            function: {
+                              name: "submit_trading_decision",
+                              arguments: JSON.stringify(VALID_OPEN),
+                            },
+                          },
+                        ],
+                      },
                     },
-                  },
-                ],
-              },
-            },
-          ],
-          usage: { prompt_tokens: 700, completion_tokens: 1024 },
-        }),
-      ),
-    );
-    const client = baseClient();
-    const d = deps({ live: true }, client);
-    d.spec.model = { provider: "nvidia", name: "test-model" };
-    d.provider = selectProvider(
-      d.spec,
-      { NVIDIA_API_KEY: "test-only" },
-      fetchFn,
-    );
-    const result = await runCycle(d);
-    expect(result).toMatchObject({
-      decisionType: "model_error",
-      modelFailed: true,
-      llmCallMade: true,
-      tokensIn: 700,
-      tokensOut: 1024,
-      planned: [],
-      writeAttempted: 0,
-      writeAccepted: 0,
-    });
-    expect(d.state.consecutiveModelFailures).toBe(1);
-    expect(client.openFutures).not.toHaveBeenCalled();
-    expect(client.closeFutures).not.toHaveBeenCalled();
-    expect(client.placeSpotOrder).not.toHaveBeenCalled();
-    expect(client.openPmPosition).not.toHaveBeenCalled();
-    expect(fetchFn).toHaveBeenCalledTimes(1);
-  });
+                  ],
+                  usage: { prompt_tokens: 700, completion_tokens: 1024 },
+                },
+          ),
+        ),
+      );
+      const client = baseClient();
+      const d = deps({ live: true }, client);
+      d.spec.model = { provider, name: "test-model" };
+      d.provider = selectProvider(
+        d.spec,
+        { NVIDIA_API_KEY: "test-only", ANTHROPIC_API_KEY: "test-only" },
+        fetchFn,
+      );
+      const result = await runCycle(d);
+      expect(result).toMatchObject({
+        decisionType: "model_error",
+        modelFailed: true,
+        llmCallMade: true,
+        tokensIn: 700,
+        tokensOut: 1024,
+        planned: [],
+        writeAttempted: 0,
+        writeAccepted: 0,
+      });
+      expect(d.state.consecutiveModelFailures).toBe(1);
+      expect(client.openFutures).not.toHaveBeenCalled();
+      expect(client.closeFutures).not.toHaveBeenCalled();
+      expect(client.placeSpotOrder).not.toHaveBeenCalled();
+      expect(client.openPmPosition).not.toHaveBeenCalled();
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it("recovers a direct BYO 500 on the same model within one cycle and executes only once", async () => {
     const fetchFn = vi

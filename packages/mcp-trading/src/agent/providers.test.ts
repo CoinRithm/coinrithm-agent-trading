@@ -11,6 +11,66 @@ import { renderFolderOfOne } from "./templates.js";
 const spec = parseSkill(renderFolderOfOne("a", "conservative")).spec;
 
 describe("provider completion limit", () => {
+  it.each(["max_tokens", "model_context_window_exceeded"])(
+    "rejects Anthropic %s responses, including valid JSON and empty content",
+    async (stopReason) => {
+      for (const text of [
+        '{"decision":"act","actions":[],"reason":"private synthetic rationale"}',
+        "",
+      ]) {
+        const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(
+          new Response(
+            JSON.stringify({
+              stop_reason: stopReason,
+              content: [{ type: "text", text }],
+              usage: { input_tokens: 4810, output_tokens: 1024 },
+            }),
+          ),
+        );
+        const result = await providerForRoute(
+          { provider: "anthropic", model: "test-model" },
+          "test-only",
+          fetchFn,
+        ).decide({ system: "s", user: "u" });
+        expect(result).toEqual({
+          ok: false,
+          failureClass: "malformed",
+          error:
+            stopReason === "max_tokens"
+              ? "provider returned incomplete decision (output token limit)"
+              : "provider returned incomplete decision (context window limit)",
+          usage: { promptTokens: 4810, completionTokens: 1024 },
+        });
+        expect(fetchFn).toHaveBeenCalledTimes(1);
+        expect(JSON.stringify(result)).not.toContain(
+          "private synthetic rationale",
+        );
+      }
+    },
+  );
+
+  it.each(["end_turn", "stop_sequence", null, undefined])(
+    "preserves Anthropic complete or legacy response with stop reason %s",
+    async (stopReason) => {
+      const text = '{"decision":"skip","actions":[]}';
+      const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            stop_reason: stopReason,
+            content: [{ type: "text", text }],
+          }),
+        ),
+      );
+      const result = await providerForRoute(
+        { provider: "anthropic", model: "test-model" },
+        "test-only",
+        fetchFn,
+      ).decide({ system: "s", user: "u" });
+      expect(result).toMatchObject({ ok: true, text });
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+    },
+  );
+
   it.each(["tool_call", "content", "empty"])(
     "rejects incomplete %s output without retrying or exposing its text",
     async (source) => {
@@ -254,6 +314,40 @@ describe("direct NVIDIA same-model retry", () => {
       { NVIDIA_API_KEY: "nvapi-test" },
       fetchFn,
     );
+
+  it("retains malformed classification when the one allowed retry is truncated", async () => {
+    vi.useFakeTimers();
+    const fetchFn = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(serverError, { status: 500 }))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            choices: [
+              { finish_reason: "length", message: { content: decision } },
+            ],
+            usage: { prompt_tokens: 7, completion_tokens: 1024 },
+          }),
+        ),
+      );
+    const pending = direct(fetchFn).decide({ system: "s", user: "u" });
+    await vi.advanceTimersByTimeAsync(1000);
+    const result = await pending;
+    expect(result).toMatchObject({
+      ok: false,
+      failureClass: "malformed",
+      usage: { promptTokens: 7, completionTokens: 1024 },
+      route: {
+        attempts: [
+          { outcome: "failed", status: 500, failureClass: "transient" },
+          { outcome: "failed", failureClass: "malformed" },
+        ],
+      },
+    });
+    expect(result).not.toHaveProperty("text");
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+    expect(vi.getTimerCount()).toBe(0);
+  });
 
   it("both same-model attempts carry the cycle's withheld action variants", async () => {
     vi.useFakeTimers();
