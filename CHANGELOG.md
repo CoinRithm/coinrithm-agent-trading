@@ -10,9 +10,10 @@ Each package has its own version; the API contract is versioned separately.
 
 ## MCP 0.7.16 (unpublished)
 
-The agent runner now rejects OpenAI-compatible output explicitly stopped at the
-completion-token limit, even when a partial payload looks like valid decision
-JSON. Reported usage is preserved; existing retries and fallback limits remain.
+The agent runner now rejects OpenAI-compatible and Anthropic output explicitly
+stopped at the completion-token limit, plus Anthropic context-window truncation,
+even when a partial payload looks like valid decision JSON. Reported usage and
+malformed classification are preserved; existing retries and fallback limits remain.
 Bounded actions-string diagnostics retain only fixed categories and never accept
 string-valued actions. See the [MCP changelog](packages/mcp-trading/CHANGELOG.md).
 TypeScript 0.3.4, Python 1.8.4 and API contract 1.7.0 are unchanged. This source

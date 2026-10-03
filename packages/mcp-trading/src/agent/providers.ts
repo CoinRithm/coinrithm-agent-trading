@@ -322,6 +322,7 @@ class AnthropicProvider implements Provider {
           }
           const json = (await res.json()) as {
             content?: Array<{ text?: string }>;
+            stop_reason?: string | null;
             usage?: { input_tokens?: number; output_tokens?: number };
           };
           const text = json.content?.map((c) => c.text ?? "").join("") ?? "";
@@ -331,6 +332,20 @@ class AnthropicProvider implements Provider {
                 completionTokens: json.usage.output_tokens ?? 0,
               }
             : undefined;
+          if (
+            json.stop_reason === "max_tokens" ||
+            json.stop_reason === "model_context_window_exceeded"
+          ) {
+            return {
+              ok: false,
+              failureClass: "malformed",
+              error:
+                json.stop_reason === "max_tokens"
+                  ? "provider returned incomplete decision (output token limit)"
+                  : "provider returned incomplete decision (context window limit)",
+              usage,
+            };
+          }
           return text
             ? { ok: true, text, usage, responseSource: "content" }
             : { ok: false, error: "anthropic returned empty content" };
@@ -526,11 +541,12 @@ class SameModelRetryProvider implements Provider {
             status: res.status,
             retryAfterMs: res.retryAfterMs,
             failureClass:
-              classifyProviderFailure(res) === "capacity"
+              res.failureClass ??
+              (classifyProviderFailure(res) === "capacity"
                 ? ("capacity" as const)
                 : res.status !== undefined && res.status < 500
                   ? ("permanent" as const)
-                  : ("transient" as const),
+                  : ("transient" as const)),
           }
         : {}),
     });
