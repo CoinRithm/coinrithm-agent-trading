@@ -5,6 +5,16 @@ MCP Registry are delivered separately. Current publication status is in the
 [README](../README.md#version-clarity); package changes are in the
 [changelog](../CHANGELOG.md).
 
+## Pending MCP-only release � 0.7.16
+
+This release packages the reviewed incomplete-response guard and bounded shape
+diagnostics. It changes only `@coinrithm/mcp-trading`; the published TypeScript
+0.3.4 and Python 1.8.4 packages remain unchanged and must not be uploaded again.
+Prepare and verify a new MCP archive/manifest from its exact passing CI revision,
+then stage that same archive in a GitHub draft. Keep the draft and MCP Registry
+unpublished until npm delivery is confirmed. Source version and hosted scheduler
+activation are separate from package publication.
+
 ## Previous verified delivery — 23 September 2026
 
 | Registry | Package                  | Version  | Files                                                                |
