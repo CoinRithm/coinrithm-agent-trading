@@ -80,6 +80,9 @@ describe("hosted provider lifecycle", () => {
     });
     vi.spyOn(capacity, "releaseProviderCapacity").mockResolvedValue(undefined);
     vi.spyOn(capacity, "coolDownProviderCapacity").mockResolvedValue(undefined);
+    vi.spyOn(capacity, "clearProviderCapacityBackoff").mockResolvedValue(
+      undefined,
+    );
     decide = vi.fn().mockResolvedValue(good);
     vi.spyOn(engine, "providerForRoute").mockImplementation(() => ({
       label: "fixture",
@@ -232,13 +235,33 @@ describe("hosted provider lifecycle", () => {
         "nvidia:shared:0",
         "nvidia",
         NEMOTRON_NANO,
-        retryAfterMs ?? 60000,
+        retryAfterMs,
         "rate_limit",
       );
       expect(db.recordProviderStrike).not.toHaveBeenCalled();
       expect(result.ok).toBe(true);
     },
   );
+
+  it("can roll back adaptive cooldown without ignoring explicit Retry-After", async () => {
+    const { agent, config } = fixture();
+    config.adaptiveCooldownEnabled = false;
+    decide.mockResolvedValueOnce({
+      ok: false,
+      status: 429,
+      error: "rate limit",
+    });
+    await runAgentOnce(pool, agent, config);
+    expect(capacity.coolDownProviderCapacity).toHaveBeenCalledWith(
+      pool,
+      "nvidia:shared:0",
+      "nvidia",
+      NEMOTRON_NANO,
+      60000,
+      "rate_limit",
+    );
+    expect(capacity.clearProviderCapacityBackoff).not.toHaveBeenCalled();
+  });
 
   it("records permanent faults with three strikes", async () => {
     decide.mockResolvedValueOnce({

@@ -28,6 +28,7 @@ export interface Config {
   // Cross-replica provider lease (RPM + TPM + concurrency). Enabled by default;
   // one env flag rolls back to the legacy in-memory guard.
   capacityEnabled: boolean;
+  adaptiveCooldownEnabled: boolean;
   nvidiaTpm: number;
   nvidiaMaxConcurrent: number;
   groqTpm: number;
@@ -136,6 +137,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     nvidiaRpm: intEnv(env, "SCHEDULER_NVIDIA_RPM", 15, 1),
     groqRpm: intEnv(env, "SCHEDULER_GROQ_RPM", 30, 1),
     capacityEnabled: boolEnv(env, "SCHEDULER_CAPACITY_ENABLED", true),
+    adaptiveCooldownEnabled: boolEnv(
+      env,
+      "SCHEDULER_ADAPTIVE_COOLDOWN_ENABLED",
+      true,
+    ),
     // Configurable because provider/account tiers vary. The default covers the
     // measured ~68k sustained fleet demand with bounded headroom.
     nvidiaTpm: intEnv(env, "SCHEDULER_NVIDIA_TPM", 100_000, 1),

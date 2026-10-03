@@ -93,6 +93,15 @@ Operational must-knows:
 
 ## Schema deployment and runtime role
 
+Capacity cooldowns are shared across replicas for each key/model pair. Explicit
+`Retry-After` is honored with the existing one-second minimum and one-hour cap.
+Without that header, backoff starts at 10–15 seconds, doubles on repeated
+failures and caps at 120–125 seconds. A valid decision resets older backoff;
+it cannot clear a failure newer than that request. Five quiet minutes also reset
+the failure sequence. This is bounded retry policy, not a guarantee that NVIDIA
+recovers within seconds. Set `SCHEDULER_ADAPTIVE_COOLDOWN_ENABLED=false` to
+restore the previous 60-second default; explicit `Retry-After` still applies.
+
 1. Build the scheduler image and retain the previous image and runtime secret
    configuration. Record the database target and take the established backup.
 2. Run `node scripts/migrate-schema.mjs --maintenance-confirmed` in an isolated

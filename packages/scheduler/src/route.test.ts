@@ -45,6 +45,33 @@ function harness(results: DecideResult[], unavailable = new Set<string>()) {
 }
 
 describe("routed failure attribution in the real runner", () => {
+  it("retains the request start time across slow release bookkeeping", async () => {
+    const h = harness([ok()]);
+    let clock = 100;
+    h.release.mockImplementation(async () => {
+      clock = 9000;
+    });
+    const route: ModelRoute = {
+      provider: "nvidia",
+      model: "fixture",
+      keyRef: "key",
+    };
+    const provider = new RoutedProvider(
+      "fast",
+      [route],
+      false,
+      h.buildProvider,
+      h.hooks,
+      () => clock,
+    );
+    expect((await provider.decide(input)).ok).toBe(true);
+    expect(h.observe).toHaveBeenCalledWith(
+      route,
+      expect.objectContaining({ outcome: "success" }),
+      100,
+    );
+  });
+
   it("does not retain syntax-error excerpts in failed attempts before fallback", async () => {
     const h = harness([
       { ok: true, text: '{"decision":PRIVATE_MODEL_OUTPUT}' },

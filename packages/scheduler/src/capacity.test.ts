@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { Pool } from "pg";
 import {
   coolDownProviderCapacity,
+  clearProviderCapacityBackoff,
   isProviderRouteCoolingDown,
   releaseProviderCapacity,
   reserveProviderCapacity,
@@ -133,6 +134,7 @@ describe("shared provider capacity", () => {
       limit.model,
       90_000,
       "rate_limit",
+      expect.any(Number),
     ]);
 
     query.mockClear();
@@ -164,6 +166,24 @@ describe("shared provider capacity", () => {
       isProviderRouteCoolingDown(pool, limit.routeKey, limit.model),
     ).resolves.toBe(true);
     expect(query.mock.calls[0]?.[1]).toEqual([limit.routeKey, limit.model]);
+  });
+
+  it("uses adaptive backoff only when the provider omitted Retry-After", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const pool = { query } as unknown as Pool;
+    await coolDownProviderCapacity(pool, "key", "nvidia", "model", undefined);
+    const params = query.mock.calls[0]?.[1];
+    expect(params?.[3]).toBeNull();
+    expect(params?.[5]).toBeGreaterThanOrEqual(0);
+    expect(params?.[5]).toBeLessThanOrEqual(5000);
+    await expect(
+      clearProviderCapacityBackoff(pool, "key", "model", NaN),
+    ).rejects.toThrow("Invalid call start time");
+    await clearProviderCapacityBackoff(pool, "key", "model", 1234);
+    expect(query).toHaveBeenLastCalledWith(
+      expect.stringContaining("last_failure_at <="),
+      ["key", "model", 1234],
+    );
   });
 
   it.each([

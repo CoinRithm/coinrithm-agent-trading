@@ -7,6 +7,9 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   reserveProviderCapacity,
   releaseProviderCapacity,
+  coolDownProviderCapacity,
+  clearProviderCapacityBackoff,
+  isProviderRouteCoolingDown,
 } from "./capacity.js";
 import {
   migrate,
@@ -66,6 +69,7 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
     await pool.query("DELETE FROM agent_runtime.agents");
     await pool.query("DELETE FROM agent_runtime.provider_capacity_leases");
     await pool.query("DELETE FROM agent_runtime.provider_capacity_buckets");
+    await pool.query("DELETE FROM agent_runtime.provider_route_cooldowns");
     // Future refill time freezes the budget for exact boundary assertions.
     await pool.query(
       `INSERT INTO agent_runtime.provider_capacity_buckets
@@ -74,6 +78,131 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
       VALUES ($1, $2, 24, 100000, 24, 100000, 4, now() + interval '1 hour')`,
       [limit.routeKey, limit.provider],
     );
+  });
+
+  it("backs off briefly, grows atomically, and isolates other keys/models", async () => {
+    const args = [
+      pool,
+      "backoff:0",
+      "nvidia",
+      "fixture-model",
+      undefined,
+    ] as const;
+    const duration = async () =>
+      Number(
+        (
+          await pool.query(
+            "SELECT extract(epoch FROM (blocked_until-last_failure_at))*1000 ms FROM agent_runtime.provider_route_cooldowns WHERE route_key='backoff:0'",
+          )
+        ).rows[0].ms,
+      );
+    await coolDownProviderCapacity(...args);
+    expect(await duration()).toBeGreaterThanOrEqual(9900);
+    expect(await duration()).toBeLessThanOrEqual(15100);
+    await Promise.all(
+      Array.from({ length: 5 }, () => coolDownProviderCapacity(...args)),
+    );
+    expect(await duration()).toBeGreaterThanOrEqual(119900);
+    expect(await duration()).toBeLessThanOrEqual(125100);
+    expect(
+      await isProviderRouteCoolingDown(pool, "backoff:1", "fixture-model"),
+    ).toBe(false);
+    expect(
+      await isProviderRouteCoolingDown(pool, "backoff:0", "other-model"),
+    ).toBe(false);
+  });
+
+  it("honors Retry-After without shortening it and does not let an older success clear a new hold", async () => {
+    await coolDownProviderCapacity(
+      pool,
+      "backoff:0",
+      "nvidia",
+      "fixture-model",
+      180000,
+    );
+    const before = (
+      await pool.query(
+        "SELECT blocked_until FROM agent_runtime.provider_route_cooldowns WHERE route_key='backoff:0'",
+      )
+    ).rows[0].blocked_until;
+    await coolDownProviderCapacity(
+      pool,
+      "backoff:0",
+      "nvidia",
+      "fixture-model",
+      undefined,
+    );
+    const after = (
+      await pool.query(
+        "SELECT blocked_until FROM agent_runtime.provider_route_cooldowns WHERE route_key='backoff:0'",
+      )
+    ).rows[0].blocked_until;
+    expect(after.getTime()).toBeGreaterThanOrEqual(before.getTime());
+    await clearProviderCapacityBackoff(
+      pool,
+      "backoff:0",
+      "fixture-model",
+      Date.now() - 10000,
+    );
+    expect(
+      await isProviderRouteCoolingDown(pool, "backoff:0", "fixture-model"),
+    ).toBe(true);
+    await pool.query(
+      "UPDATE agent_runtime.provider_route_cooldowns SET last_failure_at=now()-interval '1 hour' WHERE route_key='backoff:0'",
+    );
+    await clearProviderCapacityBackoff(
+      pool,
+      "backoff:0",
+      "fixture-model",
+      Date.now(),
+    );
+    expect(
+      await isProviderRouteCoolingDown(pool, "backoff:0", "fixture-model"),
+    ).toBe(false);
+    await coolDownProviderCapacity(
+      pool,
+      "backoff:0",
+      "nvidia",
+      "fixture-model",
+      undefined,
+    );
+    const restarted = Number(
+      (
+        await pool.query(
+          "SELECT extract(epoch FROM (blocked_until-last_failure_at))*1000 ms FROM agent_runtime.provider_route_cooldowns WHERE route_key='backoff:0'",
+        )
+      ).rows[0].ms,
+    );
+    expect(restarted).toBeLessThanOrEqual(15100);
+  });
+
+  it("forgets a stale failure sequence without needing a successful call", async () => {
+    await coolDownProviderCapacity(
+      pool,
+      "backoff:0",
+      "nvidia",
+      "fixture-model",
+      120000,
+    );
+    await pool.query(
+      "UPDATE agent_runtime.provider_route_cooldowns SET last_failure_at=now()-interval '10 minutes', blocked_until=now()-interval '8 minutes' WHERE route_key='backoff:0'",
+    );
+    await coolDownProviderCapacity(
+      pool,
+      "backoff:0",
+      "nvidia",
+      "fixture-model",
+      undefined,
+    );
+    const duration = Number(
+      (
+        await pool.query(
+          "SELECT extract(epoch FROM (blocked_until-last_failure_at))*1000 ms FROM agent_runtime.provider_route_cooldowns WHERE route_key='backoff:0'",
+        )
+      ).rows[0].ms,
+    );
+    expect(duration).toBeGreaterThanOrEqual(9900);
+    expect(duration).toBeLessThanOrEqual(15100);
   });
 
   it("rolls back interrupted DDL and releases the migration lock", async () => {
