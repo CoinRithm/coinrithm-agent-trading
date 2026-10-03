@@ -1572,6 +1572,106 @@ describe("runCycle private input evidence", () => {
 });
 
 describe("permanent model failures belong to their attempted route", () => {
+  it.each([
+    [404, 0],
+    [410, 0],
+    [404, 14],
+    [410, 14],
+  ])(
+    "keeps direct HTTP %i retries active beyond the kill-switch threshold with %i prior failures",
+    async (status, priorFailures) => {
+      const fetchFn = vi
+        .fn<typeof fetch>()
+        .mockImplementation(
+          async () => new Response("model no longer available", { status }),
+        );
+      const client = baseClient();
+      const d = deps({ live: true }, client);
+      d.spec.model = { provider: "nvidia", name: "test-retired-model" };
+      d.spec.killSwitch.maxConsecutiveModelFailures = 15;
+      d.state.consecutiveModelFailures = priorFailures;
+      d.provider = selectProvider(
+        d.spec,
+        { NVIDIA_API_KEY: "test-only" },
+        fetchFn,
+      );
+
+      for (let count = 1; count <= 20; count++) {
+        const result = await runCycle(d);
+        expect(result).toMatchObject({
+          decision: "skip",
+          decisionType: "model_error",
+          modelFailed: true,
+          llmCallMade: true,
+          effectiveProvider: "nvidia",
+          effectiveModel: "test-retired-model",
+          planned: [],
+          writeAttempted: 0,
+          writeAccepted: 0,
+        });
+        expect(result.disabled).not.toBe(true);
+        expect(d.state.disabled).toBe(false);
+        expect(d.state.consecutiveModelFailures).toBe(priorFailures);
+        expect(d.state.consecutivePermanentModelErrors).toBe(count);
+        if (count < 3) expect(result.providerHold).toBeUndefined();
+        else
+          expect(result.providerHold).toMatchObject({
+            provider: "nvidia",
+            model: "test-retired-model",
+          });
+      }
+      expect(fetchFn).toHaveBeenCalledTimes(20);
+      expect(d.state.llmCallTimestamps).toHaveLength(20);
+      expect(client.openFutures).not.toHaveBeenCalled();
+      expect(client.closeFutures).not.toHaveBeenCalled();
+      expect(client.placeSpotOrder).not.toHaveBeenCalled();
+      expect(client.openPmPosition).not.toHaveBeenCalled();
+
+      d.provider = provider({ decision: "skip", actions: [] });
+      const recovered = await runCycle(d);
+      expect(recovered.modelFailed).not.toBe(true);
+      expect(recovered.providerHold).toBeUndefined();
+      expect(d.state.consecutiveModelFailures).toBe(0);
+      expect(d.state.consecutivePermanentModelErrors).toBe(0);
+      expect(d.state.permanentModelErrorRoute).toBeUndefined();
+    },
+  );
+
+  it.each(["transient", "invalid_output"])(
+    "preserves the generic kill-switch for a %s failure after a provider hold",
+    async (failure) => {
+      const client = baseClient();
+      const d = deps({ live: true }, client, {
+        label: "unavailable",
+        decide: async () => ({ ok: false, error: "provider HTTP 410" }),
+      });
+      d.spec.killSwitch.maxConsecutiveModelFailures = 15;
+      d.state.consecutiveModelFailures = 14;
+      for (let count = 0; count < 3; count++) await runCycle(d);
+      const decide = vi
+        .fn<Provider["decide"]>()
+        .mockResolvedValue(
+          failure === "transient"
+            ? { ok: false, error: "provider HTTP 500" }
+            : { ok: true, text: '{"decision":"act","actions":"[]"}' },
+        );
+      d.provider = { label: "responding", decide };
+      expect((await runCycle(d)).modelFailed).toBe(true);
+      expect(d.state.consecutiveModelFailures).toBe(15);
+      expect(d.state.consecutivePermanentModelErrors).toBe(0);
+      expect(d.state.permanentModelErrorRoute).toBeUndefined();
+      expect(await runCycle(d)).toMatchObject({
+        disabled: true,
+        disabledReason: "consecutive model failures 15 >= 15",
+        llmCallMade: false,
+        writeAttempted: 0,
+        writeAccepted: 0,
+      });
+      expect(decide).toHaveBeenCalledTimes(1);
+      expect(client.openFutures).not.toHaveBeenCalled();
+    },
+  );
+
   it("holds the permanent failure route without changing last-call metering after a capacity fallback", async () => {
     const d = deps({}, baseClient(), {
       label: "router",
@@ -1965,8 +2065,8 @@ describe("runCycle", () => {
         effectiveModel: "test-retired-model",
         routeReason: "configured_direct",
       });
-      expect(d.state.consecutiveModelFailures).toBe(1);
       if (status === 410 || status === 404) {
+        expect(d.state.consecutiveModelFailures).toBe(0);
         expect(result.providerHold).toMatchObject({
           provider: "nvidia",
           model: "test-retired-model",
@@ -1974,6 +2074,7 @@ describe("runCycle", () => {
         expect(d.state.consecutivePermanentModelErrors).toBe(3);
         expect(result.routeAttempts).toBeUndefined();
       } else {
+        expect(d.state.consecutiveModelFailures).toBe(1);
         expect(result.providerHold).toBeUndefined();
         expect(d.state.consecutivePermanentModelErrors).toBe(0);
         expect(result.routeAttempts).toMatchObject([

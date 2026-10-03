@@ -974,7 +974,6 @@ async function runCycleCore(
           ...observationReceipt,
         };
       }
-      state.consecutiveModelFailures += 1;
       // Permanent-failure classification: a 404/410/model_not_found is a
       // DECOMMISSIONED or misconfigured model that will fail every cycle
       // until something changes (live-measured 2026-08-26: NVIDIA EOL'd the
@@ -1046,6 +1045,12 @@ async function runCycleCore(
           };
         }
       } else {
+        // Availability failures have their own route-specific hold counter.
+        // Charging them to the generic kill-switch as well disables BYO and
+        // self-hosted agents that keep retrying outside the shared circuit.
+        // Preserve prior transient/invalid-output failures until a valid
+        // decision clears them; a provider hold is not evidence of recovery.
+        state.consecutiveModelFailures += 1;
         state.consecutivePermanentModelErrors = 0;
         delete state.permanentModelErrorRoute;
       }

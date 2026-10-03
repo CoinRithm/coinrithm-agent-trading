@@ -7,6 +7,10 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
 ## 0.7.16 (unpublished)
 
+- Keep repeated provider 404/410 availability failures out of the generic model
+  failure kill-switch. BYO and self-hosted agents retain their configured model
+  and provider holds without entering a disable/revive loop. Transient failures
+  and invalid decisions still count toward the existing kill-switch.
 - Keep rejected model text out of retained parser errors: JSON syntax errors
   omit input excerpts, and schema errors omit rejected enum values and unknown
   field names. Useful field/type diagnostics remain; validation is unchanged.
