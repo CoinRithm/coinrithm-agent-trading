@@ -1,10 +1,92 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { providerForRoute, selectProvider } from "./providers.js";
+import {
+  classifyProviderFailure,
+  providerForRoute,
+  selectProvider,
+} from "./providers.js";
 import { parseSkill } from "./skill.js";
 import { renderFolderOfOne } from "./templates.js";
 
 // conservative template -> model anthropic/claude-sonnet-4-6.
 const spec = parseSkill(renderFolderOfOne("a", "conservative")).spec;
+
+describe("provider completion limit", () => {
+  it.each(["tool_call", "content", "empty"])(
+    "rejects incomplete %s output without retrying or exposing its text",
+    async (source) => {
+      const text = JSON.stringify({
+        decision: "act",
+        reason: "private synthetic rationale",
+        actions: [{ type: "futures_close", positionId: 123, fraction: 1 }],
+      });
+      const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                finish_reason: "length",
+                message:
+                  source === "tool_call"
+                    ? {
+                        tool_calls: [
+                          {
+                            function: {
+                              name: "submit_trading_decision",
+                              arguments: text,
+                            },
+                          },
+                        ],
+                      }
+                    : { content: source === "empty" ? null : text },
+              },
+            ],
+            usage: { prompt_tokens: 4810, completion_tokens: 1024 },
+          }),
+        ),
+      );
+      const provider = selectProvider(
+        { ...spec, model: { provider: "nvidia", name: "test-model" } },
+        { NVIDIA_API_KEY: "test-only" },
+        fetchFn,
+      );
+      const result = await provider.decide({ system: "s", user: "u" });
+      expect(result).toEqual({
+        ok: false,
+        failureClass: "malformed",
+        error: "provider returned incomplete decision (output token limit)",
+        usage: { promptTokens: 4810, completionTokens: 1024 },
+      });
+      if (!result.ok) expect(classifyProviderFailure(result)).toBe("malformed");
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+      expect(JSON.stringify(result)).not.toContain(
+        "private synthetic rationale",
+      );
+    },
+  );
+
+  it.each(["stop", "tool_calls", null, undefined])(
+    "preserves complete or legacy responses with finish reason %s",
+    async (finishReason) => {
+      const text = '{"decision":"skip","actions":[]}';
+      const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            choices: [
+              { finish_reason: finishReason, message: { content: text } },
+            ],
+          }),
+        ),
+      );
+      const result = await providerForRoute(
+        { provider: "nvidia", model: "test-model" },
+        "test-only",
+        fetchFn,
+      ).decide({ system: "s", user: "u" });
+      expect(result).toMatchObject({ ok: true, text });
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+    },
+  );
+});
 
 describe.each(["nvidia", "anthropic"] as const)(
   "%s provider end-to-end deadline",

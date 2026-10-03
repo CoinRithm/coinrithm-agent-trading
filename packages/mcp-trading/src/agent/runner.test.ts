@@ -2001,6 +2001,56 @@ describe("runCycle", () => {
     },
   );
 
+  it("never executes a valid-looking decision stopped by the output limit", async () => {
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [
+            {
+              finish_reason: "length",
+              message: {
+                tool_calls: [
+                  {
+                    function: {
+                      name: "submit_trading_decision",
+                      arguments: JSON.stringify(VALID_OPEN),
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+          usage: { prompt_tokens: 700, completion_tokens: 1024 },
+        }),
+      ),
+    );
+    const client = baseClient();
+    const d = deps({ live: true }, client);
+    d.spec.model = { provider: "nvidia", name: "test-model" };
+    d.provider = selectProvider(
+      d.spec,
+      { NVIDIA_API_KEY: "test-only" },
+      fetchFn,
+    );
+    const result = await runCycle(d);
+    expect(result).toMatchObject({
+      decisionType: "model_error",
+      modelFailed: true,
+      llmCallMade: true,
+      tokensIn: 700,
+      tokensOut: 1024,
+      planned: [],
+      writeAttempted: 0,
+      writeAccepted: 0,
+    });
+    expect(d.state.consecutiveModelFailures).toBe(1);
+    expect(client.openFutures).not.toHaveBeenCalled();
+    expect(client.closeFutures).not.toHaveBeenCalled();
+    expect(client.placeSpotOrder).not.toHaveBeenCalled();
+    expect(client.openPmPosition).not.toHaveBeenCalled();
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
   it("recovers a direct BYO 500 on the same model within one cycle and executes only once", async () => {
     const fetchFn = vi
       .fn<typeof fetch>()

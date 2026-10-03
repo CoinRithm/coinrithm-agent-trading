@@ -917,12 +917,11 @@ async function runCycleCore(
     // Metering: prefer provider-reported usage; fall back to a chars/4 estimate.
     const tokensIn = !actualCallMade
       ? 0
-      : res.ok
-        ? (res.usage?.promptTokens ?? tokensInEst)
-        : tokensInEst;
-    const tokensOut = res.ok
-      ? (res.usage?.completionTokens ?? Math.round(res.text.length / 4))
-      : 0;
+      : (res.usage?.promptTokens ?? tokensInEst);
+    const tokensOut = !actualCallMade
+      ? 0
+      : (res.usage?.completionTokens ??
+        (res.ok ? Math.round(res.text.length / 4) : 0));
     const estimatedCostUsd = estimateCostUsd(
       effectiveProvider ?? providerName,
       tokensIn,
