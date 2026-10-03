@@ -136,6 +136,42 @@ describe("hosted provider lifecycle", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  it("accounts incomplete response usage and takes only the existing malformed fallback", async () => {
+    decide.mockResolvedValueOnce({
+      ok: false,
+      failureClass: "malformed",
+      error: "provider returned incomplete decision (output token limit)",
+      usage: { promptTokens: 4810, completionTokens: 1024 },
+    });
+    const { agent, config } = fixture();
+    await runAgentOnce(pool, agent, config);
+    expect(result).toMatchObject({
+      ok: true,
+      route: {
+        reason: "malformed_fallback",
+        attempts: [
+          { outcome: "failed", failureClass: "malformed" },
+          { outcome: "success" },
+        ],
+      },
+    });
+    expect(decide).toHaveBeenCalledTimes(2);
+    expect(capacity.releaseProviderCapacity).toHaveBeenNthCalledWith(
+      1,
+      pool,
+      expect.any(Object),
+      5834,
+    );
+    expect(capacity.releaseProviderCapacity).toHaveBeenNthCalledWith(
+      2,
+      pool,
+      expect.any(Object),
+      10,
+    );
+    expect(capacity.coolDownProviderCapacity).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it("uses the independent backup after a transient fault and redacts both credentials", async () => {
     decide.mockResolvedValueOnce({
       ok: false,

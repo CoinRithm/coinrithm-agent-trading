@@ -240,10 +240,8 @@ function routedProviderFor(
       },
       release: async (_route, lease, result) => {
         if (!lease) return;
-        const actualTokens = result.ok
-          ? result.usage
-            ? result.usage.promptTokens + result.usage.completionTokens
-            : undefined
+        const actualTokens = result.usage
+          ? result.usage.promptTokens + result.usage.completionTokens
           : undefined;
         await releaseProviderCapacity(pool, lease, actualTokens).catch(
           (error) => hookFailure("capacity release", error),

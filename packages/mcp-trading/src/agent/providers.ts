@@ -68,6 +68,10 @@ export type DecideResult =
   | {
       ok: false;
       error: string;
+      // An HTTP-success response can still be an incomplete decision. Never
+      // execute a valid-looking prefix or retry it as a server refusal.
+      failureClass?: "malformed";
+      usage?: { promptTokens: number; completionTokens: number };
       // Structured failure metadata (slice A2, Codex amendment 2026-08-26):
       // the router must classify 429 (capacity: fall back / cool down NOW)
       // separately from 5xx/timeout (transient thresholds) without string
@@ -132,7 +136,8 @@ const RETRYABLE_SERVER_STATUSES = new Set([500, 502, 503, 504]);
 /** Keep direct and routed cycle evidence consistent about NVIDIA backpressure. */
 export function classifyProviderFailure(
   result: Extract<DecideResult, { ok: false }>,
-): "capacity" | "permanent" | "transient" {
+): "capacity" | "permanent" | "transient" | "malformed" {
+  if (result.failureClass === "malformed") return "malformed";
   if (
     result.status === 429 ||
     (result.status === 503 &&
@@ -403,6 +408,7 @@ class OpenAiCompatProvider implements Provider {
           }
           const json = (await res.json()) as {
             choices?: Array<{
+              finish_reason?: string | null;
               message?: {
                 content?: string | null;
                 tool_calls?: Array<{
@@ -423,6 +429,15 @@ class OpenAiCompatProvider implements Provider {
                 completionTokens: json.usage.completion_tokens ?? 0,
               }
             : undefined;
+          if (json.choices?.[0]?.finish_reason === "length") {
+            return {
+              ok: false,
+              failureClass: "malformed",
+              error:
+                "provider returned incomplete decision (output token limit)",
+              usage,
+            };
+          }
           return text
             ? {
                 ok: true,
