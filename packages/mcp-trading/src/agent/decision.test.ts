@@ -16,6 +16,9 @@ describe("actions string diagnostics retain rejection and no response content", 
     ['"[]"', "json_nonarray"],
     ["null", "json_nonarray"],
     ["PRIVATE_OUTPUT", "invalid_json"],
+    ["", "empty_string_other_decision"],
+    ["  \n", "empty_string_other_decision"],
+    ["[{'type': 'spot_cancel'}]", "non_json_array_text"],
     ["[".repeat(65_537), "over_size_limit"],
   ])(
     "classifies encoded value %# without accepting it",
@@ -33,6 +36,16 @@ describe("actions string diagnostics retain rejection and no response content", 
   );
 
   it("validates the complete decision and every decoded action diagnostically", () => {
+    expect(parseDecision('{"decision":"skip","actions":"  "}')).toMatchObject({
+      ok: false,
+      actionsStringDiagnostic: "empty_string_valid_skip",
+    });
+    expect(
+      parseDecision('{"decision":"skip","actions":"","extra":true}'),
+    ).toMatchObject({
+      ok: false,
+      actionsStringDiagnostic: "empty_string_other_decision",
+    });
     for (const obj of [
       { decision: "act", extra: true, actions: "[]" },
       {

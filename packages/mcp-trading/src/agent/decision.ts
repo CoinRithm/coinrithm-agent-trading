@@ -396,6 +396,9 @@ export const ACTIONS_STRING_DIAGNOSTICS = [
   "json_array_invalid_decision",
   "json_nonarray",
   "invalid_json",
+  "empty_string_valid_skip",
+  "empty_string_other_decision",
+  "non_json_array_text",
   "over_size_limit",
 ] as const;
 export type ActionsStringDiagnostic =
@@ -408,11 +411,18 @@ function diagnoseActionsString(
   const record = obj as Record<string, unknown>;
   if (typeof record.actions !== "string") return undefined;
   if (record.actions.length > 65_536) return "over_size_limit";
+  const text = record.actions.trim();
+  if (text === "") {
+    return record.decision === "skip" &&
+      decisionSchema.safeParse({ ...record, actions: [] }).success
+      ? "empty_string_valid_skip"
+      : "empty_string_other_decision";
+  }
   let actions: unknown;
   try {
     actions = JSON.parse(record.actions);
   } catch {
-    return "invalid_json";
+    return text.startsWith("[") ? "non_json_array_text" : "invalid_json";
   }
   if (!Array.isArray(actions)) return "json_nonarray";
   if (!decisionSchema.safeParse({ ...record, actions }).success)
