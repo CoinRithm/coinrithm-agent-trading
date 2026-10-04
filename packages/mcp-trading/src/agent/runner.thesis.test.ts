@@ -335,6 +335,34 @@ describe("runCycle: thesis binding on open", () => {
 });
 
 describe("runCycle: thesis evaluation and exits", () => {
+  it("executes and counts protective exits even while the shared model interval is waiting", async () => {
+    const client = baseClient({
+      futuresPositions: async () =>
+        okData({
+          positions: [heldBtc({ markPrice: 63900, unrealizedPnlMusd: -90 })],
+        }),
+    });
+    const prov = capturingProvider();
+    const decide = vi.spyOn(prov, "decide");
+    const d = deps({ live: true, minModelIntervalSeconds: 180 }, client, prov);
+    d.state.lastLlmCallAt = Date.now() - 60000;
+    d.state.theses = { [thesisKey("futures", 52)]: btcThesis() };
+    const r = await runCycle(d);
+    expect(client.closeFutures).toHaveBeenCalledOnce();
+    expect(decide).not.toHaveBeenCalled();
+    expect(r).toMatchObject({
+      llmCallMade: false,
+      decisionType: "gate_skip",
+      writeAttempted: 1,
+      writeAccepted: 1,
+      skipReason: "shared pool model interval (180s minimum)",
+    });
+    expect(r.planned).toEqual([
+      expect.objectContaining({ executed: true, code: "thesis_invalidated" }),
+    ]);
+    expect(d.state.theses?.["futures:52"]).toBeUndefined();
+  });
+
   it("hold-while-valid: an intact thesis is shown to the model and nothing is closed", async () => {
     const client = baseClient({
       futuresPositions: async () => okData({ positions: [heldBtc()] }),

@@ -7,6 +7,44 @@ const baseEnv = (): NodeJS.ProcessEnv => ({
 });
 
 describe("provider capacity config", () => {
+  it("keeps shared owner policy opt-in with explicit rollback and validated limits", () => {
+    expect(loadConfig(baseEnv())).toMatchObject({
+      sharedPoolPolicyEnabled: false,
+      sharedOwnerTpm: 25000,
+      sharedMinModelIntervalSeconds: 180,
+    });
+    expect(
+      loadConfig({
+        ...baseEnv(),
+        SCHEDULER_SHARED_POOL_POLICY_ENABLED: "true",
+        SCHEDULER_SHARED_OWNER_TPM: "30000",
+        SCHEDULER_SHARED_MIN_MODEL_INTERVAL_SECONDS: "240",
+      }),
+    ).toMatchObject({
+      sharedPoolPolicyEnabled: true,
+      sharedOwnerTpm: 30000,
+      sharedMinModelIntervalSeconds: 240,
+    });
+    expect(
+      loadConfig({
+        ...baseEnv(),
+        SCHEDULER_SHARED_POOL_POLICY_ENABLED: "false",
+        SCHEDULER_SHARED_OWNER_TPM: "0",
+        SCHEDULER_SHARED_MIN_MODEL_INTERVAL_SECONDS: "NaN",
+      }),
+    ).toMatchObject({
+      sharedPoolPolicyEnabled: false,
+      sharedOwnerTpm: 25000,
+      sharedMinModelIntervalSeconds: 180,
+    });
+    expect(() =>
+      loadConfig({
+        ...baseEnv(),
+        SCHEDULER_SHARED_POOL_POLICY_ENABLED: "maybe",
+      }),
+    ).toThrow("SCHEDULER_SHARED_POOL_POLICY_ENABLED must be true or false");
+  });
+
   it.each([undefined, "", "  "])(
     "rejects an absent database URL (%s)",
     (value) => {

@@ -162,6 +162,37 @@ function deps(
 }
 
 describe("runner lifecycle and failure boundaries", () => {
+  it("retains the last call timestamp and failure counters while the shared interval holds", async () => {
+    const prov = provider({ decision: "skip", reason: "fixture" });
+    const decide = vi.spyOn(prov, "decide");
+    const d = deps({ minModelIntervalSeconds: 180 }, baseClient(), prov);
+    d.state.lastLlmCallAt = Date.now() - 60000;
+    const last = d.state.lastLlmCallAt;
+    d.state.consecutiveModelFailures = 4;
+    const r = await runCycle(d);
+    expect(r).toMatchObject({
+      llmCallMade: false,
+      decisionType: "gate_skip",
+      skipReason: "shared pool model interval (180s minimum)",
+      tokensIn: 0,
+    });
+    expect(decide).not.toHaveBeenCalled();
+    expect(d.state.lastLlmCallAt).toBe(last);
+    expect(d.state.consecutiveModelFailures).toBe(4);
+  });
+
+  it.each([undefined, 0, 180])(
+    "calls normally outside the configured shared minimum: %s",
+    async (minModelIntervalSeconds) => {
+      const prov = provider({ decision: "skip", reason: "fixture" });
+      const decide = vi.spyOn(prov, "decide");
+      const d = deps({ minModelIntervalSeconds }, baseClient(), prov);
+      d.state.lastLlmCallAt = Date.now() - 181000;
+      expect((await runCycle(d)).llmCallMade).toBe(true);
+      expect(decide).toHaveBeenCalledOnce();
+    },
+  );
+
   it.each([false, true])(
     "checks observed short protection before execution (mark moves after validation: %s)",
     async (markMoved) => {
@@ -1880,6 +1911,27 @@ describe("runCycle", () => {
     expect(d.state.lastLlmCallAt).toBeUndefined();
     expect(d.state.llmCallTimestamps).toBeUndefined();
     expect(d.state.consecutiveModelFailures).toBe(beforeFailures);
+  });
+
+  it("labels owner budget waits without charging a call or changing failure state", async () => {
+    const d = deps({}, baseClient(), {
+      label: "owner-budget",
+      decide: async () => ({
+        ok: false,
+        deferred: true,
+        error: "shared pool owner budget unavailable",
+      }),
+    });
+    d.state.consecutiveModelFailures = 2;
+    const r = await runCycle(d);
+    expect(r).toMatchObject({
+      skipReason: "shared pool owner budget deferred",
+      llmCallMade: false,
+      modelFailed: false,
+      decisionType: "gate_skip",
+    });
+    expect(d.state.lastLlmCallAt).toBeUndefined();
+    expect(d.state.consecutiveModelFailures).toBe(2);
   });
 
   it("keeps a routed agent active when its exact model returns 429", async () => {

@@ -241,7 +241,7 @@ describe("shared provider capacity", () => {
     const update = db.query.mock.calls.find((c) =>
       String(c[0]).includes("model_tokens = GREATEST"),
     );
-    expect(update?.[1]).toEqual([limit.routeKey, 3_000]);
+    expect(update?.[1]).toEqual([limit.routeKey, 3_000, 0, 0]);
     expect(db.release).toHaveBeenCalledOnce();
   });
 

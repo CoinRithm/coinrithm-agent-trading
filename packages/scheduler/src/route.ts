@@ -73,7 +73,7 @@ export type CapacityDecision<Lease> =
   | { ok: true; lease?: Lease }
   | {
       ok: false;
-      scope?: "key" | "route";
+      scope?: "key" | "route" | "owner";
       retryAfterMs?: number;
       error?: string;
       admissionReasons?: AdmissionReason[];
@@ -319,6 +319,7 @@ export class RoutedProvider<Lease = unknown> implements Provider {
           deferred: true,
         };
         reason = "capacity_fallback";
+        if (acquired.scope === "owner") break;
         continue;
       }
 

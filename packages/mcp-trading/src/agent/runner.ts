@@ -88,6 +88,8 @@ export interface RunnerDeps {
   log?: (line: string) => void;
   /** Optional private storage hook. Its failure never changes cycle execution. */
   onDecisionInputRecord?: (record: DecisionInputRecord) => void;
+  /** Hosted shared-pool admission only; protective checks still run every cycle. */
+  minModelIntervalSeconds?: number;
 }
 
 // Independent-forecast kill-switch. Default ON: the fleet elicits + submits its
@@ -784,6 +786,19 @@ async function runCycleCore(
   // so it touches NO kill-switch counter; it just records the cheap cycle.
   const policy = spec.triggerPolicy ?? DEFAULT_TRIGGER_POLICY;
   const gate = evaluateGate(observation, state, policy, nowMs);
+  const minimumMs = Number.isFinite(deps.minModelIntervalSeconds)
+    ? Math.max(0, deps.minModelIntervalSeconds ?? 0) * 1000
+    : 0;
+  if (
+    gate.fire &&
+    spec.model?.provider !== "mechanical" &&
+    minimumMs > 0 &&
+    state.lastLlmCallAt != null &&
+    nowMs - state.lastLlmCallAt < minimumMs
+  ) {
+    gate.fire = false;
+    gate.reason = `shared pool model interval (${Math.ceil(minimumMs / 1000)}s minimum)`;
+  }
   const providerName = spec.model?.provider ?? "nvidia";
   if (!gate.fire) {
     capture({
@@ -806,8 +821,8 @@ async function runCycleCore(
       tokensIn: 0,
       tokensOut: 0,
       estimatedCostUsd: 0,
-      writeAttempted: 0,
-      writeAccepted: 0,
+      writeAttempted: live ? exitPlanned.length : 0,
+      writeAccepted: exitPlanned.filter((p) => p.executed).length,
       ...observationReceipt,
     };
   }
@@ -963,7 +978,9 @@ async function runCycleCore(
           decision: "skip",
           skipReason: actualCallMade
             ? "provider rate-limited; retry next cycle"
-            : "provider capacity deferred",
+            : res.error === "shared pool owner budget unavailable"
+              ? "shared pool owner budget deferred"
+              : "provider capacity deferred",
           planned: exitPlanned,
           modelFailed: false,
           live,

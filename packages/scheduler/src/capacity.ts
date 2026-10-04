@@ -8,6 +8,8 @@ export interface ProviderCapacityLimit {
   model: string;
   requestsPerMinute: number;
   tokensPerMinute: number;
+  /** Separate burst capacity for owner quotas; never raises the refill rate. */
+  tokenBurst?: number;
   maxConcurrent: number;
   /** Prompt estimate + output allowance for the pending decision call. */
   reserveTokens: number;
@@ -19,6 +21,7 @@ export interface ProviderCapacityLease {
   leaseId: string;
   routeKey: string;
   reservedTokens: number;
+  tokenBurst?: number;
 }
 
 export type ProviderCapacityDenialReason =
@@ -50,14 +53,25 @@ export async function reserveProviderCapacity(
     requestsPerMinute: positiveInt(raw.requestsPerMinute, "requestsPerMinute"),
     // A configured TPM below one real request can never admit anything. Clamp
     // to one request rather than create a permanent silent-defer deadlock.
-    tokensPerMinute: Math.max(
-      positiveInt(raw.tokensPerMinute, "tokensPerMinute"),
-      positiveInt(raw.reserveTokens, "reserveTokens"),
-    ),
+    tokensPerMinute:
+      raw.tokenBurst === undefined
+        ? Math.max(
+            positiveInt(raw.tokensPerMinute, "tokensPerMinute"),
+            positiveInt(raw.reserveTokens, "reserveTokens"),
+          )
+        : positiveInt(raw.tokensPerMinute, "tokensPerMinute"),
     maxConcurrent: positiveInt(raw.maxConcurrent, "maxConcurrent"),
     reserveTokens: positiveInt(raw.reserveTokens, "reserveTokens"),
     leaseTtlSeconds: positiveInt(raw.leaseTtlSeconds, "leaseTtlSeconds"),
   };
+  const tokenBurst =
+    raw.tokenBurst === undefined
+      ? undefined
+      : Math.max(
+          limit.tokensPerMinute,
+          limit.reserveTokens,
+          positiveInt(raw.tokenBurst, "tokenBurst"),
+        );
   if (!limit.routeKey.trim() || !limit.provider.trim() || !limit.model.trim()) {
     throw new Error("routeKey, provider and model are required");
   }
@@ -116,7 +130,7 @@ export async function reserveProviderCapacity(
                   GREATEST(0, EXTRACT(EPOCH FROM (checked.at - b.last_refill_at))) / 60.0
                 ) AS available_requests,
                 LEAST(
-                b.model_rate_per_min::double precision,
+                COALESCE($3::double precision, b.model_rate_per_min::double precision),
                 b.model_tokens + b.model_rate_per_min *
                   GREATEST(0, EXTRACT(EPOCH FROM (checked.at - b.last_refill_at))) / 60.0
                 ) AS available_tokens,
@@ -146,7 +160,7 @@ export async function reserveProviderCapacity(
        )
        SELECT a.route_key, d.denial_reasons
          FROM decision d LEFT JOIN admitted a ON a.route_key = d.route_key`,
-      [limit.routeKey, limit.reserveTokens],
+      [limit.routeKey, limit.reserveTokens, tokenBurst ?? null],
     );
 
     const admission = reserved.rows[0];
@@ -170,6 +184,7 @@ export async function reserveProviderCapacity(
         leaseId,
         routeKey: limit.routeKey,
         reservedTokens: limit.reserveTokens,
+        ...(tokenBurst === undefined ? {} : { tokenBurst }),
       },
     };
   } catch (error) {
@@ -271,6 +286,7 @@ export async function releaseProviderCapacity(
   pool: Pool,
   lease: ProviderCapacityLease,
   actualTokens?: number,
+  unused = false,
 ): Promise<void> {
   const actual =
     actualTokens == null || !Number.isFinite(actualTokens)
@@ -292,11 +308,12 @@ export async function releaseProviderCapacity(
         `UPDATE agent_runtime.provider_capacity_buckets
             SET model_tokens = GREATEST(
                   0,
-                  LEAST(model_rate_per_min::double precision, model_tokens + $2)
+                  LEAST(GREATEST(model_rate_per_min::double precision, $3::double precision), model_tokens + $2)
                 ),
+                request_tokens = LEAST(request_rate_per_min, request_tokens + $4),
                 updated_at = clock_timestamp()
           WHERE route_key = $1`,
-        [lease.routeKey, delta],
+        [lease.routeKey, delta, lease.tokenBurst ?? 0, unused ? 1 : 0],
       );
     }
     await client.query("COMMIT");

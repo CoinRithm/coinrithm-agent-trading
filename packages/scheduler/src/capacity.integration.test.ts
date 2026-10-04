@@ -80,6 +80,82 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
     );
   });
 
+  it("accumulates one large owner request without increasing its refill rate", async () => {
+    const owner = {
+      ...limit,
+      routeKey: "shared-owner:test",
+      tokensPerMinute: 20000,
+      tokenBurst: 30000,
+      reserveTokens: 30000,
+      maxConcurrent: 1,
+    };
+    expect((await reserveProviderCapacity(pool, owner)).ok).toBe(false);
+    await pool.query(
+      "UPDATE agent_runtime.provider_capacity_buckets SET request_tokens=24,model_tokens=0,last_refill_at=now()-interval '2 minutes' WHERE route_key=$1",
+      [owner.routeKey],
+    );
+    const r = await reserveProviderCapacity(pool, owner);
+    expect(r.ok).toBe(true);
+    if (!r.ok) throw Error("Expected admission");
+    await releaseProviderCapacity(pool, r.lease, 6000);
+    const row = (
+      await pool.query(
+        "SELECT model_rate_per_min,model_tokens FROM agent_runtime.provider_capacity_buckets WHERE route_key=$1",
+        [owner.routeKey],
+      )
+    ).rows[0];
+    expect(Number(row.model_rate_per_min)).toBe(20000);
+    expect(row.model_tokens).toBe(24000);
+    expect((await reserveProviderCapacity(pool, owner)).ok).toBe(false);
+  });
+
+  it("shares one owner concurrency slot across replicas independently of provider keys", async () => {
+    const owner = {
+      ...limit,
+      routeKey: "shared-owner:test",
+      tokensPerMinute: 25000,
+      tokenBurst: 25000,
+      reserveTokens: 5000,
+      maxConcurrent: 1,
+    };
+    await reserveProviderCapacity(pool, owner);
+    await pool.query(
+      "UPDATE agent_runtime.provider_capacity_buckets SET request_tokens=24,model_tokens=25000,last_refill_at=now() WHERE route_key=$1",
+      [owner.routeKey],
+    );
+    const results = await Promise.all([
+      reserveProviderCapacity(pool, owner),
+      reserveProviderCapacity(pool, owner),
+    ]);
+    expect(results.filter((r) => r.ok)).toHaveLength(1);
+    expect(results.find((r) => !r.ok)).toMatchObject({
+      ok: false,
+      reasons: ["concurrency"],
+    });
+    expect((await reserveProviderCapacity(pool, limit)).ok).toBe(true);
+  });
+
+  it("refunds unused admission once, including the request credit", async () => {
+    const r = await reserveProviderCapacity(pool, limit);
+    if (!r.ok) throw Error("Expected admission");
+    await releaseProviderCapacity(pool, r.lease, 0, true);
+    await releaseProviderCapacity(pool, r.lease, 0, true);
+    const row = (
+      await pool.query(
+        "SELECT request_tokens,model_tokens FROM agent_runtime.provider_capacity_buckets WHERE route_key=$1",
+        [limit.routeKey],
+      )
+    ).rows[0];
+    expect(row).toMatchObject({ request_tokens: 24, model_tokens: 100000 });
+    expect(
+      (
+        await pool.query(
+          "SELECT count(*)::int n FROM agent_runtime.provider_capacity_leases",
+        )
+      ).rows[0].n,
+    ).toBe(0);
+  });
+
   it("backs off briefly, grows atomically, and isolates other keys/models", async () => {
     const args = [
       pool,
