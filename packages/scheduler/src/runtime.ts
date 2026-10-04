@@ -180,6 +180,8 @@ function routedProviderFor(
     // which is what a controlled variant comparison needs and what a live desk
     // does not. Default stays false, so the fleet keeps failing over.
     pinnedModel: agentPinsModel(agent.spec),
+    lightningFallback:
+      config.lightningFallbackEnabled && agent.isHouse === true,
   });
 
   const hookFailure = (stage: string, error: unknown): void => {

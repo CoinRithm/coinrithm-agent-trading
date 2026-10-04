@@ -7,6 +7,19 @@ const baseEnv = (): NodeJS.ProcessEnv => ({
 });
 
 describe("provider capacity config", () => {
+  it("requires opt-in for Lightning and supports rollback", () => {
+    expect(loadConfig(baseEnv()).lightningFallbackEnabled).toBe(false);
+    expect(
+      loadConfig({ ...baseEnv(), SCHEDULER_LIGHTNING_FALLBACK_ENABLED: "true" })
+        .lightningFallbackEnabled,
+    ).toBe(true);
+    expect(
+      loadConfig({
+        ...baseEnv(),
+        SCHEDULER_LIGHTNING_FALLBACK_ENABLED: "false",
+      }).lightningFallbackEnabled,
+    ).toBe(false);
+  });
   it("keeps shared owner policy opt-in with explicit rollback and validated limits", () => {
     expect(loadConfig(baseEnv())).toMatchObject({
       sharedPoolPolicyEnabled: false,

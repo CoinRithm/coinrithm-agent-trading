@@ -11,12 +11,13 @@ import type { ProviderCapacityDenialReason } from "./capacity.js";
 
 type AdmissionReason = ProviderCapacityDenialReason | "model_cooldown";
 
-export const ROUTE_POLICY_VERSION = "2026-09-19.1";
+export const ROUTE_POLICY_VERSION = "2026-10-04.1";
 // nemotron-3-nano-30b-a3b went 410 (end of life) on 2026-09-01; the omni
 // variant is the live-probe-verified fast tier (200 + strict JSON, ~2.6s,
 // probe 2026-09-02 06:5xZ from the scheduler key).
 export const NEMOTRON_NANO = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning";
 export const NEMOTRON_SUPER = "nvidia/nemotron-3-super-120b-a12b";
+export const NEMOTRON_LIGHTNING = "nvidia/nemotron-3.5-lightning-30b-a3b";
 export const OPENAI_BACKUP_MODEL = "gpt-5-nano";
 
 export type RouteProfile = "fast" | "strong" | "configured";
@@ -175,6 +176,8 @@ export function resolveRouteChain(args: {
   openAiBackup: boolean;
   /** Opt-in: no failover, so the run cannot silently change model. */
   pinnedModel?: boolean;
+  /** Optional house canary, still subject to the same two-attempt deadline. */
+  lightningFallback?: boolean;
 }): { profile: RouteProfile; routes: ModelRoute[] } {
   const configured: ModelRoute = {
     ...args.configured,
@@ -188,6 +191,13 @@ export function resolveRouteChain(args: {
   if (args.byo || args.pinnedModel) return { profile, routes: [configured] };
 
   const routes: ModelRoute[] = [configured];
+  if (args.lightningFallback && (profile === "fast" || profile === "strong")) {
+    routes.push({
+      provider: "nvidia",
+      model: NEMOTRON_LIGHTNING,
+      keyRef: configured.keyRef,
+    });
+  }
   if (profile === "fast") {
     routes.push({
       provider: "nvidia",

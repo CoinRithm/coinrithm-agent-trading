@@ -11,6 +11,7 @@ import { renderFolderOfOne } from "@coinrithm/mcp-trading/dist/agent/templates.j
 import {
   NEMOTRON_NANO,
   NEMOTRON_SUPER,
+  NEMOTRON_LIGHTNING,
   RoutedProvider,
   classifyFailure,
   resolveRouteChain,
@@ -20,6 +21,90 @@ import {
 } from "./route.js";
 
 const input = { system: "system", user: "observation" };
+
+describe("optional Lightning fallback", () => {
+  const args = {
+    configured: {
+      provider: "nvidia" as const,
+      model: NEMOTRON_SUPER,
+      keyRef: "pool:1",
+    },
+    byo: false,
+    openAiBackup: false,
+    lightningFallback: true,
+  };
+  it("adds a same-key alternative without replacing the configured model or paid routes", () => {
+    expect(resolveRouteChain(args).routes.map((r) => r.model)).toEqual([
+      NEMOTRON_SUPER,
+      NEMOTRON_LIGHTNING,
+      NEMOTRON_NANO,
+    ]);
+    expect(
+      resolveRouteChain(args).routes.every(
+        (r) => r.provider === "nvidia" && r.keyRef === "pool:1",
+      ),
+    ).toBe(true);
+    expect(
+      resolveRouteChain({ ...args, lightningFallback: false }).routes.map(
+        (r) => r.model,
+      ),
+    ).toEqual([NEMOTRON_SUPER, NEMOTRON_NANO]);
+  });
+  it.each([{ byo: true }, { pinnedModel: true }])(
+    "respects exact model selection %j",
+    (over) => {
+      expect(
+        resolveRouteChain({ ...args, ...over }).routes.map((r) => r.model),
+      ).toEqual([NEMOTRON_SUPER]);
+    },
+  );
+  it("does not add a fallback to unrelated configured models", () => {
+    expect(
+      resolveRouteChain({
+        ...args,
+        configured: { ...args.configured, model: "custom" },
+      }).routes,
+    ).toHaveLength(1);
+  });
+  it("rejects malformed Super output and audits valid Lightning fallback within two attempts", async () => {
+    const h = harness([
+      { ok: true, text: '{"decision":"act","actions":"broken"}' },
+      ok(),
+    ]);
+    const chain = resolveRouteChain(args);
+    const result = await new RoutedProvider(
+      chain.profile,
+      chain.routes,
+      false,
+      h.buildProvider,
+      h.hooks,
+    ).decide(input);
+    expect(result.ok).toBe(true);
+    expect(result.route.effectiveModel).toBe(NEMOTRON_LIGHTNING);
+    expect(result.route.attempts.map((a) => a.outcome)).toEqual([
+      "failed",
+      "success",
+    ]);
+    expect(result.route.attempts[0].failureClass).toBe("malformed");
+  });
+  it("does not create a third attempt when both providers fail", async () => {
+    const h = harness([
+      { ok: false, error: "capacity", status: 429 },
+      { ok: false, error: "capacity", status: 429 },
+    ]);
+    const chain = resolveRouteChain(args);
+    const result = await new RoutedProvider(
+      chain.profile,
+      chain.routes,
+      false,
+      h.buildProvider,
+      h.hooks,
+    ).decide(input);
+    expect(result.ok).toBe(false);
+    expect(result.route.attempts).toHaveLength(2);
+    expect(h.buildProvider).toHaveBeenCalledTimes(2);
+  });
+});
 const ok = (reason = "ok"): DecideResult => ({
   ok: true,
   text: JSON.stringify({ decision: "skip", reason }),
