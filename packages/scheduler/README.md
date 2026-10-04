@@ -64,7 +64,7 @@ Env: `DATABASE_URL`, `ENCRYPTION_KEY`, `NVIDIA_API_KEY` (secrets). **No volume.*
 
 Operational must-knows:
 
-- **Routing deadline (policy `2026-09-19.1`).** The shared fallback chain has
+- **Routing deadline (policy `2026-10-04.1`).** The shared fallback chain has
   one 300-second maximum budget, below the 360-second run lock and heartbeat.
   An alternate receives only the remaining time. Older `2026-08-27.2` runs
   allowed 300 seconds per attempt; retain the source revision when replaying
@@ -92,6 +92,17 @@ Operational must-knows:
   `/healthz` checks the scheduler heartbeat as well as process liveness.
 
 ## Shared capacity policy
+
+`SCHEDULER_LIGHTNING_FALLBACK_ENABLED=true` adds the contract-probed
+`nvidia/nemotron-3.5-lightning-30b-a3b` as the first fallback for unpinned house
+Nemotron agents. The configured primary model is unchanged; the existing
+alternate remains available if earlier routes are ineligible. The two-attempt
+and 300-second total limits remain. The same key/owner budget, strict decision
+parser, output privacy and effective-model attribution apply. No paid route is
+enabled. Customer, BYO and pinned agents keep their current routing. The flag
+defaults false and provides rollback. Successful synthetic contract probes
+establish request compatibility, not trading quality or independent-provider
+availability: all these routes still depend on NVIDIA.
 
 `SCHEDULER_SHARED_POOL_POLICY_ENABLED=true` enables a shared-pool model-call
 minimum of 180 seconds and an aggregate owner budget of 25,000 tokens/minute

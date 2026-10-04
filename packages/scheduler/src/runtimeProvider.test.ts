@@ -8,7 +8,7 @@ import * as capacity from "./capacity.js";
 import { loadConfig } from "./config.js";
 import { encrypt } from "./crypto.js";
 import { runAgentOnce } from "./runtime.js";
-import { NEMOTRON_NANO } from "./route.js";
+import { NEMOTRON_NANO, NEMOTRON_LIGHTNING } from "./route.js";
 
 const key = Buffer.alloc(32, 9);
 const pool = {} as Pool;
@@ -107,6 +107,24 @@ describe("hosted provider lifecycle", () => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
+
+  it.each([true, false])(
+    "limits Lightning fallback to opted-in house routes: %s",
+    async (isHouse) => {
+      const { agent, config } = fixture();
+      config.lightningFallbackEnabled = true;
+      agent.isHouse = isHouse;
+      decide
+        .mockResolvedValueOnce({ ok: false, error: "capacity", status: 429 })
+        .mockResolvedValueOnce(good);
+      await runAgentOnce(pool, agent, config);
+      const models = vi
+        .mocked(engine.providerForRoute)
+        .mock.calls.map((c) => c[0].model);
+      expect(models.includes(NEMOTRON_LIGHTNING)).toBe(isHouse);
+      expect(models).toHaveLength(2);
+    },
+  );
 
   it("reserves one owner quota across keys and reconciles both leases to actual usage", async () => {
     const { agent, config } = fixture();

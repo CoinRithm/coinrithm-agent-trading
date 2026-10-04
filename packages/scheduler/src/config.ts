@@ -30,6 +30,7 @@ export interface Config {
   capacityEnabled: boolean;
   adaptiveCooldownEnabled: boolean;
   sharedPoolPolicyEnabled: boolean;
+  lightningFallbackEnabled: boolean;
   sharedOwnerTpm: number;
   sharedMinModelIntervalSeconds: number;
   nvidiaTpm: number;
@@ -148,6 +149,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     sharedPoolPolicyEnabled: boolEnv(
       env,
       "SCHEDULER_SHARED_POOL_POLICY_ENABLED",
+      false,
+    ),
+    lightningFallbackEnabled: boolEnv(
+      env,
+      "SCHEDULER_LIGHTNING_FALLBACK_ENABLED",
       false,
     ),
     sharedOwnerTpm: intEnv(env, "SCHEDULER_SHARED_OWNER_TPM", 25_000, 1),
