@@ -90,6 +90,8 @@ export interface RunnerDeps {
   onDecisionInputRecord?: (record: DecisionInputRecord) => void;
   /** Hosted shared-pool admission only; protective checks still run every cycle. */
   minModelIntervalSeconds?: number;
+  /** Opt-in hosted canary; changes presentation only, preserving all values. */
+  compactPromptTables?: boolean;
 }
 
 // Independent-forecast kill-switch. Default ON: the fleet elicits + submits its
@@ -894,6 +896,7 @@ async function runCycleCore(
       ...actionAvailability,
     });
     const user = buildUserPrompt(observation, state.journal, {
+      compactTables: deps.compactPromptTables,
       venues: spec.venues,
       dailyRiskBudget: buildDailyRiskBudget(spec, state),
       ...(usesCapitalSizing(spec) ? { capitalSizing: spec.capitalSizing } : {}),

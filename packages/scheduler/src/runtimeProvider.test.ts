@@ -126,6 +126,24 @@ describe("hosted provider lifecycle", () => {
     },
   );
 
+  it.each([
+    [true, false, true],
+    [false, false, false],
+    [true, true, false],
+  ])(
+    "limits prompt tables to eligible house shared routes (%s/%s)",
+    async (isHouse, byo, enabled) => {
+      const { agent, config } = fixture();
+      config.compactPromptTablesEnabled = true;
+      agent.isHouse = isHouse;
+      if (byo) agent.brainKeyEnc = encrypt("fixture-byo", key);
+      await runAgentOnce(pool, agent, config);
+      expect(engine.runCycle).toHaveBeenCalledWith(
+        expect.objectContaining({ compactPromptTables: enabled }),
+      );
+    },
+  );
+
   it("reserves one owner quota across keys and reconciles both leases to actual usage", async () => {
     const { agent, config } = fixture();
     config.sharedPoolPolicyEnabled = true;

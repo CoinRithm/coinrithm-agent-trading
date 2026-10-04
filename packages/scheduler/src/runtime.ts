@@ -421,6 +421,10 @@ export async function runAgentOnce(
       spec,
       mergedProse: agent.prose,
       state,
+      compactPromptTables:
+        config.compactPromptTablesEnabled &&
+        agent.isHouse === true &&
+        shouldUseHostedRouter(agent, config),
       minModelIntervalSeconds:
         config.sharedPoolPolicyEnabled &&
         config.capacityEnabled &&

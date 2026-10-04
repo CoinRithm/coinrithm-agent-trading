@@ -9,6 +9,7 @@ import { AgentSpec, Observation, PmResolution, RunState } from "./types.js";
 import { pmQualityOf, pmDecisionSupportOf } from "./pmContext.js";
 import { usesCapitalSizing } from "./capitalSizing.js";
 import type { DecisionActionExclusion } from "./providerCapabilities.js";
+import { serializePromptObservation } from "./promptTables.js";
 
 // Prompt-only context, not an Observation receipt or a new persisted counter.
 export interface DailyRiskBudget {
@@ -410,6 +411,7 @@ export function buildUserPrompt(
     dailyRiskBudget?: DailyRiskBudget;
     capitalSizing?: AgentSpec["capitalSizing"];
     futuresCapacity?: FuturesCapacity;
+    compactTables?: boolean;
     excludeActionTypes?: readonly DecisionActionExclusion[];
   } = {},
 ): string {
@@ -553,75 +555,78 @@ export function buildUserPrompt(
     "```json",
     // Compact (no pretty-print indentation — ~40% fewer tokens, still valid JSON)
     // and the trade ledger is capped so a busy shared book can't bloat the prompt.
-    JSON.stringify({
-      asOf: obs.asOf,
-      ...(opts.dailyRiskBudget
-        ? { dailyRiskBudget: opts.dailyRiskBudget }
-        : {}),
-      ...(capacity ? { futuresCapacity: capacity } : {}),
-      cashAvailableMusd: obs.cashAvailableMusd,
-      equityMusd: obs.equityMusd,
-      ...(opts.capitalSizing
-        ? {
-            capitalSizingPolicy: opts.capitalSizing,
-            ...(obs.capitalBook ? { capitalBook: obs.capitalBook } : {}),
-          }
-        : {}),
-      openPositions: obs.openPositions,
-      openOrders: obs.openOrders,
-      ...(hasPm ? { pmPositions: obs.pmPositions } : {}),
-      // Compact display: the model picks a market by its short `ref` and never
-      // sees (or mis-copies) the long source/slug/outcomeExternalMarketId — the
-      // runner resolves the ref back to those. Also ~halves the PM block's tokens.
-      ...(hasPm
-        ? {
-            pmMarkets: obs.pmMarkets.map((m, i, rows) => ({
-              ref: m.ref,
-              source: m.source,
-              title: m.title,
-              outcome: m.outcomeName,
-              prob: m.probability,
-              freshness: m.freshness?.status,
-              ageSeconds: m.freshness?.ageSeconds,
-              sourceAsOf: m.freshness?.asOf,
-              freshnessBasis: m.freshness?.basis,
-              quality: pmQualityOf(m.quality),
-              decisionSupport: pmDecisionSupportOf(m.decisionSupport),
-              // Slice 2 fundamentals: resolution date, 24h volume, liquidity.
-              end: m.endDate,
-              vol24h: roundUsd(m.volumeUsd),
-              liq: roundUsd(m.liquidityUsd),
-              // Event-level cross-venue consensus; omitted (not null) when
-              // unknown so rows without one cost no tokens.
-              consensus: m.consensus ?? undefined,
-              // Event-level settlement terms, printed on the event's FIRST
-              // row only (its other outcome rows share the title) so a
-              // three-outcome event does not pay for the text three times.
-              rules:
-                m.rules &&
-                rows.findIndex(
-                  (r) => r.source === m.source && r.slug === m.slug,
-                ) === i
-                  ? m.rules
-                  : undefined,
-              // This outcome's own rule for a per-outcome event, on every row;
-              // absent when the rule is not per-outcome.
-              outcomeRule: m.outcomeRule,
-            })),
-          }
-        : {}),
-      ...(hasPm && obs.pmCalibration
-        ? { pmCalibration: obs.pmCalibration }
-        : {}),
-      watch: obs.watch,
-      setups: obs.setups,
-      news: obs.news,
-      universeMovers: obs.universeMovers,
-      whaleContext: obs.whaleContext,
-      marketMood: obs.marketMood,
-      newClosedTrades: obs.newClosedTrades.slice(0, 20),
-      polledBeforeWrite: obs.polledBeforeWrite,
-    }),
+    serializePromptObservation(
+      {
+        asOf: obs.asOf,
+        ...(opts.dailyRiskBudget
+          ? { dailyRiskBudget: opts.dailyRiskBudget }
+          : {}),
+        ...(capacity ? { futuresCapacity: capacity } : {}),
+        cashAvailableMusd: obs.cashAvailableMusd,
+        equityMusd: obs.equityMusd,
+        ...(opts.capitalSizing
+          ? {
+              capitalSizingPolicy: opts.capitalSizing,
+              ...(obs.capitalBook ? { capitalBook: obs.capitalBook } : {}),
+            }
+          : {}),
+        openPositions: obs.openPositions,
+        openOrders: obs.openOrders,
+        ...(hasPm ? { pmPositions: obs.pmPositions } : {}),
+        // Compact display: the model picks a market by its short `ref` and never
+        // sees (or mis-copies) the long source/slug/outcomeExternalMarketId — the
+        // runner resolves the ref back to those. Also ~halves the PM block's tokens.
+        ...(hasPm
+          ? {
+              pmMarkets: obs.pmMarkets.map((m, i, rows) => ({
+                ref: m.ref,
+                source: m.source,
+                title: m.title,
+                outcome: m.outcomeName,
+                prob: m.probability,
+                freshness: m.freshness?.status,
+                ageSeconds: m.freshness?.ageSeconds,
+                sourceAsOf: m.freshness?.asOf,
+                freshnessBasis: m.freshness?.basis,
+                quality: pmQualityOf(m.quality),
+                decisionSupport: pmDecisionSupportOf(m.decisionSupport),
+                // Slice 2 fundamentals: resolution date, 24h volume, liquidity.
+                end: m.endDate,
+                vol24h: roundUsd(m.volumeUsd),
+                liq: roundUsd(m.liquidityUsd),
+                // Event-level cross-venue consensus; omitted (not null) when
+                // unknown so rows without one cost no tokens.
+                consensus: m.consensus ?? undefined,
+                // Event-level settlement terms, printed on the event's FIRST
+                // row only (its other outcome rows share the title) so a
+                // three-outcome event does not pay for the text three times.
+                rules:
+                  m.rules &&
+                  rows.findIndex(
+                    (r) => r.source === m.source && r.slug === m.slug,
+                  ) === i
+                    ? m.rules
+                    : undefined,
+                // This outcome's own rule for a per-outcome event, on every row;
+                // absent when the rule is not per-outcome.
+                outcomeRule: m.outcomeRule,
+              })),
+            }
+          : {}),
+        ...(hasPm && obs.pmCalibration
+          ? { pmCalibration: obs.pmCalibration }
+          : {}),
+        watch: obs.watch,
+        setups: obs.setups,
+        news: obs.news,
+        universeMovers: obs.universeMovers,
+        whaleContext: obs.whaleContext,
+        marketMood: obs.marketMood,
+        newClosedTrades: obs.newClosedTrades.slice(0, 20),
+        polledBeforeWrite: obs.polledBeforeWrite,
+      },
+      opts.compactTables,
+    ),
     "```",
     "",
     "Return ONLY the JSON decision object.",
