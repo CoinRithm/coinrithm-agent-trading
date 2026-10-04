@@ -4,9 +4,11 @@ type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 type Row = { [key: string]: Json };
 const row = (v: Json): v is Row =>
   v !== null && typeof v === "object" && !Array.isArray(v);
-const TABLE_FIELDS = ["watch", "pmMarkets", "pmPositions", "newClosedTrades"];
+// Keep market refs and per-outcome settlement rules in their proven object
+// representation. A provider probe mis-associated an optional rule with a ref.
+const TABLE_FIELDS = ["watch", "pmPositions", "newClosedTrades"];
 const FORMAT =
-  "Tabular lists use columns and rows: each row's values map to the columns in order. Merge extra[i] into row i when present. Every row remains a separate item; nested objects keep their field names. References such as watch[].priceUsd or pmMarkets[].ref refer to the reconstructed row. Missing extra fields remain unknown, never zero. Return the normal decision JSON with actions as an array of objects.";
+  "Tabular lists use columns and rows: each row's values map to the columns in order. Every row remains a separate item; nested objects keep their field names. References such as watch[].priceUsd refer to the reconstructed row. Only lists with identical fields use tables. Market refs and settlement rules remain objects. Return the normal decision JSON with actions as an array of objects.";
 
 export function serializePromptObservation(
   value: unknown,
@@ -22,15 +24,14 @@ export function serializePromptObservation(
     const columns = Object.keys(list[0]).filter((k) =>
       list.every((r) => Object.hasOwn(r, k)),
     );
-    if (columns.length < 3) continue;
-    const shared = new Set(columns);
-    const extra = list.map((r) =>
-      Object.fromEntries(Object.entries(r).filter(([k]) => !shared.has(k))),
-    );
+    if (
+      columns.length < 3 ||
+      list.some((r) => Object.keys(r).length !== columns.length)
+    )
+      continue;
     const table = {
       columns,
       rows: list.map((r) => columns.map((k) => r[k])),
-      ...(extra.some((r) => Object.keys(r).length > 0) ? { extra } : {}),
     };
     if (JSON.stringify(list).length - JSON.stringify(table).length < 512)
       continue;

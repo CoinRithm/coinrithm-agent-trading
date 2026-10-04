@@ -10,14 +10,11 @@ describe("lossless prompt tables", () => {
     positionMarginMusd: 12.45,
     openedAt: "2026-10-04T00:00:00Z",
     nested: { freshness: "fresh", ageSeconds: i },
-    ...(i % 2
-      ? {
-          thesis: {
-            summary: "Keep this exact text",
-            invalidation: { priceBelow: 0.2 },
-          },
-        }
-      : { outcomeRule: null }),
+    thesis: {
+      summary: "Keep this exact text",
+      invalidation: { priceBelow: 0.2 },
+    },
+    explicitNull: null,
   }));
   it("round-trips every row, precision, nested rule, explicit null and absent field without mutating input", () => {
     const data = {
@@ -31,20 +28,17 @@ describe("lossless prompt tables", () => {
     const before = JSON.stringify(data),
       text = serializePromptObservation(data, true);
     const parsed = JSON.parse(text);
-    expect(parsed.tableFormat).toContain("Missing extra fields remain unknown");
-    for (const field of [
-      "watch",
-      "pmMarkets",
-      "pmPositions",
-      "newClosedTrades",
-    ]) {
+    expect(parsed.tableFormat).toContain(
+      "Only lists with identical fields use tables",
+    );
+    expect(parsed.pmMarkets).toEqual(data.pmMarkets);
+    for (const field of ["watch", "pmPositions", "newClosedTrades"]) {
       const t = parsed[field];
       expect(t.rows).toHaveLength(rows.length);
-      parsed[field] = t.rows.map((r: unknown[], i: number) => ({
+      parsed[field] = t.rows.map((r: unknown[]) => ({
         ...Object.fromEntries(
           t.columns.map((k: string, j: number) => [k, r[j]]),
         ),
-        ...t.extra?.[i],
       }));
     }
     delete parsed.tableFormat;
@@ -74,10 +68,11 @@ describe("lossless prompt tables", () => {
         explicitNull: null,
       })),
     };
-    const parsed = JSON.parse(serializePromptObservation(data, true));
-    expect(parsed.watch.columns).not.toContain("optional");
-    expect(parsed.watch.columns).toContain("explicitNull");
-    expect(parsed.watch.extra[0]).not.toHaveProperty("optional");
-    expect(parsed.watch.extra[1].optional).toBe("present");
+    const text = serializePromptObservation(data, true);
+    expect(text).toBe(JSON.stringify(data));
+    const parsed = JSON.parse(text);
+    expect(parsed.watch[0]).not.toHaveProperty("optional");
+    expect(parsed.watch[0].explicitNull).toBeNull();
+    expect(parsed.watch[1].optional).toBe("present");
   });
 });

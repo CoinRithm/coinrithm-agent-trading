@@ -127,8 +127,9 @@ back without changing customer records or disabling provider-wide admission.
 No new migration is required: existing durable capacity tables are reused.
 
 `SCHEDULER_COMPACT_PROMPT_TABLES_ENABLED=true` enables a separate house-agent
-canary for shorter prompts. Large repeated-key lists become tables with explicit
-columns, rows and per-row extra fields. All serialized values, nested evidence,
+canary for shorter prompts. Large lists with identical fields become tables with
+explicit columns and rows. Market references and settlement rules always keep
+their existing object format. All serialized values, nested evidence,
 ordering, precision and absent/null distinctions are preserved; execution inputs
 and receipts are unchanged. Small lists stay as objects, and conversion is used
 only when it saves characters after including format instructions. Customer
