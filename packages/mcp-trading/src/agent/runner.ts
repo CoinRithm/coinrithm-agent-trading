@@ -895,14 +895,20 @@ async function runCycleCore(
       includeForecast: forecastEnabled,
       ...actionAvailability,
     });
-    const user = buildUserPrompt(observation, state.journal, {
-      compactTables: deps.compactPromptTables,
+    const userOptions = {
       venues: spec.venues,
       dailyRiskBudget: buildDailyRiskBudget(spec, state),
       ...(usesCapitalSizing(spec) ? { capitalSizing: spec.capitalSizing } : {}),
       ...(futuresCapacity ? { futuresCapacity } : {}),
       ...actionAvailability,
-    });
+    };
+    const user = buildUserPrompt(observation, state.journal, userOptions);
+    const compactUser = deps.compactPromptTables
+      ? buildUserPrompt(observation, state.journal, {
+          ...userOptions,
+          compactTables: true,
+        })
+      : undefined;
     const tokensInEst = Math.round((system.length + user.length) / 4);
     // Prompt-size + trigger visibility in the live terminal.
     log(
@@ -920,6 +926,7 @@ async function runCycleCore(
     const res = await provider.decide({
       system,
       user,
+      ...(compactUser && compactUser !== user ? { compactUser } : {}),
       ...actionAvailability,
     });
     const route = res.route;

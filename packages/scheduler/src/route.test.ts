@@ -23,6 +23,90 @@ import {
 const input = { system: "system", user: "observation" };
 
 describe("optional Lightning fallback", () => {
+  it.each([NEMOTRON_SUPER, NEMOTRON_LIGHTNING, NEMOTRON_NANO, "custom"])(
+    "uses the table candidate only on verified routes: %s",
+    async (model) => {
+      const h = harness([ok()]);
+      const captured = vi.fn(async () => ok());
+      const route = { provider: "nvidia" as const, model, keyRef: "fixture" };
+      const p = new RoutedProvider(
+        "strong",
+        [route],
+        false,
+        () => ({ label: "fixture", decide: captured }),
+        h.hooks,
+      );
+      const user = [NEMOTRON_SUPER, NEMOTRON_LIGHTNING].includes(model)
+        ? "compact"
+        : "original";
+      await p.decide({ ...input, user: "original", compactUser: "compact" });
+      expect(h.hooks.acquire).toHaveBeenCalledWith(
+        route,
+        expect.objectContaining({ user }),
+      );
+      expect(captured).toHaveBeenCalledWith(expect.objectContaining({ user }));
+      expect(captured).toHaveBeenCalledWith(
+        expect.not.objectContaining({ compactUser: "compact" }),
+      );
+    },
+  );
+  it.each([true, false])(
+    "keeps BYO or custom endpoints on original prompt: %s",
+    async (byo) => {
+      const h = harness([ok()]);
+      const captured = vi.fn(async () => ok());
+      const p = new RoutedProvider(
+        "strong",
+        [
+          {
+            provider: "nvidia",
+            model: NEMOTRON_SUPER,
+            keyRef: "fixture",
+            ...(byo ? {} : { baseUrl: "https://unverified.example/v1" }),
+          },
+        ],
+        byo,
+        () => ({ label: "fixture", decide: captured }),
+        h.hooks,
+      );
+      await p.decide({ ...input, user: "original", compactUser: "compact" });
+      expect(captured).toHaveBeenCalledWith(
+        expect.objectContaining({ user: "original" }),
+      );
+    },
+  );
+  it("falls back from compact Super to original Nano without changing the decision contract", async () => {
+    const h = harness([]),
+      captured: Array<{ model: string; user: string }> = [];
+    const routes = [NEMOTRON_SUPER, NEMOTRON_NANO].map((model) => ({
+      provider: "nvidia" as const,
+      model,
+      keyRef: "fixture",
+    }));
+    const p = new RoutedProvider(
+      "strong",
+      routes,
+      false,
+      (r) => ({
+        label: r.model,
+        decide: async (d) => {
+          captured.push({ model: r.model, user: d.user });
+          return r.model === NEMOTRON_SUPER
+            ? { ok: false, error: "capacity", status: 429 }
+            : ok();
+        },
+      }),
+      h.hooks,
+    );
+    expect(
+      (await p.decide({ ...input, user: "original", compactUser: "compact" }))
+        .ok,
+    ).toBe(true);
+    expect(captured).toEqual([
+      { model: NEMOTRON_SUPER, user: "compact" },
+      { model: NEMOTRON_NANO, user: "original" },
+    ]);
+  });
   const args = {
     configured: {
       provider: "nvidia" as const,

@@ -16,6 +16,8 @@ import {
 export interface DecideInput {
   system: string;
   user: string;
+  /** Optional equivalent presentation for explicitly verified hosted routes. */
+  compactUser?: string;
   maxTokens?: number;
   // Abort the model call after this many ms so a slow/hung provider can never
   // bleed past the agent's cadence. Default DEFAULT_TIMEOUT_MS.

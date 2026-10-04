@@ -136,6 +136,11 @@ only when it saves characters after including format instructions. Customer
 agents, BYO and self-hosted defaults stay unchanged. The flag defaults false and
 is the rollback switch. Character savings do not establish token savings or
 decision quality; verify both with bounded probes and natural observations.
+Only the contract-probed Super and Lightning routes use that presentation.
+Nano, BYO and custom endpoints always receive the original prompt, including
+when a canary falls back to them; Nano failed the table probe. Capacity admission
+uses the actual selected prompt. The original observation remains available to
+the router so model fallback never requires reversing a table or losing context.
 
 Capacity cooldowns are shared across replicas for each key/model pair. Explicit
 `Retry-After` is honored with the existing one-second minimum and one-hour cap.
