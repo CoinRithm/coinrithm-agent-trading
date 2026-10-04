@@ -29,6 +29,9 @@ export interface Config {
   // one env flag rolls back to the legacy in-memory guard.
   capacityEnabled: boolean;
   adaptiveCooldownEnabled: boolean;
+  sharedPoolPolicyEnabled: boolean;
+  sharedOwnerTpm: number;
+  sharedMinModelIntervalSeconds: number;
   nvidiaTpm: number;
   nvidiaMaxConcurrent: number;
   groqTpm: number;
@@ -141,6 +144,18 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       env,
       "SCHEDULER_ADAPTIVE_COOLDOWN_ENABLED",
       true,
+    ),
+    sharedPoolPolicyEnabled: boolEnv(
+      env,
+      "SCHEDULER_SHARED_POOL_POLICY_ENABLED",
+      false,
+    ),
+    sharedOwnerTpm: intEnv(env, "SCHEDULER_SHARED_OWNER_TPM", 25_000, 1),
+    sharedMinModelIntervalSeconds: intEnv(
+      env,
+      "SCHEDULER_SHARED_MIN_MODEL_INTERVAL_SECONDS",
+      180,
+      0,
     ),
     // Configurable because provider/account tiers vary. The default covers the
     // measured ~68k sustained fleet demand with bounded headroom.

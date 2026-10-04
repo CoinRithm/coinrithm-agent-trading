@@ -28,6 +28,7 @@ import {
   rescheduleToCadence,
 } from "./db.js";
 import type { Config } from "./config.js";
+import { sharedOwnerLimit } from "./sharedPolicy.js";
 import {
   RoutedProvider,
   resolveRouteChain,
@@ -157,7 +158,9 @@ function routedProviderFor(
   agent: AgentRow,
   config: Config,
   log: string[],
-): RoutedProvider<ProviderCapacityLease> {
+): RoutedProvider<
+  ProviderCapacityLease & { ownerLease?: ProviderCapacityLease }
+> {
   const nvidia = pickNvidiaKey(agent, config);
   if (!nvidia)
     throw new HostedProviderSetupError("shared NVIDIA key unavailable");
@@ -226,18 +229,41 @@ function routedProviderFor(
             admissionReasons: ["model_cooldown"],
           };
         }
-        const reservation = await reserveProviderCapacity(
-          pool,
-          limitForRoute(route, input, config),
-        );
-        return reservation.ok
-          ? { ok: true, lease: reservation.lease }
-          : {
+        const limit = limitForRoute(route, input, config);
+        let ownerLease: ProviderCapacityLease | undefined;
+        if (config.sharedPoolPolicyEnabled) {
+          const owner = await reserveProviderCapacity(
+            pool,
+            sharedOwnerLimit(agent, config, limit.reserveTokens),
+          );
+          if (!owner.ok)
+            return {
               ok: false,
-              scope: "key",
-              error: "shared provider capacity unavailable",
-              admissionReasons: reservation.reasons,
+              scope: "owner",
+              error: "shared pool owner budget unavailable",
+              admissionReasons: owner.reasons,
             };
+          ownerLease = owner.lease;
+        }
+        try {
+          const reservation = await reserveProviderCapacity(pool, limit);
+          if (reservation.ok)
+            return { ok: true, lease: { ...reservation.lease, ownerLease } };
+          if (ownerLease)
+            await releaseProviderCapacity(pool, ownerLease, 0, true);
+          return {
+            ok: false,
+            scope: "key",
+            error: "shared provider capacity unavailable",
+            admissionReasons: reservation.reasons,
+          };
+        } catch (error) {
+          if (ownerLease)
+            await releaseProviderCapacity(pool, ownerLease, 0, true).catch(
+              (e) => hookFailure("owner capacity release", e),
+            );
+          throw error;
+        }
       },
       release: async (_route, lease, result) => {
         if (!lease) return;
@@ -247,6 +273,12 @@ function routedProviderFor(
         await releaseProviderCapacity(pool, lease, actualTokens).catch(
           (error) => hookFailure("capacity release", error),
         );
+        if (lease.ownerLease)
+          await releaseProviderCapacity(
+            pool,
+            lease.ownerLease,
+            actualTokens,
+          ).catch((error) => hookFailure("owner capacity release", error));
       },
       observe: async (route, attempt: RouteAttempt, callStartedAt) => {
         try {
@@ -387,6 +419,12 @@ export async function runAgentOnce(
       spec,
       mergedProse: agent.prose,
       state,
+      minModelIntervalSeconds:
+        config.sharedPoolPolicyEnabled &&
+        config.capacityEnabled &&
+        shouldUseHostedRouter(agent, config)
+          ? config.sharedMinModelIntervalSeconds
+          : undefined,
       live: agent.live,
       stateFile: undefined, // DB-backed: no file I/O; we persist deps.state below
       log: (l) => log.push(l),

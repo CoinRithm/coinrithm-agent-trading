@@ -108,6 +108,100 @@ describe("hosted provider lifecycle", () => {
     vi.unstubAllGlobals();
   });
 
+  it("reserves one owner quota across keys and reconciles both leases to actual usage", async () => {
+    const { agent, config } = fixture();
+    config.sharedPoolPolicyEnabled = true;
+    agent.ownerUserId = 19;
+    const ownerLease = {
+      leaseId: "owner",
+      routeKey: "shared-owner:user:19",
+      reservedTokens: 1031,
+      tokenBurst: 25000,
+    };
+    const providerLease = {
+      leaseId: "provider",
+      routeKey: "nvidia:shared:0",
+      reservedTokens: 1031,
+    };
+    vi.mocked(capacity.reserveProviderCapacity)
+      .mockResolvedValueOnce({ ok: true, lease: ownerLease })
+      .mockResolvedValueOnce({ ok: true, lease: providerLease });
+    await runAgentOnce(pool, agent, config);
+    expect(result.ok).toBe(true);
+    expect(capacity.reserveProviderCapacity).toHaveBeenNthCalledWith(
+      1,
+      pool,
+      expect.objectContaining({
+        routeKey: ownerLease.routeKey,
+        tokensPerMinute: 25000,
+        maxConcurrent: 1,
+      }),
+    );
+    expect(capacity.releaseProviderCapacity).toHaveBeenCalledWith(
+      pool,
+      ownerLease,
+      10,
+    );
+    expect(engine.runCycle).toHaveBeenCalledWith(
+      expect.objectContaining({ minModelIntervalSeconds: 180 }),
+    );
+  });
+
+  it("defers owner quota exhaustion once without spending a fallback or a model call", async () => {
+    const { agent, config } = fixture();
+    config.sharedPoolPolicyEnabled = true;
+    agent.ownerUserId = 19;
+    vi.mocked(capacity.reserveProviderCapacity).mockResolvedValueOnce({
+      ok: false,
+      reasons: ["token_budget"],
+    });
+    await runAgentOnce(pool, agent, config);
+    expect(result).toMatchObject({
+      ok: false,
+      deferred: true,
+      error: "shared pool owner budget unavailable",
+      route: { attempts: [{ outcome: "deferred" }] },
+    });
+    expect(capacity.reserveProviderCapacity).toHaveBeenCalledOnce();
+    expect(decide).not.toHaveBeenCalled();
+    expect(db.recordProviderStrike).not.toHaveBeenCalled();
+  });
+
+  it("refunds owner tokens when provider admission fails before a call", async () => {
+    const { agent, config } = fixture();
+    config.sharedPoolPolicyEnabled = true;
+    agent.ownerUserId = 19;
+    config.openAiBackupEligible = false;
+    const ownerLease = {
+      leaseId: "owner",
+      routeKey: "shared-owner:user:19",
+      reservedTokens: 1031,
+      tokenBurst: 25000,
+    };
+    vi.mocked(capacity.reserveProviderCapacity)
+      .mockResolvedValueOnce({ ok: true, lease: ownerLease })
+      .mockResolvedValueOnce({ ok: false, reasons: ["token_budget"] });
+    await runAgentOnce(pool, agent, config);
+    expect(capacity.releaseProviderCapacity).toHaveBeenCalledWith(
+      pool,
+      ownerLease,
+      0,
+      true,
+    );
+    expect(decide).not.toHaveBeenCalled();
+  });
+
+  it("keeps BYO agents outside the owner quota and minimum interval", async () => {
+    const { agent, config } = fixture();
+    config.sharedPoolPolicyEnabled = true;
+    agent.brainKeyEnc = encrypt("byo", key);
+    await runAgentOnce(pool, agent, config);
+    expect(capacity.reserveProviderCapacity).not.toHaveBeenCalled();
+    expect(engine.runCycle).toHaveBeenCalledWith(
+      expect.objectContaining({ minModelIntervalSeconds: undefined }),
+    );
+  });
+
   it("reserves estimated tokens and releases actual usage after a valid decision", async () => {
     const { agent, config } = fixture();
     await runAgentOnce(pool, agent, config);

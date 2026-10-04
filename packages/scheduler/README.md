@@ -91,7 +91,29 @@ Operational must-knows:
 - **Keep the Docker healthcheck enabled.** The image sets `HEALTH_PORT=8080`;
   `/healthz` checks the scheduler heartbeat as well as process liveness.
 
-## Schema deployment and runtime role
+## Shared capacity policy
+
+`SCHEDULER_SHARED_POOL_POLICY_ENABLED=true` enables a shared-pool model-call
+minimum of 180 seconds and an aggregate owner budget of 25,000 tokens/minute
+with one in-flight model request per owner. All house agents share one owner
+budget. The budget spans provider keys and fallback models; adding agents or
+changing keys cannot multiply it. Tenant-aware queue ordering still applies.
+An unusually large prompt may accumulate one request's worth of credit without
+raising the refill rate. Local provider admission failure refunds unused owner
+credit. Leases expire after a crashed worker, and restarts do not reset budgets.
+
+The stored strategy and cycle cadence are unchanged. Protective thesis exits
+still run each cycle before the model-call gate, including during a budget wait.
+The terminal reports `shared pool model interval` or `shared pool owner budget
+deferred`; neither is a provider failure. BYO, mechanical and self-hosted agents
+are unaffected. The minimum interval is a floor, not a promise of a model call
+every three minutes when an owner's budget or a provider is unavailable.
+
+Override the limits with `SCHEDULER_SHARED_OWNER_TPM` and
+`SCHEDULER_SHARED_MIN_MODEL_INTERVAL_SECONDS`. The policy defaults off for an
+explicit rollout; set `SCHEDULER_SHARED_POOL_POLICY_ENABLED=false` to roll it
+back without changing customer records or disabling provider-wide admission.
+No new migration is required: existing durable capacity tables are reused.
 
 Capacity cooldowns are shared across replicas for each key/model pair. Explicit
 `Retry-After` is honored with the existing one-second minimum and one-hour cap.
@@ -101,6 +123,8 @@ it cannot clear a failure newer than that request. Five quiet minutes also reset
 the failure sequence. This is bounded retry policy, not a guarantee that NVIDIA
 recovers within seconds. Set `SCHEDULER_ADAPTIVE_COOLDOWN_ENABLED=false` to
 restore the previous 60-second default; explicit `Retry-After` still applies.
+
+## Schema deployment and runtime role
 
 1. Build the scheduler image and retain the previous image and runtime secret
    configuration. Record the database target and take the established backup.
@@ -183,6 +207,7 @@ credentials themselves. The helper is never called during normal startup.
 
    This preflights every stored value with no updates. Verify the reported
    agent/value counts. A corrupt or unknown ciphertext aborts the entire operation.
+
 4. Apply the same preflighted rotation:
 
    ```bash
@@ -191,6 +216,7 @@ credentials themselves. The helper is never called during normal startup.
 
    Both credential columns change inside one transaction under the maintenance
    lock and an exclusive table lock. No plaintext or key values are logged.
+
 5. Re-run the preflight using the **same** old/new pair. `alreadyRotated` must
    equal `values`. Set `ENCRYPTION_KEY` to the new key in every reader, writer
    and seed environment, remove rotation variables, then restart one scheduler.

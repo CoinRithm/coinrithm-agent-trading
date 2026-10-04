@@ -18,6 +18,8 @@ export interface AgentRow {
   prose: string;
   coinrithmKeyEnc: string;
   brainKeyEnc: string | null;
+  ownerUserId?: number | null;
+  isHouse?: boolean;
 }
 
 export interface CycleRecord {
@@ -377,6 +379,8 @@ interface RawAgent {
   prose: string;
   coinrithm_key_enc: string;
   brain_key_enc: string | null;
+  owner_user_id?: string | null;
+  is_house?: boolean;
 }
 
 function mapAgent(r: RawAgent): AgentRow {
@@ -393,6 +397,8 @@ function mapAgent(r: RawAgent): AgentRow {
     prose: r.prose,
     coinrithmKeyEnc: r.coinrithm_key_enc,
     brainKeyEnc: r.brain_key_enc,
+    ownerUserId: r.owner_user_id == null ? null : Number(r.owner_user_id),
+    isHouse: r.is_house === true,
   };
 }
 
@@ -466,7 +472,7 @@ export async function claimDueAgents(
        ), picked AS MATERIALIZED (
          SELECT a.id, a.handle, a.display_name, a.live, a.cadence_seconds,
                 a.model_provider, a.model_name, a.model_base_url, a.spec,
-                a.prose, a.coinrithm_key_enc, a.brain_key_enc,
+                a.prose, a.coinrithm_key_enc, a.brain_key_enc, a.owner_user_id, a.is_house,
                 due.tenant_position, a.next_run_at
            FROM due
            JOIN agent_runtime.agents a ON a.id = due.id
@@ -477,7 +483,7 @@ export async function claimDueAgents(
        )
        SELECT id, handle, display_name, live, cadence_seconds, model_provider,
               model_name, model_base_url, spec, prose, coinrithm_key_enc,
-              brain_key_enc
+              brain_key_enc, owner_user_id, is_house
          FROM picked
         ORDER BY tenant_position, next_run_at, id`,
       excludeAgentIds.length > 0
