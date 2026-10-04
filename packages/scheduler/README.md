@@ -126,6 +126,22 @@ explicit rollout; set `SCHEDULER_SHARED_POOL_POLICY_ENABLED=false` to roll it
 back without changing customer records or disabling provider-wide admission.
 No new migration is required: existing durable capacity tables are reused.
 
+`SCHEDULER_COMPACT_PROMPT_TABLES_ENABLED=true` enables a separate house-agent
+canary for shorter prompts. Large lists with identical fields become tables with
+explicit columns and rows. Market references and settlement rules always keep
+their existing object format. All serialized values, nested evidence,
+ordering, precision and absent/null distinctions are preserved; execution inputs
+and receipts are unchanged. Small lists stay as objects, and conversion is used
+only when it saves characters after including format instructions. Customer
+agents, BYO and self-hosted defaults stay unchanged. The flag defaults false and
+is the rollback switch. Character savings do not establish token savings or
+decision quality; verify both with bounded probes and natural observations.
+Only the contract-probed Super and Lightning routes use that presentation.
+Nano, BYO and custom endpoints always receive the original prompt, including
+when a canary falls back to them; Nano failed the table probe. Capacity admission
+uses the actual selected prompt. The original observation remains available to
+the router so model fallback never requires reversing a table or losing context.
+
 Capacity cooldowns are shared across replicas for each key/model pair. Explicit
 `Retry-After` is honored with the existing one-second minimum and one-hour cap.
 Without that header, backoff starts at 10–15 seconds, doubles on repeated

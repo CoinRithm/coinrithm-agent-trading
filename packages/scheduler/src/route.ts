@@ -307,7 +307,21 @@ export class RoutedProvider<Lease = unknown> implements Provider {
         continue;
       }
 
-      const acquired = await this.hooks.acquire(route, input);
+      // Preserve the original presentation for Nano and unverified models.
+      // Paired live probes validated these two routes; Nano failed the table
+      // contract. This remains a house-only runtime opt-in upstream.
+      const { compactUser, ...originalInput } = input;
+      const compactEligible =
+        !this.byo &&
+        route.provider === "nvidia" &&
+        (!route.baseUrl ||
+          route.baseUrl === "https://integrate.api.nvidia.com/v1") &&
+        (route.model === NEMOTRON_SUPER || route.model === NEMOTRON_LIGHTNING);
+      const routeInput =
+        compactEligible && compactUser
+          ? { ...originalInput, user: compactUser }
+          : originalInput;
+      const acquired = await this.hooks.acquire(route, routeInput);
       if (!acquired.ok) {
         const attempt: RouteAttempt = {
           provider: route.provider,
@@ -346,7 +360,7 @@ export class RoutedProvider<Lease = unknown> implements Provider {
       let result: DecideResult;
       try {
         result = await this.buildProvider(route).decide({
-          ...input,
+          ...routeInput,
           timeoutMs: remainingMs,
         });
       } catch (error) {

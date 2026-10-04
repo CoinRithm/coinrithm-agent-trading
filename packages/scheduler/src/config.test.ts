@@ -20,6 +20,21 @@ describe("provider capacity config", () => {
       }).lightningFallbackEnabled,
     ).toBe(false);
   });
+  it("keeps prompt compaction opt-in with an explicit rollback", () => {
+    expect(loadConfig(baseEnv()).compactPromptTablesEnabled).toBe(false);
+    expect(
+      loadConfig({
+        ...baseEnv(),
+        SCHEDULER_COMPACT_PROMPT_TABLES_ENABLED: "true",
+      }).compactPromptTablesEnabled,
+    ).toBe(true);
+    expect(
+      loadConfig({
+        ...baseEnv(),
+        SCHEDULER_COMPACT_PROMPT_TABLES_ENABLED: "false",
+      }).compactPromptTablesEnabled,
+    ).toBe(false);
+  });
   it("keeps shared owner policy opt-in with explicit rollback and validated limits", () => {
     expect(loadConfig(baseEnv())).toMatchObject({
       sharedPoolPolicyEnabled: false,

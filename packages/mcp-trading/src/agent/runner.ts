@@ -90,6 +90,8 @@ export interface RunnerDeps {
   onDecisionInputRecord?: (record: DecisionInputRecord) => void;
   /** Hosted shared-pool admission only; protective checks still run every cycle. */
   minModelIntervalSeconds?: number;
+  /** Opt-in hosted canary; changes presentation only, preserving all values. */
+  compactPromptTables?: boolean;
 }
 
 // Independent-forecast kill-switch. Default ON: the fleet elicits + submits its
@@ -893,13 +895,20 @@ async function runCycleCore(
       includeForecast: forecastEnabled,
       ...actionAvailability,
     });
-    const user = buildUserPrompt(observation, state.journal, {
+    const userOptions = {
       venues: spec.venues,
       dailyRiskBudget: buildDailyRiskBudget(spec, state),
       ...(usesCapitalSizing(spec) ? { capitalSizing: spec.capitalSizing } : {}),
       ...(futuresCapacity ? { futuresCapacity } : {}),
       ...actionAvailability,
-    });
+    };
+    const user = buildUserPrompt(observation, state.journal, userOptions);
+    const compactUser = deps.compactPromptTables
+      ? buildUserPrompt(observation, state.journal, {
+          ...userOptions,
+          compactTables: true,
+        })
+      : undefined;
     const tokensInEst = Math.round((system.length + user.length) / 4);
     // Prompt-size + trigger visibility in the live terminal.
     log(
@@ -917,6 +926,7 @@ async function runCycleCore(
     const res = await provider.decide({
       system,
       user,
+      ...(compactUser && compactUser !== user ? { compactUser } : {}),
       ...actionAvailability,
     });
     const route = res.route;
