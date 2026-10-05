@@ -7,10 +7,11 @@ import * as db from "./db.js";
 import * as capacity from "./capacity.js";
 import { loadConfig } from "./config.js";
 import { encrypt } from "./crypto.js";
-import { runAgentOnce } from "./runtime.js";
+import { runAgentOnce, usesHouseSuperJsonContent } from "./runtime.js";
 import { NEMOTRON_NANO, NEMOTRON_LIGHTNING, NEMOTRON_SUPER } from "./route.js";
 
 const key = Buffer.alloc(32, 9);
+const FUTURE = Date.now() + 3_600_000;
 const pool = {} as Pool;
 const input = {
   system: "fixture system",
@@ -137,6 +138,7 @@ describe("hosted provider lifecycle", () => {
     async (flag, isHouse, model, expected) => {
       const { agent, config } = fixture();
       config.houseSuperJsonContentEnabled = flag;
+      config.houseSuperJsonContentUntilMs = FUTURE;
       agent.isHouse = isHouse;
       agent.modelName = model;
       await runAgentOnce(pool, agent, config);
@@ -148,9 +150,63 @@ describe("hosted provider lifecycle", () => {
     },
   );
 
+  it.each([
+    ["missing", undefined, false],
+    ["expired", Date.now() - 60_000, false],
+  ])(
+    "keeps the default transport when the trial expiry is %s",
+    async (_label, untilMs, expected) => {
+      const { agent, config } = fixture();
+      config.houseSuperJsonContentEnabled = true;
+      config.houseSuperJsonContentUntilMs = untilMs;
+      agent.isHouse = true;
+      agent.modelName = NEMOTRON_SUPER;
+      await runAgentOnce(pool, agent, config);
+      const first = vi.mocked(engine.providerForRoute).mock.calls[0]!;
+      expect(first[3] !== undefined).toBe(expected);
+    },
+  );
+
+  it("ends the trial exactly at its expiry and never applies to customers or BYO", () => {
+    const { agent, config } = fixture();
+    const until = Date.UTC(2026, 9, 5, 21, 0, 0);
+    config.houseSuperJsonContentEnabled = true;
+    config.houseSuperJsonContentUntilMs = until;
+    agent.isHouse = true;
+    const route = {
+      provider: "nvidia" as const,
+      model: NEMOTRON_SUPER,
+      keyRef: "nvidia:shared:0",
+    };
+    expect(usesHouseSuperJsonContent(agent, config, route, until - 1)).toBe(
+      true,
+    );
+    expect(usesHouseSuperJsonContent(agent, config, route, until)).toBe(false);
+    expect(usesHouseSuperJsonContent(agent, config, route, until + 1)).toBe(
+      false,
+    );
+    expect(
+      usesHouseSuperJsonContent(
+        { ...agent, isHouse: false },
+        config,
+        route,
+        until - 1,
+      ),
+    ).toBe(false);
+    expect(
+      usesHouseSuperJsonContent(
+        { ...agent, brainKeyEnc: encrypt("fixture-byo", key) },
+        config,
+        route,
+        until - 1,
+      ),
+    ).toBe(false);
+  });
+
   it("keeps the default transport on every fallback after a house Super attempt", async () => {
     const { agent, config } = fixture();
     config.houseSuperJsonContentEnabled = true;
+    config.houseSuperJsonContentUntilMs = FUTURE;
     config.lightningFallbackEnabled = true;
     agent.isHouse = true;
     agent.modelName = NEMOTRON_SUPER;
@@ -168,6 +224,7 @@ describe("hosted provider lifecycle", () => {
   it("never reaches a BYO house agent, which bypasses the hosted router", async () => {
     const { agent, config } = fixture();
     config.houseSuperJsonContentEnabled = true;
+    config.houseSuperJsonContentUntilMs = FUTURE;
     agent.isHouse = true;
     agent.modelName = NEMOTRON_SUPER;
     agent.brainKeyEnc = encrypt("fixture-byo", key);

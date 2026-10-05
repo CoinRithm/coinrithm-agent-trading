@@ -36,6 +36,11 @@ export interface Config {
   // route, owner agent and BYO key keeps the default transport.
   // Rollback: unset or SCHEDULER_HOUSE_SUPER_JSON_CONTENT_ENABLED=false.
   houseSuperJsonContentEnabled: boolean;
+  // Required absolute UTC expiry for the trial above
+  // (SCHEDULER_HOUSE_SUPER_JSON_CONTENT_UNTIL, e.g. 2026-10-05T21:00:00Z).
+  // Missing or invalid = undefined = the original transport; checked per
+  // attempt, so a restart cannot extend it.
+  houseSuperJsonContentUntilMs?: number;
   compactPromptTablesEnabled: boolean;
   sharedOwnerTpm: number;
   sharedMinModelIntervalSeconds: number;
@@ -97,6 +102,27 @@ function boolEnv(
   if (["1", "true", "yes", "on"].includes(raw)) return true;
   if (["0", "false", "no", "off"].includes(raw)) return false;
   throw new Error(`${key} must be true or false`);
+}
+
+// An absolute UTC instant only (trailing Z). Anything else, including a valid
+// local or offset time, is ignored rather than guessed: an unusable expiry
+// must leave the trial OFF, never on.
+const UTC_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
+
+export function utcInstantEnv(
+  env: NodeJS.ProcessEnv,
+  key: string,
+): number | undefined {
+  const raw = env[key]?.trim();
+  if (!raw || !UTC_INSTANT.test(raw)) return undefined;
+  const ms = Date.parse(raw);
+  // Date.parse rolls impossible dates (2026-02-30) forward; reject them.
+  if (
+    !Number.isFinite(ms) ||
+    new Date(ms).toISOString().slice(0, 19) !== raw.slice(0, 19)
+  )
+    return undefined;
+  return ms;
 }
 
 // A set-but-invalid URL is a deploy mistake we want to fail loud on, not paper
@@ -166,6 +192,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       env,
       "SCHEDULER_HOUSE_SUPER_JSON_CONTENT_ENABLED",
       false,
+    ),
+    houseSuperJsonContentUntilMs: utcInstantEnv(
+      env,
+      "SCHEDULER_HOUSE_SUPER_JSON_CONTENT_UNTIL",
     ),
     compactPromptTablesEnabled: boolEnv(
       env,

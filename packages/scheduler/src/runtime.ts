@@ -154,16 +154,20 @@ function keyForRoute(
   throw new Error(`no credential configured for route ${route.provider}`);
 }
 
-// House-only, Super-only transport switch. Callers reach this through the shared
-// hosted router (never BYO), and owner agents and every fallback route keep the
-// default tool-call transport.
+// House-only, Super-only, time-boxed transport switch. Callers reach this
+// through the shared hosted router (never BYO), and owner agents and every
+// fallback route keep the default tool-call transport. Evaluated for every
+// route attempt, so the trial ends at its expiry even without a restart.
 export function usesHouseSuperJsonContent(
   agent: AgentRow,
   config: Config,
   route: ModelRoute,
+  nowMs: number = Date.now(),
 ): boolean {
   return (
     config.houseSuperJsonContentEnabled &&
+    config.houseSuperJsonContentUntilMs !== undefined &&
+    nowMs < config.houseSuperJsonContentUntilMs &&
     agent.isHouse === true &&
     !agent.brainKeyEnc &&
     route.provider === "nvidia" &&
