@@ -105,6 +105,18 @@ export function chatShapeFor(
   };
 }
 
+// Opt-in alternative for a hosted Nemotron route: plain JSON content
+// (`response_format: json_object`) instead of the forced decision tool call.
+// Hosted Super often returns the tool call with `actions` as a string holding
+// a complete array followed by extra characters; the same prompt as JSON
+// content parsed in an 8-call synthetic smoke pilot (2026-10-05, not a rate
+// measurement). Only the request transport changes: parseDecision still
+// validates the full contract, and the endpoint never enforced this schema.
+export function withJsonContentTransport(shape: ChatShape): ChatShape {
+  if (shape.family !== "nvidia-nemotron") return shape;
+  return { ...shape, jsonSchema: undefined, jsonSchemaTransport: undefined };
+}
+
 // Action variants a cycle may withhold from a schema-enforcing route. Only
 // futures_open today: the runner withholds it when futures capacity is spent.
 export type DecisionActionExclusion = "futures_open";

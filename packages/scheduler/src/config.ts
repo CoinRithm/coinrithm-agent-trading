@@ -31,6 +31,11 @@ export interface Config {
   adaptiveCooldownEnabled: boolean;
   sharedPoolPolicyEnabled: boolean;
   lightningFallbackEnabled: boolean;
+  // House agents on the shared hosted router only: their Nemotron Super route
+  // asks for JSON content instead of the forced decision tool call. Every other
+  // route, owner agent and BYO key keeps the default transport.
+  // Rollback: unset or SCHEDULER_HOUSE_SUPER_JSON_CONTENT_ENABLED=false.
+  houseSuperJsonContentEnabled: boolean;
   compactPromptTablesEnabled: boolean;
   sharedOwnerTpm: number;
   sharedMinModelIntervalSeconds: number;
@@ -155,6 +160,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     lightningFallbackEnabled: boolEnv(
       env,
       "SCHEDULER_LIGHTNING_FALLBACK_ENABLED",
+      false,
+    ),
+    houseSuperJsonContentEnabled: boolEnv(
+      env,
+      "SCHEDULER_HOUSE_SUPER_JSON_CONTENT_ENABLED",
       false,
     ),
     compactPromptTablesEnabled: boolEnv(

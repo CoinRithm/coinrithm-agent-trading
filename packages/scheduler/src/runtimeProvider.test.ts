@@ -8,7 +8,7 @@ import * as capacity from "./capacity.js";
 import { loadConfig } from "./config.js";
 import { encrypt } from "./crypto.js";
 import { runAgentOnce } from "./runtime.js";
-import { NEMOTRON_NANO, NEMOTRON_LIGHTNING } from "./route.js";
+import { NEMOTRON_NANO, NEMOTRON_LIGHTNING, NEMOTRON_SUPER } from "./route.js";
 
 const key = Buffer.alloc(32, 9);
 const pool = {} as Pool;
@@ -125,6 +125,56 @@ describe("hosted provider lifecycle", () => {
       expect(models).toHaveLength(2);
     },
   );
+
+  it.each([
+    // flag, isHouse, model -> JSON content on the first route
+    [true, true, NEMOTRON_SUPER, true],
+    [false, true, NEMOTRON_SUPER, false],
+    [true, false, NEMOTRON_SUPER, false],
+    [true, true, NEMOTRON_NANO, false],
+  ])(
+    "asks for JSON content only on a flagged house Super route (%s/%s/%s)",
+    async (flag, isHouse, model, expected) => {
+      const { agent, config } = fixture();
+      config.houseSuperJsonContentEnabled = flag;
+      agent.isHouse = isHouse;
+      agent.modelName = model;
+      await runAgentOnce(pool, agent, config);
+      const first = vi.mocked(engine.providerForRoute).mock.calls[0]!;
+      expect(first[0].model).toBe(model);
+      expect(first[3]).toEqual(
+        expected ? { nemotronJsonContent: true } : undefined,
+      );
+    },
+  );
+
+  it("keeps the default transport on every fallback after a house Super attempt", async () => {
+    const { agent, config } = fixture();
+    config.houseSuperJsonContentEnabled = true;
+    config.lightningFallbackEnabled = true;
+    agent.isHouse = true;
+    agent.modelName = NEMOTRON_SUPER;
+    decide
+      .mockResolvedValueOnce({ ok: false, error: "capacity", status: 429 })
+      .mockResolvedValueOnce(good);
+    await runAgentOnce(pool, agent, config);
+    const calls = vi.mocked(engine.providerForRoute).mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[0]![3]).toEqual({ nemotronJsonContent: true });
+    expect(calls[1]![0].model).not.toBe(NEMOTRON_SUPER);
+    expect(calls[1]![3]).toBeUndefined();
+  });
+
+  it("never reaches a BYO house agent, which bypasses the hosted router", async () => {
+    const { agent, config } = fixture();
+    config.houseSuperJsonContentEnabled = true;
+    agent.isHouse = true;
+    agent.modelName = NEMOTRON_SUPER;
+    agent.brainKeyEnc = encrypt("fixture-byo", key);
+    await runAgentOnce(pool, agent, config);
+    expect(engine.providerForRoute).not.toHaveBeenCalled();
+    expect(engine.selectProvider).toHaveBeenCalled();
+  });
 
   it.each([
     [true, false, true],

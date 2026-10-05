@@ -20,6 +20,21 @@ describe("provider capacity config", () => {
       }).lightningFallbackEnabled,
     ).toBe(false);
   });
+  it("keeps the house Super JSON-content transport opt-in with a rollback", () => {
+    expect(loadConfig(baseEnv()).houseSuperJsonContentEnabled).toBe(false);
+    expect(
+      loadConfig({
+        ...baseEnv(),
+        SCHEDULER_HOUSE_SUPER_JSON_CONTENT_ENABLED: "true",
+      }).houseSuperJsonContentEnabled,
+    ).toBe(true);
+    expect(
+      loadConfig({
+        ...baseEnv(),
+        SCHEDULER_HOUSE_SUPER_JSON_CONTENT_ENABLED: "false",
+      }).houseSuperJsonContentEnabled,
+    ).toBe(false);
+  });
   it("keeps prompt compaction opt-in with an explicit rollback", () => {
     expect(loadConfig(baseEnv()).compactPromptTablesEnabled).toBe(false);
     expect(

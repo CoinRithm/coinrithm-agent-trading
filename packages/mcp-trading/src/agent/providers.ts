@@ -8,6 +8,7 @@ import { retryAfterSeconds } from "../retryAfter.js";
 import {
   chatShapeFor,
   buildChatBody,
+  withJsonContentTransport,
   DECISION_TOOL_NAME,
   NVIDIA_BASE_URL as CAP_NVIDIA_BASE_URL,
   type DecisionActionExclusion,
@@ -373,6 +374,14 @@ class AnthropicProvider implements Provider {
   }
 }
 
+// Per-route request options a host scheduler may set. Absent = the default
+// capability shape for the route.
+export interface ProviderRouteOptions {
+  // Send a Nemotron route's decision as JSON content, not a forced tool call.
+  // Ignored for every other model family.
+  nemotronJsonContent?: boolean;
+}
+
 class OpenAiCompatProvider implements Provider {
   label: string;
   constructor(
@@ -381,12 +390,16 @@ class OpenAiCompatProvider implements Provider {
     private apiKey: string,
     private baseUrl: string,
     private fetchFn: typeof fetch,
+    private options: ProviderRouteOptions = {},
   ) {
     this.label = `${baseUrl}/${model}`;
   }
   async decide(input: DecideInput): Promise<DecideResult> {
     const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-    const shape = chatShapeFor(this.provider, this.model, this.baseUrl);
+    const baseShape = chatShapeFor(this.provider, this.model, this.baseUrl);
+    const shape = this.options.nemotronJsonContent
+      ? withJsonContentTransport(baseShape)
+      : baseShape;
     let failureResponse: Response | undefined;
     try {
       return await withProviderTimeout(
@@ -635,6 +648,7 @@ export function providerForRoute(
   },
   apiKey: string,
   fetchFn: typeof fetch = fetch,
+  options: ProviderRouteOptions = {},
 ): Provider {
   if (route.provider === "mechanical")
     return new MechanicalProvider(route.model);
@@ -650,5 +664,6 @@ export function providerForRoute(
     apiKey,
     resolvedBase,
     fetchFn,
+    options,
   );
 }

@@ -32,6 +32,7 @@ import { sharedOwnerLimit } from "./sharedPolicy.js";
 import {
   RoutedProvider,
   resolveRouteChain,
+  NEMOTRON_SUPER,
   type ModelRoute,
   type RouteAttempt,
 } from "./route.js";
@@ -153,6 +154,23 @@ function keyForRoute(
   throw new Error(`no credential configured for route ${route.provider}`);
 }
 
+// House-only, Super-only transport switch. Callers reach this through the shared
+// hosted router (never BYO), and owner agents and every fallback route keep the
+// default tool-call transport.
+export function usesHouseSuperJsonContent(
+  agent: AgentRow,
+  config: Config,
+  route: ModelRoute,
+): boolean {
+  return (
+    config.houseSuperJsonContentEnabled &&
+    agent.isHouse === true &&
+    !agent.brainKeyEnc &&
+    route.provider === "nvidia" &&
+    route.model === NEMOTRON_SUPER
+  );
+}
+
 function routedProviderFor(
   pool: Pool,
   agent: AgentRow,
@@ -192,8 +210,14 @@ function routedProviderFor(
     chain.profile,
     chain.routes,
     false,
-    (route) =>
-      providerForRoute(route, keyForRoute(route, nvidia, config), fetch),
+    (route) => {
+      const routeKey = keyForRoute(route, nvidia, config);
+      return usesHouseSuperJsonContent(agent, config, route)
+        ? providerForRoute(route, routeKey, fetch, {
+            nemotronJsonContent: true,
+          })
+        : providerForRoute(route, routeKey, fetch);
+    },
     {
       sanitizeError: (value) => {
         let out = value;
