@@ -107,11 +107,13 @@ availability: all these routes still depend on NVIDIA.
 `SCHEDULER_HOUSE_SUPER_JSON_CONTENT_ENABLED=true` makes the
 `nvidia/nemotron-3-super-120b-a12b` route of house agents on the shared hosted
 router request JSON content (`response_format: json_object`) instead of the
-forced decision tool call. Hosted Super does not enforce the tool schema and
-often returns `actions` as a string. Thinking stays off, and the strict decision
+forced decision tool call. Hosted Super has returned `actions` as a string
+despite the tool schema (519 of 533 malformed attempts in a 24-hour sample on
+5 October 2026). Thinking stays off, and the strict decision
 parser, capacity leases, fallback chain and output privacy are unchanged. Every
 fallback route, customer agent and BYO key keeps the tool-call transport.
-Attempts record `responseSource: "content"`. The flag defaults false and
+Malformed attempts record `responseSource: "content"` (successful attempts do
+not record a response source). The flag defaults false and
 provides rollback. An 8-call synthetic smoke pilot motivated it; it is not a
 measured failure-rate result.
 
