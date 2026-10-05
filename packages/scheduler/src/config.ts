@@ -1,5 +1,10 @@
 import { loadMasterKey } from "./crypto.js";
 
+export interface CustomerJsonContentIdentity {
+  ownerUserId: number;
+  agentId: number;
+}
+
 export interface Config {
   databaseUrl: string;
   encryptionKey: Buffer;
@@ -33,7 +38,8 @@ export interface Config {
   lightningFallbackEnabled: boolean;
   // House agents on the shared hosted router only: their Nemotron Super route
   // asks for JSON content instead of the forced decision tool call. Every other
-  // route, owner agent and BYO key keeps the default transport.
+  // route and BYO key keeps the default transport. Customers have a separate
+  // default-off gate below; this house flag never enrolls them.
   // Rollback: unset or SCHEDULER_HOUSE_SUPER_JSON_CONTENT_ENABLED=false.
   houseSuperJsonContentEnabled: boolean;
   // Required absolute UTC expiry for the trial above
@@ -41,6 +47,11 @@ export interface Config {
   // Missing or invalid = undefined = the original transport; checked per
   // attempt, so a restart cannot extend it.
   houseSuperJsonContentUntilMs?: number;
+  // Separate, default-off customer preparation. All three settings are needed;
+  // no wildcard/owner-wide enrollment and no customer records are changed.
+  customerSuperJsonContentEnabled: boolean;
+  customerSuperJsonContentUntilMs?: number;
+  customerSuperJsonContentAllowlist: readonly CustomerJsonContentIdentity[];
   compactPromptTablesEnabled: boolean;
   sharedOwnerTpm: number;
   sharedMinModelIntervalSeconds: number;
@@ -125,6 +136,49 @@ export function utcInstantEnv(
   return ms;
 }
 
+// Bounded exact pairs only. Reject the entire list on any bad entry rather
+// than activating a partially parsed cohort. Never log the supplied identities.
+// Validate lexical integers before JSON.parse can round a fraction into an ID,
+// and reject duplicate object keys that JSON.parse would silently overwrite.
+const CUSTOMER_OWNER_FIELD = '"ownerUserId"\\s*:\\s*[1-9][0-9]*';
+const CUSTOMER_AGENT_FIELD = '"agentId"\\s*:\\s*[1-9][0-9]*';
+const CUSTOMER_PAIR = `\\{\\s*(?:${CUSTOMER_OWNER_FIELD}\\s*,\\s*${CUSTOMER_AGENT_FIELD}|${CUSTOMER_AGENT_FIELD}\\s*,\\s*${CUSTOMER_OWNER_FIELD})\\s*\\}`;
+const CUSTOMER_ALLOWLIST = new RegExp(
+  `^\\s*\\[\\s*(?:${CUSTOMER_PAIR}(?:\\s*,\\s*${CUSTOMER_PAIR})*)?\\s*\\]\\s*$`,
+);
+
+function customerJsonContentAllowlist(
+  raw: string | undefined,
+): CustomerJsonContentIdentity[] {
+  if (!raw || raw.length > 4096 || !CUSTOMER_ALLOWLIST.test(raw)) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length > 16) return [];
+    const result: CustomerJsonContentIdentity[] = [];
+    const seen = new Set<string>();
+    for (const entry of parsed) {
+      if (
+        !entry ||
+        typeof entry !== "object" ||
+        Array.isArray(entry) ||
+        Object.keys(entry).length !== 2 ||
+        !Number.isSafeInteger(entry.ownerUserId) ||
+        entry.ownerUserId <= 0 ||
+        !Number.isSafeInteger(entry.agentId) ||
+        entry.agentId <= 0
+      )
+        return [];
+      const pair = `${entry.ownerUserId}:${entry.agentId}`;
+      if (seen.has(pair)) return [];
+      seen.add(pair);
+      result.push({ ownerUserId: entry.ownerUserId, agentId: entry.agentId });
+    }
+    return result;
+  } catch {
+    return [];
+  }
+}
+
 // A set-but-invalid URL is a deploy mistake we want to fail loud on, not paper
 // over with the default (which would silently point agents at the wrong host).
 function urlEnv(env: NodeJS.ProcessEnv, k: string, def: string): string {
@@ -196,6 +250,18 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     houseSuperJsonContentUntilMs: utcInstantEnv(
       env,
       "SCHEDULER_HOUSE_SUPER_JSON_CONTENT_UNTIL",
+    ),
+    customerSuperJsonContentEnabled: boolEnv(
+      env,
+      "SCHEDULER_CUSTOMER_SUPER_JSON_CONTENT_ENABLED",
+      false,
+    ),
+    customerSuperJsonContentUntilMs: utcInstantEnv(
+      env,
+      "SCHEDULER_CUSTOMER_SUPER_JSON_CONTENT_UNTIL",
+    ),
+    customerSuperJsonContentAllowlist: customerJsonContentAllowlist(
+      env.SCHEDULER_CUSTOMER_SUPER_JSON_CONTENT_ALLOWLIST,
     ),
     compactPromptTablesEnabled: boolEnv(
       env,

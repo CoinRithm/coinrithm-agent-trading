@@ -6,6 +6,121 @@ const baseEnv = (): NodeJS.ProcessEnv => ({
   ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
 });
 
+describe("customer Super JSON-content enrollment", () => {
+  const pair = { ownerUserId: 19, agentId: 42 };
+  const setting = "SCHEDULER_CUSTOMER_SUPER_JSON_CONTENT_ALLOWLIST";
+  it("defaults to disabled, no expiry and no enrolled identities", () => {
+    expect(loadConfig(baseEnv())).toMatchObject({
+      customerSuperJsonContentEnabled: false,
+      customerSuperJsonContentUntilMs: undefined,
+      customerSuperJsonContentAllowlist: [],
+    });
+  });
+  it("reads exact numeric pairs independently of the house flag", () => {
+    const config = loadConfig({
+      ...baseEnv(),
+      SCHEDULER_CUSTOMER_SUPER_JSON_CONTENT_ENABLED: "true",
+      SCHEDULER_CUSTOMER_SUPER_JSON_CONTENT_UNTIL: "2026-10-06T12:00:00Z",
+      [setting]: JSON.stringify([pair, { ownerUserId: 19, agentId: 43 }]),
+    });
+    expect(config.customerSuperJsonContentEnabled).toBe(true);
+    expect(config.customerSuperJsonContentUntilMs).toBe(
+      Date.UTC(2026, 9, 6, 12),
+    );
+    expect(config.customerSuperJsonContentAllowlist).toEqual([
+      pair,
+      { ownerUserId: 19, agentId: 43 },
+    ]);
+    expect(config.houseSuperJsonContentEnabled).toBe(false);
+    expect(
+      loadConfig({
+        ...baseEnv(),
+        SCHEDULER_HOUSE_SUPER_JSON_CONTENT_ENABLED: "true",
+      }).customerSuperJsonContentEnabled,
+    ).toBe(false);
+  });
+  it.each([
+    "",
+    "*",
+    "19:42",
+    "{}",
+    "null",
+    "true",
+    "[null]",
+    "[[]]",
+    "[42]",
+    '[{"ownerUserId":19,"agentId":42.0000000000000000001}]',
+    '[{"ownerUserId":19,"agentId":9007199254740991.1}]',
+    '[{"ownerUserId":19,"agentId":4.2e1}]',
+    '[{"ownerUserId":19,"agentId":42,"agentId":43}]',
+    '[{"ownerUserId":18,"ownerUserId":19,"agentId":42}]',
+    JSON.stringify([{ ...pair, agentId: "42" }]),
+    JSON.stringify([{ ...pair, ownerUserId: "19" }]),
+    JSON.stringify([{ ...pair, agentId: 42.5 }]),
+    JSON.stringify([{ ...pair, ownerUserId: 0 }]),
+    JSON.stringify([{ ...pair, agentId: -1 }]),
+    JSON.stringify([{ ...pair, agentId: Number.MAX_SAFE_INTEGER + 1 }]),
+    JSON.stringify([{ ...pair, ownerUserId: Number.MAX_SAFE_INTEGER + 1 }]),
+    JSON.stringify([{ ...pair, agentId: true }]),
+    JSON.stringify([{ agentId: 42 }]),
+    JSON.stringify([{ ...pair, extra: true }]),
+    JSON.stringify([pair, { ownerUserId: 19 }]),
+    JSON.stringify([pair, pair]),
+    JSON.stringify(
+      Array.from({ length: 17 }, (_, n) => ({
+        ownerUserId: 19,
+        agentId: n + 1,
+      })),
+    ),
+    " ".repeat(4097),
+  ])("enrolls nobody for a malformed or oversized list: %j", (raw) => {
+    expect(
+      loadConfig({ ...baseEnv(), [setting]: raw })
+        .customerSuperJsonContentAllowlist,
+    ).toEqual([]);
+  });
+  it.each([
+    undefined,
+    "",
+    "tomorrow",
+    "2026-10-06T12:00:00",
+    "2026-10-06T12:00:00+01:00",
+    "2026-02-30T00:00:00Z",
+  ])("does not invent a customer expiry for %j", (raw) => {
+    expect(
+      loadConfig({
+        ...baseEnv(),
+        SCHEDULER_CUSTOMER_SUPER_JSON_CONTENT_UNTIL: raw,
+      }).customerSuperJsonContentUntilMs,
+    ).toBeUndefined();
+  });
+  it("supports disabling a populated gate without changing its identities", () => {
+    const config = loadConfig({
+      ...baseEnv(),
+      [setting]: JSON.stringify([pair]),
+      SCHEDULER_CUSTOMER_SUPER_JSON_CONTENT_ENABLED: "false",
+    });
+    expect(config.customerSuperJsonContentEnabled).toBe(false);
+    expect(config.customerSuperJsonContentAllowlist).toEqual([pair]);
+  });
+  it("accepts either field order and the documented sixteen-pair boundary", () => {
+    expect(
+      loadConfig({
+        ...baseEnv(),
+        [setting]: '[ { "agentId": 42, "ownerUserId": 19 } ]',
+      }).customerSuperJsonContentAllowlist,
+    ).toEqual([pair]);
+    const pairs = Array.from({ length: 16 }, (_, n) => ({
+      ownerUserId: 19,
+      agentId: n + 1,
+    }));
+    expect(
+      loadConfig({ ...baseEnv(), [setting]: JSON.stringify(pairs) })
+        .customerSuperJsonContentAllowlist,
+    ).toEqual(pairs);
+  });
+});
+
 describe("provider capacity config", () => {
   it("requires opt-in for Lightning and supports rollback", () => {
     expect(loadConfig(baseEnv()).lightningFallbackEnabled).toBe(false);
