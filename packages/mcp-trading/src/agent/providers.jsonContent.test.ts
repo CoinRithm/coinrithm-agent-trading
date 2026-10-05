@@ -27,6 +27,36 @@ function sentBody(fetchFn: ReturnType<typeof fetchReturning>) {
 }
 
 describe("Nemotron JSON-content transport option", () => {
+  it("changes only transport fields, preserving the exact messages and generation settings", async () => {
+    const controlFetch = fetchReturning({ content: skip });
+    const contentFetch = fetchReturning({ content: skip });
+    const route = { provider: "nvidia" as const, model: SUPER };
+    const request = {
+      ...input,
+      maxTokens: 2048,
+      excludeActionTypes: ["futures_open"] as const,
+    };
+    await providerForRoute(route, "fixture", controlFetch).decide(request);
+    await providerForRoute(route, "fixture", contentFetch, {
+      nemotronJsonContent: true,
+    }).decide(request);
+    const control = sentBody(controlFetch);
+    const content = sentBody(contentFetch);
+    expect(content.messages).toEqual(control.messages);
+    expect(content.max_tokens).toBe(2048);
+    expect(content.response_format).toEqual({ type: "json_object" });
+    expect(control.tools).toBeDefined();
+    expect(control.tool_choice).toBeDefined();
+    delete control.tools;
+    delete control.tool_choice;
+    delete content.response_format;
+    expect(content).toEqual(control);
+    expect(contentFetch.mock.calls[0]![0]).toBe(controlFetch.mock.calls[0]![0]);
+    expect(contentFetch.mock.calls[0]![1]!.headers).toEqual(
+      controlFetch.mock.calls[0]![1]!.headers,
+    );
+  });
+
   it("sends JSON content instead of the forced decision tool, keeping thinking off", async () => {
     const fetchFn = fetchReturning({ content: skip });
     const provider = providerForRoute(

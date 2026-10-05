@@ -110,15 +110,72 @@ router request JSON content (`response_format: json_object`) instead of the
 forced decision tool call. Hosted Super has returned `actions` as a string
 despite the tool schema (519 of 533 malformed attempts in a 24-hour sample on
 5 October 2026). Thinking stays off, and the strict decision
-parser, capacity leases, fallback chain and output privacy are unchanged. Every
-fallback route, customer agent and BYO key keeps the tool-call transport.
-Malformed attempts record `responseSource: "content"` (successful attempts do
-not record a response source). The trial also requires
+parser, capacity leases, fallback chain and output privacy are unchanged. This
+includes Super reached as a fallback from a house Nano primary. Other model
+routes retain their original transport; this flag never enrolls customers or
+BYO keys. Successful and malformed parsed attempts retain the allowlisted
+`responseSource` metadata (`content`, `tool_call` or `content_fallback`), without
+raw model output. The trial also requires
 `SCHEDULER_HOUSE_SUPER_JSON_CONTENT_UNTIL`, an absolute UTC instant such as
 `2026-10-05T21:00:00Z`. A missing, malformed, non-UTC or past value keeps the
 original transport. The expiry is checked on every route attempt, so a restart
 cannot extend it. The flag defaults false and provides rollback. An 8-call
 synthetic smoke pilot motivated it; it is not a measured failure-rate result.
+
+### Dormant customer JSON-content gate
+
+A separate gate prepares a narrowly enrolled customer trial. It defaults off
+and does not change any stored customer model, key, strategy, cadence or live
+setting. All of these runtime-only settings are required to select content:
+
+- `SCHEDULER_CUSTOMER_SUPER_JSON_CONTENT_ENABLED=true`.
+- `SCHEDULER_CUSTOMER_SUPER_JSON_CONTENT_UNTIL`: a valid absolute UTC instant
+  ending in `Z`, using the same strict date parser as the house trial.
+- `SCHEDULER_CUSTOMER_SUPER_JSON_CONTENT_ALLOWLIST`: a JSON array of exact
+  `{ "ownerUserId": 19, "agentId": 42 }` pairs (illustrative identities only).
+  Missing/empty defaults to `[]`. At most 16 pairs and 4096 characters are
+  accepted. IDs must be plain positive decimal safe integers, not strings,
+  fractional or exponent notation. Wildcards, ranges, duplicate keys/pairs,
+  extra fields and any malformed entry invalidate the
+  entire list. An owner match alone never enrolls their other agents.
+
+Eligibility also requires an explicitly non-house agent without a BYO key,
+the shared hosted router and a configured NVIDIA Super primary. The attempted
+route must also be NVIDIA Super, with absent or exact canonical NVIDIA endpoint
+configuration. Nano-to-Super customer fallbacks, other models/providers,
+unexpected endpoints and unknown owner identities remain ineligible. Pinned
+models keep their existing single-route behavior. Customer prompt compaction
+remains disabled, independently of the house compaction flag.
+
+Expiry is checked per attempt after asynchronous capacity admission and before
+constructing the provider. At or after expiry, the original request transport
+is used without requiring a restart. A request already sent is not cancelled.
+Rollback is the disabled flag or an empty allowlist; changing environment values
+uses the normal scheduler configuration/restart process. Neither setting
+disables the separate house gate. No customer identities or new settings are
+populated by this code change.
+
+The existing provider option preserves the exact system/user messages, model,
+credential, token limit, temperature and thinking-off setting. It replaces the
+forced tool/schema fields with `response_format: json_object`. Removing that
+model-visible tool schema changes generation constraints even when prompt text
+is identical; decision equivalence must not be assumed. Strict parsing and
+action/risk validation remain mandatory, including rejection of string actions
+and capacity-disallowed entries. Key/owner quotas, cooldowns, leases, fallback
+order, two-attempt limit and total deadline are unchanged.
+
+The corrected 5 October exploratory same-observation run completed 12 triples
+and 36 calls, all from one house agent: content parsed 12/12, primary tool 7/12
+and repeat tool 10/12. Only seven triples were jointly valid/action-comparable,
+below the predeclared eight-triple screen; five included an action. Content
+versus primary had three decision and four target disagreements, the same counts
+as repeat tool versus primary. The screen was **inconclusive**. It neither
+authorizes customer activation nor establishes improved reliability or decision
+quality. The earlier uncontrolled house window is also not causal evidence.
+
+Any future activation needs separately approved exact identities, expiry and
+observation/rollback criteria. Successful source tests or a deployment with this
+gate disabled are rollout preparation, not customer trial results.
 
 `SCHEDULER_SHARED_POOL_POLICY_ENABLED=true` enables a shared-pool model-call
 minimum of 180 seconds and an aggregate owner budget of 25,000 tokens/minute

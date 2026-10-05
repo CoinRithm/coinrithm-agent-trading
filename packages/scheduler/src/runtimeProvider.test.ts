@@ -7,7 +7,11 @@ import * as db from "./db.js";
 import * as capacity from "./capacity.js";
 import { loadConfig } from "./config.js";
 import { encrypt } from "./crypto.js";
-import { runAgentOnce, usesHouseSuperJsonContent } from "./runtime.js";
+import {
+  runAgentOnce,
+  usesHouseSuperJsonContent,
+  usesCustomerSuperJsonContent,
+} from "./runtime.js";
 import { NEMOTRON_NANO, NEMOTRON_LIGHTNING, NEMOTRON_SUPER } from "./route.js";
 
 const key = Buffer.alloc(32, 9);
@@ -50,6 +54,127 @@ function fixture() {
   };
   return { agent, config };
 }
+
+function customerFixture() {
+  const { agent, config } = fixture();
+  agent.isHouse = false;
+  agent.ownerUserId = 19;
+  agent.modelName = NEMOTRON_SUPER;
+  config.customerSuperJsonContentEnabled = true;
+  config.customerSuperJsonContentUntilMs = FUTURE;
+  config.customerSuperJsonContentAllowlist = [{ ownerUserId: 19, agentId: 42 }];
+  return { agent, config };
+}
+
+describe("customer content eligibility", () => {
+  const route = {
+    provider: "nvidia" as const,
+    model: NEMOTRON_SUPER,
+    keyRef: "nvidia:shared:0",
+  };
+  it("requires the exact owner AND agent, not their siblings or previous owner", () => {
+    const { agent, config } = customerFixture();
+    expect(usesCustomerSuperJsonContent(agent, config, route, FUTURE - 1)).toBe(
+      true,
+    );
+    for (const changes of [
+      { id: 43 },
+      { ownerUserId: 20 },
+      { ownerUserId: undefined },
+      { ownerUserId: null },
+      { ownerUserId: NaN },
+      { id: NaN },
+    ]) {
+      expect(
+        usesCustomerSuperJsonContent(
+          { ...agent, ...changes },
+          config,
+          route,
+          FUTURE - 1,
+        ),
+      ).toBe(false);
+    }
+  });
+  it("fails closed at expiry, on nonfinite clocks and without a finite expiry", () => {
+    const { agent, config } = customerFixture();
+    for (const now of [FUTURE, FUTURE + 1, NaN, Infinity, -Infinity]) {
+      expect(usesCustomerSuperJsonContent(agent, config, route, now)).toBe(
+        false,
+      );
+    }
+    for (const until of [undefined, NaN, Infinity, FUTURE - 2]) {
+      expect(
+        usesCustomerSuperJsonContent(
+          agent,
+          { ...config, customerSuperJsonContentUntilMs: until },
+          route,
+          FUTURE - 1,
+        ),
+      ).toBe(false);
+    }
+  });
+  it("excludes BYO, unknown classification, other primaries and unexpected endpoints", () => {
+    const { agent, config } = customerFixture();
+    for (const changes of [
+      { isHouse: true },
+      { isHouse: undefined },
+      { brainKeyEnc: "fixture-byo" },
+      { brainKeyEnc: "" },
+      { modelProvider: "openai-compatible" },
+      { modelName: NEMOTRON_NANO },
+      { modelName: NEMOTRON_LIGHTNING },
+      { modelBaseUrl: "https://custom.example/v1" },
+      { modelBaseUrl: "" },
+    ]) {
+      expect(
+        usesCustomerSuperJsonContent(
+          { ...agent, ...changes },
+          config,
+          route,
+          FUTURE - 1,
+        ),
+      ).toBe(false);
+    }
+    for (const changes of [
+      { provider: "openai" as const },
+      { model: NEMOTRON_NANO },
+      { model: NEMOTRON_LIGHTNING },
+      { baseUrl: "https://custom.example/v1" },
+    ]) {
+      expect(
+        usesCustomerSuperJsonContent(
+          agent,
+          config,
+          { ...route, ...changes },
+          FUTURE - 1,
+        ),
+      ).toBe(false);
+    }
+    const endpoint = "https://integrate.api.nvidia.com/v1";
+    expect(
+      usesCustomerSuperJsonContent(
+        { ...agent, modelBaseUrl: endpoint },
+        config,
+        { ...route, baseUrl: endpoint },
+        FUTURE - 1,
+      ),
+    ).toBe(true);
+    for (const changes of [
+      { routerEnabled: false },
+      { customerSuperJsonContentEnabled: false },
+      { customerSuperJsonContentAllowlist: [] },
+    ]) {
+      expect(
+        usesCustomerSuperJsonContent(
+          agent,
+          { ...config, ...changes },
+          route,
+          FUTURE - 1,
+        ),
+      ).toBe(false);
+    }
+  });
+});
 
 describe("hosted provider lifecycle", () => {
   let decide: ReturnType<typeof vi.fn>;
@@ -107,6 +232,215 @@ describe("hosted provider lifecycle", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  it("changes only the enrolled customer's primary transport and preserves identity/settings", async () => {
+    const { agent, config } = customerFixture();
+    const before = JSON.stringify(agent);
+    config.compactPromptTablesEnabled = true;
+    await runAgentOnce(pool, agent, config);
+    expect(engine.providerForRoute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: "nvidia",
+        model: NEMOTRON_SUPER,
+        keyRef: "nvidia:shared:0",
+      }),
+      "fixture-nvidia",
+      fetch,
+      { nemotronJsonContent: true },
+    );
+    expect(engine.runCycle).toHaveBeenCalledWith(
+      expect.objectContaining({
+        compactPromptTables: false,
+        mergedProse: agent.prose,
+        live: agent.live,
+        spec: expect.objectContaining({
+          model: {
+            provider: "nvidia",
+            name: NEMOTRON_SUPER,
+            baseUrl: undefined,
+          },
+        }),
+      }),
+    );
+    expect(decide).toHaveBeenCalledWith(
+      expect.objectContaining({ system: input.system, user: input.user }),
+    );
+    expect(decide.mock.calls[0]![0].timeoutMs).toBeGreaterThan(0);
+    expect(decide.mock.calls[0]![0].timeoutMs).toBeLessThanOrEqual(
+      input.timeoutMs,
+    );
+    expect(JSON.stringify(agent)).toBe(before);
+  });
+
+  it("rechecks expiry after asynchronous capacity admission, before sending", async () => {
+    const { agent, config } = customerFixture();
+    let now = FUTURE - 1;
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+    vi.mocked(capacity.reserveProviderCapacity).mockImplementationOnce(
+      async () => {
+        now = FUTURE;
+        return { ok: true };
+      },
+    );
+    await runAgentOnce(pool, agent, config);
+    expect(engine.providerForRoute).toHaveBeenCalledWith(
+      expect.objectContaining({ model: NEMOTRON_SUPER }),
+      "fixture-nvidia",
+      fetch,
+    );
+  });
+
+  it("never applies customer content to BYO or a disabled hosted router", async () => {
+    for (const byo of [true, false]) {
+      const { agent, config } = customerFixture();
+      if (byo) agent.brainKeyEnc = encrypt("fixture-byo", key);
+      else config.routerEnabled = false;
+      await runAgentOnce(pool, agent, config);
+    }
+    expect(engine.providerForRoute).not.toHaveBeenCalled();
+    expect(engine.selectProvider).toHaveBeenCalledTimes(2);
+  });
+
+  it("retains strict malformed rejection and the same two-attempt fallback chain", async () => {
+    const { agent, config } = customerFixture();
+    config.lightningFallbackEnabled = true; // remains house-only
+    decide
+      .mockResolvedValueOnce({
+        ok: true,
+        text: '{"decision":"act","actions":"[]"}',
+        responseSource: "content",
+      })
+      .mockResolvedValueOnce({ ...good, responseSource: "tool_call" });
+    await runAgentOnce(pool, agent, config);
+    const calls = vi.mocked(engine.providerForRoute).mock.calls;
+    expect(calls.map((call) => call[0].model)).toEqual([
+      NEMOTRON_SUPER,
+      NEMOTRON_NANO,
+    ]);
+    expect(calls.map((call) => call[3])).toEqual([
+      { nemotronJsonContent: true },
+      undefined,
+    ]);
+    expect(result).toMatchObject({
+      ok: true,
+      route: {
+        attempts: [
+          {
+            outcome: "failed",
+            failureClass: "malformed",
+            responseSource: "content",
+          },
+          { outcome: "success", responseSource: "tool_call" },
+        ],
+      },
+    });
+    expect(capacity.releaseProviderCapacity).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps pinned customer models single-route when content is malformed", async () => {
+    const { agent, config } = customerFixture();
+    agent.spec = { ...(agent.spec as object), pinnedModel: true };
+    decide.mockResolvedValueOnce({
+      ok: true,
+      text: '{"decision":"act","actions":"[]"}',
+    });
+    await runAgentOnce(pool, agent, config);
+    expect(result.ok).toBe(false);
+    expect(engine.providerForRoute).toHaveBeenCalledOnce();
+    expect(vi.mocked(engine.providerForRoute).mock.calls[0]![3]).toEqual({
+      nemotronJsonContent: true,
+    });
+  });
+
+  it.each([false, true])(
+    "keeps customer fallback Super default while preserving house scope: house=%s",
+    async (isHouse) => {
+      const { agent, config } = customerFixture();
+      agent.modelName = NEMOTRON_NANO;
+      agent.isHouse = isHouse;
+      config.houseSuperJsonContentEnabled = true;
+      config.houseSuperJsonContentUntilMs = FUTURE;
+      decide.mockResolvedValueOnce({
+        ok: true,
+        text: '{"decision":"act","actions":"[]"}',
+      });
+      await runAgentOnce(pool, agent, config);
+      const calls = vi.mocked(engine.providerForRoute).mock.calls;
+      expect(calls.map((call) => call[0].model)).toEqual([
+        NEMOTRON_NANO,
+        NEMOTRON_SUPER,
+      ]);
+      expect(calls[0]![3]).toBeUndefined();
+      expect(calls[1]![3]).toEqual(
+        isHouse ? { nemotronJsonContent: true } : undefined,
+      );
+    },
+  );
+
+  it("retains owner admission and usage reconciliation for an enrolled customer", async () => {
+    const { agent, config } = customerFixture();
+    config.sharedPoolPolicyEnabled = true;
+    const owner = {
+      leaseId: "owner",
+      routeKey: "shared-owner:user:19",
+      reservedTokens: 1031,
+    };
+    const provider = {
+      leaseId: "provider",
+      routeKey: "nvidia:shared:0",
+      reservedTokens: 1031,
+    };
+    vi.mocked(capacity.reserveProviderCapacity)
+      .mockResolvedValueOnce({ ok: true, lease: owner })
+      .mockResolvedValueOnce({ ok: true, lease: provider });
+    await runAgentOnce(pool, agent, config);
+    expect(capacity.reserveProviderCapacity).toHaveBeenNthCalledWith(
+      1,
+      pool,
+      expect.objectContaining({
+        routeKey: owner.routeKey,
+        tokensPerMinute: 25000,
+        maxConcurrent: 1,
+        reserveTokens: 1031,
+      }),
+    );
+    expect(capacity.reserveProviderCapacity).toHaveBeenNthCalledWith(
+      2,
+      pool,
+      expect.objectContaining({
+        routeKey: provider.routeKey,
+        model: NEMOTRON_SUPER,
+        reserveTokens: 1031,
+      }),
+    );
+    expect(capacity.releaseProviderCapacity).toHaveBeenCalledWith(
+      pool,
+      owner,
+      10,
+    );
+    expect(capacity.releaseProviderCapacity).toHaveBeenCalledWith(
+      pool,
+      { ...provider, ownerLease: owner },
+      10,
+    );
+    expect(engine.runCycle).toHaveBeenCalledWith(
+      expect.objectContaining({ minModelIntervalSeconds: 180 }),
+    );
+  });
+
+  it("does not bypass an enrolled customer's owner capacity denial", async () => {
+    const { agent, config } = customerFixture();
+    config.sharedPoolPolicyEnabled = true;
+    vi.mocked(capacity.reserveProviderCapacity).mockResolvedValueOnce({
+      ok: false,
+      reasons: ["token_budget"],
+    });
+    await runAgentOnce(pool, agent, config);
+    expect(result).toMatchObject({ ok: false, deferred: true });
+    expect(capacity.reserveProviderCapacity).toHaveBeenCalledOnce();
+    expect(engine.providerForRoute).not.toHaveBeenCalled();
+    expect(decide).not.toHaveBeenCalled();
   });
 
   it.each([true, false])(

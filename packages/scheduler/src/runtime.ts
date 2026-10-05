@@ -155,9 +155,9 @@ function keyForRoute(
 }
 
 // House-only, Super-only, time-boxed transport switch. Callers reach this
-// through the shared hosted router (never BYO), and owner agents and every
-// fallback route keep the default tool-call transport. Evaluated for every
-// route attempt, so the trial ends at its expiry even without a restart.
+// through the shared hosted router (never BYO). This includes Super reached as
+// a Nano fallback; other models keep their original transport. Evaluated for
+// every route attempt, so expiry does not depend on restarting the scheduler.
 export function usesHouseSuperJsonContent(
   agent: AgentRow,
   config: Config,
@@ -172,6 +172,40 @@ export function usesHouseSuperJsonContent(
     !agent.brainKeyEnc &&
     route.provider === "nvidia" &&
     route.model === NEMOTRON_SUPER
+  );
+}
+
+// A separate customer canary, not an expansion of the house flag. Exact owner
+// AND agent membership protects against enrolling siblings or a changed owner.
+// Only a configured Super primary qualifies; Nano-to-Super fallback does not.
+export function usesCustomerSuperJsonContent(
+  agent: AgentRow,
+  config: Config,
+  route: ModelRoute,
+  nowMs: number = Date.now(),
+): boolean {
+  const until = config.customerSuperJsonContentUntilMs;
+  const hostedEndpoint = (baseUrl: string | null | undefined): boolean =>
+    baseUrl == null || baseUrl === "https://integrate.api.nvidia.com/v1";
+  return (
+    config.customerSuperJsonContentEnabled === true &&
+    until !== undefined &&
+    Number.isFinite(until) &&
+    Number.isFinite(nowMs) &&
+    nowMs < until &&
+    agent.isHouse === false &&
+    agent.brainKeyEnc === null &&
+    shouldUseHostedRouter(agent, config) &&
+    agent.modelName === NEMOTRON_SUPER &&
+    hostedEndpoint(agent.modelBaseUrl) &&
+    route.provider === "nvidia" &&
+    route.model === NEMOTRON_SUPER &&
+    hostedEndpoint(route.baseUrl) &&
+    config.customerSuperJsonContentAllowlist.some(
+      (identity) =>
+        identity.ownerUserId === agent.ownerUserId &&
+        identity.agentId === agent.id,
+    )
   );
 }
 
@@ -216,7 +250,8 @@ function routedProviderFor(
     false,
     (route) => {
       const routeKey = keyForRoute(route, nvidia, config);
-      return usesHouseSuperJsonContent(agent, config, route)
+      return usesHouseSuperJsonContent(agent, config, route) ||
+        usesCustomerSuperJsonContent(agent, config, route)
         ? providerForRoute(route, routeKey, fetch, {
             nemotronJsonContent: true,
           })
