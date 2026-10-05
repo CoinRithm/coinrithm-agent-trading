@@ -105,6 +105,19 @@ export function chatShapeFor(
   };
 }
 
+// Opt-in alternative for a hosted Nemotron route: plain JSON content
+// (`response_format: json_object`) instead of the forced decision tool call.
+// Hosted Super has returned the forced tool call with `actions` as a string
+// (519 of 533 malformed attempts in a 24h sample, 2026-10-05). In an 8-call
+// synthetic smoke pilot the tool-call arms failed 0/4 with the same coarse
+// string shape and the JSON-content arm parsed 2/2; that is not a rate
+// measurement and the exact serialization cause is not established. Only the
+// request transport changes: parseDecision still validates the full contract.
+export function withJsonContentTransport(shape: ChatShape): ChatShape {
+  if (shape.family !== "nvidia-nemotron") return shape;
+  return { ...shape, jsonSchema: undefined, jsonSchemaTransport: undefined };
+}
+
 // Action variants a cycle may withhold from a schema-enforcing route. Only
 // futures_open today: the runner withholds it when futures capacity is spent.
 export type DecisionActionExclusion = "futures_open";

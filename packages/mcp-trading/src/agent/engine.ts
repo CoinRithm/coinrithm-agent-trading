@@ -21,6 +21,7 @@ export {
   providerForRoute,
   classifyProviderFailure,
   type ProviderEnv,
+  type ProviderRouteOptions,
   type Provider,
   type DecideInput,
   type DecideResult,

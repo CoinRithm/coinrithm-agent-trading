@@ -104,6 +104,22 @@ defaults false and provides rollback. Successful synthetic contract probes
 establish request compatibility, not trading quality or independent-provider
 availability: all these routes still depend on NVIDIA.
 
+`SCHEDULER_HOUSE_SUPER_JSON_CONTENT_ENABLED=true` makes the
+`nvidia/nemotron-3-super-120b-a12b` route of house agents on the shared hosted
+router request JSON content (`response_format: json_object`) instead of the
+forced decision tool call. Hosted Super has returned `actions` as a string
+despite the tool schema (519 of 533 malformed attempts in a 24-hour sample on
+5 October 2026). Thinking stays off, and the strict decision
+parser, capacity leases, fallback chain and output privacy are unchanged. Every
+fallback route, customer agent and BYO key keeps the tool-call transport.
+Malformed attempts record `responseSource: "content"` (successful attempts do
+not record a response source). The trial also requires
+`SCHEDULER_HOUSE_SUPER_JSON_CONTENT_UNTIL`, an absolute UTC instant such as
+`2026-10-05T21:00:00Z`. A missing, malformed, non-UTC or past value keeps the
+original transport. The expiry is checked on every route attempt, so a restart
+cannot extend it. The flag defaults false and provides rollback. An 8-call
+synthetic smoke pilot motivated it; it is not a measured failure-rate result.
+
 `SCHEDULER_SHARED_POOL_POLICY_ENABLED=true` enables a shared-pool model-call
 minimum of 180 seconds and an aggregate owner budget of 25,000 tokens/minute
 with one in-flight model request per owner. All house agents share one owner

@@ -20,6 +20,39 @@ describe("provider capacity config", () => {
       }).lightningFallbackEnabled,
     ).toBe(false);
   });
+  it("keeps the house Super JSON-content transport opt-in with a rollback", () => {
+    expect(loadConfig(baseEnv()).houseSuperJsonContentEnabled).toBe(false);
+    expect(
+      loadConfig({
+        ...baseEnv(),
+        SCHEDULER_HOUSE_SUPER_JSON_CONTENT_ENABLED: "true",
+      }).houseSuperJsonContentEnabled,
+    ).toBe(true);
+    expect(
+      loadConfig({
+        ...baseEnv(),
+        SCHEDULER_HOUSE_SUPER_JSON_CONTENT_ENABLED: "false",
+      }).houseSuperJsonContentEnabled,
+    ).toBe(false);
+  });
+  it.each([
+    [undefined, undefined],
+    ["", undefined],
+    ["tomorrow", undefined],
+    ["2026-10-05 21:00:00", undefined],
+    ["2026-10-05T21:00:00", undefined],
+    ["2026-10-05T21:00:00+01:00", undefined],
+    ["2026-02-30T00:00:00Z", undefined],
+    ["2026-10-05T21:00:00Z", Date.UTC(2026, 9, 5, 21, 0, 0)],
+    ["2026-10-05T21:00:00.250Z", Date.UTC(2026, 9, 5, 21, 0, 0, 250)],
+  ])(
+    "reads the house Super trial expiry %j as an absolute UTC instant only",
+    (raw, expected) => {
+      const env = baseEnv();
+      if (raw !== undefined) env.SCHEDULER_HOUSE_SUPER_JSON_CONTENT_UNTIL = raw;
+      expect(loadConfig(env).houseSuperJsonContentUntilMs).toBe(expected);
+    },
+  );
   it("keeps prompt compaction opt-in with an explicit rollback", () => {
     expect(loadConfig(baseEnv()).compactPromptTablesEnabled).toBe(false);
     expect(
