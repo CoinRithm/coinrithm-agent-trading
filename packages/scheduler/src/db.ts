@@ -582,7 +582,8 @@ function sanitizeRouteAttempts(value: unknown): unknown[] {
           )
         : undefined;
     const responseSource =
-      outcome === "failed" && failureClass === "malformed"
+      outcome === "success" ||
+      (outcome === "failed" && failureClass === "malformed")
         ? ["content", "tool_call", "content_fallback"].find(
             (value) => value === raw.responseSource,
           )

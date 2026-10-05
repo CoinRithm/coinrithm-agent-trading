@@ -21,68 +21,87 @@ import {
   type CycleRecord,
 } from "./db.js";
 
-describe("model diagnostic persistence boundary", () => {
-  it("retains fixed categories on malformed attempts and drops free text or misplaced diagnostics", async () => {
-    const query = vi.fn().mockResolvedValue({ rows: [] });
-    const pool = { query } as unknown as Pool;
-    for (const [
-      outcome,
-      failureClass,
-      diagnostic,
-      responseSource,
-      retained,
-    ] of [
+describe.each(["recordCycle", "persistCycleResult"] as const)(
+  "%s model diagnostic persistence boundary",
+  (writer) => {
+    it.each([
       [
         "failed",
         "malformed",
         "json_array_nonempty_valid_decision",
         "tool_call",
         true,
+        true,
       ],
-      ["failed", "malformed", "PRIVATE_OUTPUT", "PRIVATE_OUTPUT", false],
+      ["failed", "malformed", "PRIVATE_OUTPUT", "PRIVATE_OUTPUT", false, false],
       [
         "success",
         undefined,
         "json_array_nonempty_valid_decision",
         "tool_call",
         false,
+        true,
       ],
+      ["success", undefined, undefined, "content", false, true],
+      ["success", undefined, undefined, "content_fallback", false, true],
+      ["success", undefined, undefined, undefined, false, false],
+      ["success", undefined, "PRIVATE_OUTPUT", "PRIVATE_OUTPUT", false, false],
+      ["deferred", "capacity", undefined, "content", false, false],
       [
         "failed",
         "transient",
         "json_array_nonempty_valid_decision",
         "tool_call",
         false,
+        false,
       ],
-    ] as const) {
-      query.mockClear();
-      await recordCycle(pool, 1, {
-        decision: "skip",
-        routeAttempts: [
-          {
-            provider: "nvidia",
-            model: "fixture",
-            outcome,
-            failureClass,
-            latencyMs: 1,
-            actionsStringDiagnostic: diagnostic,
-            responseSource,
-            rawModelOutput: "PRIVATE_OUTPUT",
-          },
-        ],
-      });
-      const audit = JSON.parse(String(query.mock.calls[0][1][24]))[0];
-      if (retained) {
-        expect(audit.actionsStringDiagnostic).toBe(diagnostic);
-        expect(audit.responseSource).toBe(responseSource);
-      } else {
-        expect(audit).not.toHaveProperty("actionsStringDiagnostic");
-        expect(audit).not.toHaveProperty("responseSource");
-      }
-      expect(JSON.stringify(audit)).not.toContain("PRIVATE_OUTPUT");
-    }
-  });
-});
+    ] as const)(
+      "retains only applicable fixed categories: %s/%s/%s/%s",
+      async (
+        outcome,
+        failureClass,
+        diagnostic,
+        responseSource,
+        retainDiagnostic,
+        retainSource,
+      ) => {
+        const query = vi.fn().mockResolvedValue({ rows: [] });
+        const pool = {
+          query,
+          connect: vi.fn().mockResolvedValue({ query, release: vi.fn() }),
+        } as unknown as Pool;
+        const cycle = {
+          decision: "skip",
+          routeAttempts: [
+            {
+              provider: "nvidia",
+              model: "fixture",
+              outcome,
+              failureClass,
+              latencyMs: 1,
+              actionsStringDiagnostic: diagnostic,
+              responseSource,
+              rawModelOutput: "PRIVATE_OUTPUT",
+            },
+          ],
+        };
+        if (writer === "recordCycle") await recordCycle(pool, 1, cycle);
+        else await persistCycleResult(pool, 1, { state: {}, cycle });
+        const call = query.mock.calls.find((c) =>
+          String(c[0]).includes("INSERT INTO agent_runtime.agent_cycles"),
+        )!;
+        const audit = JSON.parse(String(call[1][24]))[0];
+        if (retainDiagnostic)
+          expect(audit.actionsStringDiagnostic).toBe(diagnostic);
+        else expect(audit).not.toHaveProperty("actionsStringDiagnostic");
+        if (retainSource) expect(audit.responseSource).toBe(responseSource);
+        else expect(audit).not.toHaveProperty("responseSource");
+        expect(JSON.stringify(audit)).not.toContain("PRIVATE_OUTPUT");
+        expect(call[1][5]).toBeNull();
+      },
+    );
+  },
+);
 
 // No-CoT privacy policy (see f778338 + the DB write boundary hardening in
 // db.ts): agent_runtime.agent_cycles.raw_model_output must NEVER receive raw
