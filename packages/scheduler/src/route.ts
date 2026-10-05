@@ -380,6 +380,7 @@ export class RoutedProvider<Lease = unknown> implements Provider {
             model: route.model,
             outcome: "success",
             latencyMs,
+            responseSource: result.responseSource,
           };
           attempts.push(attempt);
           await this.hooks.observe(route, attempt, started);

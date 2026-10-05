@@ -214,6 +214,40 @@ function harness(results: DecideResult[], unavailable = new Set<string>()) {
 }
 
 describe("routed failure attribution in the real runner", () => {
+  it.each(["tool_call", "content", "content_fallback", undefined] as const)(
+    "retains the successful response source without model text: %s",
+    async (responseSource) => {
+      const h = harness([
+        { ...ok("PRIVATE_MODEL_OUTPUT"), responseSource } as DecideResult,
+      ]);
+      const provider = new RoutedProvider(
+        "fast",
+        [{ provider: "nvidia", model: "fixture", keyRef: "test" }],
+        false,
+        h.buildProvider,
+        h.hooks,
+      );
+      const result = await provider.decide(input);
+      expect(result.ok).toBe(true);
+      expect(result.route.attempts).toHaveLength(1);
+      expect(result.route.attempts[0]).toMatchObject({
+        outcome: "success",
+        responseSource,
+      });
+      expect(h.observe).toHaveBeenCalledWith(
+        expect.any(Object),
+        result.route.attempts[0],
+        expect.any(Number),
+      );
+      expect(JSON.stringify(result.route)).not.toContain(
+        "PRIVATE_MODEL_OUTPUT",
+      );
+      expect(JSON.stringify(h.observe.mock.calls)).not.toContain(
+        "PRIVATE_MODEL_OUTPUT",
+      );
+    },
+  );
+
   it("retains the request start time across slow release bookkeeping", async () => {
     const h = harness([ok()]);
     let clock = 100;
@@ -322,6 +356,11 @@ describe("routed failure attribution in the real runner", () => {
       responseSource: "content_fallback",
     });
     expect(result.route.effectiveModel).toBe("model-b");
+    expect(result.route.attempts[0]).not.toHaveProperty("responseSource");
+    expect(result.route.attempts[1]).toMatchObject({
+      outcome: "success",
+      responseSource: "content_fallback",
+    });
   });
   it.each(["404-429", "429-404", "404-deferred"])(
     "%s holds the model that returned the permanent error and preserves actual-call metering",
