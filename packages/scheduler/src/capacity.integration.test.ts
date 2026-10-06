@@ -156,6 +156,115 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
     ).toBe(0);
   });
 
+  it.each([
+    {
+      tokens: 0,
+      requests: 24,
+      reserve: 20000,
+      tpm: 25000,
+      rpm: 24,
+      expected: 48000,
+    },
+    {
+      tokens: 5000,
+      requests: 24,
+      reserve: 25000,
+      tpm: 25000,
+      rpm: 24,
+      expected: 48000,
+    },
+    {
+      tokens: 100000,
+      requests: 0,
+      reserve: 12000,
+      tpm: 100000,
+      rpm: 1,
+      expected: 60000,
+    },
+    {
+      tokens: 0,
+      requests: 0,
+      reserve: 25000,
+      tpm: 25000,
+      rpm: 2,
+      expected: 60000,
+    },
+  ])(
+    "returns an authoritative budget-refill hint without reserving: %j",
+    async (test) => {
+      await pool.query(
+        `UPDATE agent_runtime.provider_capacity_buckets
+       SET request_tokens=$2,model_tokens=$3,last_refill_at=clock_timestamp()
+       WHERE route_key=$1`,
+        [limit.routeKey, test.requests, test.tokens],
+      );
+      const result = await reserveProviderCapacity(pool, {
+        ...limit,
+        reserveTokens: test.reserve,
+        tokensPerMinute: test.tpm,
+        requestsPerMinute: test.rpm,
+      });
+      expect(result.ok).toBe(false);
+      if (result.ok) throw Error("Expected budget denial");
+      // The locked snapshot can refill by a few ms between statements. It must
+      // never round down the remaining fractional ms or assume a full minute.
+      expect(result.retryAfterMs).toBeGreaterThan(test.expected - 2000);
+      expect(result.retryAfterMs).toBeLessThanOrEqual(test.expected + 1);
+      expect(Number.isInteger(result.retryAfterMs)).toBe(true);
+      expect(
+        (
+          await pool.query(
+            "SELECT count(*)::int n FROM agent_runtime.provider_capacity_leases",
+          )
+        ).rows[0].n,
+      ).toBe(0);
+    },
+  );
+
+  it("does not estimate refill while concurrency or cooldown also blocks admission", async () => {
+    const admitted = await reserveProviderCapacity(pool, {
+      ...limit,
+      maxConcurrent: 1,
+    });
+    if (!admitted.ok) throw Error("Expected initial admission");
+    await pool.query(
+      "UPDATE agent_runtime.provider_capacity_buckets SET model_tokens=0 WHERE route_key=$1",
+      [limit.routeKey],
+    );
+    const concurrent = await reserveProviderCapacity(pool, {
+      ...limit,
+      maxConcurrent: 1,
+    });
+    expect(concurrent).toMatchObject({
+      ok: false,
+      reasons: expect.arrayContaining(["token_budget", "concurrency"]),
+    });
+    expect(concurrent).not.toHaveProperty("retryAfterMs");
+    await releaseProviderCapacity(pool, admitted.lease, 100000);
+    await pool.query(
+      "UPDATE agent_runtime.provider_capacity_buckets SET blocked_until=now()+interval '1 minute' WHERE route_key=$1",
+      [limit.routeKey],
+    );
+    const cooling = await reserveProviderCapacity(pool, limit);
+    expect(cooling).toMatchObject({
+      ok: false,
+      reasons: expect.arrayContaining(["shared_key_cooldown"]),
+    });
+    expect(cooling).not.toHaveProperty("retryAfterMs");
+  });
+
+  it("includes any future refill-clock boundary in the hint", async () => {
+    // beforeEach intentionally freezes refill for one hour.
+    await pool.query(
+      "UPDATE agent_runtime.provider_capacity_buckets SET model_tokens=0 WHERE route_key=$1",
+      [limit.routeKey],
+    );
+    const result = await reserveProviderCapacity(pool, limit);
+    expect(result.ok).toBe(false);
+    if (result.ok) throw Error("Expected budget denial");
+    expect(result.retryAfterMs).toBeGreaterThan(3_590_000);
+  });
+
   it("backs off briefly, grows atomically, and isolates other keys/models", async () => {
     const args = [
       pool,
@@ -541,6 +650,9 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
       expect(await reserveProviderCapacity(pool, limit)).toEqual({
         ok: false,
         reasons: [reason],
+        ...(reason === "shared_key_cooldown"
+          ? {}
+          : { retryAfterMs: expect.any(Number) }),
       });
       const after = await pool.query(
         "SELECT request_tokens, model_tokens, last_refill_at FROM agent_runtime.provider_capacity_buckets",
@@ -654,7 +766,11 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
     await pool.query("DELETE FROM agent_runtime.provider_capacity_buckets");
     expect(
       await reserveProviderCapacity(pool, { ...limit, tokensPerMinute: 1000 }),
-    ).toEqual({ ok: false, reasons: ["request_budget", "token_budget"] });
+    ).toEqual({
+      ok: false,
+      reasons: ["request_budget", "token_budget"],
+      retryAfterMs: expect.any(Number),
+    });
     expect(
       (
         await pool.query(

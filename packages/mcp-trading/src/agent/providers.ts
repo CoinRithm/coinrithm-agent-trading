@@ -5,10 +5,12 @@
 
 import { AgentSpec, ProviderName } from "./types.js";
 import { retryAfterSeconds } from "../retryAfter.js";
+import { parseDecision, type ActionsStringDiagnostic } from "./decision.js";
 import {
   chatShapeFor,
   buildChatBody,
   withJsonContentTransport,
+  canRetrySuperToolOutput,
   DECISION_TOOL_NAME,
   NVIDIA_BASE_URL as CAP_NVIDIA_BASE_URL,
   type DecisionActionExclusion,
@@ -38,6 +40,8 @@ export interface DecideRouteAttempt {
   retryAfterMs?: number;
   latencyMs: number;
   error?: string;
+  responseSource?: "tool_call" | "content_fallback" | "content";
+  actionsStringDiagnostic?: ActionsStringDiagnostic;
 }
 
 export interface DecideRouteMeta {
@@ -515,11 +519,11 @@ class OpenAiCompatProvider implements Provider {
   }
 }
 
-// A direct NVIDIA 5xx previously lost the whole cycle until the next cadence.
-// Retry only an explicit server refusal, once, on the identical configured
-// route. The shared router owns its own attempt/capacity budget and MUST NOT
-// receive this wrapper. No auth/404/429, network, timeout or decision repair
-// retries; no model substitution or request-parameter changes.
+// Direct NVIDIA recovery has one shared two-call/deadline budget. Explicit
+// server refusals retry the original request; rejected Super tool encoding
+// retries JSON content on the same configured route. The shared router owns
+// its own admission budget and MUST NOT receive this wrapper. No model
+// substitution or repair/coercion of a rejected decision is allowed.
 class SameModelRetryProvider implements Provider {
   readonly label: string;
 
@@ -527,6 +531,8 @@ class SameModelRetryProvider implements Provider {
     private readonly delegate: Provider,
     private readonly provider: ProviderName,
     private readonly model: string,
+    private readonly contentRetry?: Provider,
+    private readonly baseUrl?: string,
   ) {
     this.label = delegate.label;
   }
@@ -536,61 +542,110 @@ class SameModelRetryProvider implements Provider {
     const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     const first = await this.delegate.decide(input);
     const firstFinished = Date.now();
-    if (first.ok || !first.retryableHttpFailure) {
+    const parsedFirst = first.ok ? parseDecision(first.text) : undefined;
+    const retryContent =
+      first.ok &&
+      parsedFirst?.ok === false &&
+      this.contentRetry !== undefined &&
+      canRetrySuperToolOutput(
+        { provider: this.provider, model: this.model, baseUrl: this.baseUrl },
+        first.responseSource,
+        parsedFirst.actionsStringDiagnostic,
+      );
+    if (!retryContent && (first.ok || !first.retryableHttpFailure)) {
       return first;
     }
-    const delayMs = Math.max(1000, first.retryAfterMs ?? 0);
+    const delayMs = retryContent
+      ? 0
+      : Math.max(1000, first.ok ? 0 : (first.retryAfterMs ?? 0));
     // Honor the provider's cooldown; a long one waits for the next cycle. Both
     // attempts and this backoff share the ORIGINAL deadline, never two 5m caps.
     if (delayMs > 5000 || delayMs >= timeoutMs - (firstFinished - started)) {
       return first;
     }
-    await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
+    if (delayMs > 0)
+      await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
     const retryStarted = Date.now();
     const remainingMs = timeoutMs - (retryStarted - started);
     if (remainingMs <= 0) return first;
 
-    const result = await this.delegate.decide({
+    const retryResult = await (
+      retryContent ? this.contentRetry! : this.delegate
+    ).decide({
       ...input,
       timeoutMs: remainingMs,
     });
+    const parsedRetry = retryResult.ok
+      ? parseDecision(retryResult.text)
+      : undefined;
+    const result: DecideResult =
+      retryResult.ok && parsedRetry?.ok === false
+        ? {
+            ok: false,
+            failureClass: "malformed",
+            error: parsedRetry.error,
+            usage: retryResult.usage,
+          }
+        : retryResult;
     const attempt = (
       res: DecideResult,
       latencyMs: number,
-    ): DecideRouteAttempt => ({
-      provider: this.provider,
-      model: this.model,
-      outcome: res.ok ? "success" : "failed",
-      latencyMs,
-      ...(!res.ok
+    ): DecideRouteAttempt => {
+      const parsed = res.ok ? parseDecision(res.text) : undefined;
+      return {
+        provider: this.provider,
+        model: this.model,
+        outcome: res.ok && parsed?.ok ? "success" : "failed",
+        latencyMs,
+        ...(res.ok ? { responseSource: res.responseSource } : {}),
+        ...(parsed?.ok === false
+          ? {
+              failureClass: "malformed" as const,
+              error: parsed.error,
+              actionsStringDiagnostic: parsed.actionsStringDiagnostic,
+            }
+          : {}),
+        ...(!res.ok
+          ? {
+              error: res.error,
+              status: res.status,
+              retryAfterMs: res.retryAfterMs,
+              failureClass:
+                res.failureClass ??
+                (classifyProviderFailure(res) === "capacity"
+                  ? ("capacity" as const)
+                  : res.status !== undefined && res.status < 500
+                    ? ("permanent" as const)
+                    : ("transient" as const)),
+            }
+          : {}),
+      };
+    };
+    // Sum reported usage from both physical calls, including rejected output.
+    // Missing usage is unknown, not evidence that a request consumed no tokens.
+    const usage =
+      first.usage || result.usage
         ? {
-            error: res.error,
-            status: res.status,
-            retryAfterMs: res.retryAfterMs,
-            failureClass:
-              res.failureClass ??
-              (classifyProviderFailure(res) === "capacity"
-                ? ("capacity" as const)
-                : res.status !== undefined && res.status < 500
-                  ? ("permanent" as const)
-                  : ("transient" as const)),
+            promptTokens:
+              (first.usage?.promptTokens ?? 0) +
+              (result.usage?.promptTokens ?? 0),
+            completionTokens:
+              (first.usage?.completionTokens ?? 0) +
+              (result.usage?.completionTokens ?? 0),
           }
-        : {}),
-    });
+        : undefined;
     return {
-      // Usage, when present, describes only the final response. The preceding
-      // 5xx did not report usage; attempt evidence is not total billed tokens
-      // or a certificate that returned text passed the trading-decision parser.
       ...result,
+      ...(usage ? { usage } : {}),
       route: {
-        policyVersion: "coinrithm.configured-same-model-retry.v2",
+        policyVersion: "coinrithm.configured-same-model-retry.v3",
         profile: "configured",
         effectiveProvider: this.provider,
         effectiveModel: this.model,
         reason: "configured_direct",
         attempts: [
           attempt(first, firstFinished - started),
-          attempt(result, Date.now() - retryStarted),
+          attempt(retryResult, Date.now() - retryStarted),
         ],
       },
     };
@@ -647,7 +702,15 @@ export function selectProvider(
     options,
   );
   return provider === "nvidia"
-    ? new SameModelRetryProvider(direct, provider, name)
+    ? new SameModelRetryProvider(
+        direct,
+        provider,
+        name,
+        new OpenAiCompatProvider(provider, name, key, resolvedBase, fetchFn, {
+          nemotronJsonContent: true,
+        }),
+        baseUrl,
+      )
     : direct;
 }
 

@@ -39,6 +39,7 @@ export {
 export {
   chatShapeFor,
   buildChatBody,
+  canRetrySuperToolOutput,
   type ChatShape,
 } from "./providerCapabilities.js";
 export {

@@ -64,12 +64,13 @@ Env: `DATABASE_URL`, `ENCRYPTION_KEY`, `NVIDIA_API_KEY` (secrets). **No volume.*
 
 Operational must-knows:
 
-- **Routing deadline (policy `2026-10-04.1`).** The shared fallback chain has
+- **Routing deadline (policy `2026-10-06.1`).** The shared fallback chain has
   one 300-second maximum budget, below the 360-second run lock and heartbeat.
   An alternate receives only the remaining time. Older `2026-08-27.2` runs
   allowed 300 seconds per attempt; retain the source revision when replaying
   historical evidence. Prompts, model pins and configured strategies are unchanged.
-  Direct NVIDIA retries still share their original deadline. Their v2 evidence
+  Direct NVIDIA retries (`coinrithm.configured-same-model-retry.v3`) also share
+  their original deadline and at most two physical calls. Their evidence
   classifies explicit `ResourceExhausted` 503 responses as capacity pressure;
   ordinary 500/503 errors remain failures. A zero `Retry-After` now gets the
   minimum one-second model cooldown instead of failing cooldown validation.
@@ -92,6 +93,39 @@ Operational must-knows:
   `/healthz` checks the scheduler heartbeat as well as process liveness.
 
 ## Shared capacity policy
+
+### Recovery of malformed Super tool output
+
+When the strict parser rejects an official NVIDIA Super tool response because
+`actions` is a string, the unused second attempt can request JSON content on
+the same model and key. System/user prompts, generation settings, customer
+strategy and cadence stay unchanged. Valid first responses, malformed content,
+other models and custom endpoints do not trigger this recovery. The new reply
+must pass the strict parser; rejected text is never repaired into an action.
+
+Shared recovery rechecks availability and obtains fresh owner/provider capacity
+leases. It consumes the existing two-attempt/common-deadline budget, including
+for a pinned single-model agent; no third call or paid route is added. Direct
+BYO recovery shares its two-call budget with the existing HTTP server-error
+retry. Both paths retain attempt diagnostics and sum provider-reported tokens
+across responses, including rejected output; missing usage remains unknown.
+The runner's `estimatedCostUsd` uses the effective provider's rate and is not a
+billing total for a mixed-provider chain. Paid backup remains separately gated.
+
+If this recovery's owner admission lacks only refillable token/request credit,
+it can wait once for the locked-snapshot refill hint (at most 60 seconds), with
+no leases held and at least 30 seconds left for a response. It then rechecks
+availability, deadline and fresh admission. Concurrency/cooldown holds, missing
+or invalid hints, a second denial or insufficient time keep the original
+failure; quotas are never raised and there is no polling loop.
+
+This automatic recovery runs only after the specific failure. The time-boxed
+house/customer gates below separately select JSON content for the first
+request. Their exact eligibility and expiry remain in force; expiry does not
+disable failure recovery. Transport changes remove the model-visible tool
+schema, so identical prompt text does not establish decision equivalence.
+
+### Optional first-attempt routes
 
 `SCHEDULER_LIGHTNING_FALLBACK_ENABLED=true` adds the contract-probed
 `nvidia/nemotron-3.5-lightning-30b-a3b` as the first fallback for unpinned house

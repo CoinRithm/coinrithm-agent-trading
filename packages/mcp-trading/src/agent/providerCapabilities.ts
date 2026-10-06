@@ -24,6 +24,23 @@ import { DECISION_JSON_SCHEMA } from "./decision.js";
 export const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
 export const DECISION_TOOL_NAME = "submit_trading_decision";
 
+// A retry changes transport only after the strict parser has rejected a known
+// Super tool-argument encoding failure. Valid responses and other routes keep
+// their original request shape. A custom endpoint is deliberately excluded.
+export function canRetrySuperToolOutput(
+  route: { provider: string; model: string; baseUrl?: string | null },
+  responseSource: string | undefined,
+  actionsStringDiagnostic: string | undefined,
+): boolean {
+  return (
+    route.provider === "nvidia" &&
+    route.model === "nvidia/nemotron-3-super-120b-a12b" &&
+    (route.baseUrl == null || route.baseUrl === NVIDIA_BASE_URL) &&
+    responseSource === "tool_call" &&
+    actionsStringDiagnostic !== undefined
+  );
+}
+
 export interface ChatShape {
   family:
     "openai-reasoning" | "nvidia-nemotron" | "anthropic" | "openai-compat";

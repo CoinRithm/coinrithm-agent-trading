@@ -2079,6 +2079,68 @@ describe("runCycle", () => {
     expect(d.state.lastLlmCallAt).toBeUndefined();
   });
 
+  it("retains a direct malformed failure when its content retry is rate limited and performs no writes", async () => {
+    const fetchFn = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({
+          choices: [
+            {
+              message: {
+                tool_calls: [
+                  {
+                    function: {
+                      name: "submit_trading_decision",
+                      arguments:
+                        '{"decision":"act","actions":"[]","reason":"PRIVATE_OUTPUT"}',
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+          usage: { prompt_tokens: 100, completion_tokens: 10 },
+        }),
+      )
+      .mockResolvedValueOnce(new Response("busy", { status: 429 }));
+    const client = baseClient();
+    const d = deps({ live: true }, client);
+    d.spec.model = {
+      provider: "nvidia",
+      name: "nvidia/nemotron-3-super-120b-a12b",
+    };
+    d.provider = selectProvider(
+      d.spec,
+      { NVIDIA_API_KEY: "test-only" },
+      fetchFn,
+    );
+    const result = await runCycle(d);
+    expect(result).toMatchObject({
+      decision: "skip",
+      decisionType: "model_error",
+      modelFailed: true,
+      llmCallMade: true,
+      tokensIn: 100,
+      tokensOut: 10,
+      writeAttempted: 0,
+      writeAccepted: 0,
+      routeAttempts: [
+        { failureClass: "malformed", responseSource: "tool_call" },
+        { failureClass: "capacity", status: 429 },
+      ],
+    });
+    expect(d.state.consecutiveModelFailures).toBe(1);
+    expect(d.state.disabled).toBe(false);
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+    expect(client.openFutures).not.toHaveBeenCalled();
+    expect(client.closeFutures).not.toHaveBeenCalled();
+    expect(client.setFuturesSlTp).not.toHaveBeenCalled();
+    expect(client.placeSpotOrder).not.toHaveBeenCalled();
+    expect(client.cancelSpotOrder).not.toHaveBeenCalled();
+    expect(client.openPmPosition).not.toHaveBeenCalled();
+    expect(JSON.stringify(result)).not.toContain("PRIVATE_OUTPUT");
+  });
+
   it.each([503, 410, 404])(
     "still classifies a real direct BYO HTTP %i as a model failure, not capacity",
     async (status) => {
