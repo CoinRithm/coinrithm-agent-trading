@@ -32,7 +32,6 @@ import { sharedOwnerLimit } from "./sharedPolicy.js";
 import {
   RoutedProvider,
   resolveRouteChain,
-  classifyFailure,
   NEMOTRON_SUPER,
   type ModelRoute,
   type RouteAttempt,
@@ -137,6 +136,14 @@ function limitForRoute(route: ModelRoute, input: DecideInput, config: Config) {
     reserveTokens,
     leaseTtlSeconds: config.capacityLeaseTtlSeconds,
   };
+}
+
+function isOfficialNvidiaRoute(route: ModelRoute): boolean {
+  return (
+    route.provider === "nvidia" &&
+    (route.baseUrl == null ||
+      route.baseUrl === "https://integrate.api.nvidia.com/v1")
+  );
 }
 
 function keyForRoute(
@@ -369,17 +376,23 @@ function routedProviderFor(
           throw error;
         }
       },
-      release: async (_route, lease, result, unused) => {
+      release: async (route, lease, result, unused) => {
         if (!lease) return;
-        // NVIDIA answers a 429 or a worker-limit 503 before inference and
-        // reports no usage. Charging the full estimate for it drained the
-        // owner budget and deferred the in-cycle fallback (prod 2026-10-06
-        // 13:13-13:52Z: 36 of 49 such fallbacks owner-deferred, against 2 of
-        // 21 after a local defer). The request stays debited; only tokens the
-        // provider never processed are refunded. Timeouts and other failures
-        // keep the conservative full charge.
+        // The official NVIDIA endpoint answers a 429 or a worker admission 503
+        // before inference and reports no usage. Charging the full estimate
+        // for it drains the owner budget and defers the in-cycle fallback.
+        // Only that exact rejection refunds tokens; the request stays debited.
+        // Reported usage stays authoritative, and every ambiguous failure
+        // (other ResourceExhausted, generic 503, timeout) keeps the full charge.
         const rejectedBeforeInference =
-          !result.ok && !result.usage && classifyFailure(result) === "capacity";
+          !result.ok &&
+          !result.usage &&
+          isOfficialNvidiaRoute(route) &&
+          (result.status === 429 ||
+            (result.status === 503 &&
+              /worker local total request limit reached/i.test(
+                result.error ?? "",
+              )));
         const actualTokens = result.usage
           ? result.usage.promptTokens + result.usage.completionTokens
           : rejectedBeforeInference

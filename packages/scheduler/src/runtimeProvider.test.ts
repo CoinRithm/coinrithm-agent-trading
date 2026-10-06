@@ -925,6 +925,52 @@ describe("hosted provider lifecycle", () => {
     },
   );
 
+  it.each([
+    {
+      name: "a ResourceExhausted 503 without the worker admission phrase",
+      baseUrl: undefined as string | undefined,
+      failure: {
+        ok: false as const,
+        status: 503,
+        error:
+          'provider HTTP 503: {"error":{"message":"ResourceExhausted: queue full"}}',
+      },
+      expected: undefined,
+    },
+    {
+      name: "a 429 that reports usage",
+      baseUrl: undefined,
+      failure: {
+        ok: false as const,
+        status: 429,
+        error: "provider HTTP 429: Too Many Requests",
+        usage: { promptTokens: 50, completionTokens: 0 },
+      },
+      expected: 50,
+    },
+    {
+      name: "a 429 from a custom endpoint",
+      baseUrl: "https://nim.example.com/v1",
+      failure: {
+        ok: false as const,
+        status: 429,
+        error: "provider HTTP 429: Too Many Requests",
+      },
+      expected: undefined,
+    },
+  ])("does not refund $name", async ({ failure, baseUrl, expected }) => {
+    const { agent, config } = fixture();
+    config.sharedPoolPolicyEnabled = true;
+    agent.ownerUserId = 19;
+    if (baseUrl) agent.modelBaseUrl = baseUrl;
+    decide.mockResolvedValueOnce(failure).mockResolvedValueOnce(good);
+    await runAgentOnce(pool, agent, config);
+    const releases = vi.mocked(capacity.releaseProviderCapacity).mock.calls;
+    expect(releases).toHaveLength(4);
+    expect(releases[0]!.slice(2)).toEqual([expected]);
+    expect(releases[1]!.slice(2)).toEqual([expected]);
+  });
+
   it("keeps the full charge for failures that may have consumed tokens", async () => {
     const { agent, config } = fixture();
     config.sharedPoolPolicyEnabled = true;
