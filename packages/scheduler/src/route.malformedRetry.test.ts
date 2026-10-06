@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   type DecideResult,
   type ProviderRouteOptions,
@@ -31,7 +31,11 @@ const good: DecideResult = {
   usage: { promptTokens: 90, completionTokens: 8 },
 };
 
-function harness(results: DecideResult[], routes = [superRoute, nanoRoute]) {
+function harness(
+  results: DecideResult[],
+  routes = [superRoute, nanoRoute],
+  clock?: () => number,
+) {
   const hooks: RouteHooks<string> = {
     availability: vi.fn(async () => ({ eligible: true })),
     acquire: vi.fn(async () => ({ ok: true, lease: "fixture" })),
@@ -58,7 +62,7 @@ function harness(results: DecideResult[], routes = [superRoute, nanoRoute]) {
     false,
     build,
     hooks,
-    () => now,
+    () => now + (clock?.() ?? 0),
   );
   return {
     hooks,
@@ -72,6 +76,177 @@ function harness(results: DecideResult[], routes = [superRoute, nanoRoute]) {
 }
 
 describe("shared Super malformed tool recovery", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it.each([48000, 60000])(
+    "waits once for %ims authoritative owner refill without a lease, then rechecks and re-admits",
+    async (waitMs) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(0);
+      const h = harness([bad, good], [superRoute], () => Date.now());
+      vi.mocked(h.hooks.acquire)
+        .mockResolvedValueOnce({ ok: true, lease: "first" })
+        .mockResolvedValueOnce({
+          ok: false,
+          scope: "owner",
+          admissionReasons: ["token_budget"],
+          retryAfterMs: waitMs,
+        })
+        .mockResolvedValueOnce({ ok: true, lease: "retry" });
+      const pending = h.provider.decide({ ...input, timeoutMs: 100000 });
+      await vi.advanceTimersByTimeAsync(waitMs - 1);
+      expect(h.hooks.acquire).toHaveBeenCalledTimes(2);
+      expect(h.hooks.release).toHaveBeenCalledExactlyOnceWith(
+        superRoute,
+        "first",
+        bad,
+      );
+      expect(h.build).toHaveBeenCalledOnce();
+      await vi.advanceTimersByTimeAsync(1);
+      const result = await pending;
+      expect(result).toMatchObject({
+        ok: true,
+        usage: { promptTokens: 190, completionTokens: 18 },
+      });
+      expect(h.hooks.availability).toHaveBeenCalledTimes(3);
+      expect(h.hooks.acquire).toHaveBeenCalledTimes(3);
+      expect(h.hooks.release).toHaveBeenCalledTimes(2);
+      expect(h.requests[1]!.timeoutMs).toBe(100000 - waitMs - 200);
+      expect(result.route.attempts).toHaveLength(2);
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
+
+  it.each([undefined, null, 0, -1, NaN, Infinity, 60001])(
+    "does not wait for unusable refill hint %s",
+    async (hint) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(0);
+      const h = harness([bad], [superRoute], () => Date.now());
+      vi.mocked(h.hooks.acquire)
+        .mockResolvedValueOnce({ ok: true, lease: "first" })
+        .mockResolvedValueOnce({
+          ok: false,
+          scope: "owner",
+          admissionReasons: ["token_budget"],
+          retryAfterMs: hint as number | undefined,
+        });
+      expect(
+        await h.provider.decide({ ...input, timeoutMs: 300000 }),
+      ).toMatchObject({ ok: false, deferred: false, usage: bad.usage });
+      expect(h.hooks.acquire).toHaveBeenCalledTimes(2);
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
+
+  it.each([
+    { scope: "key" as const, reasons: ["token_budget"] as const },
+    { scope: "owner" as const, reasons: ["concurrency"] as const },
+    {
+      scope: "owner" as const,
+      reasons: ["token_budget", "model_cooldown"] as const,
+    },
+    { scope: "owner" as const, reasons: [] as const },
+  ])(
+    "does not infer a wait for unrelated admission %j",
+    async ({ scope, reasons }) => {
+      vi.useFakeTimers();
+      const h = harness([bad], [superRoute]);
+      vi.mocked(h.hooks.acquire)
+        .mockResolvedValueOnce({ ok: true, lease: "first" })
+        .mockResolvedValueOnce({
+          ok: false,
+          scope,
+          admissionReasons: [...reasons],
+          retryAfterMs: 1000,
+        });
+      expect(
+        (await h.provider.decide({ ...input, timeoutMs: 300000 })).ok,
+      ).toBe(false);
+      expect(h.hooks.acquire).toHaveBeenCalledTimes(2);
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
+
+  it("does not wait when less than thirty seconds would remain for a response", async () => {
+    vi.useFakeTimers();
+    const h = harness([bad], [superRoute]);
+    vi.mocked(h.hooks.acquire)
+      .mockResolvedValueOnce({ ok: true, lease: "first" })
+      .mockResolvedValueOnce({
+        ok: false,
+        scope: "owner",
+        admissionReasons: ["token_budget"],
+        retryAfterMs: 60000,
+      });
+    expect((await h.provider.decide({ ...input, timeoutMs: 90000 })).ok).toBe(
+      false,
+    );
+    expect(h.hooks.acquire).toHaveBeenCalledTimes(2);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each([
+    "deadline_during_wait",
+    "circuit_after_wait",
+    "deadline_during_availability",
+    "denied_again",
+    "deadline_during_readmission",
+  ])(
+    "preserves the original failure without looping when recovery hits %s",
+    async (mode) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(0);
+      const h = harness([bad], [superRoute], () => Date.now());
+      vi.mocked(h.hooks.acquire)
+        .mockResolvedValueOnce({ ok: true, lease: "first" })
+        .mockResolvedValueOnce({
+          ok: false,
+          scope: "owner",
+          admissionReasons: ["token_budget"],
+          retryAfterMs: 1000,
+        })
+        .mockImplementationOnce(async () => {
+          if (mode === "deadline_during_readmission") {
+            h.setNow(90000);
+            return { ok: true, lease: "unused" };
+          }
+          return {
+            ok: false,
+            scope: "owner",
+            admissionReasons: ["token_budget"],
+            retryAfterMs: 1000,
+          };
+        });
+      vi.mocked(h.hooks.availability)
+        .mockResolvedValueOnce({ eligible: true })
+        .mockResolvedValueOnce({ eligible: true })
+        .mockImplementationOnce(async () => {
+          if (mode === "deadline_during_availability") h.setNow(90000);
+          return { eligible: mode !== "circuit_after_wait", reason: "circuit" };
+        });
+      const pending = h.provider.decide({ ...input, timeoutMs: 90000 });
+      await vi.advanceTimersByTimeAsync(500);
+      if (mode === "deadline_during_wait") h.setNow(90000);
+      await vi.advanceTimersByTimeAsync(500);
+      const result = await pending;
+      expect(result).toMatchObject({
+        ok: false,
+        deferred: false,
+        error: expect.stringContaining("Expected array"),
+        usage: bad.usage,
+      });
+      expect(h.build).toHaveBeenCalledOnce();
+      expect(vi.getTimerCount()).toBe(0);
+      if (mode === "deadline_during_readmission")
+        expect(h.hooks.release).toHaveBeenLastCalledWith(
+          superRoute,
+          "unused",
+          expect.any(Object),
+          true,
+        );
+    },
+  );
   it.each([false, true])(
     "uses the existing second attempt with fresh admission even when pinned=%s",
     async (pinned) => {

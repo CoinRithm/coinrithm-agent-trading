@@ -344,6 +344,7 @@ function routedProviderFor(
               scope: "owner",
               error: "shared pool owner budget unavailable",
               admissionReasons: owner.reasons,
+              retryAfterMs: owner.retryAfterMs,
             };
           ownerLease = owner.lease;
         }
@@ -367,20 +368,22 @@ function routedProviderFor(
           throw error;
         }
       },
-      release: async (_route, lease, result) => {
+      release: async (_route, lease, result, unused) => {
         if (!lease) return;
         const actualTokens = result.usage
           ? result.usage.promptTokens + result.usage.completionTokens
           : undefined;
-        await releaseProviderCapacity(pool, lease, actualTokens).catch(
-          (error) => hookFailure("capacity release", error),
+        const releaseLease = (value: ProviderCapacityLease) =>
+          unused
+            ? releaseProviderCapacity(pool, value, 0, true)
+            : releaseProviderCapacity(pool, value, actualTokens);
+        await releaseLease(lease).catch((error) =>
+          hookFailure("capacity release", error),
         );
         if (lease.ownerLease)
-          await releaseProviderCapacity(
-            pool,
-            lease.ownerLease,
-            actualTokens,
-          ).catch((error) => hookFailure("owner capacity release", error));
+          await releaseLease(lease.ownerLease).catch((error) =>
+            hookFailure("owner capacity release", error),
+          );
       },
       observe: async (route, attempt: RouteAttempt, callStartedAt) => {
         try {

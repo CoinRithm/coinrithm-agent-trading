@@ -93,6 +93,7 @@ export interface RouteHooks<Lease = unknown> {
     route: ModelRoute,
     lease: Lease | undefined,
     result: DecideResult,
+    unused?: boolean,
   ): Promise<void>;
   observe(
     route: ModelRoute,
@@ -102,6 +103,8 @@ export interface RouteHooks<Lease = unknown> {
 }
 
 const MAX_ROUTE_ATTEMPTS = 2;
+const MAX_RECOVERY_REFILL_WAIT_MS = 60_000;
+const MIN_RECOVERY_RESPONSE_MS = 30_000;
 
 function cleanError(value: string | undefined): string | undefined {
   if (!value) return undefined;
@@ -332,7 +335,34 @@ export class RoutedProvider<Lease = unknown> implements Provider {
         compactEligible && compactUser
           ? { ...originalInput, user: compactUser }
           : originalInput;
-      const acquired = await this.hooks.acquire(route, routeInput);
+      let acquired = await this.hooks.acquire(route, routeInput);
+      let waitedForOwner = false;
+      const refillWaitMs = !acquired.ok ? acquired.retryAfterMs : undefined;
+      if (
+        options?.nemotronJsonContent === true &&
+        !acquired.ok &&
+        acquired.scope === "owner" &&
+        acquired.admissionReasons?.length &&
+        acquired.admissionReasons.every(
+          (reason) => reason === "token_budget" || reason === "request_budget",
+        ) &&
+        typeof refillWaitMs === "number" &&
+        Number.isFinite(refillWaitMs) &&
+        refillWaitMs > 0 &&
+        refillWaitMs <= MAX_RECOVERY_REFILL_WAIT_MS &&
+        this.now() + refillWaitMs + MIN_RECOVERY_RESPONSE_MS <= deadline
+      ) {
+        // Only the specific malformed-output retry may wait for owner refill.
+        // No lease is held: the first request was released, and denied owner
+        // admission creates none. The hint comes from the locked SQL snapshot;
+        // another agent can consume its credit, so re-admission is mandatory.
+        waitedForOwner = true;
+        await new Promise<void>((resolve) => setTimeout(resolve, refillWaitMs));
+        if (this.now() + MIN_RECOVERY_RESPONSE_MS > deadline) break;
+        if (!(await this.hooks.availability(route)).eligible) break;
+        if (this.now() + MIN_RECOVERY_RESPONSE_MS > deadline) break;
+        acquired = await this.hooks.acquire(route, routeInput);
+      }
       if (!acquired.ok) {
         const attempt: RouteAttempt = {
           provider: route.provider,
@@ -360,11 +390,16 @@ export class RoutedProvider<Lease = unknown> implements Provider {
 
       const started = this.now();
       const remainingMs = deadline - started;
-      if (remainingMs <= 0) {
-        await this.hooks.release(route, acquired.lease, {
-          ok: false,
-          error: "model route deadline exhausted",
-        });
+      if (
+        remainingMs <= 0 ||
+        (waitedForOwner && remainingMs < MIN_RECOVERY_RESPONSE_MS)
+      ) {
+        await this.hooks.release(
+          route,
+          acquired.lease,
+          { ok: false, error: "model route deadline exhausted" },
+          true,
+        );
         break;
       }
       lastAttemptedRoute = route;

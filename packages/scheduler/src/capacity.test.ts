@@ -41,6 +41,41 @@ const limit = {
 };
 
 describe("shared provider capacity", () => {
+  it.each([null, undefined, 0, -1, NaN, Infinity, "48000"])(
+    "does not invent a refill hint from invalid database value %s",
+    async (hint) => {
+      const db = mockPool([
+        {
+          route_key: null,
+          denial_reasons: ["token_budget"],
+          retry_after_ms: hint,
+        },
+      ]);
+      expect(await reserveProviderCapacity(db.pool, limit)).toEqual({
+        ok: false,
+        reasons: ["token_budget"],
+      });
+    },
+  );
+  it("returns the locked-snapshot refill hint without creating a lease", async () => {
+    const db = mockPool([
+      {
+        route_key: null,
+        denial_reasons: ["token_budget"],
+        retry_after_ms: 48001,
+      },
+    ]);
+    expect(await reserveProviderCapacity(db.pool, limit)).toEqual({
+      ok: false,
+      reasons: ["token_budget"],
+      retryAfterMs: 48001,
+    });
+    expect(
+      db.query.mock.calls.some(([sql]) =>
+        sql.includes("VALUES ($1::uuid, $2, $3"),
+      ),
+    ).toBe(false);
+  });
   it.each(["routeKey", "provider", "model"])(
     "rejects an empty %s before acquiring a database connection",
     async (field) => {

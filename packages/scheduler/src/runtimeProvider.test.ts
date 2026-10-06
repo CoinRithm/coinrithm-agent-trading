@@ -325,8 +325,91 @@ describe("hosted provider lifecycle", () => {
     });
   });
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  it("passes owner refill hints through and releases both first leases before waiting", async () => {
+    vi.useFakeTimers();
+    const { agent, config } = fixture();
+    agent.modelName = NEMOTRON_SUPER;
+    agent.isHouse = false;
+    agent.ownerUserId = 19;
+    config.sharedPoolPolicyEnabled = true;
+    decide
+      .mockResolvedValueOnce({
+        ok: true,
+        text: '{"decision":"act","actions":"[]"}',
+        responseSource: "tool_call",
+        usage: { promptTokens: 20000, completionTokens: 100 },
+      })
+      .mockResolvedValueOnce({ ...good, responseSource: "content" });
+    let reservations = 0;
+    vi.mocked(capacity.reserveProviderCapacity).mockImplementation(
+      async (_pool, limit) => {
+        reservations += 1;
+        return reservations === 3
+          ? { ok: false, reasons: ["token_budget"], retryAfterMs: 48000 }
+          : {
+              ok: true,
+              lease: {
+                leaseId: `lease-${reservations}`,
+                routeKey: limit.routeKey,
+                reservedTokens: limit.reserveTokens,
+              },
+            };
+      },
+    );
+    vi.mocked(engine.runCycle).mockImplementation(async (deps) => {
+      result = await deps.provider.decide({ ...input, timeoutMs: 90000 });
+      return {
+        decision: "skip",
+        planned: [],
+        executed: [],
+        modelFailed: !result.ok,
+      };
+    });
+    const pending = runAgentOnce(pool, agent, config);
+    await vi.advanceTimersByTimeAsync(47999);
+    expect(capacity.reserveProviderCapacity).toHaveBeenCalledTimes(3);
+    expect(capacity.releaseProviderCapacity).toHaveBeenCalledTimes(2);
+    expect(decide).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(1);
+    await pending;
+    expect(result.ok).toBe(true);
+    expect(capacity.reserveProviderCapacity).toHaveBeenCalledTimes(5);
+    expect(capacity.releaseProviderCapacity).toHaveBeenCalledTimes(4);
+    expect(decide).toHaveBeenCalledTimes(2);
+  });
+
+  it("refunds unused provider and owner reservations when admission exhausts the deadline", async () => {
+    const { agent, config } = fixture();
+    agent.ownerUserId = 19;
+    config.sharedPoolPolicyEnabled = true;
+    let now = 0,
+      calls = 0;
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+    vi.mocked(capacity.reserveProviderCapacity).mockImplementation(
+      async (_pool, limit) => {
+        calls += 1;
+        if (calls === 2) now = 1000;
+        return {
+          ok: true,
+          lease: {
+            leaseId: `lease-${calls}`,
+            routeKey: limit.routeKey,
+            reservedTokens: limit.reserveTokens,
+          },
+        };
+      },
+    );
+    await runAgentOnce(pool, agent, config);
+    expect(decide).not.toHaveBeenCalled();
+    expect(capacity.releaseProviderCapacity).toHaveBeenCalledTimes(2);
+    for (const call of vi.mocked(capacity.releaseProviderCapacity).mock.calls) {
+      expect(call.slice(2)).toEqual([0, true]);
+    }
   });
 
   it("re-admits a malformed Super tool retry with identical model/key and cumulative usage", async () => {

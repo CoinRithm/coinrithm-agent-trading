@@ -29,7 +29,12 @@ export type ProviderCapacityDenialReason =
 
 export type ProviderCapacityReservation =
   | { ok: true; lease: ProviderCapacityLease }
-  | { ok: false; reasons: ProviderCapacityDenialReason[] };
+  | {
+      ok: false;
+      reasons: ProviderCapacityDenialReason[];
+      /** Locked-snapshot refill time; absent for concurrency/cooldown holds. */
+      retryAfterMs?: number;
+    };
 
 function positiveInt(value: number, name: string): number {
   if (!Number.isFinite(value) || value < 1) {
@@ -119,11 +124,14 @@ export async function reserveProviderCapacity(
     const reserved = await client.query<{
       route_key: string | null;
       denial_reasons: ProviderCapacityDenialReason[];
+      retry_after_ms: number | null;
     }>(
       `WITH checked AS MATERIALIZED (
          SELECT clock_timestamp() AS at
        ), budget AS MATERIALIZED (
          SELECT b.route_key, checked.at,
+                b.request_rate_per_min, b.model_rate_per_min,
+                GREATEST(0, EXTRACT(EPOCH FROM (b.last_refill_at - checked.at))) AS refill_delay_seconds,
                 LEAST(
                 b.request_rate_per_min::double precision,
                 b.request_tokens + b.request_rate_per_min *
@@ -158,7 +166,14 @@ export async function reserveProviderCapacity(
           WHERE b.route_key = d.route_key AND cardinality(d.denial_reasons) = 0
          RETURNING b.route_key
        )
-       SELECT a.route_key, d.denial_reasons
+       SELECT a.route_key, d.denial_reasons,
+              CASE WHEN cardinality(d.denial_reasons) > 0
+                         AND d.cooling IS NOT TRUE AND NOT d.slots_full
+                   THEN CEIL((d.refill_delay_seconds + GREATEST(
+                     0, ($2 - d.available_tokens) / d.model_rate_per_min * 60.0,
+                     (1 - d.available_requests) / d.request_rate_per_min * 60.0
+                   )) * 1000)::double precision + 1
+                   ELSE NULL END AS retry_after_ms
          FROM decision d LEFT JOIN admitted a ON a.route_key = d.route_key`,
       [limit.routeKey, limit.reserveTokens, tokenBurst ?? null],
     );
@@ -167,7 +182,16 @@ export async function reserveProviderCapacity(
     if (!admission) throw new Error("provider capacity bucket missing");
     if (admission.route_key === null) {
       await client.query("COMMIT");
-      return { ok: false, reasons: admission.denial_reasons };
+      const refillWaitMs = admission.retry_after_ms;
+      return {
+        ok: false,
+        reasons: admission.denial_reasons,
+        ...(typeof refillWaitMs === "number" &&
+        Number.isFinite(refillWaitMs) &&
+        refillWaitMs > 0
+          ? { retryAfterMs: refillWaitMs }
+          : {}),
+      };
     }
 
     await client.query(

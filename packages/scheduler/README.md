@@ -112,6 +112,13 @@ across responses, including rejected output; missing usage remains unknown.
 The runner's `estimatedCostUsd` uses the effective provider's rate and is not a
 billing total for a mixed-provider chain. Paid backup remains separately gated.
 
+If this recovery's owner admission lacks only refillable token/request credit,
+it can wait once for the locked-snapshot refill hint (at most 60 seconds), with
+no leases held and at least 30 seconds left for a response. It then rechecks
+availability, deadline and fresh admission. Concurrency/cooldown holds, missing
+or invalid hints, a second denial or insufficient time keep the original
+failure; quotas are never raised and there is no polling loop.
+
 This automatic recovery runs only after the specific failure. The time-boxed
 house/customer gates below separately select JSON content for the first
 request. Their exact eligibility and expiry remain in force; expiry does not
