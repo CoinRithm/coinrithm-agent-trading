@@ -155,8 +155,6 @@ explicitly non-house agent with a BYO key, an NVIDIA provider, the NVIDIA Super
 model and an absent or exact canonical NVIDIA endpoint qualifies. The agent's own
 key, model, strategy and same-model retry are unchanged: only the request asks
 for JSON content. The expiry is re-checked on every attempt, including the retry.
-Because the calls run on the customer's own NVIDIA key, enrol a BYO pair only
-with that customer's explicit consent.
 
 Expiry is checked per attempt after asynchronous capacity admission and before
 constructing the provider. At or after expiry, the original request transport
