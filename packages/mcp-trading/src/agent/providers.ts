@@ -378,8 +378,20 @@ class AnthropicProvider implements Provider {
 // capability shape for the route.
 export interface ProviderRouteOptions {
   // Send a Nemotron route's decision as JSON content, not a forced tool call.
-  // Ignored for every other model family.
-  nemotronJsonContent?: boolean;
+  // Ignored for every other model family. A function is evaluated on every
+  // request (so a time-boxed trial ends without rebuilding the provider); a
+  // throwing function means the default transport.
+  nemotronJsonContent?: boolean | (() => boolean);
+}
+
+function wantsJsonContent(options: ProviderRouteOptions): boolean {
+  const v = options.nemotronJsonContent;
+  if (typeof v !== "function") return v === true;
+  try {
+    return v() === true;
+  } catch {
+    return false;
+  }
 }
 
 class OpenAiCompatProvider implements Provider {
@@ -397,7 +409,7 @@ class OpenAiCompatProvider implements Provider {
   async decide(input: DecideInput): Promise<DecideResult> {
     const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     const baseShape = chatShapeFor(this.provider, this.model, this.baseUrl);
-    const shape = this.options.nemotronJsonContent
+    const shape = wantsJsonContent(this.options)
       ? withJsonContentTransport(baseShape)
       : baseShape;
     let failureResponse: Response | undefined;
@@ -592,6 +604,7 @@ export function selectProvider(
   spec: AgentSpec,
   env: ProviderEnv,
   fetchFn: typeof fetch = fetch,
+  options: ProviderRouteOptions = {},
 ): Provider {
   if (!spec.model) {
     throw new Error(
@@ -631,6 +644,7 @@ export function selectProvider(
     key,
     resolvedBase,
     fetchFn,
+    options,
   );
   return provider === "nvidia"
     ? new SameModelRetryProvider(direct, provider, name)

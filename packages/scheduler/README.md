@@ -147,6 +147,15 @@ unexpected endpoints and unknown owner identities remain ineligible. Pinned
 models keep their existing single-route behavior. Customer prompt compaction
 remains disabled, independently of the house compaction flag.
 
+Own-key (BYO) agents never use the hosted router, so the gate above cannot reach
+them. `SCHEDULER_CUSTOMER_SUPER_JSON_CONTENT_BYO_ENABLED=true` (default false)
+extends the same trial to the direct BYO path. It requires all three customer
+settings above as well; listing a pair alone never changes a BYO agent. Only an
+explicitly non-house agent with a BYO key, an NVIDIA provider, the NVIDIA Super
+model and an absent or exact canonical NVIDIA endpoint qualifies. The agent's own
+key, model, strategy and same-model retry are unchanged: only the request asks
+for JSON content. The expiry is re-checked on every attempt, including the retry.
+
 Expiry is checked per attempt after asynchronous capacity admission and before
 constructing the provider. At or after expiry, the original request transport
 is used without requiring a restart. A request already sent is not cancelled.

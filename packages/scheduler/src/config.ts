@@ -52,6 +52,11 @@ export interface Config {
   customerSuperJsonContentEnabled: boolean;
   customerSuperJsonContentUntilMs?: number;
   customerSuperJsonContentAllowlist: readonly CustomerJsonContentIdentity[];
+  // Own-key (BYO) extension of that customer trial. Default off. It needs every
+  // customer setting above PLUS this switch, so listing a pair for the hosted
+  // trial alone never changes a BYO agent's transport.
+  // Rollback: unset or SCHEDULER_CUSTOMER_SUPER_JSON_CONTENT_BYO_ENABLED=false.
+  customerByoSuperJsonContentEnabled: boolean;
   compactPromptTablesEnabled: boolean;
   sharedOwnerTpm: number;
   sharedMinModelIntervalSeconds: number;
@@ -262,6 +267,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     ),
     customerSuperJsonContentAllowlist: customerJsonContentAllowlist(
       env.SCHEDULER_CUSTOMER_SUPER_JSON_CONTENT_ALLOWLIST,
+    ),
+    customerByoSuperJsonContentEnabled: boolEnv(
+      env,
+      "SCHEDULER_CUSTOMER_SUPER_JSON_CONTENT_BYO_ENABLED",
+      false,
     ),
     compactPromptTablesEnabled: boolEnv(
       env,

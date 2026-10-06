@@ -11,6 +11,7 @@ import {
   runAgentOnce,
   usesHouseSuperJsonContent,
   usesCustomerSuperJsonContent,
+  usesCustomerByoSuperJsonContent,
 } from "./runtime.js";
 import { NEMOTRON_NANO, NEMOTRON_LIGHTNING, NEMOTRON_SUPER } from "./route.js";
 
@@ -176,6 +177,100 @@ describe("customer content eligibility", () => {
   });
 });
 
+function byoFixture() {
+  const { agent, config } = customerFixture();
+  agent.brainKeyEnc = encrypt("fixture-byo", key);
+  config.customerByoSuperJsonContentEnabled = true;
+  return { agent, config };
+}
+
+describe("customer BYO content eligibility", () => {
+  it("admits only an enrolled NVIDIA Super BYO pair on the official endpoint", () => {
+    const { agent, config } = byoFixture();
+    expect(usesCustomerByoSuperJsonContent(agent, config, FUTURE - 1)).toBe(
+      true,
+    );
+    expect(
+      usesCustomerByoSuperJsonContent(
+        { ...agent, modelBaseUrl: "https://integrate.api.nvidia.com/v1" },
+        config,
+        FUTURE - 1,
+      ),
+    ).toBe(true);
+  });
+  it("needs its own BYO switch on top of every customer trial setting", () => {
+    const { agent, config } = byoFixture();
+    for (const changes of [
+      { customerByoSuperJsonContentEnabled: false },
+      { customerSuperJsonContentEnabled: false },
+      { customerSuperJsonContentAllowlist: [] },
+      { customerSuperJsonContentUntilMs: undefined },
+    ]) {
+      expect(
+        usesCustomerByoSuperJsonContent(
+          agent,
+          { ...config, ...changes },
+          FUTURE - 1,
+        ),
+      ).toBe(false);
+    }
+  });
+  it("fails closed at expiry and on nonfinite clocks", () => {
+    const { agent, config } = byoFixture();
+    for (const now of [FUTURE, FUTURE + 1, NaN, Infinity]) {
+      expect(usesCustomerByoSuperJsonContent(agent, config, now)).toBe(false);
+    }
+    expect(
+      usesCustomerByoSuperJsonContent(
+        agent,
+        { ...config, customerSuperJsonContentUntilMs: NaN },
+        FUTURE - 1,
+      ),
+    ).toBe(false);
+  });
+  it("excludes unlisted pairs, hosted/house agents, other providers, models and custom endpoints", () => {
+    const { agent, config } = byoFixture();
+    for (const changes of [
+      { id: 43 },
+      { ownerUserId: 20 },
+      { ownerUserId: undefined },
+      { brainKeyEnc: null },
+      { brainKeyEnc: "" },
+      { isHouse: true },
+      { isHouse: undefined },
+      { modelProvider: "groq" },
+      { modelProvider: "openai-compatible" },
+      { modelName: NEMOTRON_NANO },
+      { modelName: NEMOTRON_LIGHTNING },
+      { modelBaseUrl: "https://custom.example/v1" },
+      { modelBaseUrl: "" },
+    ]) {
+      expect(
+        usesCustomerByoSuperJsonContent(
+          { ...agent, ...changes },
+          config,
+          FUTURE - 1,
+        ),
+      ).toBe(false);
+    }
+  });
+  it("leaves the hosted customer gate unchanged: it still excludes BYO", () => {
+    const { agent, config } = byoFixture();
+    expect(
+      usesCustomerSuperJsonContent(
+        agent,
+        config,
+        {
+          provider: "nvidia",
+          model: NEMOTRON_SUPER,
+          keyRef: "nvidia:shared:0",
+        },
+        FUTURE - 1,
+      ),
+    ).toBe(false);
+  });
+});
+
 describe("hosted provider lifecycle", () => {
   let decide: ReturnType<typeof vi.fn>;
   let result: Awaited<ReturnType<engine.Provider["decide"]>>;
@@ -301,6 +396,37 @@ describe("hosted provider lifecycle", () => {
     expect(engine.providerForRoute).not.toHaveBeenCalled();
     expect(engine.selectProvider).toHaveBeenCalledTimes(2);
   });
+
+  it("passes a per-attempt content selector only to an enrolled BYO Super agent", async () => {
+    const { agent, config } = byoFixture();
+    await runAgentOnce(pool, agent, config);
+    expect(engine.providerForRoute).not.toHaveBeenCalled();
+    const call = vi.mocked(engine.selectProvider).mock.calls[0]!;
+    expect(call[0]).toMatchObject({
+      model: { provider: "nvidia", name: NEMOTRON_SUPER },
+    });
+    expect(call[1]).toEqual({ NVIDIA_API_KEY: "fixture-byo" });
+    const selector = call[3]?.nemotronJsonContent;
+    expect(typeof selector).toBe("function");
+    expect((selector as () => boolean)()).toBe(true);
+    // The selector re-reads the trial expiry each time it is asked.
+    config.customerSuperJsonContentUntilMs = Date.now() - 1;
+    expect((selector as () => boolean)()).toBe(false);
+  });
+
+  it.each([
+    ["not enrolled", { customerSuperJsonContentAllowlist: [] }],
+    ["BYO switch off", { customerByoSuperJsonContentEnabled: false }],
+    ["expired", { customerSuperJsonContentUntilMs: Date.now() - 1 }],
+  ])(
+    "keeps the identical 3-argument BYO call when %s",
+    async (_label, changes) => {
+      const { agent, config } = byoFixture();
+      Object.assign(config, changes);
+      await runAgentOnce(pool, agent, config);
+      expect(vi.mocked(engine.selectProvider).mock.calls[0]).toHaveLength(3);
+    },
+  );
 
   it("retains strict malformed rejection and the same two-attempt fallback chain", async () => {
     const { agent, config } = customerFixture();
