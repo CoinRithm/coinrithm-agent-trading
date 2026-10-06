@@ -284,9 +284,10 @@ function routedProviderFor(
     chain.profile,
     chain.routes,
     false,
-    (route) => {
+    (route, options) => {
       const routeKey = keyForRoute(route, nvidia, config);
-      return usesHouseSuperJsonContent(agent, config, route) ||
+      return options?.nemotronJsonContent === true ||
+        usesHouseSuperJsonContent(agent, config, route) ||
         usesCustomerSuperJsonContent(agent, config, route)
         ? providerForRoute(route, routeKey, fetch, {
             nemotronJsonContent: true,

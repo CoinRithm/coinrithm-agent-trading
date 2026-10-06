@@ -329,6 +329,37 @@ describe("hosted provider lifecycle", () => {
     vi.unstubAllGlobals();
   });
 
+  it("re-admits a malformed Super tool retry with identical model/key and cumulative usage", async () => {
+    const { agent, config } = fixture();
+    agent.modelName = NEMOTRON_SUPER;
+    agent.isHouse = false;
+    agent.ownerUserId = 19;
+    config.sharedPoolPolicyEnabled = true;
+    const before = JSON.stringify(agent);
+    decide
+      .mockResolvedValueOnce({
+        ok: true,
+        text: '{"decision":"act","actions":"[]"}',
+        responseSource: "tool_call",
+        usage: { promptTokens: 100, completionTokens: 10 },
+      })
+      .mockResolvedValueOnce({ ...good, responseSource: "content" });
+    await runAgentOnce(pool, agent, config);
+    const calls = vi.mocked(engine.providerForRoute).mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toHaveLength(3);
+    expect(calls[1]).toEqual([...calls[0], { nemotronJsonContent: true }]);
+    expect(result).toMatchObject({
+      ok: true,
+      usage: { promptTokens: 107, completionTokens: 13 },
+      route: { effectiveModel: NEMOTRON_SUPER },
+    });
+    // Every physical call reserves/releases both the owner and provider lease.
+    expect(capacity.reserveProviderCapacity).toHaveBeenCalledTimes(4);
+    expect(capacity.releaseProviderCapacity).toHaveBeenCalledTimes(4);
+    expect(JSON.stringify(agent)).toBe(before);
+  });
+
   it("changes only the enrolled customer's primary transport and preserves identity/settings", async () => {
     const { agent, config } = customerFixture();
     const before = JSON.stringify(agent);

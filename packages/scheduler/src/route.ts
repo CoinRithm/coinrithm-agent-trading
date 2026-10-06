@@ -1,17 +1,19 @@
 import {
   parseDecision,
   classifyProviderFailure,
+  canRetrySuperToolOutput,
   type DecideInput,
   type DecideResult,
   type Provider,
   type ProviderName,
+  type ProviderRouteOptions,
   type ActionsStringDiagnostic,
 } from "@coinrithm/mcp-trading/engine";
 import type { ProviderCapacityDenialReason } from "./capacity.js";
 
 type AdmissionReason = ProviderCapacityDenialReason | "model_cooldown";
 
-export const ROUTE_POLICY_VERSION = "2026-10-04.1";
+export const ROUTE_POLICY_VERSION = "2026-10-06.1";
 // nemotron-3-nano-30b-a3b went 410 (end of life) on 2026-09-01; the omni
 // variant is the live-probe-verified fast tier (200 + strict JSON, ~2.6s,
 // probe 2026-09-02 06:5xZ from the scheduler key).
@@ -247,7 +249,10 @@ export class RoutedProvider<Lease = unknown> implements Provider {
     private readonly profile: RouteProfile,
     private readonly routes: ModelRoute[],
     private readonly byo: boolean,
-    private readonly buildProvider: (route: ModelRoute) => Provider,
+    private readonly buildProvider: (
+      route: ModelRoute,
+      options?: ProviderRouteOptions,
+    ) => Provider,
     private readonly hooks: RouteHooks<Lease>,
     private readonly now: () => number = () => Date.now(),
   ) {
@@ -286,8 +291,14 @@ export class RoutedProvider<Lease = unknown> implements Provider {
     // entirely of capacity outcomes (local defers and upstream 429s) is a
     // harmless deferred result.
     let attemptedFailure: Extract<DecideResult, { ok: false }> | null = null;
+    let usage: DecideResult["usage"];
+    const candidates: Array<{
+      route: ModelRoute;
+      options?: ProviderRouteOptions;
+    }> = this.routes.map((route) => ({ route }));
 
-    for (const route of this.routes) {
+    for (let index = 0; index < candidates.length; index += 1) {
+      const { route, options } = candidates[index]!;
       if (attempts.length >= MAX_ROUTE_ATTEMPTS) break;
       if (this.now() >= deadline) break;
       // Local budget exhaustion is credential-key scoped; an upstream 429 is
@@ -359,7 +370,7 @@ export class RoutedProvider<Lease = unknown> implements Provider {
       lastAttemptedRoute = route;
       let result: DecideResult;
       try {
-        result = await this.buildProvider(route).decide({
+        result = await this.buildProvider(route, options).decide({
           ...routeInput,
           timeoutMs: remainingMs,
         });
@@ -371,6 +382,16 @@ export class RoutedProvider<Lease = unknown> implements Provider {
       }
       const latencyMs = Math.max(0, this.now() - started);
       await this.hooks.release(route, acquired.lease, result);
+      // Admission/release use each attempt's usage independently. The cycle
+      // ledger must also retain the total reported tokens across all attempts,
+      // including an invalid response followed by a local capacity defer.
+      if (result.usage) {
+        usage = {
+          promptTokens: (usage?.promptTokens ?? 0) + result.usage.promptTokens,
+          completionTokens:
+            (usage?.completionTokens ?? 0) + result.usage.completionTokens,
+        };
+      }
 
       if (result.ok) {
         const parsed = parseDecision(result.text);
@@ -386,6 +407,7 @@ export class RoutedProvider<Lease = unknown> implements Provider {
           await this.hooks.observe(route, attempt, started);
           return {
             ...result,
+            ...(usage ? { usage } : {}),
             route: {
               policyVersion: ROUTE_POLICY_VERSION,
               profile: this.profile,
@@ -414,6 +436,22 @@ export class RoutedProvider<Lease = unknown> implements Provider {
         };
         attemptedFailure = lastFailure;
         reason = fallbackReason(attempt);
+        if (
+          !options?.nemotronJsonContent &&
+          canRetrySuperToolOutput(
+            route,
+            result.responseSource,
+            parsed.actionsStringDiagnostic,
+          )
+        ) {
+          // This is the existing second attempt, not a hidden nested retry.
+          // It must pass route availability and fresh owner/provider admission
+          // again, and inherits the original deadline and configured model.
+          candidates.splice(index + 1, 0, {
+            route,
+            options: { nemotronJsonContent: true },
+          });
+        }
         continue;
       }
 
@@ -456,6 +494,7 @@ export class RoutedProvider<Lease = unknown> implements Provider {
       : lastFailure;
     return {
       ...finalFailure,
+      ...(usage ? { usage } : {}),
       route: {
         policyVersion: ROUTE_POLICY_VERSION,
         profile: this.profile,
