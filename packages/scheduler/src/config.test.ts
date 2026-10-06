@@ -16,6 +16,31 @@ describe("customer Super JSON-content enrollment", () => {
       customerSuperJsonContentAllowlist: [],
     });
   });
+  it("keeps the BYO extension off unless its own switch is set", () => {
+    expect(loadConfig(baseEnv()).customerByoSuperJsonContentEnabled).toBe(
+      false,
+    );
+    expect(
+      loadConfig({
+        ...baseEnv(),
+        SCHEDULER_CUSTOMER_SUPER_JSON_CONTENT_ENABLED: "true",
+        SCHEDULER_CUSTOMER_SUPER_JSON_CONTENT_UNTIL: "2026-10-06T12:00:00Z",
+        [setting]: JSON.stringify([pair]),
+      }).customerByoSuperJsonContentEnabled,
+    ).toBe(false);
+    expect(
+      loadConfig({
+        ...baseEnv(),
+        SCHEDULER_CUSTOMER_SUPER_JSON_CONTENT_BYO_ENABLED: "true",
+      }).customerByoSuperJsonContentEnabled,
+    ).toBe(true);
+    expect(
+      loadConfig({
+        ...baseEnv(),
+        SCHEDULER_CUSTOMER_SUPER_JSON_CONTENT_BYO_ENABLED: "false",
+      }).customerByoSuperJsonContentEnabled,
+    ).toBe(false);
+  });
   it("reads exact numeric pairs independently of the house flag", () => {
     const config = loadConfig({
       ...baseEnv(),

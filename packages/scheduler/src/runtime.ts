@@ -209,6 +209,42 @@ export function usesCustomerSuperJsonContent(
   );
 }
 
+// Own-key (BYO) counterpart of the customer gate above, for the direct
+// selectProvider path that the hosted gate never reaches. It requires every
+// customer trial setting (enabled, finite future expiry, exact owner AND agent
+// pair) PLUS its own explicit BYO switch. Only an NVIDIA Super agent on the
+// official NVIDIA endpoint qualifies. The customer's key, model and strategy are
+// unchanged; only the request transport changes. Callers pass it as a function
+// so the expiry is re-checked on every attempt, including the same-model retry.
+export function usesCustomerByoSuperJsonContent(
+  agent: AgentRow,
+  config: Config,
+  nowMs: number = Date.now(),
+): boolean {
+  const until = config.customerSuperJsonContentUntilMs;
+  const officialEndpoint = (baseUrl: string | null | undefined): boolean =>
+    baseUrl == null || baseUrl === "https://integrate.api.nvidia.com/v1";
+  return (
+    config.customerSuperJsonContentEnabled === true &&
+    config.customerByoSuperJsonContentEnabled === true &&
+    until !== undefined &&
+    Number.isFinite(until) &&
+    Number.isFinite(nowMs) &&
+    nowMs < until &&
+    agent.isHouse === false &&
+    typeof agent.brainKeyEnc === "string" &&
+    agent.brainKeyEnc !== "" &&
+    agent.modelProvider === "nvidia" &&
+    agent.modelName === NEMOTRON_SUPER &&
+    officialEndpoint(agent.modelBaseUrl) &&
+    config.customerSuperJsonContentAllowlist.some(
+      (identity) =>
+        identity.ownerUserId === agent.ownerUserId &&
+        identity.agentId === agent.id,
+    )
+  );
+}
+
 function routedProviderFor(
   pool: Pool,
   agent: AgentRow,
@@ -463,9 +499,16 @@ export async function runAgentOnce(
         baseUrl: agent.modelBaseUrl ?? undefined,
       },
     };
+    // Ordinary BYO/direct agents keep the identical 3-argument call; only an
+    // agent enrolled in the BYO trial gets the per-attempt transport check.
     const provider = shouldUseHostedRouter(agent, config)
       ? routedProviderFor(pool, agent, config, log)
-      : selectProvider(spec, providerEnvFor(agent, config), fetch);
+      : usesCustomerByoSuperJsonContent(agent, config)
+        ? selectProvider(spec, providerEnvFor(agent, config), fetch, {
+            nemotronJsonContent: () =>
+              usesCustomerByoSuperJsonContent(agent, config),
+          })
+        : selectProvider(spec, providerEnvFor(agent, config), fetch);
     const apiKey = decrypt(agent.coinrithmKeyEnc, config.encryptionKey);
     const client = new CoinRithmClient({
       apiKey,

@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { providerForRoute } from "./providers.js";
+import { providerForRoute, selectProvider } from "./providers.js";
+import { parseSkill } from "./skill.js";
+import { renderFolderOfOne } from "./templates.js";
 import { parseDecision } from "./decision.js";
 import {
   chatShapeFor,
@@ -131,5 +133,87 @@ describe("Nemotron JSON-content transport option", () => {
       ok: false,
       failureClass: "malformed",
     });
+  });
+});
+
+describe("BYO selectProvider transport option", () => {
+  const byoSpec = (provider: "nvidia" | "groq", name: string) => ({
+    ...parseSkill(renderFolderOfOne("fixture", "conservative")).spec,
+    model: { provider, name },
+  });
+  const freshFetch = () =>
+    vi.fn<typeof fetch>().mockImplementation(async () =>
+      Response.json({
+        choices: [{ finish_reason: "stop", message: { content: skip } }],
+      }),
+    );
+  const bodyOf = (f: ReturnType<typeof freshFetch>, i: number) =>
+    JSON.parse(String(f.mock.calls[i]![1]!.body)) as Record<string, unknown>;
+
+  it("keeps the forced tool call for an ordinary BYO Super agent", async () => {
+    const f = freshFetch();
+    await selectProvider(
+      byoSpec("nvidia", SUPER),
+      { NVIDIA_API_KEY: "k" },
+      f,
+    ).decide(input);
+    expect(bodyOf(f, 0).tool_choice).toBeDefined();
+    expect(bodyOf(f, 0).response_format).toBeUndefined();
+  });
+
+  it("sends JSON content for an opted-in BYO Super agent on its own key", async () => {
+    const f = freshFetch();
+    await selectProvider(byoSpec("nvidia", SUPER), { NVIDIA_API_KEY: "k" }, f, {
+      nemotronJsonContent: true,
+    }).decide(input);
+    expect(bodyOf(f, 0).tools).toBeUndefined();
+    expect(bodyOf(f, 0).response_format).toEqual({ type: "json_object" });
+    expect(f.mock.calls[0]![1]!.headers).toMatchObject({
+      Authorization: "Bearer k",
+    });
+  });
+
+  it("re-evaluates a selector on every request and fails closed when it throws", async () => {
+    const f = freshFetch();
+    let on = true;
+    const p = selectProvider(
+      byoSpec("nvidia", SUPER),
+      { NVIDIA_API_KEY: "k" },
+      f,
+      {
+        nemotronJsonContent: () => on,
+      },
+    );
+    await p.decide(input);
+    on = false;
+    await p.decide(input);
+    expect(bodyOf(f, 0).response_format).toEqual({ type: "json_object" });
+    expect(bodyOf(f, 1).tool_choice).toBeDefined();
+    const g = freshFetch();
+    await selectProvider(byoSpec("nvidia", SUPER), { NVIDIA_API_KEY: "k" }, g, {
+      nemotronJsonContent: () => {
+        throw new Error("boom");
+      },
+    }).decide(input);
+    expect(bodyOf(g, 0).tool_choice).toBeDefined();
+  });
+
+  it("does not change a non-Nemotron BYO request", async () => {
+    const a = freshFetch();
+    const b = freshFetch();
+    await selectProvider(
+      byoSpec("groq", "llama-3.1-8b-instant"),
+      { GROQ_API_KEY: "k" },
+      a,
+    ).decide(input);
+    await selectProvider(
+      byoSpec("groq", "llama-3.1-8b-instant"),
+      { GROQ_API_KEY: "k" },
+      b,
+      {
+        nemotronJsonContent: true,
+      },
+    ).decide(input);
+    expect(bodyOf(b, 0)).toEqual(bodyOf(a, 0));
   });
 });
