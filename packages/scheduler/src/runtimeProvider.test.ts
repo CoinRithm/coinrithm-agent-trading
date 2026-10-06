@@ -864,6 +864,88 @@ describe("hosted provider lifecycle", () => {
     );
   });
 
+  it.each([
+    {
+      name: "worker-limit 503",
+      failure: {
+        ok: false as const,
+        status: 503,
+        error:
+          'provider HTTP 503: {"error":{"message":"ResourceExhausted: Worker local total request limit reached (16/16)"}}',
+      },
+    },
+    {
+      name: "429",
+      failure: {
+        ok: false as const,
+        status: 429,
+        error: "provider HTTP 429: Too Many Requests",
+      },
+    },
+  ])(
+    "refunds the tokens of a $name rejected before inference but keeps the request debit",
+    async ({ failure }) => {
+      const { agent, config } = fixture();
+      config.sharedPoolPolicyEnabled = true;
+      agent.ownerUserId = 19;
+      let reservations = 0;
+      vi.mocked(capacity.reserveProviderCapacity).mockImplementation(
+        async (_pool, limit) => {
+          reservations += 1;
+          return {
+            ok: true,
+            lease: {
+              leaseId: `lease-${reservations}`,
+              routeKey: limit.routeKey,
+              reservedTokens: limit.reserveTokens,
+            },
+          };
+        },
+      );
+      decide.mockResolvedValueOnce(failure).mockResolvedValueOnce(good);
+      await runAgentOnce(pool, agent, config);
+      expect(result).toMatchObject({
+        ok: true,
+        route: { effectiveModel: NEMOTRON_SUPER },
+      });
+      const releases = vi.mocked(capacity.releaseProviderCapacity).mock.calls;
+      expect(releases).toHaveLength(4);
+      // First physical call: provider then owner lease, 0 tokens, not unused.
+      expect(releases[0]!.slice(1)).toEqual([
+        expect.objectContaining({ leaseId: "lease-2" }),
+        0,
+      ]);
+      expect(releases[1]!.slice(1)).toEqual([
+        expect.objectContaining({ leaseId: "lease-1" }),
+        0,
+      ]);
+      // The fallback is reconciled to its reported usage as before.
+      expect(releases[2]![2]).toBe(10);
+      expect(releases[3]![2]).toBe(10);
+    },
+  );
+
+  it("keeps the full charge for failures that may have consumed tokens", async () => {
+    const { agent, config } = fixture();
+    config.sharedPoolPolicyEnabled = true;
+    agent.ownerUserId = 19;
+    config.openAiBackupEligible = false;
+    decide
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        error: "provider HTTP 500: internal error",
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        error: "model call timed out after 1000ms",
+      });
+    await runAgentOnce(pool, agent, config);
+    const releases = vi.mocked(capacity.releaseProviderCapacity).mock.calls;
+    expect(releases.length).toBeGreaterThan(0);
+    for (const call of releases) expect(call[2]).toBeUndefined();
+  });
+
   it("defers owner quota exhaustion once without spending a fallback or a model call", async () => {
     const { agent, config } = fixture();
     config.sharedPoolPolicyEnabled = true;

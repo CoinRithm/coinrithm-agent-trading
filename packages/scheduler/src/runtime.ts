@@ -32,6 +32,7 @@ import { sharedOwnerLimit } from "./sharedPolicy.js";
 import {
   RoutedProvider,
   resolveRouteChain,
+  classifyFailure,
   NEMOTRON_SUPER,
   type ModelRoute,
   type RouteAttempt,
@@ -370,9 +371,20 @@ function routedProviderFor(
       },
       release: async (_route, lease, result, unused) => {
         if (!lease) return;
+        // NVIDIA answers a 429 or a worker-limit 503 before inference and
+        // reports no usage. Charging the full estimate for it drained the
+        // owner budget and deferred the in-cycle fallback (prod 2026-10-06
+        // 13:13-13:52Z: 36 of 49 such fallbacks owner-deferred, against 2 of
+        // 21 after a local defer). The request stays debited; only tokens the
+        // provider never processed are refunded. Timeouts and other failures
+        // keep the conservative full charge.
+        const rejectedBeforeInference =
+          !result.ok && !result.usage && classifyFailure(result) === "capacity";
         const actualTokens = result.usage
           ? result.usage.promptTokens + result.usage.completionTokens
-          : undefined;
+          : rejectedBeforeInference
+            ? 0
+            : undefined;
         const releaseLease = (value: ProviderCapacityLease) =>
           unused
             ? releaseProviderCapacity(pool, value, 0, true)
