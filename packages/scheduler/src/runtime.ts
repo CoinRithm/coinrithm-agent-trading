@@ -138,6 +138,14 @@ function limitForRoute(route: ModelRoute, input: DecideInput, config: Config) {
   };
 }
 
+function isOfficialNvidiaRoute(route: ModelRoute): boolean {
+  return (
+    route.provider === "nvidia" &&
+    (route.baseUrl == null ||
+      route.baseUrl === "https://integrate.api.nvidia.com/v1")
+  );
+}
+
 function keyForRoute(
   route: ModelRoute,
   nvidia: { key: string; keyRef: string },
@@ -368,11 +376,28 @@ function routedProviderFor(
           throw error;
         }
       },
-      release: async (_route, lease, result, unused) => {
+      release: async (route, lease, result, unused) => {
         if (!lease) return;
+        // The official NVIDIA endpoint answers a 429 or a worker admission 503
+        // before inference and reports no usage. Charging the full estimate
+        // for it drains the owner budget and defers the in-cycle fallback.
+        // Only that exact rejection refunds tokens; the request stays debited.
+        // Reported usage stays authoritative, and every ambiguous failure
+        // (other ResourceExhausted, generic 503, timeout) keeps the full charge.
+        const rejectedBeforeInference =
+          !result.ok &&
+          !result.usage &&
+          isOfficialNvidiaRoute(route) &&
+          (result.status === 429 ||
+            (result.status === 503 &&
+              /worker local total request limit reached/i.test(
+                result.error ?? "",
+              )));
         const actualTokens = result.usage
           ? result.usage.promptTokens + result.usage.completionTokens
-          : undefined;
+          : rejectedBeforeInference
+            ? 0
+            : undefined;
         const releaseLease = (value: ProviderCapacityLease) =>
           unused
             ? releaseProviderCapacity(pool, value, 0, true)
