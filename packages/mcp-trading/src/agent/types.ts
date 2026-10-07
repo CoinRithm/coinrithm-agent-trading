@@ -429,6 +429,27 @@ export interface MacroContext {
   quotes: MacroQuote[];
 }
 
+// DeFi context (GET /api/agent/market defi, backend-v2 #147). chainTvl is the
+// value locked on the chain whose native token this coin is, NOT the coin's
+// market value; stablecoinSupply is market-wide. Dates are the provider's.
+export interface ChainTvlContext {
+  chain: string;
+  tvlUsd: number;
+  asOf: string | null;
+  stale: boolean;
+  dayAt: string | null;
+  change1dPct: number | null;
+  change7dPct: number | null;
+}
+
+export interface StablecoinSupplyContext {
+  totalUsd: number;
+  dayAt: string;
+  change1dPct: number | null;
+  change7dPct: number | null;
+  stale: boolean;
+}
+
 export interface WatchEntry {
   symbol: string;
   coinId: string | null; // resolved UCID; null if unresolvable
@@ -477,6 +498,8 @@ export interface WatchEntry {
   positioning?: PositioningContext;
   // OKX liquidations with capture coverage; omitted when none captured.
   liquidations?: LiquidationContext;
+  // TVL on the chain whose native token this coin is; omitted otherwise.
+  chainTvl?: ChainTvlContext;
   // What the server entry gate's perpetual-reference rule says about a NEW
   // futures open on this coin (GET /api/agent/market futuresEntryEligibility,
   // backend-v2 #106). Absent = unknown (older API): never blocks by itself.
@@ -852,6 +875,8 @@ export interface Observation {
   marketMood?: { fearGreed: number; label: string; fetchedAt?: string };
   // Macro proxies (indices, commodities, FX, rates), once per observation.
   macro?: MacroContext;
+  // Total stablecoin supply (market-wide), once per observation.
+  stablecoinSupply?: StablecoinSupplyContext;
   syncCursor: string | null; // advanced from /trades
   newClosedTrades: Array<Record<string, unknown>>; // fired stops/liqs/settlements
   polledBeforeWrite: boolean; // whether this cycle synced /trades first
