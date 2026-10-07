@@ -107,12 +107,19 @@ export interface RouteHooks<Lease = unknown> {
 }
 
 const MAX_ROUTE_ATTEMPTS = 2;
-/** Longest in-cycle wait for an owner-bucket refill (sharedPolicy TTL). */
-export const MAX_OWNER_REFILL_WAIT_MS = 60_000;
-const MAX_RECOVERY_REFILL_WAIT_MS = MAX_OWNER_REFILL_WAIT_MS;
+/**
+ * Longest in-cycle wait for an owner-bucket refill (sharedPolicy TTL). 120 s
+ * (root 57001): at 60 s, a41-mon-olivia, whose grid slot follows a sibling's
+ * ~49k call by ~25 s in a seven-agent owner, got 71-89 s refill hints and
+ * never waited (1 call in 6 cycles, 7 Oct 2026). The 300 s deadline still
+ * keeps the 30 s response margin after a full wait.
+ */
+export const MAX_OWNER_REFILL_WAIT_MS = 120_000;
+/** Malformed-tool recovery keeps its original 60 s refill ceiling. */
+const MAX_RECOVERY_REFILL_WAIT_MS = 60_000;
 /**
  * First-attempt owner-refill waits in flight per scheduler process. A waiting
- * cycle holds a scheduler slot (6 by default) for up to 60 s, so at most this
+ * cycle holds a scheduler slot (6 by default) for up to 120 s, so at most this
  * many may wait at once; beyond it a cycle defers and releases its claim, and
  * other owners' agents keep their slots.
  */
@@ -373,8 +380,9 @@ export class RoutedProvider<Lease = unknown> implements Provider {
       // A first attempt denied by the owner budget may wait in-cycle for the
       // refill too (owner fairness, 009): otherwise its next try is a whole
       // grid interval later at the same offset, which is how one agent lost
-      // every cycle. Same bounds as the malformed retry: owner token/request
-      // budget only, <= 60 s, >= 30 s left for the response, re-admission.
+      // every cycle. Same rules as the malformed retry: owner token/request
+      // budget only, >= 30 s left for the response, re-admission; the ceiling
+      // is MAX_OWNER_REFILL_WAIT_MS (120 s) here, 60 s for the recovery.
       // "First" = nothing has reached a provider yet this cycle. A local
       // deferral that made no call (a route cooldown on the configured model)
       // does not count: live 07:37 UTC, house Mia's Nano route was cooling down
@@ -385,6 +393,9 @@ export class RoutedProvider<Lease = unknown> implements Provider {
       let routeChanged = false;
       const fairnessWait =
         firstAttempt && options?.nemotronJsonContent !== true;
+      const waitCeilingMs = fairnessWait
+        ? MAX_OWNER_REFILL_WAIT_MS
+        : MAX_RECOVERY_REFILL_WAIT_MS;
       if (
         (options?.nemotronJsonContent === true || firstAttempt) &&
         (!fairnessWait || ownerWaitsInFlight < MAX_CONCURRENT_OWNER_WAITS) &&
@@ -397,7 +408,7 @@ export class RoutedProvider<Lease = unknown> implements Provider {
         typeof refillWaitMs === "number" &&
         Number.isFinite(refillWaitMs) &&
         refillWaitMs > 0 &&
-        refillWaitMs <= MAX_RECOVERY_REFILL_WAIT_MS &&
+        refillWaitMs <= waitCeilingMs &&
         this.now() + refillWaitMs + MIN_RECOVERY_RESPONSE_MS <= deadline
       ) {
         // No lease is held: a first denial creates none, and a malformed first

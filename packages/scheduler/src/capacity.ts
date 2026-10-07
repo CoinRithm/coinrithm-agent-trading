@@ -403,8 +403,14 @@ export async function isProviderRouteCoolingDown(
 
 /**
  * Release concurrency immediately and reconcile the estimate against provider
- * usage. A smaller actual call refunds tokens; an underestimate debits the
- * difference without ever making the bucket negative.
+ * usage. A smaller actual call refunds tokens; an underestimate is kept as
+ * debt (the bucket may go negative) that refill repays before any later
+ * admission, so reported usage, not the chars/4 estimate, meets the
+ * configured rate. Live 2026-10-07: shared calls used 1.50x their reserve
+ * and the old floor at 0 forgave the excess. All valid reported excess is
+ * carried; usage counts only as a nonnegative safe integer, and anything
+ * else (missing, negative, fractional, unsafe, non-finite) charges exactly
+ * the reserve. A lease reconciles once (DELETE ... RETURNING).
  */
 export async function releaseProviderCapacity(
   pool: Pool,
@@ -413,9 +419,11 @@ export async function releaseProviderCapacity(
   unused = false,
 ): Promise<void> {
   const actual =
-    actualTokens == null || !Number.isFinite(actualTokens)
-      ? lease.reservedTokens
-      : Math.max(0, Math.floor(actualTokens));
+    typeof actualTokens === "number" &&
+    Number.isSafeInteger(actualTokens) &&
+    actualTokens >= 0
+      ? actualTokens
+      : lease.reservedTokens;
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -430,9 +438,9 @@ export async function releaseProviderCapacity(
       const delta = reserved - actual;
       await client.query(
         `UPDATE agent_runtime.provider_capacity_buckets
-            SET model_tokens = GREATEST(
-                  0,
-                  LEAST(GREATEST(model_rate_per_min::double precision, $3::double precision), model_tokens + $2)
+            SET model_tokens = LEAST(
+                  GREATEST(model_rate_per_min::double precision, $3::double precision),
+                  model_tokens + $2
                 ),
                 request_tokens = LEAST(request_rate_per_min, request_tokens + $4),
                 -- The claimant's turn is over only when its call consumed

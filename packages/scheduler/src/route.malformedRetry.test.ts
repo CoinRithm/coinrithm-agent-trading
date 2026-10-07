@@ -5,6 +5,7 @@ import {
 } from "@coinrithm/mcp-trading/engine";
 import {
   MAX_CONCURRENT_OWNER_WAITS,
+  MAX_OWNER_REFILL_WAIT_MS,
   NEMOTRON_SUPER,
   NEMOTRON_NANO,
   ownerWaitsInFlightNow,
@@ -459,7 +460,11 @@ describe("first-attempt owner refill wait (owner fairness, 009)", () => {
   });
 
   it.each([
-    ["a refill hint over 60 s", ownerDenial(60_001), 300000],
+    [
+      "a refill hint over 120 s",
+      ownerDenial(MAX_OWNER_REFILL_WAIT_MS + 1),
+      300000,
+    ],
     ["too little time left for a response", ownerDenial(50_000), 70000],
     ["a busy call slot", ownerDenial(1000, ["concurrency"]), 300000],
   ])(
@@ -511,6 +516,152 @@ describe("first-attempt owner refill wait (owner fairness, 009)", () => {
     await vi.advanceTimersByTimeAsync(57_600);
     expect((await pending).ok).toBe(true);
     expect(h.hooks.acquire).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the malformed-tool recovery at 60 s while a first call may wait 120 s", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    // Same 90 s owner hint. Malformed Super recovery: no wait, no timer.
+    const recovery = harness([bad], [superRoute], () => Date.now());
+    vi.mocked(recovery.hooks.acquire)
+      .mockResolvedValueOnce({ ok: true, lease: "first" })
+      .mockResolvedValueOnce(ownerDenial(90_000));
+    expect(
+      await recovery.provider.decide({ ...input, timeoutMs: 300_000 }),
+    ).toMatchObject({ ok: false, deferred: false });
+    expect(recovery.hooks.acquire).toHaveBeenCalledTimes(2);
+    expect(vi.getTimerCount()).toBe(0);
+    // First call of a cycle: waits the 90 s and re-admits.
+    const first = harness([good], [superRoute], () => Date.now());
+    vi.mocked(first.hooks.acquire)
+      .mockResolvedValueOnce(ownerDenial(90_000))
+      .mockResolvedValueOnce({ ok: true, lease: "after-wait" });
+    const pending = first.provider.decide({ ...input, timeoutMs: 300_000 });
+    await vi.advanceTimersByTimeAsync(90_000);
+    expect((await pending).ok).toBe(true);
+    expect(first.hooks.acquire).toHaveBeenCalledTimes(2);
+  });
+
+  it("waits for an oversized first owner refill (a41-mon-olivia's live 88.9 s hint)", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const h = harness([good], [superRoute], () => Date.now());
+    h.hooks.stillEligible = vi.fn(async () => true);
+    h.hooks.abandonOwnerWait = vi.fn(async () => {});
+    vi.mocked(h.hooks.acquire)
+      .mockResolvedValueOnce(ownerDenial(88_887))
+      .mockResolvedValueOnce({ ok: true, lease: "after-wait" });
+    const pending = h.provider.decide({ ...input, timeoutMs: 300_000 });
+    await vi.advanceTimersByTimeAsync(88_886);
+    expect(h.build).not.toHaveBeenCalled();
+    expect(ownerWaitsInFlightNow()).toBe(1);
+    await vi.advanceTimersByTimeAsync(1);
+    const result = await pending;
+    expect(result.ok).toBe(true);
+    expect(h.hooks.stillEligible).toHaveBeenCalledOnce();
+    expect(h.hooks.acquire).toHaveBeenCalledTimes(2);
+    expect(h.build).toHaveBeenCalledOnce();
+    expect(h.hooks.abandonOwnerWait).not.toHaveBeenCalled();
+    expect(ownerWaitsInFlightNow()).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each([
+    [
+      "the full 120 s ceiling with the 30 s margin left",
+      120_000,
+      150_000,
+      true,
+    ],
+    [
+      "a 100 s hint that would cut into the 30 s margin",
+      100_000,
+      129_999,
+      false,
+    ],
+  ])(
+    "bounds a long wait by the original deadline: %s",
+    async (_label, hint, timeoutMs, waits) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(0);
+      const h = harness([good], [superRoute], () => Date.now());
+      h.hooks.abandonOwnerWait = vi.fn(async () => {});
+      vi.mocked(h.hooks.acquire)
+        .mockResolvedValueOnce(ownerDenial(hint))
+        .mockResolvedValueOnce({ ok: true, lease: "after-wait" });
+      const pending = h.provider.decide({ ...input, timeoutMs });
+      await vi.advanceTimersByTimeAsync(hint);
+      const result = await pending;
+      expect(result.ok).toBe(waits);
+      expect(h.hooks.acquire).toHaveBeenCalledTimes(waits ? 2 : 1);
+      expect(h.hooks.abandonOwnerWait).toHaveBeenCalledTimes(waits ? 0 : 1);
+      expect(h.build).toHaveBeenCalledTimes(waits ? 1 : 0);
+      expect(ownerWaitsInFlightNow()).toBe(0);
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
+
+  it("ends the claim after a long wait when the agent was paused or re-admission fails", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const paused = harness([good], [superRoute], () => Date.now());
+    paused.hooks.stillEligible = vi.fn(async () => false);
+    paused.hooks.abandonOwnerWait = vi.fn(async () => {});
+    vi.mocked(paused.hooks.acquire).mockResolvedValueOnce(ownerDenial(110_000));
+    const denied = harness([good], [superRoute], () => Date.now());
+    denied.hooks.abandonOwnerWait = vi.fn(async () => {});
+    vi.mocked(denied.hooks.acquire)
+      .mockResolvedValueOnce(ownerDenial(110_000))
+      .mockResolvedValueOnce(ownerDenial(5_000));
+    const results = Promise.all([
+      paused.provider.decide({ ...input, timeoutMs: 300_000 }),
+      denied.provider.decide({ ...input, timeoutMs: 300_000 }),
+    ]);
+    await vi.advanceTimersByTimeAsync(110_000);
+    for (const r of await results) expect(r.ok).toBe(false);
+    expect(paused.hooks.acquire).toHaveBeenCalledOnce();
+    expect(denied.hooks.acquire).toHaveBeenCalledTimes(2);
+    for (const h of [paused, denied]) {
+      expect(h.build).not.toHaveBeenCalled();
+      expect(h.hooks.abandonOwnerWait).toHaveBeenCalledOnce();
+    }
+    expect(ownerWaitsInFlightNow()).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("keeps other owners moving while two 120 s waits hold their slots", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const waiting = Array.from({ length: MAX_CONCURRENT_OWNER_WAITS }, () => {
+      const h = harness([good], [superRoute], () => Date.now());
+      vi.mocked(h.hooks.acquire)
+        .mockResolvedValueOnce(ownerDenial(MAX_OWNER_REFILL_WAIT_MS))
+        .mockResolvedValueOnce({ ok: true, lease: "after-wait" });
+      return h.provider.decide({ ...input, timeoutMs: 300_000 });
+    });
+    await vi.advanceTimersByTimeAsync(1);
+    expect(ownerWaitsInFlightNow()).toBe(MAX_CONCURRENT_OWNER_WAITS);
+    // Another owner's admitted agent dispatches at once, mid-wait.
+    const other = harness([good], [superRoute], () => Date.now());
+    vi.mocked(other.hooks.acquire).mockResolvedValueOnce({
+      ok: true,
+      lease: "other-owner",
+    });
+    expect(
+      (await other.provider.decide({ ...input, timeoutMs: 300_000 })).ok,
+    ).toBe(true);
+    expect(other.build).toHaveBeenCalledOnce();
+    // A third owner denial cannot join the waits: it defers and ends its claim.
+    const extra = harness([good], [superRoute], () => Date.now());
+    extra.hooks.abandonOwnerWait = vi.fn(async () => {});
+    vi.mocked(extra.hooks.acquire).mockResolvedValueOnce(ownerDenial(10_000));
+    expect(
+      (await extra.provider.decide({ ...input, timeoutMs: 300_000 })).ok,
+    ).toBe(false);
+    expect(extra.hooks.abandonOwnerWait).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(MAX_OWNER_REFILL_WAIT_MS);
+    for (const r of await Promise.all(waiting)) expect(r.ok).toBe(true);
+    expect(ownerWaitsInFlightNow()).toBe(0);
   });
 
   it("caps concurrent first-attempt waits so waiting owners cannot hold every slot", async () => {
