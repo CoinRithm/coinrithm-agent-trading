@@ -133,9 +133,9 @@ export const OBJECTIVE_GUIDANCE: Record<ObjectivePrimary, string> = {
   risk_adjusted:
     "return per unit of risk. Prefer fewer, cleaner setups with a meaningful stop; when the risk is unclear, skip.",
   drawdown_control:
-    "protecting the account first. Keep exposure small, always protect positions, and add no new risk after losses; a skipped marginal trade costs nothing.",
+    "preserving capital and keeping drawdowns small, within your declared strategy and the existing risk limits.",
   calibration:
-    "well-calibrated probability calls. Anchor on the market price and move only as far as your evidence carries you; a forecast you would not bet on is not a forecast.",
+    "honest, evidence-based probabilities. Report what the evidence supports and keep your uncertainty visible; a forecast is valid without a trade, and a trade needs adequate edge, otherwise skip it.",
 };
 
 export function objectiveLine(
