@@ -5,6 +5,7 @@
 // The model only PROPOSES — the runner re-checks every action against the caps,
 // so the prompt states the caps but never relies on the model to honor them.
 
+import { describeUniverse, scansUniverse } from "./universe.js";
 import { AgentSpec, Observation, PmResolution, RunState } from "./types.js";
 import { pmQualityOf, pmDecisionSupportOf } from "./pmContext.js";
 import { usesCapitalSizing } from "./capitalSizing.js";
@@ -225,7 +226,7 @@ export function buildSystemPrompt(
     // sections telling one story.
     ...(hasCoinVenue
       ? [
-          spec.capabilities.includes("universe_scan")
+          scansUniverse(spec)
             ? `- tradable symbols (${coinVenueLabel}): your watchlist (${r.watchlist.join(", ")}) PLUS this cycle's watch entries marked \`discovered: true\` — nothing outside those`
             : `- watchlist (${coinVenueLabel} use ONLY these): ${r.watchlist.join(", ")}`,
         ]
@@ -245,6 +246,26 @@ export function buildSystemPrompt(
     ...(hasPm && typeof r.pmMinEntryProbabilityPct === "number"
       ? [
           `- PM ENTRY FLOOR: pm_open on an outcome whose market probability is below ${r.pmMinEntryProbabilityPct} points is REJECTED by the runner (the chosen outcome's own price; fees are not counted). Do not propose cheaper longshots; look for edge on outcomes priced at or above the floor.`,
+        ]
+      : []),
+    ...(hasPm && typeof r.pmMinEdgeGapPct === "number"
+      ? [
+          `- PM EDGE RULE: every pm_open MUST carry forecastProbability, and it must beat the fee-inclusive cost by ${r.pmMinEdgeGapPct}% of the room left to 100 (cost 50 needs ${(50 + (r.pmMinEdgeGapPct / 100) * 50).toFixed(1)}, cost 70 needs ${(70 + (r.pmMinEdgeGapPct / 100) * 30).toFixed(1)}). The runner REJECTS an open without a forecast or under this bar.`,
+        ]
+      : []),
+    ...(hasPm && typeof r.pmMaxEdgePoints === "number"
+      ? [
+          `- PM OVERCONFIDENCE CAP: every pm_open MUST carry forecastProbability, and it may beat the fee-inclusive cost by at most ${r.pmMaxEdgePoints} points. Base the forecast on current evidence. Do not alter a forecast to pass this cap: skip the trade if your evidence-based forecast falls outside the permitted range. Opens over the cap are REJECTED.`,
+        ]
+      : []),
+    ...(hasPm && typeof r.pmMaxOpenPerEvent === "number"
+      ? [
+          `- PM PER-EVENT CAP: at most ${r.pmMaxOpenPerEvent} open bet(s) per event (same market slug, counting bets you already hold). Extra opens are REJECTED.`,
+        ]
+      : []),
+    ...(hasPm && typeof r.pmMinMinutesToClose === "number"
+      ? [
+          `- PM CLOSE CUTOFF: a market whose \`end\` is less than ${r.pmMinMinutesToClose} minutes away when the runner validates your action is REJECTED; the price already knows.`,
         ]
       : []),
     ...(includeForecast
@@ -269,7 +290,17 @@ export function buildSystemPrompt(
           "- a null field = not enough data; ignore it. These INFORM your decision; they never widen a cap.",
         ]
       : []),
-    ...(spec.capabilities.includes("universe_scan")
+    ...(spec.universe
+      ? [
+          "",
+          "## Your market (declared boundaries) — candidates beyond your watchlist",
+          `Each cycle the runner scans the market inside YOUR boundaries: ${describeUniverse(spec.universe)}. Watch entries with \`discovered: true\` are the top rows of that scan, resolved with the same price/sentiment (and indicators) data as your watchlist. observation.universeMovers lists further rows as symbol + 24h change only (context — you cannot trade those directly this cycle). Nothing outside these boundaries is shown to you or tradable.`,
+          "- Treat a discovered candidate like any other symbol: analyze it for catalysts, exhaustion and reversal BEFORE acting. A big move is as often a top as a beginning — chasing candles blind is how discovery loses money.",
+          "- All your normal risk rules apply unchanged: caps, stops, blocklist, confidence floor. Discovery widens what you can SEE, never what you may risk.",
+          "- Your boundaries also bind your watchlist: a watch entry with `withinBoundaries: false` (or no withinBoundaries and not discovered) is context only. You may close or sell an existing position in it, but a new entry is REJECTED (outside_universe).",
+        ]
+      : []),
+    ...(!spec.universe && spec.capabilities.includes("universe_scan")
       ? [
           "",
           "## Universe scan (discovered movers) — candidates beyond your watchlist",

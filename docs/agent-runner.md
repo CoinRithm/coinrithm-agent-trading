@@ -338,6 +338,26 @@ The scheduler uses the same engine. Database hosts must persist state themselves
 when they omit `stateFile`; the file-backed restart check does not establish
 durability for an arbitrary external host.
 
+## Market boundaries (`universe`)
+
+Instead of a fixed coin list, an agent can declare where it may look and let
+the runner find candidates there every cycle:
+
+```yaml
+universe:
+  rank: { min: 101, max: 300 }   # market-cap rank band
+  minVolume24hUsd: 1000000        # liquidity floor
+  excludeStablecoins: true
+  includeSectors: [defi, ai]      # ids from GET /api/agent/universe/sectors
+  excludeSectors: [meme]
+  sort: abs_change_24h            # gainers_24h | losers_24h | abs_change_24h | abs_change_1h | volume_24h | rank
+  resolveTop: 6                   # rows resolved into full watch entries (max 10)
+```
+
+The top rows become watch entries marked `discovered: true` and are tradable
+for that cycle under every normal cap; the blocklist still wins. Nothing
+outside the boundaries is shown to the model or tradable.
+
 ## Venues
 
 The runner trades CoinRithm **spot, futures, and prediction markets** — declare
@@ -354,7 +374,11 @@ configured floor with the quote and the open so the API re-checks it at
 execution inside its locked open transaction and blocks the open with the
 separate API reason `entry_below_floor` before any stake transfer or new
 position (wallet provisioning and the rejection audit still run). Absent means
-no floor. The **hosted** scheduler (running this same agent spec for you,
+no floor. Three more optional PM dials are enforced the same way (preflight
+only): `risk.pmMinEdgeGapPct` (forecast must beat the fee-inclusive cost by that
+% of the room left to 100, and a forecast becomes mandatory),
+`risk.pmMaxOpenPerEvent` (open bets per event, held plus this cycle) and
+`risk.pmMinMinutesToClose` (skip markets whose known close is too near). The **hosted** scheduler (running this same agent spec for you,
 managed) is built and available — see `packages/scheduler/` and its README for
 the DB-driven, stateless, at-most-once-per-window runtime. This doc covers the
 self-host path.
