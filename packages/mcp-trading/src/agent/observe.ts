@@ -8,6 +8,8 @@ import {
   universeQuery,
   universeQueryParams,
   universeResolveTop,
+  universeSectorsOf,
+  UNIVERSE_MAX_SCAN_LIMIT,
   type UniverseRow,
 } from "./universe.js";
 import { futuresEntryEligibilityOf } from "./futuresEligibility.js";
@@ -1120,9 +1122,7 @@ export async function observe(
               volume24hUsd: asNumLoose(r.volume24hUsd),
               // Missing stays missing: the filter must not read an absent
               // sector list as "no excluded sector".
-              sectors: Array.isArray(r.sectors)
-                ? r.sectors.map((x) => asStr(x)).filter((x): x is string => !!x)
-                : undefined,
+              sectors: universeSectorsOf(r.sectors),
             })),
           q,
         );
@@ -1201,22 +1201,25 @@ export async function observe(
     if (context.length > 0) universeMovers = context;
 
     // Watchlist coins must also prove they are inside declared boundaries
-    // before a new entry (universeEntryBlock). One membership call with the
-    // same filters; a failed call leaves them unverified (no new entries),
+    // before a new entry (universeEntryBlock). Bounded membership batches use
+    // the same filters; a failed batch leaves its coins unverified (no entries),
     // never silently eligible. Held positions stay closable either way.
     if (spec.universe) {
       const toCheck = watch.filter((w) => !w.discovered && w.coinId);
-      if (toCheck.length > 0) {
+      const ids = [...new Set(toCheck.map((w) => w.coinId as string))];
+      for (
+        let offset = 0;
+        offset < ids.length;
+        offset += UNIVERSE_MAX_SCAN_LIMIT
+      ) {
+        const batch = ids.slice(offset, offset + UNIVERSE_MAX_SCAN_LIMIT);
         const q = {
           ...universeQuery(spec.universe),
           sort: "rank" as const,
-          limit: Math.min(toCheck.length, 50),
+          limit: batch.length,
         };
         const mr = await client.agentUniverse(
-          universeQueryParams(
-            q,
-            toCheck.map((w) => w.coinId as string),
-          ),
+          universeQueryParams(q, batch),
           trace,
         );
         if (mr.ok) {
@@ -1229,16 +1232,16 @@ export async function observe(
                   coinId: asStr(r.ucid),
                   marketCapRank: asNum(r.marketCapRank) ?? undefined,
                   volume24hUsd: asNumLoose(r.volume24hUsd),
-                  sectors: Array.isArray(r.sectors)
-                    ? r.sectors
-                        .map((x) => asStr(x))
-                        .filter((x): x is string => !!x)
-                    : undefined,
+                  sectors: universeSectorsOf(r.sectors),
                 })),
               q,
             ).map((r) => r.coinId),
           );
-          for (const w of toCheck) w.withinBoundaries = inside.has(w.coinId!);
+          const checked = new Set(batch);
+          for (const w of toCheck) {
+            if (checked.has(w.coinId!))
+              w.withinBoundaries = inside.has(w.coinId!);
+          }
         }
       }
     }

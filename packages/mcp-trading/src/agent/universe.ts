@@ -122,6 +122,14 @@ export interface UniverseRow {
   sectors?: string[];
 }
 
+/** Keep malformed evidence unknown; dropping bad elements can widen a screen. */
+export function universeSectorsOf(raw: unknown): string[] | undefined {
+  return Array.isArray(raw) &&
+    raw.every((s) => typeof s === "string" && SECTOR_ID_RE.test(s))
+    ? raw
+    : undefined;
+}
+
 /**
  * Defence in depth on server rows (never widen): a row is kept only when its
  * own fields PROVE it is inside every enabled boundary. The rank band is
@@ -150,11 +158,12 @@ export function filterUniverseRows(
       if (vol < q.minVolume24hUsd) return false;
     }
     if (sectorRules) {
-      if (!Array.isArray(r.sectors)) return false;
-      if (r.sectors.some((s) => excluded.has(s))) return false;
+      const sectors = universeSectorsOf(r.sectors);
+      if (sectors === undefined) return false;
+      if (sectors.some((s) => excluded.has(s))) return false;
       if (
         q.includeSectors.length > 0 &&
-        !r.sectors.some((s) => included.includes(s))
+        !sectors.some((s) => included.includes(s))
       )
         return false;
     }

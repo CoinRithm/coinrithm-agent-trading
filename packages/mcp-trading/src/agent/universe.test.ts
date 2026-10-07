@@ -7,6 +7,7 @@ import {
   universeQuery,
   universeQueryParams,
   universeResolveTop,
+  universeSectorsOf,
 } from "./universe.js";
 import { observe } from "./observe.js";
 import { validateAction } from "./decisionValidator.js";
@@ -487,5 +488,77 @@ describe("observe verifies watchlist coins against the boundaries", () => {
     expect(
       observation.watch.every((w) => w.withinBoundaries === undefined),
     ).toBe(true);
+  });
+
+  it.each([[null], ["layer-1", 42], ["stablecoins "]])(
+    "does not turn malformed sector evidence %j into permission to enter",
+    async (...sectors) => {
+      const agentUniverse = vi.fn(async () =>
+        ok({ rows: [{ ucid: "1", symbol: "BTC", marketCapRank: 1, sectors }] }),
+      );
+      const { observation } = await observe(
+        client(agentUniverse),
+        spec,
+        newState("fixture"),
+      );
+      expect(observation.watch.every((w) => w.withinBoundaries !== true)).toBe(
+        true,
+      );
+      expect(observation.watch.every((w) => !w.discovered)).toBe(true);
+    },
+  );
+
+  it("checks more than 50 watchlist IDs in bounded batches, isolating a failed batch", async () => {
+    const symbols = Array.from({ length: 51 }, (_, i) => `C${i + 1}`);
+    const agentUniverse = vi.fn(
+      async (query: Record<string, string | number>) => {
+        if (!query.ucids) return ok({ rows: [] });
+        const ids = String(query.ucids).split(",");
+        expect(ids.length).toBeLessThanOrEqual(50);
+        expect(query.limit).toBe(ids.length);
+        if (ids.includes("51")) return { ok: false, status: 503, data: {} };
+        return ok({
+          rows: ids.map((id) => ({
+            ucid: id,
+            symbol: `C${id}`,
+            marketCapRank: Number(id),
+            sectors: [],
+          })),
+        });
+      },
+    );
+    const api = client(agentUniverse);
+    api.resolve = (async (q: string) =>
+      ok({ match: { coinId: q.slice(1) } })) as typeof api.resolve;
+    const { observation } = await observe(
+      api,
+      { ...spec, risk: { ...spec.risk, watchlist: symbols } },
+      newState("fixture"),
+    );
+    expect(agentUniverse.mock.calls.filter(([q]) => q.ucids)).toHaveLength(2);
+    expect(
+      observation.watch.slice(0, 50).every((w) => w.withinBoundaries === true),
+    ).toBe(true);
+    expect(observation.watch[50]?.withinBoundaries).toBeUndefined();
+  });
+});
+
+describe("universeSectorsOf", () => {
+  it("distinguishes an empty valid list from missing or malformed evidence", () => {
+    expect(universeSectorsOf([])).toEqual([]);
+    expect(universeSectorsOf(["layer-1", "eco-ethereum"])).toEqual([
+      "layer-1",
+      "eco-ethereum",
+    ]);
+    for (const raw of [
+      undefined,
+      null,
+      "stablecoins",
+      [null],
+      ["defi", 1],
+      [""],
+    ]) {
+      expect(universeSectorsOf(raw)).toBeUndefined();
+    }
   });
 });
