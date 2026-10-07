@@ -39,7 +39,7 @@ import {
   ChainTvlContext,
   StablecoinSupplyContext,
   DepthContext,
-  DepthBoundContext,
+  DepthSideContext,
   MacroQuote,
   DatedValue,
   WatchEntry,
@@ -858,19 +858,14 @@ const optPct = (v: unknown): number | null => {
   return n == null ? null : n;
 };
 
-// Chain TVL from the same /market context (no extra call). Omitted when the
-// coin has no verified chain association or the block is malformed. publishedAt is
-// response provenance, never the TVL's observation time (unknown, null); a
-// future-dated time is never shown and an unknown one stays stale.
-const depthBoundOf = (v: unknown): DepthBoundContext | null => {
+const depthSideOf = (v: unknown): DepthSideContext | null => {
   const o = asObj(v);
-  const lo = asNum(o.lo);
-  const hi = asNum(o.hi);
-  if (lo == null || hi == null || lo < 0 || hi < lo) return null;
-  return { lo, hi };
+  const usd = asNum(o.usd);
+  if (usd == null || usd < 0 || typeof o.complete !== "boolean") return null;
+  return { usd, complete: o.complete };
 };
 
-// Depth bounds from the same /market context (no extra call). One venue's
+// Observed depth from the same /market context (no extra call). One venue's
 // visible book; omitted when malformed, future-dated or without any band.
 export function depthOf(
   m: Record<string, unknown>,
@@ -878,30 +873,23 @@ export function depthOf(
 ): DepthContext | undefined {
   const d = asObj(asObj(m.derivatives).depth);
   const venue = asStr(d.venue);
-  const precision = asNum(d.precisionPct);
   const asOf = shownTime(d.asOf, nowMs);
-  if (!venue || precision == null || precision < 0 || !asOf) return undefined;
+  if (!venue || !asOf) return undefined;
   const bands: DepthContext["bands"] = [];
   for (const raw of asArr(d.bands)) {
     const b = asObj(raw);
     const pct = asNum(b.pct);
     if (pct == null || pct <= 0) continue;
-    bands.push({
-      pct,
-      bidUsd: depthBoundOf(b.bidUsd),
-      askUsd: depthBoundOf(b.askUsd),
-    });
+    bands.push({ pct, bid: depthSideOf(b.bid), ask: depthSideOf(b.ask) });
   }
-  if (!bands.some((b) => b.bidUsd || b.askUsd)) return undefined;
-  return {
-    venue,
-    precisionPct: precision,
-    bands,
-    asOf,
-    stale: d.stale !== false,
-  };
+  if (!bands.some((b) => b.bid || b.ask)) return undefined;
+  return { venue, bands, asOf, stale: d.stale !== false };
 }
 
+// Chain TVL from the same /market context (no extra call). Omitted when the
+// coin has no verified chain association or the block is malformed. publishedAt is
+// response provenance, never the TVL's observation time (unknown, null); a
+// future-dated time is never shown and an unknown one stays stale.
 export function chainTvlOf(
   m: Record<string, unknown>,
   nowMs = Date.now(),

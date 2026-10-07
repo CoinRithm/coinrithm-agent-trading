@@ -455,22 +455,22 @@ export interface StablecoinSupplyContext {
   stale: boolean;
 }
 
-// Order-book depth bounds (GET /api/agent/market derivatives.depth,
+// Observed order-book depth (GET /api/agent/market derivatives.depth,
 // backend-v2 #150): ONE venue's visible book (Hyperliquid), not total market
-// liquidity and not an executable fill. Per band a {lo, hi} USD bound because
-// book levels are price buckets; null when the book did not reach the band.
-export interface DepthBoundContext {
-  lo: number;
-  hi: number;
+// liquidity and not an executable fill. Per band and side the observed USD
+// inside the band; complete=false means the book snapshot ended inside the
+// band, so deeper liquidity is unknown and usd is only what was seen.
+export interface DepthSideContext {
+  usd: number;
+  complete: boolean;
 }
 
 export interface DepthContext {
   venue: string;
-  precisionPct: number;
   bands: Array<{
     pct: number;
-    bidUsd: DepthBoundContext | null;
-    askUsd: DepthBoundContext | null;
+    bid: DepthSideContext | null;
+    ask: DepthSideContext | null;
   }>;
   asOf: string;
   stale: boolean;
@@ -526,7 +526,7 @@ export interface WatchEntry {
   liquidations?: LiquidationContext;
   // TVL on the chain DefiLlama associates with this coin; omitted otherwise.
   chainTvl?: ChainTvlContext;
-  // One venue's order-book depth bounds; omitted without a verified mapping.
+  // One venue's observed order-book depth; omitted off the reviewed allowlist.
   depth?: DepthContext;
   // What the server entry gate's perpetual-reference rule says about a NEW
   // futures open on this coin (GET /api/agent/market futuresEntryEligibility,
