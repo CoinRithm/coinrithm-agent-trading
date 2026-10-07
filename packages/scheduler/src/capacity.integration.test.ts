@@ -1829,7 +1829,10 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
         for (const a of roster)
           ids.set(a.name, await agentId(`owner86-${a.name}`));
 
-        const run = async (ceilingMs: number) => {
+        // claimantOnly mirrors the current first-call rule (#133): a denial
+        // behind another live claimant does not wait. Without it, this is the
+        // historical #132 rule.
+        const run = async (ceilingMs: number, claimantOnly = false) => {
           const ttl = ceilingMs / 1000 + WAITER_RETRY_SLACK_SECONDS;
           await drainedAgo(0);
           await pool.query(
@@ -1893,6 +1896,7 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
             const hint = r.retryAfterMs;
             const canWait =
               !ev.readmit &&
+              !(claimantOnly && r.claimedByOther) &&
               waiting < MAX_CONCURRENT_OWNER_WAITS &&
               r.reasons.every(
                 (x) => x === "token_budget" || x === "request_budget",
@@ -1914,20 +1918,27 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
 
         const before = await run(60_000);
         const after = await run(MAX_OWNER_REFILL_WAIT_MS);
-        console.info("owner 86 schedule", JSON.stringify({ before, after }));
+        const current = await run(MAX_OWNER_REFILL_WAIT_MS, true);
+        console.info(
+          "owner 86 schedule",
+          JSON.stringify({ before, historical132: after, current }),
+        );
         // Reported usage, not the estimate, stays within the owner's refill
         // plus the largest single reported excess (a44: 49,150 - 29,774); the
         // old floor at 0 let ~1.5x through.
         const budget = (h: number) => (RATE * h) / 60 + 19_376;
         expect(before.consumed).toBeLessThanOrEqual(budget(before.horizon));
         expect(after.consumed).toBeLessThanOrEqual(budget(after.horizon));
+        expect(current.consumed).toBeLessThanOrEqual(budget(current.horizon));
         // 60 s: a41 is the fixed loser (live: 1 call in 6 cycles).
         expect(before.calls.a41).toBe(Math.min(...Object.values(before.calls)));
         expect(before.calls.a41).toBeLessThan(cycles / 4);
         // 120 s: every agent is served and a41 more often. Shares stay unequal
         // (the owner asks ~1.5x its cap); no throughput gain is claimed.
-        for (const a of roster) expect(after.calls[a.name]).toBeGreaterThan(0);
-        expect(after.calls.a41).toBeGreaterThan(before.calls.a41);
+        for (const mode of [after, current]) {
+          for (const a of roster) expect(mode.calls[a.name]).toBeGreaterThan(0);
+          expect(mode.calls.a41).toBeGreaterThan(before.calls.a41);
+        }
       },
       SCHEDULE_TEST_TIMEOUT_MS,
     );
