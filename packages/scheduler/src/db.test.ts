@@ -1324,7 +1324,13 @@ describe("paid brain ledger and call state (contract v2)", () => {
     expect(ledger.call("'release'")).toBeDefined();
     const debit = ledger.call("'debit'")![1];
     expect(debit[1]).toBe(-50_000);
-    expect(debit[9]).toContain("over reserve: priced 52800");
+    expect(debit[9]).toContain(
+      "over reserve: priced 52800, charged the 50000 reserve, written off 2800",
+    );
+    // Provider cost stays what we pay (44,000); the charge earned 6,000 over
+    // it instead of the priced 8,800 margin.
+    expect(debit[7]).toBe(44_000);
+    expect(debit[8]).toBe(6_000);
     const [flagSql, flagParams] = ledger.call(
       "SET status = 'uncertain', debit_micro_usd = $2",
     )!;

@@ -5,8 +5,10 @@
 --   positive: grant, topup, refund (credit given back), release (returns a
 --             reserve);
 --   negative: reserve (worst case held BEFORE a paid call), debit (the
---             provider-reported actual charge), reversal (a top-up refunded or
---             charged back at the payment provider).
+--             provider-reported actual charge, never above its reserve),
+--             reversal (a top-up refunded or charged back at the payment
+--             provider);
+--   positive: restore (credits given back when a chargeback is reversed).
 --   Balance = SUM(amount_micro_usd) per user; open reserves are already
 --   subtracted. Every row carries a unique idempotency key ('reserve:<agent>:
 --   <cycle key>', 'release:<reserve key>', 'debit:<reserve key>', 'grant:<uuid>',
@@ -17,12 +19,15 @@
 --     reserved   -> the worst case is held; the provider has NOT been called.
 --     dispatched -> committed immediately before the HTTP call.
 --     answered   -> the provider answered with usage (ready to finalise).
---     rejected   -> the provider answered with an explicit HTTP error and no
---                   usage (not billable: release).
+--     rejected   -> a KNOWN pre-processing rejection without usage (Anthropic
+--                   400/401/403/404/413/429): not billable, release.
 --     uncertain  -> a call that may have been billed without usage: answered
---                   without usage, a transport failure, or a dispatched call
---                   left unresolved. Never auto-refunded; it blocks that owner's
---                   paid admissions until root reconciles it.
+--                   without usage, any other HTTP error (5xx, 529 overload), a
+--                   transport failure, or a dispatched call left unresolved;
+--                   also a call whose reported usage exceeded its reserve
+--                   (charged only the reserve, the rest written off). Never
+--                   auto-refunded; it blocks that owner's paid admissions
+--                   until root reconciles it.
 --     released / finalized -> closed.
 --   The price row (version and per-token prices) and the margin are
 --   snapshotted on the call, so finalisation and recovery never reprice an old

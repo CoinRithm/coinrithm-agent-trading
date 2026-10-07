@@ -721,9 +721,15 @@ export async function finalizePaidCall(
         }
         const overReserve = priced.totalMicro > reserved;
         const debitMicro = overReserve ? reserved : priced.totalMicro;
+        // The ledger keeps what WE pay the provider and what the owner was
+        // charged apart: provider_cost is the provider-priced cost; margin is
+        // what the charge earned over it, negative when an over-reserve
+        // write-off exceeded the margin (root review of #118).
+        const chargedMarginMicro = debitMicro - priced.providerCostMicro;
+        const writtenOffMicro = priced.totalMicro - debitMicro;
         const notes = overReserve
           ? [
-              `over reserve: priced ${priced.totalMicro}, charged the ${reserved} reserve`,
+              `over reserve: priced ${priced.totalMicro}, charged the ${reserved} reserve, written off ${writtenOffMicro}`,
               ...priced.notes,
             ]
           : priced.notes;
@@ -745,7 +751,7 @@ export async function finalizePaidCall(
               Math.ceil(call.usage!.promptTokens),
               Math.ceil(call.usage!.completionTokens),
               priced.providerCostMicro,
-              priced.marginMicro,
+              chargedMarginMicro,
               [`price ${call.price.version}`, ...notes].join("; "),
               debitKeyFor(reserveKey),
             ],
