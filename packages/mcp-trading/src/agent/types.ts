@@ -430,8 +430,8 @@ export interface MacroContext {
 }
 
 // DeFi context (GET /api/agent/market defi, backend-v2 #147). chainTvl is the
-// value locked on the chain whose native token this coin is, NOT the coin's
-// market value; stablecoinSupply is market-wide. Dates are the provider's.
+// value locked on the chain associated with this asset by DefiLlama (not
+// proof of a native token), NOT the coin's market value; stablecoinSupply is market-wide. Dates are the provider's.
 export interface ChainTvlContext {
   chain: string;
   tvlUsd: number;
@@ -503,7 +503,7 @@ export interface WatchEntry {
   positioning?: PositioningContext;
   // OKX liquidations with capture coverage; omitted when none captured.
   liquidations?: LiquidationContext;
-  // TVL on the chain whose native token this coin is; omitted otherwise.
+  // TVL on the chain DefiLlama associates with this coin; omitted otherwise.
   chainTvl?: ChainTvlContext;
   // What the server entry gate's perpetual-reference rule says about a NEW
   // futures open on this coin (GET /api/agent/market futuresEntryEligibility,

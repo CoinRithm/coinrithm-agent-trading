@@ -62,10 +62,11 @@ describe("chainTvlOf", () => {
     ).toMatchObject({
       fetchedAt: null,
       publishedAt: "2026-10-07T05:02:21.000Z",
+      stale: true,
     });
     expect(
       chainTvlOf(market({ chainTvl: block({ fetchedAt: null }) }), NOW),
-    ).toMatchObject({ fetchedAt: null, sourceObservedAt: null });
+    ).toMatchObject({ fetchedAt: null, sourceObservedAt: null, stale: true });
   });
 
   it("omits a missing or malformed block", () => {

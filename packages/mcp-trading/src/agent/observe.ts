@@ -857,7 +857,7 @@ const optPct = (v: unknown): number | null => {
 };
 
 // Chain TVL from the same /market context (no extra call). Omitted when the
-// coin is not a verified chain token or the block is malformed. publishedAt is
+// coin has no verified chain association or the block is malformed. publishedAt is
 // response provenance, never the TVL's observation time (unknown, null); a
 // future-dated time is never shown and an unknown one stays stale.
 export function chainTvlOf(
@@ -879,7 +879,8 @@ export function chainTvlOf(
     publishedAt,
     fetchedAt,
     sourceObservedAt: null,
-    stale: publishedAt == null || c.stale !== false,
+    // Unknown publication OR collection time is never fresh (root 56890).
+    stale: publishedAt == null || fetchedAt == null || c.stale !== false,
     dayAt,
     change1dPct: dayAt ? optPct(c.change1dPct) : null,
     change7dPct: dayAt ? optPct(c.change7dPct) : null,
