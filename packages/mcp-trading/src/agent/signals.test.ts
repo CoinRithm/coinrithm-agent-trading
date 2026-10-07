@@ -98,6 +98,10 @@ describe("validation", () => {
     expect(codes({ leanMovePct: 3, strongMovePct: 2 })).toContain(
       "skill_signals_moves",
     );
+    for (const bad of [["1W"], null, { range: "1W" }, 7, true])
+      expect(codes(undefined, { indicatorRange: bad })).toContain(
+        "skill_data_range",
+      );
     expect(codes(undefined, { indicatorRange: "5m" })).toContain(
       "skill_data_range",
     );

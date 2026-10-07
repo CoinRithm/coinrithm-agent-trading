@@ -113,7 +113,9 @@ export function signalIssues(
       add("skill_data", "data must be a mapping");
     } else if (
       rawData.indicatorRange !== undefined &&
-      !Object.hasOwn(INDICATOR_RANGES, String(rawData.indicatorRange))
+      // A real string only: String(['1W']) is "1W" and must not pass.
+      (typeof rawData.indicatorRange !== "string" ||
+        !Object.hasOwn(INDICATOR_RANGES, rawData.indicatorRange))
     ) {
       add(
         "skill_data_range",
