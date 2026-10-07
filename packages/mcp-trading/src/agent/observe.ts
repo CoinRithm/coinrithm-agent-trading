@@ -2,6 +2,14 @@
 // before any write (polledBeforeWrite=true only after that succeeds). If a
 // required read fails, or no watchlist symbol resolves, the cycle SKIPS writes.
 
+import {
+  filterUniverseRows,
+  scansUniverse,
+  universeQuery,
+  universeQueryParams,
+  universeResolveTop,
+  type UniverseRow,
+} from "./universe.js";
 import { futuresEntryEligibilityOf } from "./futuresEligibility.js";
 import { CoinRithmClient } from "./client.js";
 import {
@@ -1083,82 +1091,112 @@ export async function observe(
   // never a skipped cycle. Watchlist + blocklist symbols are excluded up
   // front so a discovered row can never duplicate or bypass the deny-list.
   let universeMovers: Observation["universeMovers"];
-  if (spec.capabilities.includes("universe_scan")) {
-    const mv = await client.cryptoMovers("gainers", UNIVERSE_SCAN_LIMIT, trace);
-    if (mv.ok && Array.isArray(mv.data)) {
-      const excluded = new Set(
-        [...spec.risk.watchlist, ...(spec.risk.blocklist ?? [])].map((s) =>
-          s.toUpperCase(),
-        ),
+  if (scansUniverse(spec)) {
+    const excluded = new Set(
+      [...spec.risk.watchlist, ...(spec.risk.blocklist ?? [])].map((s) =>
+        s.toUpperCase(),
+      ),
+    );
+    // Declared boundaries ask the screener; otherwise keep the original
+    // top-gainers scan exactly. Either way the rows share one resolve path.
+    let rows: UniverseRow[] = [];
+    let resolveTopCount = UNIVERSE_RESOLVE_TOP;
+    if (spec.universe) {
+      const q = universeQuery(spec.universe);
+      resolveTopCount = universeResolveTop(spec.universe);
+      const ur = await client.agentUniverse(universeQueryParams(q), trace);
+      if (ur.ok) {
+        rows = filterUniverseRows(
+          asArr(asObj(ur.data).rows)
+            .map(asObj)
+            .map((r) => ({
+              symbol: (asStr(r.symbol) ?? "").toUpperCase(),
+              name: asStr(r.name),
+              slug: asStr(r.slug),
+              coinId: asStr(r.ucid),
+              marketCapRank: asNum(r.marketCapRank) ?? undefined,
+              priceUsd: asNumLoose(r.priceUsd),
+              change24h: asNumLoose(r.change24h),
+              volume24hUsd: asNumLoose(r.volume24hUsd),
+              sectors: asArr(r.sectors)
+                .map((x) => asStr(x))
+                .filter((x): x is string => !!x),
+            })),
+          q,
+        );
+      }
+    } else {
+      const mv = await client.cryptoMovers(
+        "gainers",
+        UNIVERSE_SCAN_LIMIT,
+        trace,
       );
-      const rows = mv.data
-        .map(asObj)
-        .map((r) => ({
+      if (mv.ok && Array.isArray(mv.data)) {
+        rows = mv.data.map(asObj).map((r) => ({
           symbol: (asStr(r.symbol) ?? "").toUpperCase(),
           name: asStr(r.name),
           // Both serialize as decimal STRINGS on the live feed (openapi
           // PublicCryptoMover; probed 2026-09-02: "72.34"), so the strict
           // asNum read left them undefined. Parse the numeric string.
-          change24hPct: asNumLoose(r.change24h),
+          change24h: asNumLoose(r.change24h),
           priceUsd: asNumLoose(r.currentPrice),
           slug: asStr(r.slug),
           // The movers row already carries the ucid, which IS the coinId every
           // downstream call takes. Kept so the resolve round-trip below can be
           // skipped — see the comment there.
           coinId: asStr(r.ucid),
-        }))
-        .filter((r) => r.symbol && !excluded.has(r.symbol));
-
-      const resolveTop = rows.slice(0, UNIVERSE_RESOLVE_TOP);
-      for (const row of resolveTop) {
-        // Prefer the ucid the movers feed already gave us. Resolving the
-        // SYMBOL instead was both a wasted call per discovered mover and a
-        // correctness hazard: symbols collide across listings, so the resolver
-        // could hand back a different coin than the one that actually moved,
-        // and the agent would analyze (and trade) that other coin.
-        let coinId = row.coinId;
-        let resolvedName: string | undefined;
-        if (!coinId) {
-          const rs = await client.resolve(row.symbol, trace);
-          const match = asObj(asObj(rs.data).match);
-          coinId =
-            rs.ok && match.coinId != null ? String(match.coinId) : undefined;
-          resolvedName = asStr(match.name);
-        }
-        if (!coinId) continue;
-        const mk = await client.market(coinId, trace);
-        const m = asObj(mk.data);
-        const price = asObj(m.price);
-        const entry: WatchEntry = {
-          symbol: row.symbol,
-          coinId,
-          name: resolvedName ?? row.name ?? undefined,
-          priceUsd: asNum(price.usd) ?? row.priceUsd,
-          change1h: asNum(price.change1h),
-          change24h: asNum(price.change24h) ?? row.change24hPct,
-          change7d: asNum(price.change7d),
-          ...sentimentContextOf(m),
-          freshness: freshnessOf(asObj(m.observation)),
-          futuresEntryEligibility: futuresEntryEligibilityOf(m),
-          discovered: true,
-          slug: row.slug ?? asStr(asObj(asObj(m.observation).dataset).coinSlug),
-        };
-        const fundamentals = coinFundamentalsOf(m);
-        if (fundamentals) entry.fundamentals = fundamentals;
-        if (wantIndicators)
-          await enrichFromCandles(client, entry, coinId, trace);
-        watch.push(entry);
-      }
-      const context = rows
-        .slice(UNIVERSE_RESOLVE_TOP)
-        .map(({ symbol, name, change24hPct, priceUsd }) => ({
-          symbol,
-          name,
-          change24hPct,
-          priceUsd,
         }));
-      if (context.length > 0) universeMovers = context;
+      }
     }
+    rows = rows.filter((r) => r.symbol && !excluded.has(r.symbol));
+
+    for (const row of rows.slice(0, resolveTopCount)) {
+      // Prefer the ucid the feed already gave us. Resolving the SYMBOL
+      // instead was both a wasted call per discovered mover and a correctness
+      // hazard: symbols collide across listings, so the resolver could hand
+      // back a different coin than the one that actually moved, and the
+      // agent would analyze (and trade) that other coin.
+      let coinId = row.coinId;
+      let resolvedName: string | undefined;
+      if (!coinId) {
+        const rs = await client.resolve(row.symbol, trace);
+        const match = asObj(asObj(rs.data).match);
+        coinId =
+          rs.ok && match.coinId != null ? String(match.coinId) : undefined;
+        resolvedName = asStr(match.name);
+      }
+      if (!coinId) continue;
+      const mk = await client.market(coinId, trace);
+      const m = asObj(mk.data);
+      const price = asObj(m.price);
+      const entry: WatchEntry = {
+        symbol: row.symbol,
+        coinId,
+        name: resolvedName ?? row.name ?? undefined,
+        priceUsd: asNum(price.usd) ?? row.priceUsd,
+        change1h: asNum(price.change1h),
+        change24h: asNum(price.change24h) ?? row.change24h,
+        change7d: asNum(price.change7d),
+        ...sentimentContextOf(m),
+        freshness: freshnessOf(asObj(m.observation)),
+        futuresEntryEligibility: futuresEntryEligibilityOf(m),
+        discovered: true,
+        slug: row.slug ?? asStr(asObj(asObj(m.observation).dataset).coinSlug),
+      };
+      const fundamentals = coinFundamentalsOf(m);
+      if (fundamentals) entry.fundamentals = fundamentals;
+      if (wantIndicators) await enrichFromCandles(client, entry, coinId, trace);
+      watch.push(entry);
+    }
+    const context = rows
+      .slice(resolveTopCount)
+      .map(({ symbol, name, change24h, priceUsd }) => ({
+        symbol,
+        name,
+        change24hPct: change24h,
+        priceUsd,
+      }));
+    if (context.length > 0) universeMovers = context;
   }
 
   // Spot resting orders (for cancel + affordability) — only if spot is enabled.

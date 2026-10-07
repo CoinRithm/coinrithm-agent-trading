@@ -277,6 +277,27 @@ export interface AgentSpec {
   capabilities: Capability[];
   // Slice-2 gate policy (OKF intent). Omitted => DEFAULT_TRIGGER_POLICY.
   triggerPolicy?: TriggerPolicy;
+  // Market boundaries the agent scans inside each cycle (universe.ts).
+  // Omitted => watchlist only, or today's top-gainers scan with universe_scan.
+  universe?: UniverseConfig;
+}
+
+/** Declared market boundaries; see universe.ts for semantics and defaults. */
+export interface UniverseConfig {
+  rank?: { min?: number; max?: number };
+  minVolume24hUsd?: number;
+  excludeStablecoins?: boolean;
+  includeSectors?: string[];
+  excludeSectors?: string[];
+  sort?:
+    | "gainers_24h"
+    | "losers_24h"
+    | "abs_change_24h"
+    | "abs_change_1h"
+    | "volume_24h"
+    | "rank";
+  resolveTop?: number;
+  scanLimit?: number;
 }
 
 export interface ParsedSkill {

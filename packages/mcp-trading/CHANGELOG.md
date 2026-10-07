@@ -7,6 +7,17 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
 ## 0.7.16 (unpublished)
 
+- Add an optional `universe` block (market boundaries): a market-cap rank
+  band, a minimum 24h volume, stablecoins in or out, curated sectors and chain
+  ecosystems in or out, and the sort that defines an opportunity. Each cycle
+  the runner asks `GET /api/agent/universe` for rows inside those boundaries,
+  resolves the top `resolveTop` (max 10) into full `discovered` watch entries
+  and passes the rest as context. Rows are re-checked client-side, so a server
+  can narrow the set but never widen it; the blocklist still wins and every
+  cap applies. A failed screener degrades to the watchlist only. The block
+  can live in its own file via `$ref`. Without it, `universe_scan` keeps the
+  previous top-gainers scan exactly. Needs backend-v2 with the screener.
+
 - Add three optional, runner-enforced prediction-market policy fields, so
   numbers that strategies stated only in prose become executable. Absent keeps
   the previous behaviour exactly; malformed values fail closed.
