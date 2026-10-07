@@ -227,6 +227,60 @@ describe("futures OHLC walk model", () => {
     ).toMatchObject({ status: "labelled", exit: "stop" });
   });
 
+  // Root 57069: only bars that CLOSE by the horizon end are walked.
+  describe("horizon boundary (closed bars only)", () => {
+    const Q = 900; // 15-minute bars
+    const flat = (k: number, c = 100) => bar(k * Q, 101, 99, c);
+
+    it("ignores a late spike inside a bar that straddles an unaligned horizon", () => {
+      // asOf 10:02, +4 h -> 14:02. Full bars end by 14:00; the 14:00 bar
+      // (to 14:15) would carry a 14:10 stop. It must never be seen.
+      const asOf = new Date((T0 + 120) * 1000).toISOString();
+      const bars = Array.from({ length: 15 }, (_, i) => flat(i + 1));
+      bars[14] = bar(15 * Q, 101, 99, 102); // last full bar, 13:45-14:00
+      bars.push(bar(16 * Q, 101, 90, 91)); // straddles 14:02, stop inside
+      const s = score(
+        longOpen({ takeProfitPrice: undefined }),
+        { prices: { BTC: bars }, barSeconds: Q, horizonHours: 4 },
+        futQuote,
+        asOf,
+      );
+      expect(s).toMatchObject({
+        status: "labelled",
+        exit: "horizon",
+        exitPrice: 102,
+        horizonFlooredToBar: true,
+      });
+    });
+
+    it("uses the bar that ends exactly at an aligned horizon", () => {
+      const s = score(longOpen({ takeProfitPrice: undefined }), {
+        prices: { BTC: [flat(1), flat(2), flat(3, 103), flat(4, 80)] },
+        barSeconds: Q,
+        horizonHours: 1,
+      });
+      expect(s).toMatchObject({
+        exit: "horizon",
+        exitPrice: 103,
+        horizonFlooredToBar: false,
+      });
+    });
+
+    it("is a gap when the last full bar before the horizon is missing or not closed", () => {
+      // Bars to 10:45 only: the 10:45-11:00 bar is absent (not yet closed).
+      expect(
+        score(longOpen({ takeProfitPrice: undefined }), {
+          prices: { BTC: [flat(1), flat(2)] },
+          barSeconds: Q,
+          horizonHours: 1,
+        }),
+      ).toEqual({
+        status: "unlabelled_gap",
+        reason: "bars_end_before_horizon",
+      });
+    });
+  });
+
   it("is unlabelled without a series, an entry price or a parseable asOf", () => {
     expect(score(longOpen(), { prices: {} })).toEqual({
       status: "unlabelled",

@@ -95,14 +95,15 @@ describe("cassetteCoins / priceBarsFor", () => {
     ]);
   });
 
-  it("keeps finite bars from the one containing asOf to the horizon end", () => {
+  it("keeps finite bars from the one containing asOf to the last bar closing by the horizon", () => {
     const data = candles(ASOF_SEC - 900, 10, 300);
     data.candles[5]!.h = Number.NaN;
     const bars = priceBarsFor(data, ASOF_SEC, ASOF_SEC + 1200, 300);
     expect(bars.map((b) => b.t)).toEqual(
       data.candles
         .filter(
-          (c, i) => i !== 5 && c.t > ASOF_SEC - 300 && c.t <= ASOF_SEC + 1200,
+          (c, i) =>
+            i !== 5 && c.t > ASOF_SEC - 300 && c.t + 300 <= ASOF_SEC + 1200,
         )
         .map((c) => c.t),
     );
@@ -110,6 +111,14 @@ describe("cassetteCoins / priceBarsFor", () => {
     expect(priceBarsFor({ error: "x" }, ASOF_SEC, ASOF_SEC + 60, 300)).toEqual(
       [],
     );
+    // A bar straddling the horizon end (or still open) is never stored.
+    const straddle = priceBarsFor(
+      candles(ASOF_SEC + 900, 2, 900),
+      ASOF_SEC,
+      ASOF_SEC + 2000,
+      900,
+    );
+    expect(straddle.map((b) => b.t)).toEqual([ASOF_SEC + 900]);
   });
 });
 
@@ -152,9 +161,19 @@ describe("buildPriceLabels", () => {
     const kept = await buildPriceLabels([cassette()], {
       fetchCandles,
       nowMs: now,
-      existing: { c1: { pm, prices: { BTC: [] } } },
+      existing: { c1: { pm, prices: { BTC: [] }, horizonHours: 24 } },
     });
     expect(kept).toEqual([{ id: "c1", status: "kept" }]);
+    // A file labelled for another horizon is never reported as done.
+    const mismatch = await buildPriceLabels([cassette()], {
+      fetchCandles,
+      nowMs: now,
+      horizonHours: 24,
+      existing: { c1: { pm, prices: { BTC: [] }, horizonHours: 4 } },
+    });
+    expect(mismatch).toEqual([
+      { id: "c1", status: "horizon_mismatch", existingHorizonHours: 4 },
+    ]);
     expect(fetchCandles).not.toHaveBeenCalled();
     const [rebuilt] = await buildPriceLabels([cassette()], {
       fetchCandles,

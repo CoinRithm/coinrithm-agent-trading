@@ -97,7 +97,9 @@ export function cassetteCoins(
 /**
  * Bars from a candles response that can matter for [fromSec, toSec]: the bar
  * containing asOf onward (the scorer itself ignores every bar at or before
- * asOf), finite OHLC only, oldest first.
+ * asOf) through the last bar that CLOSES by toSec, finite OHLC only, oldest
+ * first. A bar straddling toSec (it may hold prices after the horizon) or
+ * still open when labelling runs is never stored.
  */
 export function priceBarsFor(
   data: unknown,
@@ -114,7 +116,7 @@ export function priceBarsFor(
     if (
       [t, h, l, c].every((v) => typeof v === "number" && Number.isFinite(v)) &&
       (t as number) > fromSec - barSeconds &&
-      (t as number) <= toSec
+      (t as number) + barSeconds <= toSec
     )
       bars.push({
         t: t as number,
@@ -130,6 +132,11 @@ export type CassetteLabelResult =
   | { id: string; status: "not_yet"; labelableAfter: string }
   | { id: string; status: "too_old" }
   | { id: string; status: "kept" }
+  | {
+      id: string;
+      status: "horizon_mismatch";
+      existingHorizonHours: number | null;
+    }
   | { id: string; status: "no_coins" }
   | {
       id: string;
@@ -174,7 +181,17 @@ export async function buildPriceLabels(
   for (const cassette of cassettes) {
     const existing = opts.existing?.[cassette.id];
     if (existing?.prices && !opts.overwrite) {
-      results.push({ id: cassette.id, status: "kept" });
+      // An existing file labelled for another horizon is never reported as
+      // done for this one: rebuilding it needs --overwrite.
+      results.push(
+        existing.horizonHours === horizonHours
+          ? { id: cassette.id, status: "kept" }
+          : {
+              id: cassette.id,
+              status: "horizon_mismatch",
+              existingHorizonHours: existing.horizonHours ?? null,
+            },
+      );
       continue;
     }
     const plan = planPriceLabels(cassette.asOf, horizonHours, opts.nowMs);

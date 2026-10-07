@@ -416,6 +416,8 @@ Honest limits (also written into every report's `assumptions`):
 - Futures outcomes are an OHLC walk model, not fills: entry at the
   synthesized quote, no entry latency, a bar touching both stop and target
   counts as the stop (and is counted), a missing bar gives `unlabelled_gap`,
+  only bars that close by the horizon end are walked (a horizon off the bar
+  grid stops at the last full bar before it, flagged `horizonFlooredToBar`),
   and funding is included only when the label file carries funding events.
 - Cassettes hold your paper account's reads (never the API key). Keep a corpus
   as private as the account. Benching a corpus costs one model call per

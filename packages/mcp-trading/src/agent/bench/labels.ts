@@ -16,6 +16,10 @@
 //     counted (sameBarStopAndTarget) so its share is visible;
 //   - a missing bar before the exit (or before the horizon end) makes the
 //     outcome "unlabelled_gap": counted, never filled or interpolated;
+//   - only bars that open after asOf AND close by the horizon end are
+//     walked, so no price after the horizon is ever seen; with a horizon
+//     that does not end on a bar boundary the walk stops at the last full
+//     bar before it (horizonFlooredToBar), a conservative cutoff;
 //   - funding is included only when the label file carries funding events for
 //     the symbol; otherwise the score says fundingIncluded: false.
 //
@@ -84,6 +88,9 @@ export type ActionScore =
       exitPrice: number;
       /** One bar touched both stop and target; resolved as the stop. */
       sameBarStopAndTarget: boolean;
+      /** The horizon was not on a bar boundary: the walk ended at the last
+       *  full bar before it (never at a close after the horizon). */
+      horizonFlooredToBar: boolean;
       fundingIncluded: boolean;
       /** After fees (and funding when included), fraction of margin, >= -1. */
       returnOnMargin: number;
@@ -235,10 +242,12 @@ function scoreFutures(
     labels.horizonHours !== undefined
       ? asOfSec + labels.horizonHours * 3600
       : Infinity;
-  // Only bars that open strictly AFTER the decision's asOf: no look-ahead.
+  // Only bars that open strictly AFTER the decision's asOf (no look-ahead)
+  // and CLOSE by the horizon end: a bar straddling the horizon could carry
+  // a stop or target after it, and a still-open bar is not final.
   const bars = series
     .map((b) => ({ ...b, t: seconds(b.t) }))
-    .filter((b) => b.t > asOfSec && b.t < horizonEnd)
+    .filter((b) => b.t > asOfSec && b.t + barSeconds <= horizonEnd)
     .sort((a, b) => a.t - b.t);
   const gap = (why: string): ActionScore => ({
     status: "unlabelled_gap",
@@ -287,8 +296,12 @@ function scoreFutures(
   }
   if (!exit) {
     // No trigger: mark at the last close, but only when the bars reach the
-    // horizon end (when one is set); a short series is a gap, not an exit.
-    if (Number.isFinite(horizonEnd) && horizonEnd - previousT > barSeconds)
+    // last full bar before the horizon end (when one is set); a short series
+    // is a gap, not an exit.
+    if (
+      Number.isFinite(horizonEnd) &&
+      horizonEnd - (previousT + barSeconds) >= barSeconds
+    )
       return gap("bars_end_before_horizon");
     const last = bars[bars.length - 1];
     exit = { kind: "horizon", price: last.c, t: last.t };
@@ -311,6 +324,10 @@ function scoreFutures(
     exit: exit.kind,
     exitPrice: exit.price,
     sameBarStopAndTarget: sameBar,
+    // Candle times are epoch multiples of the bar size: a horizon end off
+    // that grid was cut back to the last full bar before it.
+    horizonFlooredToBar:
+      Number.isFinite(horizonEnd) && horizonEnd % barSeconds !== 0,
     fundingIncluded: fundingEvents !== undefined,
     returnOnMargin,
     pnlMusd: returnOnMargin * action.marginMusd,
