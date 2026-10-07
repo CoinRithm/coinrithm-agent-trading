@@ -276,6 +276,7 @@ export function buildSystemPrompt(
     `- abstention.minConfidence ${spec.abstention.minConfidence}: opens below this are rejected, so act with genuine conviction — but routine caution is no reason to sit out a clear setup`,
     ...(hasCoinVenue
       ? [
+          "- Open interest (watch[].openInterest) is single-side perpetual exposure in USD across the named venues, not the entire market. Each contract has both a long and a short: OI with price alone cannot establish who opened, closed, or was liquidated. USD OI can also move as price changes without contract counts changing. Treat long/short-covering interpretations as hypotheses requiring other evidence, never as a standalone trade signal. Read each change WITH its change1hVenues/change24hVenues: only matching venue-contracts contribute, and that set may differ from the total's venues. Null changes are unknown; a reported zero total is valid. Ignore stale or missing readings and check asOf against the current observation clock.",
           "- Community sentiment is a dated sample: read sentimentBullishPct WITH sentimentTotalVotes and sentimentDayUtc. A tiny or old cohort is weak evidence, not current market consensus. sentimentUpdatedAt is the cohort's write time. Missing counts/dates are unknown; price freshness does not date sentiment. marketMood.fetchedAt is Fear & Greed collection time, not its provider observation time. Compare each clock with observation.asOf; never invent currentness from a missing date.",
         ]
       : []),

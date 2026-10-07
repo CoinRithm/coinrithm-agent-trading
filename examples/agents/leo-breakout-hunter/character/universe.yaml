@@ -1,0 +1,16 @@
+# Market boundaries (spec.universe): where this agent looks for candidates
+# each cycle. The runner scans inside them via GET /api/agent/universe and
+# resolves the top rows into full watch entries; nothing outside is shown or
+# tradable. Sector ids: GET /api/agent/universe/sectors.
+# Leo hunts breakouts where a break can carry: the top 100 by market cap with
+# at least $10M of daily volume, no stablecoins or tokenized assets, ranked by
+# the size of today's move.
+rank:
+  min: 1
+  max: 100
+minVolume24hUsd: 10000000
+excludeStablecoins: true
+excludeSectors:
+  - pegged-assets
+sort: abs_change_24h
+resolveTop: 6

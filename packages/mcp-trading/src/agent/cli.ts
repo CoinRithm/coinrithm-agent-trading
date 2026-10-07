@@ -40,13 +40,16 @@ import {
   PresetName,
 } from "./templates.js";
 import { COINRITHM_API } from "./version.js";
-import { stableStringify, envFlag } from "./util.js";
-import { ResolveIssue } from "./types.js";
+import { stableStringify, envFlag, parseCadenceMs, sleep } from "./util.js";
+import { AgentSpec, ResolveIssue } from "./types.js";
 import { CoinRithmClient } from "./client.js";
-import { selectProvider } from "./providers.js";
+import { Provider, selectProvider } from "./providers.js";
 import { runLoop, RunnerDeps } from "./runner.js";
 import { loadState, saveState } from "./state.js";
 import { makeRunId } from "./runEvidence.js";
+import { readCorpus, writeCassette } from "./bench/cassette.js";
+import { recordCassette } from "./bench/recordingClient.js";
+import { BenchVariant, runBench } from "./bench/bench.js";
 
 export interface CmdResult {
   ok: boolean;
@@ -512,7 +515,204 @@ export async function cmdRun(
   }
 }
 
-function parseFlags(args: string[]): {
+const MAX_RECORD_CYCLES = 10_000;
+
+// Record bench cassettes (see bench/cassette.ts). Read-only by construction:
+// every cycle runs DRY-RUN through a recording transport that refuses all
+// non-GET requests, with a brain that never calls a model, so only
+// COINRITHM_API_KEY is needed and no model key is read. The agent's own state
+// file is not touched; each recorded cycle starts from a fresh run state.
+export async function cmdRecord(
+  path: string,
+  opts: {
+    out?: string;
+    cycles?: number;
+    every?: string;
+    fetchFn?: typeof fetch;
+    sleepFn?: (ms: number) => Promise<void>;
+  } = {},
+): Promise<CmdResult> {
+  if (!opts.out) return fail(["record needs --out <dir> for the cassettes"]);
+  const cycles = opts.cycles ?? 1;
+  if (!Number.isInteger(cycles) || cycles < 1 || cycles > MAX_RECORD_CYCLES)
+    return fail([`--cycles must be an integer from 1 to ${MAX_RECORD_CYCLES}`]);
+  let loaded;
+  try {
+    loaded = loadAgent(path, "self-host");
+  } catch (e) {
+    if (e instanceof ResolveError)
+      return issuesResult(e.issues, "resolve failed");
+    throw e;
+  }
+  const everyMs =
+    opts.every !== undefined
+      ? parseCadenceMs(opts.every)
+      : (parseCadenceMs(loaded.spec.trigger.cadence) ?? 3_600_000);
+  if (everyMs === null)
+    return fail([`--every "${opts.every}" is not a cadence like 5m or 1h`]);
+  const apiKey = process.env.COINRITHM_API_KEY;
+  if (!apiKey)
+    return fail([
+      "COINRITHM_API_KEY is not set (recording reads your paper account; it never writes)",
+    ]);
+  const mergedProse = runtimeProse(loaded.resolved);
+  const lines = [
+    `record DRY-RUN (reads only, no model call): ${loaded.spec.name}, ${cycles} cycle(s)`,
+  ];
+  const files: string[] = [];
+  for (let i = 0; i < cycles; i++) {
+    let cassette;
+    try {
+      cassette = await recordCassette({
+        spec: loaded.spec,
+        mergedProse,
+        apiKey,
+        baseUrl: process.env.COINRITHM_API_URL || undefined,
+        fetchFn: opts.fetchFn,
+      });
+    } catch (e) {
+      lines.push(`✗ cycle ${i + 1} failed: ${(e as Error).message}`);
+      return { ok: false, code: 1, lines, data: files };
+    }
+    files.push(writeCassette(resolvePath(opts.out), cassette));
+    const cycle = cassette.recordCycle;
+    lines.push(
+      `recorded ${cassette.id}: ${cassette.responses.length} read(s), asOf ${cassette.asOf}, cycle ${cycle.decisionType ?? cycle.decision}${cycle.skipReason ? ` (${cycle.skipReason})` : ""}` +
+        (cassette.refusedRequests.length
+          ? `, ${cassette.refusedRequests.length} write(s) refused`
+          : ""),
+    );
+    if (i < cycles - 1) await (opts.sleepFn ?? sleep)(everyMs);
+  }
+  return { ok: true, code: 0, lines, data: files };
+}
+
+// Compare agent variants on a recorded corpus (see bench/bench.ts). Each
+// variant runs with its own model, built exactly as `run` builds it from the
+// variant's model config and the environment's keys. Never writes.
+export async function cmdBench(
+  opts: {
+    corpus?: string;
+    variants?: string[];
+    repeats?: number;
+    seed?: number;
+    out?: string;
+    baselines?: boolean;
+    providerFor?: (spec: AgentSpec) => Provider;
+  } = {},
+): Promise<CmdResult> {
+  if (!opts.corpus) return fail(["bench needs --corpus <dir>"]);
+  if (!opts.variants || opts.variants.length === 0)
+    return fail(["bench needs at least one --variant name=<agentPath>"]);
+  if (
+    opts.seed !== undefined &&
+    (!Number.isSafeInteger(opts.seed) || opts.seed < 0)
+  )
+    return fail(["--seed must be a non-negative integer"]);
+  let corpus;
+  try {
+    corpus = readCorpus(resolvePath(opts.corpus));
+  } catch (e) {
+    return fail([(e as Error).message]);
+  }
+  const variants: BenchVariant[] = [];
+  for (const arg of opts.variants) {
+    const eq = arg.indexOf("=");
+    if (eq <= 0 || eq === arg.length - 1)
+      return fail([`--variant "${arg}" must look like name=<agentPath>`]);
+    const name = arg.slice(0, eq);
+    const agentPath = arg.slice(eq + 1);
+    let loaded;
+    try {
+      loaded = loadAgent(agentPath, "self-host");
+    } catch (e) {
+      if (e instanceof ResolveError)
+        return issuesResult(e.issues, `variant ${name}: resolve failed`);
+      throw e;
+    }
+    let provider: Provider;
+    try {
+      provider = opts.providerFor
+        ? opts.providerFor(loaded.spec)
+        : selectProvider(loaded.spec, process.env, fetch);
+    } catch (e) {
+      return fail([`variant ${name}: ${(e as Error).message}`]);
+    }
+    variants.push({
+      name,
+      spec: loaded.spec,
+      mergedProse: runtimeProse(loaded.resolved),
+      provider,
+    });
+  }
+  const lines = [
+    `bench DRY-RUN: ${corpus.cassettes.length} cassette(s) x ${variants.length} variant(s) x ${opts.repeats ?? 3} repeat(s)`,
+  ];
+  if (corpus.ignored.length)
+    lines.push(`ignored non-cassette file(s): ${corpus.ignored.join(", ")}`);
+  let report;
+  try {
+    report = await runBench({
+      cassettes: corpus.cassettes,
+      labels: corpus.labels,
+      variants,
+      repeats: opts.repeats,
+      seed: opts.seed,
+      baselines: opts.baselines,
+    });
+  } catch (e) {
+    return fail([...lines, `✗ ${(e as Error).message}`]);
+  }
+  type Split = {
+    cycles: number;
+    modelFailures: number;
+    actions: {
+      accepted: number;
+      rejected: number;
+      rejectCodes: Record<string, number>;
+    };
+    cyclesWithMissingInputs: number;
+    repeatConsistency: number | null;
+  };
+  const summary = report.variants as Record<string, { all: Split }>;
+  for (const [name, v] of Object.entries(summary)) {
+    const codes = Object.entries(v.all.actions.rejectCodes)
+      .map(([c, n]) => `${c} ${n}`)
+      .join(", ");
+    lines.push(
+      `${name}: ${v.all.cycles} cycle(s), accepted ${v.all.actions.accepted}, rejected ${v.all.actions.rejected}${codes ? ` (${codes})` : ""}, model failures ${v.all.modelFailures}, cycles missing inputs ${v.all.cyclesWithMissingInputs}, repeat consistency ${v.all.repeatConsistency ?? "n/a"}`,
+    );
+  }
+  type Cmp = {
+    a: string;
+    b: string;
+    all: {
+      actionOverlapJaccard: number | null;
+      metrics: Record<
+        string,
+        { n: number; meanDiff: number | null; ci95: [number, number] | null }
+      >;
+    };
+  };
+  for (const c of report.comparisons as Cmp[]) {
+    const accepted = c.all.metrics.acceptedActions;
+    lines.push(
+      `${c.a} vs ${c.b}: overlap ${c.all.actionOverlapJaccard ?? "n/a"}, accepted diff ${accepted.meanDiff ?? "n/a"} (95% CI ${accepted.ci95 ? `${accepted.ci95[0]}..${accepted.ci95[1]}` : "n/a"}, n=${accepted.n})`,
+    );
+  }
+  if (opts.out) {
+    writeFileSync(
+      resolvePath(opts.out),
+      `${JSON.stringify(report, null, 2)}\n`,
+      "utf8",
+    );
+    lines.push(`wrote ${resolvePath(opts.out)}`);
+  }
+  lines.push(`contentHash ${report.contentHash}`);
+  return { ok: true, code: 0, lines, data: report };
+}
+
+interface ParsedFlags {
   _: string[];
   hosted?: boolean;
   json?: boolean;
@@ -523,19 +723,22 @@ function parseFlags(args: string[]): {
   expectDefinition?: string;
   template?: string;
   preset?: string;
-} {
-  const out: {
-    _: string[];
-    hosted?: boolean;
-    json?: boolean;
-    once?: boolean;
-    live?: boolean;
-    dryRun?: boolean;
-    state?: string;
-    expectDefinition?: string;
-    template?: string;
-    preset?: string;
-  } = { _: [] };
+  // record / bench
+  out?: string;
+  cycles?: number;
+  every?: string;
+  corpus?: string;
+  variant?: string[];
+  repeats?: number;
+  seed?: number;
+  noBaselines?: boolean;
+}
+
+function parseFlags(args: string[]): ParsedFlags {
+  const out: ParsedFlags = { _: [] };
+  // A missing or non-numeric value becomes NaN so the command rejects it,
+  // never silently falls back to its default.
+  const num = (v: string | undefined) => (v === undefined ? NaN : Number(v));
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === "--hosted") out.hosted = true;
@@ -549,6 +752,15 @@ function parseFlags(args: string[]): {
     else if (a === "--state") out.state = args[++i];
     else if (a === "--expect-definition")
       out.expectDefinition = args[++i] ?? "";
+    else if (a === "--out") out.out = args[++i];
+    else if (a === "--cycles") out.cycles = num(args[++i]);
+    else if (a === "--every") out.every = args[++i] ?? "";
+    else if (a === "--corpus") out.corpus = args[++i];
+    else if (a === "--variant")
+      out.variant = [...(out.variant ?? []), args[++i] ?? ""];
+    else if (a === "--repeats") out.repeats = num(args[++i]);
+    else if (a === "--seed") out.seed = num(args[++i]);
+    else if (a === "--no-baselines") out.noBaselines = true;
     else out._.push(a);
   }
   return out;
@@ -563,6 +775,8 @@ function usageLines(): string[] {
     "  eject <agent.md | dir>",
     "  lock <path>",
     "  run <path> [--once] [--live] [--dry-run] [--state <file>] [--expect-definition sha256:...]   (dry-run by default)",
+    "  record <path> --out <dir> [--cycles N] [--every 5m]   (bench inputs; reads only, no model call)",
+    "  bench --corpus <dir> --variant a=<path> --variant b=<path> [--repeats 3] [--seed N] [--no-baselines] [--out report.json]",
   ];
 }
 
@@ -601,6 +815,23 @@ export async function main(argv: string[]): Promise<number> {
       });
       break;
     }
+    case "record":
+      r = await cmdRecord(pos[0] ?? ".", {
+        out: flags.out,
+        cycles: flags.cycles,
+        every: flags.every,
+      });
+      break;
+    case "bench":
+      r = await cmdBench({
+        corpus: flags.corpus,
+        variants: flags.variant,
+        repeats: flags.repeats,
+        seed: flags.seed,
+        out: flags.out,
+        baselines: !flags.noBaselines,
+      });
+      break;
     case undefined:
     case "help":
     case "--help":
