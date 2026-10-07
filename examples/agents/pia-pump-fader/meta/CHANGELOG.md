@@ -7,7 +7,7 @@ Evidence, read-only from production on 2026-10-07 (Data, temp/agentic-baseline-2
 - Numbers written in prose (edge rules, bets per event, last-minutes cutoffs) were never enforced in code; editing them changed nothing.
 
 Changes:
-- character/risk.yaml: adds the 20-point PM entry floor the other house agents carry, plus `pmMinEdgeGapPct: 16`, `pmMaxOpenPerEvent: 1` (per event, same market slug), `pmMinMinutesToClose: 30`, now runner-enforced.
+- character/risk.yaml: adds the 20-point PM entry floor the other house agents carry, plus `pmMaxEdgePoints: 20` (overconfidence cap) and `pmMaxOpenPerEvent: 1` (per event, same market slug), now runner-enforced. A minimum-edge rule and a 30-minute cutoff were tested against the same 3,428 settled bets and dropped: the minimum edge kept exactly the overconfident losers (blocked bets +0.8%, kept -25%), the cutoff was mixed.
 - character/universe.yaml + `universe: $ref` in agent.md: declared market boundaries replace the generic top-gainers scan.
   Top 500 by market cap, at least $1M 24h volume, no stablecoins or pegged assets, ranked by 24h gainers. BTC/ETH remain watch-only anchors.
 

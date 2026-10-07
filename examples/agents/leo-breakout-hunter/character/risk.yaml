@@ -4,12 +4,12 @@ perTradeMarginMusd: 5000 # = perTicketCapitalPct 10% of the original 50,000 book
 maxConcurrentPositions: 3 # open futures positions
 requireStopLoss: true
 pmMinEntryProbabilityPct: 20 # chosen-outcome entry price in points, before fees
-# Prediction-market discipline, enforced by the runner (2026-10-07): every
-# house agent's PM forecasts scored worse than the market price, so a bet
-# needs a measured edge, one bet per event, and no last-half-hour markets.
-pmMinEdgeGapPct: 16 # forecast must beat the fee-inclusive cost by 16% of the room to 100
+# Prediction-market discipline, enforced by the runner (2026-10-07). Measured
+# on 3,428 settled agent bets (temp/agentic-bench-20261007/FINDINGS-PM-DIALS.md):
+# the bigger the edge an agent claimed, the more it lost (40+ points: -78%),
+# and stacking bets on one event lost the most for user agents.
+pmMaxEdgePoints: 20 # forecast may beat the fee-inclusive cost by at most 20 points
 pmMaxOpenPerEvent: 1 # one open bet per event (same market slug)
-pmMinMinutesToClose: 30 # skip markets closing within 30 minutes
 watchlist:
   - BTC
   - ETH
