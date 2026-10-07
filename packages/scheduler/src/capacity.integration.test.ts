@@ -1557,6 +1557,11 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
     const MIA = 24_000;
     const LEO = 26_000;
     const OLIVIA = 31_000;
+    // A chronological schedule makes ~170 sequential PostgreSQL round trips
+    // per mode: 1.5-1.8 s on CI, but over vitest's 5 s default once under
+    // load (run 37600914765). A timed-out run keeps mutating this shared
+    // bucket and fails the tests after it, so give real PG work room.
+    const SCHEDULE_TEST_TIMEOUT_MS = 60_000;
     // Needs ~124.8 s of refill from empty: beyond the 120 s in-cycle ceiling.
     const BEYOND_CEILING = 52_000;
     const agentId = async (handle: string) =>
@@ -1675,123 +1680,129 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
     // owner-budget denial with a refill hint within the in-cycle ceiling
     // (MAX_OWNER_REFILL_WAIT_MS) re-admits at that hint,
     // otherwise the claim is released. "without" = no waiter keys, no wait.
-    it("reports per-agent and total calls/tokens on one chronological schedule", async () => {
-      const cadence = 330;
-      const cycles = 12;
-      const roster = [
-        { name: "olivia", reserve: 31_000, phase: 0 },
-        { name: "mia", reserve: 24_000, phase: 45 },
-        { name: "leo", reserve: 26_000, phase: 120 },
-        { name: "sam", reserve: 22_000, phase: 200 },
-        { name: "carl", reserve: 27_000, phase: 260 },
-      ];
-      const ids = new Map<string, string>();
-      for (const a of roster) ids.set(a.name, await agentId(`sim-${a.name}`));
+    it(
+      "reports per-agent and total calls/tokens on one chronological schedule",
+      async () => {
+        const cadence = 330;
+        const cycles = 12;
+        const roster = [
+          { name: "olivia", reserve: 31_000, phase: 0 },
+          { name: "mia", reserve: 24_000, phase: 45 },
+          { name: "leo", reserve: 26_000, phase: 120 },
+          { name: "sam", reserve: 22_000, phase: 200 },
+          { name: "carl", reserve: 27_000, phase: 260 },
+        ];
+        const ids = new Map<string, string>();
+        for (const a of roster) ids.set(a.name, await agentId(`sim-${a.name}`));
 
-      const run = async (withRule: boolean) => {
-        await drainedAgo(0);
-        await pool.query(
-          `UPDATE agent_runtime.provider_capacity_buckets
+        const run = async (withRule: boolean) => {
+          await drainedAgo(0);
+          await pool.query(
+            `UPDATE agent_runtime.provider_capacity_buckets
               SET waiter_key = NULL, waiter_tokens = NULL, waiter_since = NULL,
                   waiter_expires_at = NULL, last_refill_at = clock_timestamp()
             WHERE route_key = $1`,
-          [routeKey],
-        );
-        let t = 0;
-        // Advance simulated time: refill accrues from last_refill_at, and a
-        // live claim ages by the same amount.
-        const advance = async (to: number) => {
-          const d = to - t;
-          if (d <= 0) return;
-          await pool.query(
-            `UPDATE agent_runtime.provider_capacity_buckets
+            [routeKey],
+          );
+          let t = 0;
+          // Advance simulated time: refill accrues from last_refill_at, and a
+          // live claim ages by the same amount.
+          const advance = async (to: number) => {
+            const d = to - t;
+            if (d <= 0) return;
+            await pool.query(
+              `UPDATE agent_runtime.provider_capacity_buckets
                 SET last_refill_at = last_refill_at - make_interval(secs => $2),
                     waiter_since = waiter_since - make_interval(secs => $2),
                     waiter_expires_at = waiter_expires_at - make_interval(secs => $2)
               WHERE route_key = $1`,
-            [routeKey, d],
+              [routeKey, d],
+            );
+            t = to;
+          };
+          const stats = new Map(
+            roster.map((a) => [a.name, { calls: 0, tokens: 0 }]),
           );
-          t = to;
-        };
-        const stats = new Map(
-          roster.map((a) => [a.name, { calls: 0, tokens: 0 }]),
-        );
-        type Ev = {
-          at: number;
-          agent: (typeof roster)[number];
-          readmit: boolean;
-        };
-        const queue: Ev[] = [];
-        for (let c = 0; c < cycles; c += 1)
-          for (const agent of roster)
-            queue.push({
-              at: c * cadence + agent.phase,
-              agent,
-              readmit: false,
-            });
-        while (queue.length > 0) {
-          queue.sort((x, y) => x.at - y.at);
-          const ev = queue.shift()!;
-          await advance(ev.at);
-          const key = withRule ? `agent:${ids.get(ev.agent.name)}` : null;
-          const r = await reserveProviderCapacity(
-            pool,
-            owner(key, ev.agent.reserve),
-          );
-          if (r.ok) {
-            await releaseProviderCapacity(pool, r.lease, ev.agent.reserve);
-            const st = stats.get(ev.agent.name)!;
-            st.calls += 1;
-            st.tokens += ev.agent.reserve;
-            continue;
+          type Ev = {
+            at: number;
+            agent: (typeof roster)[number];
+            readmit: boolean;
+          };
+          const queue: Ev[] = [];
+          for (let c = 0; c < cycles; c += 1)
+            for (const agent of roster)
+              queue.push({
+                at: c * cadence + agent.phase,
+                agent,
+                readmit: false,
+              });
+          while (queue.length > 0) {
+            queue.sort((x, y) => x.at - y.at);
+            const ev = queue.shift()!;
+            await advance(ev.at);
+            const key = withRule ? `agent:${ids.get(ev.agent.name)}` : null;
+            const r = await reserveProviderCapacity(
+              pool,
+              owner(key, ev.agent.reserve),
+            );
+            if (r.ok) {
+              await releaseProviderCapacity(pool, r.lease, ev.agent.reserve);
+              const st = stats.get(ev.agent.name)!;
+              st.calls += 1;
+              st.tokens += ev.agent.reserve;
+              continue;
+            }
+            if (!withRule) continue;
+            const hint = r.retryAfterMs;
+            const canWait =
+              !ev.readmit &&
+              r.reasons.every(
+                (x) => x === "token_budget" || x === "request_budget",
+              ) &&
+              typeof hint === "number" &&
+              hint > 0 &&
+              hint <= MAX_OWNER_REFILL_WAIT_MS;
+            if (canWait)
+              queue.push({
+                at: ev.at + hint / 1000,
+                agent: ev.agent,
+                readmit: true,
+              });
+            else await releaseOwnerClaim(pool, routeKey, key!);
           }
-          if (!withRule) continue;
-          const hint = r.retryAfterMs;
-          const canWait =
-            !ev.readmit &&
-            r.reasons.every(
-              (x) => x === "token_budget" || x === "request_budget",
-            ) &&
-            typeof hint === "number" &&
-            hint > 0 &&
-            hint <= MAX_OWNER_REFILL_WAIT_MS;
-          if (canWait)
-            queue.push({
-              at: ev.at + hint / 1000,
-              agent: ev.agent,
-              readmit: true,
-            });
-          else await releaseOwnerClaim(pool, routeKey, key!);
-        }
-        const per = Object.fromEntries(stats);
-        const total = Array.from(stats.values()).reduce(
-          (sum, s) => ({
-            calls: sum.calls + s.calls,
-            tokens: sum.tokens + s.tokens,
-          }),
-          { calls: 0, tokens: 0 },
-        );
-        return { per, total, horizon: t };
-      };
+          const per = Object.fromEntries(stats);
+          const total = Array.from(stats.values()).reduce(
+            (sum, s) => ({
+              calls: sum.calls + s.calls,
+              tokens: sum.tokens + s.tokens,
+            }),
+            { calls: 0, tokens: 0 },
+          );
+          return { per, total, horizon: t };
+        };
 
-      const without = await run(false);
-      const withRule = await run(true);
-      // Evidence for review: per-agent and total, both modes, same horizon.
-      console.info(
-        "owner fairness schedule",
-        JSON.stringify({ without, withRule }),
-      );
-      const budget = (h: number) => (RATE * h) / 60 + 31_000;
-      // Neither mode admits more than the bucket can refill (+ one burst).
-      expect(without.total.tokens).toBeLessThanOrEqual(budget(without.horizon));
-      expect(withRule.total.tokens).toBeLessThanOrEqual(
-        budget(withRule.horizon),
-      );
-      // With the rule, every agent whose reserve one minute of refill can
-      // cover is served; no throughput gain is claimed or asserted.
-      for (const a of roster.filter((x) => x.reserve <= RATE))
-        expect(withRule.per[a.name]!.calls).toBeGreaterThan(0);
-    });
+        const without = await run(false);
+        const withRule = await run(true);
+        // Evidence for review: per-agent and total, both modes, same horizon.
+        console.info(
+          "owner fairness schedule",
+          JSON.stringify({ without, withRule }),
+        );
+        const budget = (h: number) => (RATE * h) / 60 + 31_000;
+        // Neither mode admits more than the bucket can refill (+ one burst).
+        expect(without.total.tokens).toBeLessThanOrEqual(
+          budget(without.horizon),
+        );
+        expect(withRule.total.tokens).toBeLessThanOrEqual(
+          budget(withRule.horizon),
+        );
+        // With the rule, every agent whose reserve one minute of refill can
+        // cover is served; no throughput gain is claimed or asserted.
+        for (const a of roster.filter((x) => x.reserve <= RATE))
+          expect(withRule.per[a.name]!.calls).toBeGreaterThan(0);
+      },
+      SCHEDULE_TEST_TIMEOUT_MS,
+    );
 
     // Live owner 86, 2026-10-07 08:04-08:43 UTC (root 57001): seven agents on
     // one 25k TPM owner bucket at fixed phase-grid offsets. Reserve = the
@@ -1800,122 +1811,126 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
     // follows a44's ~49k call by ~25 s; under a 60 s ceiling her 71-89 s hints
     // never wait. Same arrivals and elapsed time for both ceilings; claim TTL
     // follows each ceiling (+15 s), and at most MAX_CONCURRENT_OWNER_WAITS wait.
-    it("serves the fixed loser of a seven-agent owner under the 120 s ceiling (owner 86)", async () => {
-      const cadence = 330.5;
-      const cycles = 12;
-      const roster = [
-        { name: "a43", phase: 0, reserve: 21_554, actual: 32_300 },
-        { name: "a48", phase: 39, reserve: 17_624, actual: 23_150 },
-        { name: "a45", phase: 90, reserve: 25_424, actual: 39_600 },
-        { name: "a42", phase: 151, reserve: 24_924, actual: 37_900 },
-        { name: "a44", phase: 225, reserve: 29_774, actual: 49_150 },
-        { name: "a41", phase: 250, reserve: 28_950, actual: 44_700 },
-        { name: "a49", phase: 274, reserve: 21_254, actual: 29_950 },
-      ];
-      const ids = new Map<string, string>();
-      for (const a of roster)
-        ids.set(a.name, await agentId(`owner86-${a.name}`));
+    it(
+      "serves the fixed loser of a seven-agent owner under the 120 s ceiling (owner 86)",
+      async () => {
+        const cadence = 330.5;
+        const cycles = 12;
+        const roster = [
+          { name: "a43", phase: 0, reserve: 21_554, actual: 32_300 },
+          { name: "a48", phase: 39, reserve: 17_624, actual: 23_150 },
+          { name: "a45", phase: 90, reserve: 25_424, actual: 39_600 },
+          { name: "a42", phase: 151, reserve: 24_924, actual: 37_900 },
+          { name: "a44", phase: 225, reserve: 29_774, actual: 49_150 },
+          { name: "a41", phase: 250, reserve: 28_950, actual: 44_700 },
+          { name: "a49", phase: 274, reserve: 21_254, actual: 29_950 },
+        ];
+        const ids = new Map<string, string>();
+        for (const a of roster)
+          ids.set(a.name, await agentId(`owner86-${a.name}`));
 
-      const run = async (ceilingMs: number) => {
-        const ttl = ceilingMs / 1000 + WAITER_RETRY_SLACK_SECONDS;
-        await drainedAgo(0);
-        await pool.query(
-          `UPDATE agent_runtime.provider_capacity_buckets
+        const run = async (ceilingMs: number) => {
+          const ttl = ceilingMs / 1000 + WAITER_RETRY_SLACK_SECONDS;
+          await drainedAgo(0);
+          await pool.query(
+            `UPDATE agent_runtime.provider_capacity_buckets
               SET waiter_key = NULL, waiter_tokens = NULL, waiter_since = NULL,
                   waiter_expires_at = NULL, model_tokens = 0,
                   last_refill_at = clock_timestamp()
             WHERE route_key = $1`,
-          [routeKey],
-        );
-        let t = 0;
-        const advance = async (to: number) => {
-          const d = to - t;
-          if (d <= 0) return;
-          await pool.query(
-            `UPDATE agent_runtime.provider_capacity_buckets
+            [routeKey],
+          );
+          let t = 0;
+          const advance = async (to: number) => {
+            const d = to - t;
+            if (d <= 0) return;
+            await pool.query(
+              `UPDATE agent_runtime.provider_capacity_buckets
                 SET last_refill_at = last_refill_at - make_interval(secs => $2),
                     waiter_since = waiter_since - make_interval(secs => $2),
                     waiter_expires_at = waiter_expires_at - make_interval(secs => $2)
               WHERE route_key = $1`,
-            [routeKey, d],
+              [routeKey, d],
+            );
+            t = to;
+          };
+          const calls: Record<string, number> = Object.fromEntries(
+            roster.map((a) => [a.name, 0]),
           );
-          t = to;
-        };
-        const calls: Record<string, number> = Object.fromEntries(
-          roster.map((a) => [a.name, 0]),
-        );
-        let reserved = 0;
-        let consumed = 0;
-        let waiting = 0;
-        type Ev = {
-          at: number;
-          agent: (typeof roster)[number];
-          readmit: boolean;
-        };
-        const queue: Ev[] = [];
-        for (let c = 0; c < cycles; c += 1)
-          for (const agent of roster)
-            queue.push({
-              at: c * cadence + agent.phase,
-              agent,
-              readmit: false,
-            });
-        while (queue.length > 0) {
-          queue.sort((x, y) => x.at - y.at);
-          const ev = queue.shift()!;
-          await advance(ev.at);
-          if (ev.readmit) waiting -= 1;
-          const key = `agent:${ids.get(ev.agent.name)}`;
-          const r = await reserveProviderCapacity(
-            pool,
-            owner(key, ev.agent.reserve, ttl),
-          );
-          if (r.ok) {
-            await releaseProviderCapacity(pool, r.lease, ev.agent.actual);
-            calls[ev.agent.name] += 1;
-            reserved += ev.agent.reserve;
-            consumed += ev.agent.actual;
-            continue;
+          let reserved = 0;
+          let consumed = 0;
+          let waiting = 0;
+          type Ev = {
+            at: number;
+            agent: (typeof roster)[number];
+            readmit: boolean;
+          };
+          const queue: Ev[] = [];
+          for (let c = 0; c < cycles; c += 1)
+            for (const agent of roster)
+              queue.push({
+                at: c * cadence + agent.phase,
+                agent,
+                readmit: false,
+              });
+          while (queue.length > 0) {
+            queue.sort((x, y) => x.at - y.at);
+            const ev = queue.shift()!;
+            await advance(ev.at);
+            if (ev.readmit) waiting -= 1;
+            const key = `agent:${ids.get(ev.agent.name)}`;
+            const r = await reserveProviderCapacity(
+              pool,
+              owner(key, ev.agent.reserve, ttl),
+            );
+            if (r.ok) {
+              await releaseProviderCapacity(pool, r.lease, ev.agent.actual);
+              calls[ev.agent.name] += 1;
+              reserved += ev.agent.reserve;
+              consumed += ev.agent.actual;
+              continue;
+            }
+            const hint = r.retryAfterMs;
+            const canWait =
+              !ev.readmit &&
+              waiting < MAX_CONCURRENT_OWNER_WAITS &&
+              r.reasons.every(
+                (x) => x === "token_budget" || x === "request_budget",
+              ) &&
+              typeof hint === "number" &&
+              hint > 0 &&
+              hint <= ceilingMs;
+            if (canWait) {
+              waiting += 1;
+              queue.push({
+                at: ev.at + hint / 1000,
+                agent: ev.agent,
+                readmit: true,
+              });
+            } else await releaseOwnerClaim(pool, routeKey, key);
           }
-          const hint = r.retryAfterMs;
-          const canWait =
-            !ev.readmit &&
-            waiting < MAX_CONCURRENT_OWNER_WAITS &&
-            r.reasons.every(
-              (x) => x === "token_budget" || x === "request_budget",
-            ) &&
-            typeof hint === "number" &&
-            hint > 0 &&
-            hint <= ceilingMs;
-          if (canWait) {
-            waiting += 1;
-            queue.push({
-              at: ev.at + hint / 1000,
-              agent: ev.agent,
-              readmit: true,
-            });
-          } else await releaseOwnerClaim(pool, routeKey, key);
-        }
-        return { calls, reserved, consumed, horizon: t };
-      };
+          return { calls, reserved, consumed, horizon: t };
+        };
 
-      const before = await run(60_000);
-      const after = await run(MAX_OWNER_REFILL_WAIT_MS);
-      console.info("owner 86 schedule", JSON.stringify({ before, after }));
-      // Reported usage, not the estimate, stays within the owner's refill
-      // plus the largest single reported excess (a44: 49,150 - 29,774); the
-      // old floor at 0 let ~1.5x through.
-      const budget = (h: number) => (RATE * h) / 60 + 19_376;
-      expect(before.consumed).toBeLessThanOrEqual(budget(before.horizon));
-      expect(after.consumed).toBeLessThanOrEqual(budget(after.horizon));
-      // 60 s: a41 is the fixed loser (live: 1 call in 6 cycles).
-      expect(before.calls.a41).toBe(Math.min(...Object.values(before.calls)));
-      expect(before.calls.a41).toBeLessThan(cycles / 4);
-      // 120 s: every agent is served and a41 more often. Shares stay unequal
-      // (the owner asks ~1.5x its cap); no throughput gain is claimed.
-      for (const a of roster) expect(after.calls[a.name]).toBeGreaterThan(0);
-      expect(after.calls.a41).toBeGreaterThan(before.calls.a41);
-    });
+        const before = await run(60_000);
+        const after = await run(MAX_OWNER_REFILL_WAIT_MS);
+        console.info("owner 86 schedule", JSON.stringify({ before, after }));
+        // Reported usage, not the estimate, stays within the owner's refill
+        // plus the largest single reported excess (a44: 49,150 - 29,774); the
+        // old floor at 0 let ~1.5x through.
+        const budget = (h: number) => (RATE * h) / 60 + 19_376;
+        expect(before.consumed).toBeLessThanOrEqual(budget(before.horizon));
+        expect(after.consumed).toBeLessThanOrEqual(budget(after.horizon));
+        // 60 s: a41 is the fixed loser (live: 1 call in 6 cycles).
+        expect(before.calls.a41).toBe(Math.min(...Object.values(before.calls)));
+        expect(before.calls.a41).toBeLessThan(cycles / 4);
+        // 120 s: every agent is served and a41 more often. Shares stay unequal
+        // (the owner asks ~1.5x its cap); no throughput gain is claimed.
+        for (const a of roster) expect(after.calls[a.name]).toBeGreaterThan(0);
+        expect(after.calls.a41).toBeGreaterThan(before.calls.a41);
+      },
+      SCHEDULE_TEST_TIMEOUT_MS,
+    );
 
     it("refuses dispatch after a wait when the route changed under the same model name", async () => {
       const id = Number(await agentId("route-snapshot"));
