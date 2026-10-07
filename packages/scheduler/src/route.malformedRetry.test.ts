@@ -12,6 +12,7 @@ import {
   ROUTE_CHANGED_ERROR,
   RoutedProvider,
   type ModelRoute,
+  type OwnerWaitEvent,
   type RouteHooks,
 } from "./route.js";
 
@@ -661,6 +662,170 @@ describe("first-attempt owner refill wait (owner fairness, 009)", () => {
     expect(extra.hooks.abandonOwnerWait).toHaveBeenCalledOnce();
     await vi.advanceTimersByTimeAsync(MAX_OWNER_REFILL_WAIT_MS);
     for (const r of await Promise.all(waiting)) expect(r.ok).toBe(true);
+    expect(ownerWaitsInFlightNow()).toBe(0);
+  });
+
+  it("does not let one owner's non-claimant take the slot another owner's claimant needs", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const events: OwnerWaitEvent[] = [];
+    const label = (e: OwnerWaitEvent) =>
+      e.event === "owner_wait_skip"
+        ? `skip:${e.reason}`
+        : e.event === "owner_wait_outcome"
+          ? `outcome:${e.outcome}`
+          : "start";
+    // Owner A's claimant waits in the first slot.
+    const claimantA = harness([good], [superRoute], () => Date.now());
+    claimantA.hooks.onOwnerWait = (e) => events.push(e);
+    vi.mocked(claimantA.hooks.acquire)
+      .mockResolvedValueOnce(ownerDenial(60_000))
+      .mockResolvedValueOnce({ ok: true, lease: "claimant-a" });
+    const a = claimantA.provider.decide({ ...input, timeoutMs: 300_000 });
+    await vi.advanceTimersByTimeAsync(1);
+    expect(ownerWaitsInFlightNow()).toBe(1);
+    // Owner A's sibling is denied behind A's live claim: no protected turn,
+    // so it defers at once and ends any claim of its own.
+    const sibling = harness([good], [superRoute], () => Date.now());
+    sibling.hooks.onOwnerWait = (e) => events.push(e);
+    sibling.hooks.abandonOwnerWait = vi.fn(async () => {});
+    vi.mocked(sibling.hooks.acquire).mockResolvedValueOnce({
+      ...ownerDenial(60_000),
+      claimedByOther: true,
+    });
+    expect(
+      (await sibling.provider.decide({ ...input, timeoutMs: 300_000 })).ok,
+    ).toBe(false);
+    expect(sibling.hooks.acquire).toHaveBeenCalledOnce();
+    expect(sibling.hooks.abandonOwnerWait).toHaveBeenCalledOnce();
+    expect(ownerWaitsInFlightNow()).toBe(1);
+    // Owner B's claimant still gets the second slot.
+    const claimantB = harness([good], [superRoute], () => Date.now());
+    claimantB.hooks.onOwnerWait = (e) => events.push(e);
+    vi.mocked(claimantB.hooks.acquire)
+      .mockResolvedValueOnce(ownerDenial(60_000))
+      .mockResolvedValueOnce({ ok: true, lease: "claimant-b" });
+    const b = claimantB.provider.decide({ ...input, timeoutMs: 300_000 });
+    await vi.advanceTimersByTimeAsync(1);
+    expect(ownerWaitsInFlightNow()).toBe(2);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect((await a).ok).toBe(true);
+    expect((await b).ok).toBe(true);
+    expect(ownerWaitsInFlightNow()).toBe(0);
+    expect(events.map(label)).toEqual([
+      "start",
+      "skip:claimed_by_other",
+      "start",
+      "outcome:admitted",
+      "outcome:admitted",
+    ]);
+    // Bounded diagnostics: path, model and timings only.
+    for (const e of events)
+      expect(Object.keys(e).sort()).toEqual(
+        e.event === "owner_wait_outcome"
+          ? ["event", "model", "outcome", "path", "waitedMs"]
+          : e.event === "owner_wait_skip"
+            ? ["event", "hintMs", "model", "path", "reason", "waitsInFlight"]
+            : ["event", "hintMs", "model", "path", "waitsInFlight"],
+      );
+  });
+
+  it.each([
+    ["no_hint", ownerDenial(0), 300_000],
+    ["hint_over_ceiling", ownerDenial(MAX_OWNER_REFILL_WAIT_MS + 1), 300_000],
+    ["deadline", ownerDenial(100_000), 129_999],
+  ])(
+    "reports a skipped first-call wait as %s",
+    async (reason, denial, timeoutMs) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(0);
+      const h = harness([good], [superRoute], () => Date.now());
+      const events: OwnerWaitEvent[] = [];
+      h.hooks.onOwnerWait = (e) => events.push(e);
+      vi.mocked(h.hooks.acquire).mockResolvedValueOnce(
+        denial as Awaited<ReturnType<RouteHooks<string>["acquire"]>>,
+      );
+      expect((await h.provider.decide({ ...input, timeoutMs })).ok).toBe(false);
+      expect(events).toEqual([
+        expect.objectContaining({
+          event: "owner_wait_skip",
+          path: "first_call",
+          reason,
+        }),
+      ]);
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
+
+  it("reports the wait cap, and a route change after waiting", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const events: OwnerWaitEvent[] = [];
+    const waiting = Array.from({ length: MAX_CONCURRENT_OWNER_WAITS }, () => {
+      const h = harness([good], [superRoute], () => Date.now());
+      h.hooks.stillEligible = vi.fn(async () => false);
+      h.hooks.onOwnerWait = (e) => events.push(e);
+      vi.mocked(h.hooks.acquire).mockResolvedValueOnce(ownerDenial(10_000));
+      return h.provider.decide({ ...input, timeoutMs: 300_000 });
+    });
+    await vi.advanceTimersByTimeAsync(1);
+    const extra = harness([good], [superRoute], () => Date.now());
+    extra.hooks.onOwnerWait = (e) => events.push(e);
+    vi.mocked(extra.hooks.acquire).mockResolvedValueOnce(ownerDenial(10_000));
+    expect(
+      (await extra.provider.decide({ ...input, timeoutMs: 300_000 })).ok,
+    ).toBe(false);
+    await vi.advanceTimersByTimeAsync(10_000);
+    for (const r of await Promise.all(waiting)) expect(r.ok).toBe(false);
+    const start = expect.objectContaining({ event: "owner_wait_start" });
+    const changed = expect.objectContaining({
+      event: "owner_wait_outcome",
+      outcome: "route_changed",
+    });
+    expect(events).toEqual([
+      ...Array(MAX_CONCURRENT_OWNER_WAITS).fill(start),
+      expect.objectContaining({
+        event: "owner_wait_skip",
+        reason: "wait_cap",
+        waitsInFlight: MAX_CONCURRENT_OWNER_WAITS,
+      }),
+      ...Array(MAX_CONCURRENT_OWNER_WAITS).fill(changed),
+    ]);
+  });
+
+  it("keeps malformed recovery waits even behind another owner claim", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const h = harness([bad, good], [superRoute], () => Date.now());
+    const events: OwnerWaitEvent[] = [];
+    h.hooks.onOwnerWait = (e) => events.push(e);
+    vi.mocked(h.hooks.acquire)
+      .mockResolvedValueOnce({ ok: true, lease: "first" })
+      .mockResolvedValueOnce({ ...ownerDenial(5_000), claimedByOther: true })
+      .mockResolvedValueOnce({ ok: true, lease: "retry" });
+    const pending = h.provider.decide({ ...input, timeoutMs: 100_000 });
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect((await pending).ok).toBe(true);
+    expect(h.hooks.acquire).toHaveBeenCalledTimes(3);
+    expect(events.map((e) => [e.event, e.path])).toEqual([
+      ["owner_wait_start", "recovery"],
+      ["owner_wait_outcome", "recovery"],
+    ]);
+  });
+
+  it("never lets a throwing diagnostics hook change routing", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const h = harness([good], [superRoute], () => Date.now());
+    h.hooks.onOwnerWait = () => {
+      throw new Error("log sink down");
+    };
+    vi.mocked(h.hooks.acquire)
+      .mockResolvedValueOnce(ownerDenial(1_000))
+      .mockResolvedValueOnce({ ok: true, lease: "after-wait" });
+    const pending = h.provider.decide({ ...input, timeoutMs: 300_000 });
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect((await pending).ok).toBe(true);
     expect(ownerWaitsInFlightNow()).toBe(0);
   });
 
