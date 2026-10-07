@@ -158,7 +158,11 @@ export interface paths {
          * Compact factual market context for one coin
          * @description Price + 1h/24h/7d change + market cap, per-coin sentiment, the global
          *     Fear & Greed value, and up to 3 directly-related OPEN prediction markets
-         *     (leading outcome + probability). All from CoinRithm's own data; no
+         *     (leading outcome + probability). Optional context includes source price
+         *     timing, perpetual funding, open interest, positioning, captured
+         *     liquidations, observed order-book depth, macro derivative proxies and
+         *     DeFi. Each block has its own coverage and time basis; response `asOf`
+         *     does not make every input fresh. All from CoinRithm's stored data; no
          *     generated thesis. Requires scope `read`.
          */
         get: operations["getMarketContext"];
@@ -3908,6 +3912,282 @@ export interface components {
             /** @constant */
             basis: "venue_snapshot_time";
         };
+        /**
+         * @description One venue-attributed perpetual funding reference for this coin, not a
+         *     cross-venue average. The market field is optional on older APIs and null
+         *     without a usable reference. Display staleness does not determine futures
+         *     entry eligibility; quote/open re-check their own reference rule.
+         */
+        MarketFundingContext: {
+            venue: string;
+            symbol: string;
+            /** @description Signed percent per funding interval (0.0056 means 0.0056%, not a fraction); rounded to six decimals. */
+            ratePct: number;
+            /** @description Funding interval in hours; defaults to 8 when the stored interval is absent or zero. */
+            intervalHours: number;
+            /** @description Simple, non-compounded annualized percent; rounded to two decimals. */
+            annualizedPct: number;
+            /** Format: date-time */
+            nextFundingTime: string;
+            /**
+             * Format: date-time
+             * @description CoinRithm collection time, not a provider observation timestamp.
+             */
+            asOf: string;
+            /** @description Rounded collection age, clamped at zero. */
+            ageSeconds: number;
+            /** @description True when collection age exceeds 1800 seconds (30 minutes). */
+            stale: boolean;
+        };
+        /** @description Optional on older APIs. Members are additive and may be absent on older APIs; each can independently be null when unavailable or unusable. */
+        MarketDerivativesContext: {
+            openInterest?: components["schemas"]["MarketOpenInterestContext"] | null;
+            positioning?: components["schemas"]["MarketPositioningContext"] | null;
+            liquidations?: components["schemas"]["MarketLiquidationContext"] | null;
+            depth?: components["schemas"]["MarketDepthContext"] | null;
+        };
+        /**
+         * @description Single-side perpetual open interest in USD from covered Bybit/OKX
+         *     contracts, not total-market open interest. Reads up to 25 hours of
+         *     15-minute buckets. Only venues in the newest bucket or one bucket behind
+         *     contribute to the total; this relative inclusion rule can include stale
+         *     data. Null when no usable reading exists. A finite zero is valid.
+         */
+        MarketOpenInterestContext: {
+            /** @description Sum of included single-side USD readings, rounded to whole USD. */
+            totalUsd: number;
+            /** @description Percent change over matching venue and contract buckets exactly one hour apart; null without a positive comparable base. */
+            change1hPct: number | null;
+            /** @description Contributing venues for change1hPct; empty when the change is null. */
+            change1hVenues: string[];
+            /** @description Percent change over matching venue and contract buckets exactly 24 hours apart; null without a positive comparable base. */
+            change24hPct: number | null;
+            /** @description Contributing venues for change24hPct; empty when the change is null. */
+            change24hVenues: string[];
+            /** @description Included venues, descending by open interest; each retains its own provider timestamp. */
+            venues: components["schemas"]["MarketOpenInterestVenue"][];
+            /**
+             * Format: date-time
+             * @description Newest provider timestamp among included venues; does not date every venue.
+             */
+            asOf: string;
+            /** @description Rounded age of asOf, clamped at zero. */
+            ageSeconds: number;
+            /** @description True when ageSeconds exceeds 2700 (45 minutes). */
+            stale: boolean;
+        };
+        MarketOpenInterestVenue: {
+            venue: string;
+            /** @description Resolved perpetual contract identifier. */
+            symbol: string;
+            /** @description Single-side USD open interest, rounded to whole USD. */
+            openInterestUsd: number;
+            /**
+             * Format: date-time
+             * @description This venue's provider timestamp.
+             */
+            asOf: string;
+        };
+        /**
+         * @description Binance positioning for covered top coins by open interest. Each metric
+         *     is the newest usable value on the newest bucket's venue and contract,
+         *     within a 75-minute bucket lookback. Metrics retain independent provider
+         *     period timestamps; times more than 60 seconds ahead are rejected. Null
+         *     when no metric is usable, not evidence of balanced positioning.
+         */
+        MarketPositioningContext: {
+            venue: string;
+            symbol: string;
+            /** @description Accounts long divided by accounts short on this perpetual. */
+            longShortAccountRatio: components["schemas"]["MarketPositioningMetric"] | null;
+            /** @description Share of accounts long, in percent (not a 0..1 fraction). */
+            longAccountPct: components["schemas"]["MarketPositioningMetric"] | null;
+            /** @description Top traders' long divided by short, by position size. */
+            topTraderPositionRatio: components["schemas"]["MarketPositioningMetric"] | null;
+            /** @description Taker buy volume divided by sell volume in the last closed 15-minute period. */
+            takerBuySellRatio: components["schemas"]["MarketPositioningMetric"] | null;
+        };
+        MarketPositioningMetric: {
+            /** @description Unit is defined by the containing metric (ratio or percent). */
+            value: number;
+            /**
+             * Format: date-time
+             * @description Provider period timestamp for this metric.
+             */
+            asOf: string;
+            /** @description True when the provider period timestamp is more than 2700 seconds (45 minutes) old. */
+            stale: boolean;
+        };
+        /**
+         * @description OKX USDT-margined swaps only, using the coin's resolved OKX contract.
+         *     Sums cover events pushed while CoinRithm capture ran. Null without a
+         *     resolved contract or usable capture-coverage rows. Uncovered spans are
+         *     unknown, never evidence of no liquidations. Windows end at response time.
+         */
+        MarketLiquidationContext: {
+            /** @constant */
+            venue: "okx";
+            instId: string;
+            /** @description Source and capture-completeness limitations. */
+            note: string;
+            last1h: components["schemas"]["MarketLiquidationWindow"];
+            last24h: components["schemas"]["MarketLiquidationWindow"];
+            /**
+             * Format: date-time
+             * @description Latest usable captured event in the 24-hour read window; null without one. Not a capture heartbeat.
+             */
+            lastEventAt: string | null;
+        };
+        MarketLiquidationWindow: {
+            /** @description Captured liquidated-long notional in USDT, rounded to whole USDT. */
+            longLiquidatedUsdt: number;
+            /** @description Captured liquidated-short notional in USDT, rounded to whole USDT. */
+            shortLiquidatedUsdt: number;
+            events: number;
+            /** @description Conservative lower bound of capture uptime within this window, floored to 0.1 percent. Not exchange completeness or a missing-event estimate. */
+            capturedPct: number;
+        };
+        /**
+         * @description Hyperliquid's observed book only: at most 20 full-precision levels per
+         *     side, not total-market liquidity or an executable fill estimate. Latest
+         *     stored bucket within 30 minutes for reviewed coins. Null without a
+         *     usable snapshot; each side can independently be null when invalid.
+         *     Provider times more than 60 seconds ahead are rejected.
+         */
+        MarketDepthContext: {
+            venue: string;
+            /** @description Mid-price in USD of the observed book. */
+            mid: number;
+            bid: components["schemas"]["MarketDepthSide"] | null;
+            ask: components["schemas"]["MarketDepthSide"] | null;
+            /**
+             * Format: date-time
+             * @description Provider book timestamp.
+             */
+            asOf: string;
+            /** @description Rounded provider age, clamped at zero. */
+            ageSeconds: number;
+            /** @description True when ageSeconds exceeds 900 (15 minutes). */
+            stale: boolean;
+            /** @description One-venue visible-book and completeness limitations. */
+            note: string;
+        };
+        MarketDepthSide: {
+            /** @description Resting USD in returned levels, rounded to whole USD. */
+            usd: number;
+            /** @description Farthest returned level's distance from mid in percent; rounded to four decimals. */
+            reachPct: number;
+            levels: number;
+            /** @description True only for a side returned whole with fewer than 20 levels. False means liquidity beyond reachPct is unknown, not zero. */
+            complete: boolean;
+        };
+        /**
+         * @description Optional on older APIs; null without usable quotes. Curated Hyperliquid
+         *     xyz perpetuals tracking indices, commodities, FX and rates around the
+         *     clock are derivative proxies, not underlying exchange quotes. Each
+         *     quote has its own time; the block is market-wide, not coin-specific.
+         */
+        MarketMacroContext: {
+            /** @description Source and derivative-proxy limitations. */
+            note: string;
+            quotes: components["schemas"]["MarketMacroQuote"][];
+        };
+        MarketMacroQuote: {
+            /** @description Provider perpetual identifier. */
+            symbol: string;
+            label: string;
+            /** @description Currently index, commodity, fx or rates; not a closed enumeration. */
+            kind: string;
+            /** @description Provider derivative price in the quoted instrument's units; not a spot-market price. */
+            price: number;
+            /** @description Percent change from the stored previous-day price, rounded to two decimals; null without a valid positive base. */
+            change24hPct: number | null;
+            /**
+             * Format: date-time
+             * @description Provider time of the latest traded minute; times more than 60 seconds ahead are rejected.
+             */
+            asOf: string;
+            /** @description Rounded provider age, clamped at zero. */
+            ageSeconds: number;
+            /** @description True when ageSeconds exceeds 3600 (one hour). */
+            stale: boolean;
+        };
+        /** @description Optional on older APIs; null when neither chain TVL nor market-wide stablecoin supply is usable. Each member can independently be null. */
+        MarketDefiContext: {
+            chainTvl: components["schemas"]["MarketChainTvlContext"] | null;
+            stablecoinSupply: components["schemas"]["MarketStablecoinContext"] | null;
+        };
+        /**
+         * @description Value locked on the chain associated with this asset by DefiLlama,
+         *     matched using two identifiers. The association does not prove this is
+         *     the chain's native/gas token. TVL is not the coin's market value.
+         *     Current TVL has no provider observation time; publication/fetch times
+         *     are provenance, not substitutes for it. Null without a usable mapping
+         *     and value. Times more than 60 seconds ahead are treated as unknown.
+         */
+        MarketChainTvlContext: {
+            chain: string;
+            /** @description Current associated-chain TVL, rounded to whole USD. */
+            tvlUsd: number;
+            /**
+             * Format: date-time
+             * @description Response HTTP Last-Modified time; not an observation time.
+             */
+            publishedAt: string | null;
+            /**
+             * Format: date-time
+             * @description CoinRithm collection time.
+             */
+            fetchedAt: string | null;
+            /** @description Always null: the provider does not supply an observation time for current TVL. */
+            sourceObservedAt: null;
+            /** @description True when publication or fetch time is unknown, publication exceeds 6 hours, or fetch exceeds 3 hours. */
+            stale: boolean;
+            /**
+             * Format: date-time
+             * @description Provider daily point used for changes; null when invalid, older than 2 days, or its value is unavailable.
+             */
+            dayAt: string | null;
+            /** @description Percent change between provider daily points, not current TVL versus yesterday. Null without a usable daily point and positive comparison base. */
+            change1dPct: number | null;
+            /** @description Percent change between provider daily points seven days apart; null without a usable daily point and positive comparison base. */
+            change7dPct: number | null;
+            /** @description Chain-association and daily-comparison limitations. */
+            note: string;
+        };
+        /**
+         * @description Total stablecoin supply across all pegs in USD, market-wide, from
+         *     DefiLlama daily points. Null without a usable value and provider day.
+         *     Unknown or more-than-60-seconds-future collection/publication times
+         *     become null; an invalid/future provider day makes the block null.
+         */
+        MarketStablecoinContext: {
+            /** @description Total supply across all pegs, rounded to whole USD. */
+            totalUsd: number;
+            /**
+             * Format: date-time
+             * @description Provider daily point; may be stale.
+             */
+            dayAt: string;
+            /** @description Percent change versus the previous daily point; null without a valid positive base. May be retained on a stale block. */
+            change1dPct: number | null;
+            /** @description Percent change versus the daily point seven days earlier; null without a valid positive base. May be retained on a stale block. */
+            change7dPct: number | null;
+            /** @description True when the provider day exceeds 2 days, or collection time is unknown or exceeds 3 hours. */
+            stale: boolean;
+            /**
+             * Format: date-time
+             * @description Response HTTP Last-Modified time, not the provider daily point.
+             */
+            publishedAt: string | null;
+            /**
+             * Format: date-time
+             * @description CoinRithm collection time.
+             */
+            fetchedAt: string | null;
+            /** @description Market-wide, all-pegs USD supply basis. */
+            note: string;
+        };
         OpenOrder: {
             id?: number;
             /** @enum {string} */
@@ -5097,7 +5377,17 @@ export interface operations {
                             change24h?: number | null;
                             change7d?: number | null;
                             marketCapUsd?: number | null;
+                            /**
+                             * Format: date-time
+                             * @description LivePrice row write time (an observation, not a trade); null without a price row.
+                             */
+                            asOf?: string | null;
                         } | null;
+                        priceTiming?: components["schemas"]["SpotPriceTiming"];
+                        funding?: components["schemas"]["MarketFundingContext"] | null;
+                        derivatives?: components["schemas"]["MarketDerivativesContext"];
+                        macro?: components["schemas"]["MarketMacroContext"] | null;
+                        defi?: components["schemas"]["MarketDefiContext"] | null;
                         sentiment?: {
                             bullishVotes?: number;
                             bearishVotes?: number;
