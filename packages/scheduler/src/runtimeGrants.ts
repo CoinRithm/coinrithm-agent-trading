@@ -22,6 +22,20 @@ export const RUNTIME_DML_PRIVILEGES = [
   "DELETE",
 ] as const;
 
+// Append-only: money rows (sql/008_paid_brain_credits.sql). The scheduler reads
+// balances and inserts debits; it never updates or deletes a ledger row, and
+// runtime-role.sql revokes UPDATE, DELETE and TRUNCATE explicitly.
+export const RUNTIME_APPEND_TABLES = ["agent_runtime.credit_ledger"] as const;
+
+export const RUNTIME_APPEND_PRIVILEGES = ["SELECT", "INSERT"] as const;
+
+// Sequences behind append-only bigserial ids: an INSERT calls nextval, which
+// needs USAGE. Checked with has_sequence_privilege (see schema.ts); USAGE is
+// not a table privilege, so the privilege name alone selects that check.
+export const RUNTIME_SEQUENCE_USAGE = [
+  "agent_runtime.credit_ledger_id_seq",
+] as const;
+
 // Read-only: migration receipts (startup contract).
 export const RUNTIME_READ_TABLES = ["agent_runtime.schema_migrations"] as const;
 
@@ -48,6 +62,18 @@ export function runtimePrivilegeChecks(): RuntimePrivilegeCheck[] {
         privilege,
       })),
     ),
+    ...RUNTIME_APPEND_TABLES.flatMap((table) =>
+      RUNTIME_APPEND_PRIVILEGES.map((privilege) => ({
+        table,
+        column: null,
+        privilege,
+      })),
+    ),
+    ...RUNTIME_SEQUENCE_USAGE.map((table) => ({
+      table,
+      column: null,
+      privilege: "USAGE",
+    })),
     ...RUNTIME_READ_TABLES.map((table) => ({
       table,
       column: null,
