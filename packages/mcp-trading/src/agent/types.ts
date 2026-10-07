@@ -309,6 +309,14 @@ export interface IndicatorContext {
   };
 }
 
+export interface OpenInterestContext {
+  totalUsd: number;
+  change1hPct: number | null;
+  change24hPct: number | null;
+  asOf: string;
+  stale: boolean;
+}
+
 export interface WatchEntry {
   symbol: string;
   coinId: string | null; // resolved UCID; null if unresolvable
@@ -344,6 +352,11 @@ export interface WatchEntry {
   // context this entry was built from, plus the one /news call the `news`
   // capability already pays for). Omitted when nothing is known.
   fundamentals?: CoinFundamentals;
+  // Perpetual open interest (GET /api/agent/market derivatives.openInterest,
+  // backend-v2 #133): single-side USD summed over Bybit + OKX, with its 1h /
+  // 24h change over venues present at both times. Omitted when the API has
+  // no reading; `stale` marks a reading older than three 15-minute buckets.
+  openInterest?: OpenInterestContext;
   // What the server entry gate's perpetual-reference rule says about a NEW
   // futures open on this coin (GET /api/agent/market futuresEntryEligibility,
   // backend-v2 #106). Absent = unknown (older API): never blocks by itself.

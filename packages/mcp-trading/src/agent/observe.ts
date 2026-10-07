@@ -15,6 +15,7 @@ import {
   PmMarket,
   NewsItem,
   CoinFundamentals,
+  OpenInterestContext,
   WatchEntry,
   IndicatorContext,
   AgentTrace,
@@ -689,6 +690,29 @@ function coinFundamentalsOf(
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
+// Perpetual open interest from the same /market context (no extra call).
+// Kept compact: the per-venue breakdown stays server-side. A malformed or
+// absent block is omitted, never filled with zeros.
+export function openInterestOf(
+  m: Record<string, unknown>,
+): OpenInterestContext | undefined {
+  const oi = asObj(asObj(m.derivatives).openInterest);
+  const totalUsd = asNum(oi.totalUsd);
+  const asOf = asStr(oi.asOf);
+  if (totalUsd == null || !(totalUsd > 0) || !asOf) return undefined;
+  const pct = (v: unknown) => {
+    const n = asNum(v);
+    return n == null ? null : n;
+  };
+  return {
+    totalUsd,
+    change1hPct: pct(oi.change1hPct),
+    change24hPct: pct(oi.change24hPct),
+    asOf,
+    stale: oi.stale === true,
+  };
+}
+
 // Enrich a watch entry with what the candles fetch yields (indicators + 24h
 // volume) when the `indicators` capability is on. One call, both fields.
 async function enrichFromCandles(
@@ -1054,6 +1078,8 @@ export async function observe(
     };
     const fundamentals = coinFundamentalsOf(m);
     if (fundamentals) entry.fundamentals = fundamentals;
+    const openInterest = openInterestOf(m);
+    if (openInterest) entry.openInterest = openInterest;
     // Capture the market-wide Fear & Greed regime once (same across coins).
     if (!marketMood) {
       const fg = asObj(m.fearGreed);
@@ -1145,6 +1171,8 @@ export async function observe(
         };
         const fundamentals = coinFundamentalsOf(m);
         if (fundamentals) entry.fundamentals = fundamentals;
+        const openInterest = openInterestOf(m);
+        if (openInterest) entry.openInterest = openInterest;
         if (wantIndicators)
           await enrichFromCandles(client, entry, coinId, trace);
         watch.push(entry);

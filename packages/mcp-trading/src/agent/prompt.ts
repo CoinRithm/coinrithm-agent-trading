@@ -255,6 +255,7 @@ export function buildSystemPrompt(
     `- abstention.minConfidence ${spec.abstention.minConfidence}: opens below this are rejected, so act with genuine conviction — but routine caution is no reason to sit out a clear setup`,
     ...(hasCoinVenue
       ? [
+          "- Open interest (watch[].openInterest, perpetuals, single-side USD across Bybit and OKX) shows whether positions are being added or closed. Read it WITH price: price up and open interest up means new positions are behind the move; price up and open interest down means shorts are closing, a weaker push; price down and open interest up means new shorts. It is positioning context, not a trade signal on its own. Ignore it when `stale` is true or it is missing.",
           "- Community sentiment is a dated sample: read sentimentBullishPct WITH sentimentTotalVotes and sentimentDayUtc. A tiny or old cohort is weak evidence, not current market consensus. sentimentUpdatedAt is the cohort's write time. Missing counts/dates are unknown; price freshness does not date sentiment. marketMood.fetchedAt is Fear & Greed collection time, not its provider observation time. Compare each clock with observation.asOf; never invent currentness from a missing date.",
         ]
       : []),
