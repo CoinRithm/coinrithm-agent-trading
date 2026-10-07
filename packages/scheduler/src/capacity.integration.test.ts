@@ -23,6 +23,8 @@ import {
   reviveDisabledAgents,
   disableAgent,
   persistCycleResult,
+  readCreditPosition,
+  insertDebit,
   migrateHouseAgentsOffGroq,
   migrateAgentsOffEolModels,
 } from "./db.js";
@@ -521,6 +523,58 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
         );
       }
       await assertSchemaReady(runtime);
+      // Paid brains: the runtime role reads positions and appends debits on
+      // the credit ledger, and can never rewrite or remove a money row.
+      await pool.query(
+        "DELETE FROM agent_runtime.credit_ledger WHERE user_id = 9101",
+      );
+      await pool.query(
+        `INSERT INTO agent_runtime.credit_ledger (user_id, kind, amount_micro_usd, idempotency_key)
+         VALUES (9101, 'grant', 1000000, 'grant:restricted-fixture')`,
+      );
+      const since = new Date(Date.UTC(2000, 0, 1));
+      expect(
+        await readCreditPosition(runtime, 9101, Number(agent.id), since),
+      ).toEqual({ balanceMicro: 1_000_000, monthSpendMicro: 0 });
+      const cycleId = await persistCycleResult(runtime, Number(agent.id), {
+        state: { sequence: 2 },
+        cycle: { decision: "skip", skipReason: "fixture" },
+      });
+      expect(cycleId).toBeGreaterThan(0);
+      const debit = {
+        userId: 9101,
+        agentId: Number(agent.id),
+        cycleId: cycleId!,
+        modelId: "claude-sonnet-5-5",
+        tokensIn: 20_000,
+        tokensOut: 400,
+        providerCostMicro: 44_000,
+        marginMicro: 8_800,
+        totalMicro: 52_800,
+        idempotencyKey: `debit:${cycleId}`,
+      };
+      expect(await insertDebit(runtime, debit)).toBe(true);
+      expect(await insertDebit(runtime, debit)).toBe(false);
+      expect(
+        await readCreditPosition(runtime, 9101, Number(agent.id), since),
+      ).toEqual({ balanceMicro: 947_200, monthSpendMicro: 52_800 });
+      await expect(
+        runtime.query(
+          "UPDATE agent_runtime.credit_ledger SET amount_micro_usd = 0 WHERE user_id = 9101",
+        ),
+      ).rejects.toMatchObject({ code: "42501" });
+      await expect(
+        runtime.query(
+          "DELETE FROM agent_runtime.credit_ledger WHERE user_id = 9101",
+        ),
+      ).rejects.toMatchObject({ code: "42501" });
+      // A debit can never be positive (the contract's sign CHECK).
+      await expect(
+        pool.query(
+          `INSERT INTO agent_runtime.credit_ledger (user_id, kind, amount_micro_usd, idempotency_key)
+           VALUES (9101, 'debit', 5, 'debit:positive-fixture')`,
+        ),
+      ).rejects.toMatchObject({ code: "23514" });
     } finally {
       await runtime.end();
     }

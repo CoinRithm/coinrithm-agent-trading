@@ -15,6 +15,9 @@ import {
   nextRunAtSql,
   phaseOffsetSeconds,
   reviveDisabledAgents,
+  readCreditPosition,
+  insertDebit,
+  pauseAgent,
   sharedCadenceFloorSeconds,
   SHARED_CADENCE_TARGET_RPM,
   EOL_MODEL_SUCCESSORS,
@@ -1014,5 +1017,144 @@ describe("claimDueAgents in-flight exclusion", () => {
     const call = claimCall(query);
     expect(String(call?.[0])).not.toContain("$3");
     expect(call?.[1]).toEqual([10, true]);
+  });
+});
+
+describe("paid brain credit ledger helpers", () => {
+  const debit = {
+    userId: 19,
+    agentId: 42,
+    cycleId: 4242,
+    modelId: "claude-sonnet-5-5",
+    tokensIn: 20_000,
+    tokensOut: 400,
+    providerCostMicro: 44_000,
+    marginMicro: 8_800,
+    totalMicro: 52_800,
+    idempotencyKey: "debit:4242",
+  };
+
+  it("reads the balance and this agent's month spend in one query", async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValue({
+        rows: [{ balance: "947200", month_spend: "52800" }],
+      });
+    const pool = { query } as unknown as Pool;
+    const since = new Date(Date.UTC(2026, 9, 1));
+    expect(await readCreditPosition(pool, 19, 42, since)).toEqual({
+      balanceMicro: 947_200,
+      monthSpendMicro: 52_800,
+    });
+    expect(query).toHaveBeenCalledTimes(1);
+    const [sql, params] = query.mock.calls[0]!;
+    expect(sql).toContain("FROM agent_runtime.credit_ledger");
+    expect(sql).toContain("WHERE user_id = $1");
+    expect(sql).toContain(
+      "WHERE kind = 'debit' AND agent_id = $2 AND created_at >= $3",
+    );
+    expect(params).toEqual([19, 42, since]);
+  });
+
+  it("reads an empty ledger as a zero position", async () => {
+    const pool = {
+      query: vi.fn().mockResolvedValue({ rows: [] }),
+    } as unknown as Pool;
+    expect(await readCreditPosition(pool, 19, 42, new Date(0))).toEqual({
+      balanceMicro: 0,
+      monthSpendMicro: 0,
+    });
+  });
+
+  it("refuses a sum it cannot represent exactly", async () => {
+    const pool = {
+      query: vi.fn().mockResolvedValue({
+        rows: [{ balance: "99999999999999999999", month_spend: "0" }],
+      }),
+    } as unknown as Pool;
+    await expect(readCreditPosition(pool, 19, 42, new Date(0))).rejects.toThrow(
+      "out of range",
+    );
+  });
+
+  it("inserts one negative debit keyed for idempotency and reports whether it wrote", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [], rowCount: 1 });
+    const pool = { query } as unknown as Pool;
+    expect(await insertDebit(pool, { ...debit, note: "usage estimated" })).toBe(
+      true,
+    );
+    const [sql, params] = query.mock.calls[0]!;
+    expect(sql).toContain("INSERT INTO agent_runtime.credit_ledger");
+    expect(sql).toContain("'debit'");
+    expect(sql).toContain("ON CONFLICT (idempotency_key) DO NOTHING");
+    expect(sql).not.toMatch(/UPDATE|DELETE/);
+    expect(params).toEqual([
+      19,
+      -52_800,
+      42,
+      4242,
+      "claude-sonnet-5-5",
+      20_000,
+      400,
+      44_000,
+      8_800,
+      "usage estimated",
+      "debit:4242",
+    ]);
+    query.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    expect(await insertDebit(pool, debit)).toBe(false);
+    expect(query.mock.calls[1]![1][9]).toBeNull();
+  });
+
+  it.each([0, -1, 1.5, NaN])(
+    "never writes a debit of %s",
+    async (totalMicro) => {
+      const query = vi.fn();
+      const pool = { query } as unknown as Pool;
+      await expect(insertDebit(pool, { ...debit, totalMicro })).rejects.toThrow(
+        "positive integer",
+      );
+      expect(query).not.toHaveBeenCalled();
+    },
+  );
+
+  it("pauses only a still-active agent, with its reason", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [], rowCount: 1 });
+    const pool = { query } as unknown as Pool;
+    await pauseAgent(pool, 42, "paid brain credit exhausted");
+    const [sql, params] = query.mock.calls[0]!;
+    expect(sql).toContain("SET status = 'paused', disabled_reason = $2");
+    expect(sql).toContain("WHERE id = $1 AND status = 'active'");
+    expect(params).toEqual([42, "paid brain credit exhausted"]);
+  });
+
+  it("persistCycleResult returns the inserted cycle id for the debit key", async () => {
+    const query = vi
+      .fn()
+      .mockImplementation(async (sql: string) =>
+        sql.includes("INSERT INTO agent_runtime.agent_cycles")
+          ? { rows: [{ id: "4242" }], rowCount: 1 }
+          : { rows: [], rowCount: 1 },
+      );
+    const pool = {
+      connect: vi.fn().mockResolvedValue({ query, release: vi.fn() }),
+    } as unknown as Pool;
+    expect(
+      await persistCycleResult(pool, 42, {
+        state: {},
+        cycle: { decision: "skip" },
+      }),
+    ).toBe(4242);
+    const insert = query.mock.calls.find((c) =>
+      String(c[0]).includes("INSERT INTO agent_runtime.agent_cycles"),
+    )!;
+    expect(String(insert[0])).toContain("RETURNING id");
+    query.mockImplementation(async () => ({ rows: [], rowCount: 0 }));
+    expect(
+      await persistCycleResult(pool, 42, {
+        state: {},
+        cycle: { decision: "skip" },
+      }),
+    ).toBeUndefined();
   });
 });

@@ -366,6 +366,101 @@ export async function costByOwnerSince(
   return Number(rows[0]?.total ?? 0);
 }
 
+// --- Paid brain credit ledger (sql/008, contract v1 2026-10-07) -------------
+// Append-only: the scheduler only ever reads a position and inserts debits.
+// Amounts are integer micro-USD; pg returns bigint sums as text, so they are
+// parsed and range-checked here rather than trusted as JS numbers.
+
+export interface CreditPosition {
+  /** SUM(amount_micro_usd) over every row of the user: grants, top-ups,
+   * refunds and (negative) debits across all of the user's agents. */
+  balanceMicro: number;
+  /** This agent's debits since `monthStartUtc`, as a positive amount. */
+  monthSpendMicro: number;
+}
+
+function ledgerMicro(value: string | null | undefined, label: string): number {
+  const parsed = Number(value ?? 0);
+  if (!Number.isSafeInteger(parsed)) {
+    throw new Error(`credit ledger ${label} is out of range`);
+  }
+  return parsed;
+}
+
+/** Balance and this agent's month spend in ONE query (one snapshot), served by
+ * credit_ledger_user_created. */
+export async function readCreditPosition(
+  pool: Pool,
+  userId: number,
+  agentId: number,
+  monthStartUtc: Date,
+): Promise<CreditPosition> {
+  const { rows } = await pool.query<{
+    balance: string | null;
+    month_spend: string | null;
+  }>(
+    `SELECT COALESCE(SUM(amount_micro_usd), 0)::text AS balance,
+            COALESCE(-SUM(amount_micro_usd) FILTER (
+              WHERE kind = 'debit' AND agent_id = $2 AND created_at >= $3
+            ), 0)::text AS month_spend
+       FROM agent_runtime.credit_ledger
+      WHERE user_id = $1`,
+    [userId, agentId, monthStartUtc],
+  );
+  return {
+    balanceMicro: ledgerMicro(rows[0]?.balance, "balance"),
+    monthSpendMicro: ledgerMicro(rows[0]?.month_spend, "month spend"),
+  };
+}
+
+export interface PaidDebit {
+  userId: number;
+  agentId: number;
+  cycleId: number;
+  modelId: string;
+  tokensIn: number;
+  tokensOut: number;
+  providerCostMicro: number;
+  marginMicro: number;
+  /** Positive amount to debit; stored negated. */
+  totalMicro: number;
+  idempotencyKey: string;
+  note?: string;
+}
+
+/** Insert one debit. ON CONFLICT on the idempotency key makes a retry a no-op;
+ * returns whether THIS call wrote the row. A non-positive amount is refused:
+ * the ledger CHECK requires every debit to be negative. */
+export async function insertDebit(
+  pool: Pool,
+  debit: PaidDebit,
+): Promise<boolean> {
+  if (!Number.isSafeInteger(debit.totalMicro) || debit.totalMicro <= 0) {
+    throw new Error("a debit must be a positive integer micro-USD amount");
+  }
+  const { rowCount } = await pool.query(
+    `INSERT INTO agent_runtime.credit_ledger
+       (user_id, kind, amount_micro_usd, agent_id, cycle_id, model_id, tokens_in, tokens_out,
+        provider_cost_micro_usd, margin_micro_usd, note, idempotency_key)
+     VALUES ($1, 'debit', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+     ON CONFLICT (idempotency_key) DO NOTHING`,
+    [
+      debit.userId,
+      -debit.totalMicro,
+      debit.agentId,
+      debit.cycleId,
+      debit.modelId,
+      debit.tokensIn,
+      debit.tokensOut,
+      debit.providerCostMicro,
+      debit.marginMicro,
+      debit.note ?? null,
+      debit.idempotencyKey,
+    ],
+  );
+  return rowCount === 1;
+}
+
 interface RawAgent {
   id: string;
   handle: string;
@@ -684,7 +779,7 @@ export async function persistCycleResult(
      * failover routing exists. Recorded as agent_cycles.effective_model. */
     model?: { provider: string; name: string };
   },
-): Promise<void> {
+): Promise<number | undefined> {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -695,7 +790,9 @@ export async function persistCycleResult(
       [agentId, JSON.stringify(args.state)],
     );
     const c = args.cycle;
-    await client.query(
+    // RETURNING id: the paid-brain debit is keyed by this cycle's id
+    // ('debit:<cycle_id>'), written right after this transaction commits.
+    const inserted = await client.query<{ id: string }>(
       `INSERT INTO agent_runtime.agent_cycles
          (agent_id, decision, skip_reason, rationale, confidence, raw_model_output, model_failed, disabled, actions, log, error,
           trigger_codes, llm_call_made, tokens_in, tokens_out, estimated_cost_usd, decision_type, write_attempted, write_accepted,
@@ -703,7 +800,8 @@ export async function persistCycleResult(
           route_reason, route_attempts, decision_input_record, decision_input_record_expires_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21,
                $22, $23, $24, $25::jsonb, $26::jsonb,
-               CASE WHEN $26::jsonb IS NOT NULL THEN now() + interval '30 days' ELSE NULL END)`,
+               CASE WHEN $26::jsonb IS NOT NULL THEN now() + interval '30 days' ELSE NULL END)
+       RETURNING id`,
       [
         agentId,
         c.decision,
@@ -793,6 +891,8 @@ export async function persistCycleResult(
       );
     }
     await client.query("COMMIT");
+    const cycleId = Number(inserted?.rows?.[0]?.id);
+    return Number.isSafeInteger(cycleId) && cycleId > 0 ? cycleId : undefined;
   } catch (e) {
     await client.query("ROLLBACK").catch(() => {});
     throw e;
@@ -905,6 +1005,22 @@ export async function rescheduleToCadence(
             updated_at = now()
       WHERE id = $1 AND status = 'active'`,
     [agentId],
+  );
+}
+
+// Pause (not disable) with a reason: the owner's own resume path
+// (POST /api/agents/:id/resume) re-arms it after a top-up, and
+// reviveDisabledAgents never touches a paused row, so it cannot thrash.
+// Like disableAgent, only an agent that is still active is paused; a newer
+// owner stop or pause keeps its own status and reason.
+export async function pauseAgent(
+  pool: Pool,
+  agentId: number,
+  reason: string,
+): Promise<void> {
+  await pool.query(
+    "UPDATE agent_runtime.agents SET status = 'paused', disabled_reason = $2, updated_at = now() WHERE id = $1 AND status = 'active'",
+    [agentId, reason.slice(0, 500)],
   );
 }
 
