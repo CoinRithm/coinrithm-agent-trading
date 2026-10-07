@@ -342,7 +342,8 @@ export class RoutedProvider<Lease = unknown> implements Provider {
     try {
       await this.hooks.abandonOwnerWait?.(route);
     } catch {
-      // The claim still expires on its own (<= 75 s); never fail the cycle.
+      // The claim still expires on its own (<= OWNER_WAITER_TTL_SECONDS,
+      // 135 s); never fail the cycle.
     }
   }
 

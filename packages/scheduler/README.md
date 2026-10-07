@@ -262,7 +262,9 @@ protected turn, so it defers at once instead of holding one of the two
 first-call wait slots (the admission snapshot reports `claimedByOther`);
 malformed-tool recovery waits are unaffected. Two provider calls per cycle,
 limits, concurrency, spend, the 180 s model interval and phase scheduling are
-unchanged; deferrals rotate instead of starving one agent.
+unchanged. This bounds one protected turn per owner bucket at a time; it does
+not guarantee that every agent of an owner over its budget is served (7 Oct
+2026: a41-mon-olivia, in a seven-agent owner, was still deferred after #132).
 
 Each owner-refill wait logs one line per step, `owner_wait_start`,
 `owner_wait_skip` (reason `no_hint`, `hint_over_ceiling`, `deadline`,
