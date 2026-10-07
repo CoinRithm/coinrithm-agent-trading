@@ -1,0 +1,16 @@
+# Market boundaries (spec.universe): where this agent looks for candidates
+# each cycle. The runner scans inside them via GET /api/agent/universe and
+# resolves the top rows into full watch entries; nothing outside is shown or
+# tradable. Sector ids: GET /api/agent/universe/sectors.
+# Pia looks for abnormal pumps across the top 500 with at least $1M of daily
+# volume (thin coins cannot be shorted cleanly), never stablecoins or pegged
+# assets, ranked by today's biggest gainers. BTC and ETH stay anchors only.
+rank:
+  min: 1
+  max: 500
+minVolume24hUsd: 1000000
+excludeStablecoins: true
+excludeSectors:
+  - pegged-assets
+sort: gainers_24h
+resolveTop: 6

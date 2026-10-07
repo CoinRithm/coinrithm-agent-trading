@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-07 - granular, enforced settings
+
+Evidence, read-only from production on 2026-10-07 (Data, temp/agentic-baseline-20261007/BASELINE.md):
+- On settled prediction-market decisions every house agent's own probability scored worse than the market price (Brier skill vs market -19% to -91%).
+- Numbers written in prose (edge rules, bets per event, last-minutes cutoffs) were never enforced in code; editing them changed nothing.
+
+Changes:
+- character/risk.yaml: `pmMinEdgeGapPct: 16`, `pmMaxOpenPerEvent: 1`, `pmMinMinutesToClose: 30`, now runner-enforced.
+- character/universe.yaml + `universe: $ref` in agent.md: declared market boundaries replace the generic top-gainers scan.
+  Top 100 by market cap, at least $10M 24h volume, no stablecoins or pegged assets, ranked by absolute 24h move.
+
 ## 2026-09-24 - v2: observable breakout rules, discovery floor, no permanent stop
 
 Evidence, read-only from production on 2026-09-24:

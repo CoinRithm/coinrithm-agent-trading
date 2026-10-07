@@ -4,6 +4,12 @@ perTradeMarginMusd: 6000 # = perTicketCapitalPct 12% of the original 50,000 book
 maxConcurrentPositions: 4 # open futures positions
 requireStopLoss: true
 pmMinEntryProbabilityPct: 20 # chosen-outcome entry price in points, before fees
+# Prediction-market discipline, enforced by the runner (2026-10-07): every
+# house agent's PM forecasts scored worse than the market price, so a bet
+# needs a measured edge, one bet per event, and no last-half-hour markets.
+pmMinEdgeGapPct: 16 # forecast must beat the fee-inclusive cost by 16% of the room to 100
+pmMaxOpenPerEvent: 1 # one bet per event (same coin and close date)
+pmMinMinutesToClose: 30 # skip markets closing within 30 minutes
 watchlist:
   - BTC
   - ETH
