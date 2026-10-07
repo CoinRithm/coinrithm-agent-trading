@@ -518,6 +518,30 @@ describe("first-attempt owner refill wait (owner fairness, 009)", () => {
     expect(h.hooks.acquire).toHaveBeenCalledTimes(2);
   });
 
+  it("keeps the malformed-tool recovery at 60 s while a first call may wait 120 s", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    // Same 90 s owner hint. Malformed Super recovery: no wait, no timer.
+    const recovery = harness([bad], [superRoute], () => Date.now());
+    vi.mocked(recovery.hooks.acquire)
+      .mockResolvedValueOnce({ ok: true, lease: "first" })
+      .mockResolvedValueOnce(ownerDenial(90_000));
+    expect(
+      await recovery.provider.decide({ ...input, timeoutMs: 300_000 }),
+    ).toMatchObject({ ok: false, deferred: false });
+    expect(recovery.hooks.acquire).toHaveBeenCalledTimes(2);
+    expect(vi.getTimerCount()).toBe(0);
+    // First call of a cycle: waits the 90 s and re-admits.
+    const first = harness([good], [superRoute], () => Date.now());
+    vi.mocked(first.hooks.acquire)
+      .mockResolvedValueOnce(ownerDenial(90_000))
+      .mockResolvedValueOnce({ ok: true, lease: "after-wait" });
+    const pending = first.provider.decide({ ...input, timeoutMs: 300_000 });
+    await vi.advanceTimersByTimeAsync(90_000);
+    expect((await pending).ok).toBe(true);
+    expect(first.hooks.acquire).toHaveBeenCalledTimes(2);
+  });
+
   it("waits for an oversized first owner refill (a41-mon-olivia's live 88.9 s hint)", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(0);

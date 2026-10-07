@@ -183,12 +183,64 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
       expect((await reserveProviderCapacity(pool, debtor)).ok).toBe(true);
     });
 
-    it("bounds debt at one bucket capacity for an implausible usage report", async () => {
+    it("carries debt larger than one bucket and repays it before admitting", async () => {
       await fullAgo(0);
       const r = await reserveProviderCapacity(pool, debtor);
       if (!r.ok) throw Error("Expected admission");
-      await releaseProviderCapacity(pool, r.lease, 50_000_000);
-      expect(Number((await bucket()).model_tokens)).toBe(-30_000);
+      // A 30k reserve that reported 80k: all 50k excess is kept.
+      await releaseProviderCapacity(pool, r.lease, 80_000);
+      expect(Number((await bucket()).model_tokens)).toBe(-50_000);
+      const denied = await reserveProviderCapacity(pool, debtor);
+      // (30k need + 50k debt) / 20k per minute = 240 s.
+      const hint = (denied as { retryAfterMs?: number }).retryAfterMs!;
+      expect(hint).toBeGreaterThan(239_000);
+      expect(hint).toBeLessThan(242_000);
+      await pool.query(
+        `UPDATE agent_runtime.provider_capacity_buckets
+            SET last_refill_at = clock_timestamp() - interval '200 seconds'
+          WHERE route_key = $1`,
+        [debtor.routeKey],
+      );
+      expect((await reserveProviderCapacity(pool, debtor)).ok).toBe(false);
+      await pool.query(
+        `UPDATE agent_runtime.provider_capacity_buckets
+            SET last_refill_at = clock_timestamp() - interval '241 seconds'
+          WHERE route_key = $1`,
+        [debtor.routeKey],
+      );
+      expect((await reserveProviderCapacity(pool, debtor)).ok).toBe(true);
+    });
+
+    it("sums the debt of concurrent releases", async () => {
+      const pair = { ...debtor, maxConcurrent: 2 };
+      await fullAgo(0);
+      const first = await reserveProviderCapacity(pool, pair);
+      if (!first.ok) throw Error("Expected admission");
+      await pool.query(
+        `UPDATE agent_runtime.provider_capacity_buckets SET model_tokens = 30000
+          WHERE route_key = $1`,
+        [debtor.routeKey],
+      );
+      const second = await reserveProviderCapacity(pool, pair);
+      if (!second.ok) throw Error("Expected admission");
+      const other = new Pool({ connectionString: databaseUrl });
+      try {
+        await Promise.all([
+          releaseProviderCapacity(pool, first.lease, 55_000),
+          releaseProviderCapacity(other, second.lease, 55_000),
+        ]);
+      } finally {
+        await other.end();
+      }
+      // Two 25k excesses on an empty bucket: -50k, beyond one bucket.
+      expect(Number((await bucket()).model_tokens)).toBe(-50_000);
+      expect(
+        (
+          await pool.query(
+            "SELECT count(*)::int AS n FROM agent_runtime.provider_capacity_leases",
+          )
+        ).rows[0].n,
+      ).toBe(0);
     });
 
     it("reconciles a lease once: a duplicate release adds no second debt", async () => {
@@ -204,6 +256,9 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
       ["missing", undefined],
       ["NaN", Number.NaN],
       ["infinite", Number.POSITIVE_INFINITY],
+      ["negative", -1],
+      ["fractional", 31_000.5],
+      ["unsafe", 2 ** 53],
     ])(
       "charges exactly the reserve when usage is %s",
       async (_label, usage) => {
@@ -1848,8 +1903,9 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
       const after = await run(MAX_OWNER_REFILL_WAIT_MS);
       console.info("owner 86 schedule", JSON.stringify({ before, after }));
       // Reported usage, not the estimate, stays within the owner's refill
-      // plus one burst of bounded debt (the old floor let ~1.5x through).
-      const budget = (h: number) => (RATE * h) / 60 + 29_774;
+      // plus the largest single reported excess (a44: 49,150 - 29,774); the
+      // old floor at 0 let ~1.5x through.
+      const budget = (h: number) => (RATE * h) / 60 + 19_376;
       expect(before.consumed).toBeLessThanOrEqual(budget(before.horizon));
       expect(after.consumed).toBeLessThanOrEqual(budget(after.horizon));
       // 60 s: a41 is the fixed loser (live: 1 call in 6 cycles).

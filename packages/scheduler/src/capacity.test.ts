@@ -165,7 +165,7 @@ describe("shared provider capacity", () => {
     await releaseProviderCapacity(db.pool, r.lease, 0);
     await releaseProviderCapacity(db.pool, r.lease, 9_000, true);
     const updates = db.query.mock.calls
-      .filter((c) => String(c[0]).includes("model_tokens = GREATEST"))
+      .filter((c) => String(c[0]).includes("model_tokens = LEAST"))
       .map((c) => c[1] as unknown[]);
     // Consumed: clears its own claim. Rejected before inference (0 tokens) or
     // unused: keeps the claim, so a refusal never erases the turn.
@@ -356,7 +356,7 @@ describe("shared provider capacity", () => {
       9_000,
     );
     const update = db.query.mock.calls.find((c) =>
-      String(c[0]).includes("model_tokens = GREATEST"),
+      String(c[0]).includes("model_tokens = LEAST"),
     );
     expect(update?.[1]).toEqual([limit.routeKey, 3_000, 0, 0, null, false]);
     expect(db.release).toHaveBeenCalledOnce();
