@@ -16,7 +16,7 @@
 // - benchGuard.ts caps provider calls for the whole run (<= 40), spaces
 //   decisions, and aborts on the first provider 429, any cooldown hold or 3
 //   owner-budget denials in a row; after an abort nothing reaches a provider.
-// - Before the first call it refuses when the planned upper bound
+// - Before the first call it refuses when the planned worst case
 //   (cassettes x variants x repeats) exceeds the cap, or when the route is
 //   already cooling down.
 // - The bench itself refuses every write and starts each cycle from a fresh
@@ -32,6 +32,7 @@ import { loadConfig } from "../dist/config.js";
 import { createPool } from "../dist/db.js";
 import { benchRoutedProvider } from "../dist/runtime.js";
 import { BENCH_MAX_CALLS, createBenchGuard } from "../dist/benchGuard.js";
+import { MAX_ROUTE_ATTEMPTS } from "../dist/route.js";
 
 const argv = process.argv.slice(2);
 const one = (name) => {
@@ -58,10 +59,13 @@ async function main() {
     throw new Error("--min-interval-sec must be at least 60");
 
   const corpus = readCorpus(resolve(corpusDir));
-  const upperBound = corpus.cassettes.length * variants.length * repeats;
+  // Worst case: every decision uses the router's full attempt budget (a
+  // malformed-output recovery retries the same model inside one decision).
+  const decisions = corpus.cassettes.length * variants.length * repeats;
+  const upperBound = decisions * MAX_ROUTE_ATTEMPTS;
   if (upperBound > maxCalls)
     throw new Error(
-      `planned upper bound ${upperBound} decisions (cassettes x variants x repeats) exceeds the cap ${maxCalls}; shrink the corpus`,
+      `planned worst case ${upperBound} provider calls (${decisions} decisions x ${MAX_ROUTE_ATTEMPTS}) exceeds the cap ${maxCalls}; shrink the corpus or variants`,
     );
 
   const models = [
@@ -121,6 +125,7 @@ async function main() {
       ownerUserId,
       maxCalls,
       minIntervalMs,
+      decisions,
       upperBound,
       guard: guard.state,
       ok: result.ok,

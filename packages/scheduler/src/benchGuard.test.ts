@@ -50,27 +50,47 @@ function harness(
 describe("bench guard", () => {
   it("allows 1..40 calls only", () => {
     expect(BENCH_MAX_CALLS).toBe(40);
-    for (const maxCalls of [0, 41, 1.5])
+    for (const maxCalls of [0, 1, 41, 1.5])
       expect(() =>
         createBenchGuard({
           maxCalls,
           minIntervalMs: 0,
           maxOwnerDenialStreak: 3,
         }),
-      ).toThrow("maxCalls");
+      ).toThrow(/maxCalls/);
   });
 
   it("stops at the call cap without reaching the provider again", async () => {
-    const h = harness([], { maxCalls: 2 });
+    const h = harness([], { maxCalls: 4 });
     expect((await h.provider.decide(input)).ok).toBe(true);
     expect((await h.provider.decide(input)).ok).toBe(true);
-    const third = await h.provider.decide(input);
-    expect(third).toMatchObject({ ok: false, deferred: true });
-    expect(h.decide).toHaveBeenCalledTimes(2);
-    expect(h.guard.state).toMatchObject({
-      providerCalls: 2,
-      aborted: "call cap 2 reached",
-    });
+    // 2 used + a worst-case 2 = 4: still fits.
+    expect((await h.provider.decide(input)).ok).toBe(true);
+    // 3 used + 2 > 4: refused before the provider is reached.
+    const fourth = await h.provider.decide(input);
+    expect(fourth).toMatchObject({ ok: false, deferred: true });
+    expect(h.decide).toHaveBeenCalledTimes(3);
+    expect(h.guard.state.providerCalls).toBe(3);
+    expect(h.guard.state.aborted).toMatch(/^call cap 4 reached/);
+  });
+
+  it("reserves a recovery retry: one decision can never overshoot the cap", async () => {
+    // A malformed first output plus the same-model recovery: 2 provider calls.
+    const recovered = {
+      ok: true,
+      text: "{}",
+      route: route(
+        { outcome: "failed", failureClass: "malformed" },
+        { outcome: "success" },
+      ),
+    };
+    const h = harness([recovered, recovered], { maxCalls: 3 });
+    expect((await h.provider.decide(input)).ok).toBe(true);
+    expect(h.guard.state.providerCalls).toBe(2);
+    // 2 used + a worst-case 2 > 3: the second decision never starts.
+    expect((await h.provider.decide(input)).ok).toBe(false);
+    expect(h.decide).toHaveBeenCalledOnce();
+    expect(h.guard.state.providerCalls).toBeLessThanOrEqual(3);
   });
 
   it("spaces decisions by the minimum interval", async () => {
