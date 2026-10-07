@@ -50,6 +50,11 @@ import { makeRunId } from "./runEvidence.js";
 import { readCorpus, writeCassette } from "./bench/cassette.js";
 import { recordCassette } from "./bench/recordingClient.js";
 import { BenchVariant, runBench } from "./bench/bench.js";
+import {
+  buildPriceLabels,
+  DEFAULT_LABEL_HORIZON_HOURS,
+} from "./bench/labelBuilder.js";
+import { parseLabelFile } from "./bench/labels.js";
 
 export interface CmdResult {
   ok: boolean;
@@ -587,6 +592,74 @@ export async function cmdRecord(
   return { ok: true, code: 0, lines, data: files };
 }
 
+// Write price outcome labels for a recorded corpus (bench/labelBuilder.ts):
+// reads only, with COINRITHM_API_KEY, from candles published after each
+// cassette's asOf. PM settlement labels are not built (they need the
+// production settlement verdict), so PM opens stay unlabelled.
+export async function cmdLabel(
+  opts: {
+    corpus?: string;
+    horizonHours?: number;
+    overwrite?: boolean;
+    fetchFn?: typeof fetch;
+    nowMs?: number;
+  } = {},
+): Promise<CmdResult> {
+  if (!opts.corpus) return fail(["label needs --corpus <dir>"]);
+  const horizonHours = opts.horizonHours ?? DEFAULT_LABEL_HORIZON_HOURS;
+  if (!Number.isFinite(horizonHours) || horizonHours <= 0 || horizonHours > 720)
+    return fail(["--horizon-hours must be a number in (0, 720]"]);
+  const apiKey = process.env.COINRITHM_API_KEY;
+  if (!apiKey)
+    return fail([
+      "COINRITHM_API_KEY is not set (labels read public market candles through your key; nothing is written)",
+    ]);
+  const dir = resolvePath(opts.corpus);
+  let corpus;
+  try {
+    corpus = readCorpus(dir);
+  } catch (e) {
+    return fail([(e as Error).message]);
+  }
+  const client = new CoinRithmClient({
+    apiKey,
+    baseUrl: process.env.COINRITHM_API_URL || undefined,
+    fetchFn: opts.fetchFn,
+  });
+  const results = await buildPriceLabels(corpus.cassettes, {
+    fetchCandles: (coinId, range) => client.candles(coinId, range),
+    horizonHours,
+    nowMs: opts.nowMs ?? Date.now(),
+    existing: corpus.labels,
+    overwrite: opts.overwrite,
+  });
+  const lines = [
+    `label (reads only): ${corpus.cassettes.length} cassette(s), horizon ${horizonHours} h`,
+  ];
+  let written = 0;
+  for (const r of results) {
+    if (r.status !== "built") {
+      lines.push(
+        `${r.id}: ${r.status}${r.status === "not_yet" ? ` (labelable after ${r.labelableAfter})` : ""}`,
+      );
+      continue;
+    }
+    const file = join(dir, "labels", `${r.id}.json`);
+    // The bench reads it back through the same validator; fail closed here.
+    parseLabelFile(r.file, `labels/${r.id}.json`);
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, `${JSON.stringify(r.file, null, 2)}\n`, "utf8");
+    written += 1;
+    lines.push(
+      `${r.id}: ${r.range} bars for ${r.symbols.length} symbol(s)${r.missing.length ? `, missing ${r.missing.join(",")}` : ""}`,
+    );
+  }
+  lines.push(
+    `wrote ${written} label file(s); PM opens stay unlabelled (no production settlement verdict read)`,
+  );
+  return { ok: true, code: 0, lines, data: results };
+}
+
 // Compare agent variants on a recorded corpus (see bench/bench.ts). Each
 // variant runs with its own model, built exactly as `run` builds it from the
 // variant's model config and the environment's keys. Never writes.
@@ -732,6 +805,8 @@ interface ParsedFlags {
   repeats?: number;
   seed?: number;
   noBaselines?: boolean;
+  horizonHours?: number;
+  overwrite?: boolean;
 }
 
 function parseFlags(args: string[]): ParsedFlags {
@@ -761,6 +836,8 @@ function parseFlags(args: string[]): ParsedFlags {
     else if (a === "--repeats") out.repeats = num(args[++i]);
     else if (a === "--seed") out.seed = num(args[++i]);
     else if (a === "--no-baselines") out.noBaselines = true;
+    else if (a === "--horizon-hours") out.horizonHours = num(args[++i]);
+    else if (a === "--overwrite") out.overwrite = true;
     else out._.push(a);
   }
   return out;
@@ -777,6 +854,7 @@ function usageLines(): string[] {
     "  run <path> [--once] [--live] [--dry-run] [--state <file>] [--expect-definition sha256:...]   (dry-run by default)",
     "  record <path> --out <dir> [--cycles N] [--every 5m]   (bench inputs; reads only, no model call)",
     "  bench --corpus <dir> --variant a=<path> --variant b=<path> [--repeats 3] [--seed N] [--no-baselines] [--out report.json]",
+    "  label --corpus <dir> [--horizon-hours 24] [--overwrite]   (price outcome labels after asOf; reads only)",
   ];
 }
 
@@ -820,6 +898,13 @@ export async function main(argv: string[]): Promise<number> {
         out: flags.out,
         cycles: flags.cycles,
         every: flags.every,
+      });
+      break;
+    case "label":
+      r = await cmdLabel({
+        corpus: flags.corpus,
+        horizonHours: flags.horizonHours,
+        overwrite: flags.overwrite,
       });
       break;
     case "bench":

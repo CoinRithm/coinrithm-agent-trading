@@ -123,6 +123,7 @@ touch local files.
 | `run <path> [--once] [--live] [--dry-run] [--state <file>]`                   | run the loop (dry-run by default)                              |
 | `record <path> --out <dir> [--cycles N] [--every 5m]`                         | record bench inputs (reads only, no model call)                |
 | `bench --corpus <dir> --variant a=<path> --variant b=<path> [--repeats 3]`    | compare agent variants on recorded inputs (never writes)       |
+| `label --corpus <dir> [--horizon-hours 24] [--overwrite]`                     | write price outcome labels after each asOf (reads only)        |
 
 ## Examples
 
@@ -375,7 +376,14 @@ What it does:
 { "BTC": [{ "t": 1791367500, "h": 1, "l": 1, "c": 1 }] } }` adds Brier
   (agent and market), return on stake, futures return on margin and labelled
   P&L. Without labels, opens are counted as unlabelled, never dropped. The
-  bench does not fetch labels. Missing labels are not zero profit: paired
+  bench does not fetch labels; `coinrithm-agent label --corpus <dir>` writes
+  the `prices` part from candles published after each asOf (reads only,
+  `COINRITHM_API_KEY`). It waits until the horizon (default 24 h) has
+  elapsed and picks the finest bar size the cassette's age still allows
+  (5-minute bars within a day, then 15-minute, hourly, 4-hourly). Existing
+  PM and funding labels are kept, existing prices only with `--overwrite`.
+  It does not write PM settlement: that needs the production settlement
+  verdict, so PM opens stay unlabelled. Missing labels are not zero profit: paired
   P&L excludes a cassette if either variant has any repeat with an unscored
   accepted action, missing input, or runtime error. Comparable and excluded
   cycle counts are reported; genuine complete no-action cycles count as zero.
