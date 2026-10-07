@@ -12,8 +12,11 @@ import {
   type RunState,
   type ProviderEnv,
   type ProviderName,
+  type Provider,
   type DecideInput,
+  type DecideResult,
   type DecisionInputRecord,
+  type CycleResult,
 } from "@coinrithm/mcp-trading/engine";
 import { decrypt } from "./crypto.js";
 import {
@@ -26,7 +29,25 @@ import {
   recordProviderStrike,
   clearProviderCircuit,
   rescheduleToCadence,
+  readCreditPosition,
+  insertDebit,
+  pauseAgent,
 } from "./db.js";
+import {
+  PAID_BRAIN_WORST_CASE_INPUT_TOKENS,
+  PAID_BRAIN_WORST_CASE_OUTPUT_TOKENS,
+  admitPaidCall,
+  debitIdempotencyKey,
+  debitMicroUsd,
+  monthStartUtc,
+  paidBrainSpecState,
+  paidCycleCharge,
+  worstCaseCallMicroUsd,
+  type AdmissionReason,
+  type PaidBrain,
+  type PaidBrainSpecState,
+  type PaidCallObservation,
+} from "./paidBrain.js";
 import type { Config } from "./config.js";
 import { sharedOwnerLimit } from "./sharedPolicy.js";
 import {
@@ -483,6 +504,233 @@ function routedProviderFor(
   );
 }
 
+// --- Paid brains (contract v1, 2026-10-07) ----------------------------------
+// An agent whose spec carries a valid `paidBrain` runs on a PAID model with a
+// PLATFORM key from scheduler env, metered per call into the append-only
+// credit ledger. The money rules, in order:
+//   1. ADMISSION before the provider is built: the owner's balance must be
+//      above the worst case of one call and the agent's month spend plus that
+//      worst case must stay within its monthly cap. Not admitted means either
+//      the free fallback brain for this cycle ("free", the default) or a pause
+//      ("pause"). An unreadable position is never treated as credit.
+//   2. The CALL goes direct to the paid model: never through the shared NVIDIA
+//      router, no same-model retry, no cross-model fallback. A missing platform
+//      key is recoverable infrastructure (skip, keep the agent active), exactly
+//      like a missing shared key today, and is never debited.
+//   3. The DEBIT is written after the cycle row commits, keyed 'debit:<cycle
+//      id>' with ON CONFLICT DO NOTHING, and only for a call the provider
+//      answered. Deferred, capacity-only, failed or never-made calls are never
+//      charged. A ledger error is logged with an alertable event name and NEVER
+//      fails or skips the trading cycle, which has already been persisted.
+
+export const PAID_BRAIN_PAUSE_REASON = "paid brain credit exhausted";
+
+// Greppable events for ops alerting. Fields are ids, reasons and integer
+// amounts only: never a key, a prompt, model output or an owner's balance.
+const PAID_BRAIN_ALERT_EVENTS = new Set([
+  "paid_brain_debit_failed",
+  "paid_brain_platform_key_missing",
+  "paid_brain_admission_failed",
+  "paid_brain_spec_invalid",
+  "paid_brain_pause_failed",
+]);
+function logPaidBrain(event: string, fields: Record<string, unknown>): void {
+  const line = `[scheduler] ${event} ${JSON.stringify(fields)}`;
+  if (PAID_BRAIN_ALERT_EVENTS.has(event)) console.error(line);
+  else console.log(line);
+}
+
+/** The agent's paid brain, cross-checked against its row. The contract keeps
+ * model_provider/model_name ON the paid route and brain_key_enc NULL while a
+ * paid brain is active; a row that disagrees (a BYO key, other columns, no
+ * billable owner) is treated as NOT paid, so the platform key is never used
+ * for a model or an owner the ledger cannot bill. */
+export function paidBrainFor(agent: AgentRow): PaidBrainSpecState {
+  const state = paidBrainSpecState(agent.spec);
+  if (state.kind !== "paid") return state;
+  const { entry } = state.brain;
+  if (agent.brainKeyEnc)
+    return { kind: "invalid", reason: "a BYO brain key is set" };
+  if (agent.modelProvider !== entry.provider || agent.modelName !== entry.model)
+    return {
+      kind: "invalid",
+      reason: "model columns do not match the paid model",
+    };
+  const owner = agent.ownerUserId;
+  if (typeof owner !== "number" || !Number.isSafeInteger(owner) || owner <= 0)
+    return { kind: "invalid", reason: "no billable owner" };
+  return state;
+}
+
+type PaidAdmission =
+  | { kind: "admit" }
+  | { kind: "exhausted"; reason: AdmissionReason }
+  | { kind: "unavailable"; error: string };
+
+async function admitPaidBrain(
+  pool: Pool,
+  agent: AgentRow,
+  brain: PaidBrain,
+  config: Config,
+  nowMs: number,
+): Promise<PaidAdmission> {
+  try {
+    const worstCaseMicro = worstCaseCallMicroUsd(
+      brain.modelId,
+      PAID_BRAIN_WORST_CASE_INPUT_TOKENS,
+      PAID_BRAIN_WORST_CASE_OUTPUT_TOKENS,
+      config.paidBrainMarginPct,
+    );
+    const position = await readCreditPosition(
+      pool,
+      agent.ownerUserId as number,
+      agent.id,
+      monthStartUtc(nowMs),
+    );
+    const decision = admitPaidCall({
+      ...position,
+      capMicro: brain.capMicro,
+      worstCaseMicro,
+    });
+    return decision.admit
+      ? { kind: "admit" }
+      : { kind: "exhausted", reason: decision.reason };
+  } catch (e) {
+    return { kind: "unavailable", error: errMsg(e).slice(0, 200) };
+  }
+}
+
+/** The free route for an exhausted "free" agent: the same row on its
+ * spec.paidBrain.fallback, so every downstream rule (hosted router, shared
+ * capacity, cadence policy, circuits) treats it exactly like any other
+ * shared-pool agent. */
+export function fallbackAgentFor(agent: AgentRow, brain: PaidBrain): AgentRow {
+  return {
+    ...agent,
+    modelProvider: brain.fallback.provider,
+    modelName: brain.fallback.name,
+    modelBaseUrl: null,
+  };
+}
+
+// Records what the paid provider actually answered, call by call, so the debit
+// can tell an answered call from a failed one and provider-reported usage from
+// the runner's chars/4 estimate (CycleResult carries the tokens, not that).
+class MeteredProvider implements Provider {
+  readonly label: string;
+  readonly calls: PaidCallObservation[] = [];
+  constructor(private readonly inner: Provider) {
+    this.label = inner.label;
+  }
+  async decide(input: DecideInput): Promise<DecideResult> {
+    const result = await this.inner.decide(input);
+    this.calls.push({
+      ok: result.ok,
+      usageReported: result.usage !== undefined,
+    });
+    return result;
+  }
+}
+
+function paidProviderFor(
+  agentId: number,
+  brain: PaidBrain,
+  spec: AgentSpec,
+  config: Config,
+): MeteredProvider {
+  const provider = brain.entry.provider;
+  const key =
+    provider === "anthropic"
+      ? config.paidAnthropicApiKey
+      : config.paidGeminiApiKey;
+  if (!key) {
+    logPaidBrain("paid_brain_platform_key_missing", { agentId, provider });
+    throw new HostedProviderSetupError("paid brain platform key unavailable");
+  }
+  const env: ProviderEnv =
+    provider === "anthropic"
+      ? { ANTHROPIC_API_KEY: key }
+      : { GEMINI_API_KEY: key };
+  // selectProvider builds the bare provider for anthropic and gemini: no
+  // same-model retry (that wrapper is NVIDIA-only) and no route chain.
+  return new MeteredProvider(
+    selectProvider(
+      { ...spec, model: { provider, name: brain.entry.model } },
+      env,
+      fetch,
+    ),
+  );
+}
+
+async function debitPaidCycle(
+  pool: Pool,
+  agent: AgentRow,
+  brain: PaidBrain,
+  cycleId: number | undefined,
+  result: CycleResult,
+  calls: readonly PaidCallObservation[],
+  config: Config,
+): Promise<void> {
+  try {
+    const charge = paidCycleCharge({
+      brain,
+      llmCallMade: result.llmCallMade,
+      effectiveProvider: result.effectiveProvider,
+      effectiveModel: result.effectiveModel,
+      tokensIn: result.tokensIn,
+      tokensOut: result.tokensOut,
+      calls,
+    });
+    if (!charge.charge) {
+      // No call or a failed call is the normal never-debited path. A call the
+      // provider ANSWERED that cannot be priced is an anomaly to alert on.
+      if (calls.some((call) => call.ok))
+        logPaidBrain("paid_brain_debit_failed", {
+          agentId: agent.id,
+          cycleId,
+          reason: charge.reason,
+        });
+      return;
+    }
+    const amount = debitMicroUsd({
+      modelId: brain.modelId,
+      tokensIn: charge.tokensIn,
+      tokensOut: charge.tokensOut,
+      marginPct: config.paidBrainMarginPct,
+    });
+    // Zero reported tokens price at zero; the ledger has no zero debit.
+    if (amount.totalMicro <= 0) return;
+    if (cycleId === undefined) throw new Error("cycle id unavailable");
+    const inserted = await insertDebit(pool, {
+      userId: agent.ownerUserId as number,
+      agentId: agent.id,
+      cycleId,
+      modelId: brain.modelId,
+      tokensIn: charge.tokensIn,
+      tokensOut: charge.tokensOut,
+      providerCostMicro: amount.providerCostMicro,
+      marginMicro: amount.marginMicro,
+      totalMicro: amount.totalMicro,
+      idempotencyKey: debitIdempotencyKey(cycleId),
+      note: charge.usageEstimated ? "usage estimated" : undefined,
+    });
+    logPaidBrain("paid_brain_debited", {
+      agentId: agent.id,
+      cycleId,
+      modelId: brain.modelId,
+      totalMicro: amount.totalMicro,
+      usageEstimated: charge.usageEstimated,
+      inserted,
+    });
+  } catch (e) {
+    logPaidBrain("paid_brain_debit_failed", {
+      agentId: agent.id,
+      cycleId,
+      error: errMsg(e).slice(0, 200),
+    });
+  }
+}
+
 // Reconstruct a RunState from stored JSON with the SAME fail-closed contract the
 // file loader uses: a present-but-corrupt state is fatal (we refuse to run and
 // disable, rather than silently reset counters / re-enable a kill-switched
@@ -539,29 +787,117 @@ export async function runAgentOnce(
     return;
   }
 
+  // PAID BRAIN admission, before any provider exists (see the section above).
+  // `runAgent` is the row whose model the rest of this cycle routes on: the
+  // agent itself, or its free fallback when an exhausted "free" agent runs on
+  // the shared pool this cycle.
+  let runAgent: AgentRow = agent;
+  let paidBrain: PaidBrain | undefined;
+  const paidState = paidBrainFor(agent);
+  if (paidState.kind === "invalid") {
+    logPaidBrain("paid_brain_spec_invalid", {
+      agentId: agent.id,
+      reason: paidState.reason,
+    });
+  } else if (paidState.kind === "paid") {
+    const brain = paidState.brain;
+    const admission = await admitPaidBrain(
+      pool,
+      agent,
+      brain,
+      config,
+      Date.now(),
+    );
+    if (admission.kind === "admit") {
+      paidBrain = brain;
+    } else if (brain.onExhausted === "pause") {
+      if (admission.kind === "exhausted") {
+        // The owner chose to stop rather than trade on the free brain. A
+        // pause (not a disable) is resumed by the owner after a top-up.
+        logPaidBrain("paid_brain_exhausted", {
+          agentId: agent.id,
+          reason: admission.reason,
+          action: "pause",
+        });
+        await pauseAgent(pool, agent.id, PAID_BRAIN_PAUSE_REASON).catch((e) =>
+          logPaidBrain("paid_brain_pause_failed", {
+            agentId: agent.id,
+            error: errMsg(e).slice(0, 200),
+          }),
+        );
+        await recordCycle(pool, agent.id, {
+          decision: "skip",
+          skipReason: PAID_BRAIN_PAUSE_REASON,
+          modelFailed: false,
+          llmCallMade: false,
+        }).catch(() => {});
+        return;
+      }
+      // Position unknown (ledger read failed): neither pay nor pause on a
+      // database blip. Skip this cycle and retry next cadence.
+      logPaidBrain("paid_brain_admission_failed", {
+        agentId: agent.id,
+        error: admission.error,
+        action: "skip",
+      });
+      await recordCycle(pool, agent.id, {
+        decision: "skip",
+        skipReason: "paid brain credit check unavailable",
+        modelFailed: false,
+        llmCallMade: false,
+      }).catch(() => {});
+      await rescheduleToCadence(pool, agent.id).catch(() => {});
+      return;
+    } else {
+      // "free": exhausted (or an unknown position, which is never credit)
+      // runs this cycle on the free brain exactly like a shared-pool agent.
+      logPaidBrain(
+        admission.kind === "exhausted"
+          ? "paid_brain_exhausted"
+          : "paid_brain_admission_failed",
+        {
+          agentId: agent.id,
+          ...(admission.kind === "exhausted"
+            ? { reason: admission.reason }
+            : { error: admission.error }),
+          action: "free",
+        },
+      );
+      log.push(
+        "paid brain not available this cycle (credit or monthly cap): running on the free brain",
+      );
+      runAgent = fallbackAgentFor(agent, brain);
+    }
+  }
+
   // SETUP — owner credential/spec failures are fatal. A missing PLATFORM-owned
   // shared provider credential is recoverable infrastructure: keep the agent
   // active and retry rather than converting an operator mistake into user state.
   let deps: RunnerDeps;
+  let metered: MeteredProvider | undefined;
   try {
     const spec: AgentSpec = {
       ...(agent.spec as AgentSpec),
       model: {
-        provider: agent.modelProvider as ProviderName,
-        name: agent.modelName,
-        baseUrl: agent.modelBaseUrl ?? undefined,
+        provider: runAgent.modelProvider as ProviderName,
+        name: runAgent.modelName,
+        baseUrl: runAgent.modelBaseUrl ?? undefined,
       },
     };
+    // An admitted paid brain calls its model directly with the platform key.
+    if (paidBrain) metered = paidProviderFor(agent.id, paidBrain, spec, config);
     // Ordinary BYO/direct agents keep the identical 3-argument call; only an
     // agent enrolled in the BYO trial gets the per-attempt transport check.
-    const provider = shouldUseHostedRouter(agent, config)
-      ? routedProviderFor(pool, agent, config, log)
-      : usesCustomerByoSuperJsonContent(agent, config)
-        ? selectProvider(spec, providerEnvFor(agent, config), fetch, {
-            nemotronJsonContent: () =>
-              usesCustomerByoSuperJsonContent(agent, config),
-          })
-        : selectProvider(spec, providerEnvFor(agent, config), fetch);
+    const provider =
+      metered ??
+      (shouldUseHostedRouter(runAgent, config)
+        ? routedProviderFor(pool, runAgent, config, log)
+        : usesCustomerByoSuperJsonContent(runAgent, config)
+          ? selectProvider(spec, providerEnvFor(runAgent, config), fetch, {
+              nemotronJsonContent: () =>
+                usesCustomerByoSuperJsonContent(runAgent, config),
+            })
+          : selectProvider(spec, providerEnvFor(runAgent, config), fetch));
     const apiKey = decrypt(agent.coinrithmKeyEnc, config.encryptionKey);
     const client = new CoinRithmClient({
       apiKey,
@@ -583,11 +919,11 @@ export async function runAgentOnce(
       compactPromptTables:
         config.compactPromptTablesEnabled &&
         agent.isHouse === true &&
-        shouldUseHostedRouter(agent, config),
+        shouldUseHostedRouter(runAgent, config),
       minModelIntervalSeconds:
         config.sharedPoolPolicyEnabled &&
         config.capacityEnabled &&
-        shouldUseHostedRouter(agent, config)
+        shouldUseHostedRouter(runAgent, config)
           ? config.sharedMinModelIntervalSeconds
           : undefined,
       live: agent.live,
@@ -627,7 +963,7 @@ export async function runAgentOnce(
   // returns the cached result — never a double-trade (at-most-once per window).
   try {
     const result = await runCycle(deps);
-    await persistCycleResult(pool, agent.id, {
+    const cycleId = await persistCycleResult(pool, agent.id, {
       state: deps.state,
       cycle: {
         decision: result.decision,
@@ -673,18 +1009,37 @@ export async function runAgentOnce(
       // never open a circuit that holds the shared fleet. BYO agents keep
       // per-agent retry semantics (the runner's hold skip each cadence).
       providerHold:
-        agent.brainKeyEnc || shouldUseHostedRouter(agent, config)
+        runAgent.brainKeyEnc || shouldUseHostedRouter(runAgent, config)
           ? undefined
           : result.providerHold,
       // Routed hooks already maintain the actual attempted route's circuit.
       // Leaving this unset on a routed defer also prevents the configured
       // model being falsely persisted as an effective model when no call ran.
       model:
-        agent.brainKeyEnc || shouldUseHostedRouter(agent, config)
+        runAgent.brainKeyEnc || shouldUseHostedRouter(runAgent, config)
           ? undefined
-          : { provider: agent.modelProvider, name: agent.modelName },
+          : { provider: runAgent.modelProvider, name: runAgent.modelName },
     });
+    // The cycle is committed; the debit follows it and never throws.
+    if (paidBrain && metered)
+      await debitPaidCycle(
+        pool,
+        agent,
+        paidBrain,
+        cycleId,
+        result,
+        metered.calls,
+        config,
+      );
   } catch (e) {
+    // An answered paid call whose cycle could not be persisted has no cycle id
+    // to key a debit on: it is NOT charged (fail closed for the owner), and
+    // ops is told the platform absorbed that call.
+    if (paidBrain && metered?.calls.some((call) => call.ok))
+      logPaidBrain("paid_brain_debit_failed", {
+        agentId: agent.id,
+        reason: "cycle not persisted",
+      });
     await recordCycle(pool, agent.id, {
       decision: "error",
       error: errMsg(e),
