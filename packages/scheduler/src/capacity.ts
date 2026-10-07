@@ -15,6 +15,14 @@ export interface ProviderCapacityLimit {
   reserveTokens: number;
   /** Must exceed the provider timeout; crash recovery is automatic after TTL. */
   leaseTtlSeconds: number;
+  /**
+   * Owner buckets only (009_capacity_waiters.sql): who is asking. A requester
+   * denied for token budget becomes the bucket's single waiter; while the
+   * claim is live, the owner's other requesters may only spend tokens beyond
+   * its need, so its bounded in-cycle re-admission finds the refill instead of
+   * the same agent losing every cycle. ttlSeconds bounds the claim.
+   */
+  waiter?: { key: string; ttlSeconds: number };
 }
 
 export interface ProviderCapacityLease {
@@ -22,6 +30,8 @@ export interface ProviderCapacityLease {
   routeKey: string;
   reservedTokens: number;
   tokenBurst?: number;
+  /** Set when the reservation carried a waiter key (owner buckets). */
+  waiterKey?: string;
 }
 
 export type ProviderCapacityDenialReason =
@@ -35,6 +45,11 @@ export type ProviderCapacityReservation =
       /** Locked-snapshot refill time; absent for concurrency/cooldown holds. */
       retryAfterMs?: number;
     };
+
+/** A waiter never holds an owner bucket longer than this, retries included. */
+export const MAX_WAITER_TTL_SECONDS = 900;
+/** Claim slack past the waiter's own refill wait (its in-cycle re-admission). */
+export const WAITER_RETRY_SLACK_SECONDS = 15;
 
 function positiveInt(value: number, name: string): number {
   if (!Number.isFinite(value) || value < 1) {
@@ -80,6 +95,14 @@ export async function reserveProviderCapacity(
   if (!limit.routeKey.trim() || !limit.provider.trim() || !limit.model.trim()) {
     throw new Error("routeKey, provider and model are required");
   }
+  const waiterKey = raw.waiter?.key.trim() || null;
+  const waiterTtlSeconds =
+    waiterKey === null
+      ? null
+      : Math.min(
+          MAX_WAITER_TTL_SECONDS,
+          positiveInt(raw.waiter!.ttlSeconds, "waiter.ttlSeconds"),
+        );
 
   const client = await pool.connect();
   const leaseId = randomUUID();
@@ -142,6 +165,19 @@ export async function reserveProviderCapacity(
                 b.model_tokens + b.model_rate_per_min *
                   GREATEST(0, EXTRACT(EPOCH FROM (checked.at - b.last_refill_at))) / 60.0
                 ) AS available_tokens,
+                b.waiter_key,
+                -- A claim is live until it expires, and only while an agent
+                -- claimant is still active on the shared pool: a paused,
+                -- deleted or BYO-switched agent releases it at once. (Text
+                -- comparison: SQL does not short-circuit, so no cast here.)
+                (b.waiter_key IS NOT NULL
+                  AND b.waiter_expires_at > checked.at
+                  AND (b.waiter_key !~ '^agent:[0-9]+$'
+                       OR EXISTS (SELECT 1 FROM agent_runtime.agents w
+                                   WHERE 'agent:' || w.id::text = b.waiter_key
+                                     AND w.status = 'active'
+                                     AND w.brain_key_enc IS NULL))) AS claim_live,
+                b.waiter_tokens,
                 b.blocked_until > checked.at AS cooling,
                 (SELECT count(*)
                  FROM agent_runtime.provider_capacity_leases l
@@ -149,33 +185,78 @@ export async function reserveProviderCapacity(
                   AND l.expires_at > checked.at) >= b.max_concurrent AS slots_full
            FROM agent_runtime.provider_capacity_buckets b CROSS JOIN checked
           WHERE b.route_key = $1
+       ), owed AS MATERIALIZED (
+         -- Tokens owed to ANOTHER live claim; the claimant itself and requests
+         -- without a waiter key (provider keys) owe nothing.
+         SELECT *, CASE WHEN $4::text IS NOT NULL AND claim_live
+                             AND waiter_key <> $4::text
+                        THEN waiter_tokens::double precision ELSE 0 END AS owed_tokens
+           FROM budget
        ), decision AS MATERIALIZED (
          SELECT *, array_remove(ARRAY[
            CASE WHEN available_requests < 1 THEN 'request_budget' END,
-           CASE WHEN available_tokens < $2 THEN 'token_budget' END,
+           CASE WHEN available_tokens - owed_tokens < $2 THEN 'token_budget' END,
            CASE WHEN slots_full THEN 'concurrency' END,
            CASE WHEN cooling THEN 'shared_key_cooldown' END
-         ], NULL) AS denial_reasons FROM budget
+         ], NULL) AS denial_reasons FROM owed
        ), admitted AS (
          UPDATE agent_runtime.provider_capacity_buckets b
             SET request_tokens = d.available_requests - 1,
                 model_tokens = d.available_tokens - $2,
                 last_refill_at = d.at,
-                updated_at = d.at
+                updated_at = d.at,
+                -- A live claim survives admission and is cleared only by
+                -- the claimant's consumed release; a lapsed one goes now.
+                waiter_key = CASE WHEN d.claim_live THEN b.waiter_key END,
+                waiter_tokens = CASE WHEN d.claim_live THEN b.waiter_tokens END,
+                waiter_since = CASE WHEN d.claim_live THEN b.waiter_since END,
+                waiter_expires_at = CASE WHEN d.claim_live THEN b.waiter_expires_at END
            FROM decision d
           WHERE b.route_key = d.route_key AND cardinality(d.denial_reasons) = 0
+         RETURNING b.route_key
+       ), queued AS (
+         -- A token-budget denial makes this requester the waiter unless another
+         -- live claim holds the bucket. The claim covers the requester's own
+         -- refill wait plus slack (its in-cycle re-admission), never more than
+         -- ttlSeconds, and is fixed at the first wait: the claimant's later
+         -- denials refresh only its need, never its age or expiry. Tokens,
+         -- refill time and leases are untouched, as for any other denial.
+         UPDATE agent_runtime.provider_capacity_buckets b
+            SET waiter_key = $4::text,
+                waiter_tokens = $2,
+                waiter_since = CASE WHEN d.claim_live THEN b.waiter_since ELSE d.at END,
+                waiter_expires_at = CASE WHEN d.claim_live THEN b.waiter_expires_at
+                  ELSE d.at + make_interval(secs => LEAST(
+                    $5::double precision,
+                    d.refill_delay_seconds + GREATEST(
+                      0, ($2 - d.available_tokens) / d.model_rate_per_min * 60.0,
+                      (1 - d.available_requests) / d.request_rate_per_min * 60.0
+                    ) + $6::double precision)) END,
+                updated_at = d.at
+           FROM decision d
+          WHERE b.route_key = d.route_key
+            AND $4::text IS NOT NULL
+            AND 'token_budget' = ANY(d.denial_reasons)
+            AND (NOT d.claim_live OR d.waiter_key = $4::text)
          RETURNING b.route_key
        )
        SELECT a.route_key, d.denial_reasons,
               CASE WHEN cardinality(d.denial_reasons) > 0
                          AND d.cooling IS NOT TRUE AND NOT d.slots_full
                    THEN CEIL((d.refill_delay_seconds + GREATEST(
-                     0, ($2 - d.available_tokens) / d.model_rate_per_min * 60.0,
+                     0, ($2 + d.owed_tokens - d.available_tokens) / d.model_rate_per_min * 60.0,
                      (1 - d.available_requests) / d.request_rate_per_min * 60.0
                    )) * 1000)::double precision + 1
                    ELSE NULL END AS retry_after_ms
          FROM decision d LEFT JOIN admitted a ON a.route_key = d.route_key`,
-      [limit.routeKey, limit.reserveTokens, tokenBurst ?? null],
+      [
+        limit.routeKey,
+        limit.reserveTokens,
+        tokenBurst ?? null,
+        waiterKey,
+        waiterTtlSeconds,
+        WAITER_RETRY_SLACK_SECONDS,
+      ],
     );
 
     const admission = reserved.rows[0];
@@ -209,6 +290,7 @@ export async function reserveProviderCapacity(
         routeKey: limit.routeKey,
         reservedTokens: limit.reserveTokens,
         ...(tokenBurst === undefined ? {} : { tokenBurst }),
+        ...(waiterKey === null ? {} : { waiterKey }),
       },
     };
   } catch (error) {
@@ -217,6 +299,24 @@ export async function reserveProviderCapacity(
   } finally {
     client.release();
   }
+}
+
+/**
+ * End an owner-bucket claim at once (a cycle that cannot wait for its refill,
+ * or that stopped waiting). Only the named claimant's own claim is removed.
+ */
+export async function releaseOwnerClaim(
+  pool: Pool,
+  routeKey: string,
+  waiterKey: string,
+): Promise<void> {
+  await pool.query(
+    `UPDATE agent_runtime.provider_capacity_buckets
+        SET waiter_key = NULL, waiter_tokens = NULL, waiter_since = NULL,
+            waiter_expires_at = NULL, updated_at = clock_timestamp()
+      WHERE route_key = $1 AND waiter_key = $2`,
+    [routeKey, waiterKey],
+  );
 }
 
 /**
@@ -335,9 +435,23 @@ export async function releaseProviderCapacity(
                   LEAST(GREATEST(model_rate_per_min::double precision, $3::double precision), model_tokens + $2)
                 ),
                 request_tokens = LEAST(request_rate_per_min, request_tokens + $4),
+                -- The claimant's turn is over only when its call consumed
+                -- tokens; an unused or rejected-before-inference release keeps
+                -- the claim, so a local or provider refusal never erases it.
+                waiter_key = CASE WHEN $6 AND waiter_key = $5::text THEN NULL ELSE waiter_key END,
+                waiter_tokens = CASE WHEN $6 AND waiter_key = $5::text THEN NULL ELSE waiter_tokens END,
+                waiter_since = CASE WHEN $6 AND waiter_key = $5::text THEN NULL ELSE waiter_since END,
+                waiter_expires_at = CASE WHEN $6 AND waiter_key = $5::text THEN NULL ELSE waiter_expires_at END,
                 updated_at = clock_timestamp()
           WHERE route_key = $1`,
-        [lease.routeKey, delta, lease.tokenBurst ?? 0, unused ? 1 : 0],
+        [
+          lease.routeKey,
+          delta,
+          lease.tokenBurst ?? 0,
+          unused ? 1 : 0,
+          lease.waiterKey ?? null,
+          !unused && actual > 0 && lease.waiterKey !== undefined,
+        ],
       );
     }
     await client.query("COMMIT");
