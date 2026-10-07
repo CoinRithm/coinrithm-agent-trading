@@ -857,8 +857,9 @@ const optPct = (v: unknown): number | null => {
 };
 
 // Chain TVL from the same /market context (no extra call). Omitted when the
-// coin is not a verified chain token or the block is malformed; a future-dated
-// time is never shown, and an unknown time stays stale.
+// coin is not a verified chain token or the block is malformed. publishedAt is
+// response provenance, never the TVL's observation time (unknown, null); a
+// future-dated time is never shown and an unknown one stays stale.
 export function chainTvlOf(
   m: Record<string, unknown>,
   nowMs = Date.now(),
@@ -867,13 +868,15 @@ export function chainTvlOf(
   const chain = asStr(c.chain);
   const tvl = asNum(c.tvlUsd);
   if (!chain || tvl == null || tvl < 0) return undefined;
-  const asOf = c.asOf == null ? null : (shownTime(c.asOf, nowMs) ?? null);
+  const publishedAt =
+    c.publishedAt == null ? null : (shownTime(c.publishedAt, nowMs) ?? null);
   const dayAt = c.dayAt == null ? null : (shownTime(c.dayAt, nowMs) ?? null);
   return {
     chain,
     tvlUsd: tvl,
-    asOf,
-    stale: asOf == null || c.stale !== false,
+    publishedAt,
+    sourceObservedAt: null,
+    stale: publishedAt == null || c.stale !== false,
     dayAt,
     change1dPct: dayAt ? optPct(c.change1dPct) : null,
     change7dPct: dayAt ? optPct(c.change7dPct) : null,

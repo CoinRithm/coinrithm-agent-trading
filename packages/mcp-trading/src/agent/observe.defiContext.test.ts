@@ -11,8 +11,9 @@ describe("chainTvlOf", () => {
   const block = (over: Record<string, unknown> = {}) => ({
     chain: "Ethereum",
     tvlUsd: 52951000000,
-    asOf: "2026-10-07T05:02:21.000Z",
-    ageSeconds: 4059,
+    publishedAt: "2026-10-07T05:02:21.000Z",
+    fetchedAt: "2026-10-07T05:17:41.000Z",
+    sourceObservedAt: null,
     stale: false,
     dayAt: "2026-10-07T00:00:00.000Z",
     change1dPct: 1.65,
@@ -21,11 +22,12 @@ describe("chainTvlOf", () => {
     ...over,
   });
 
-  it("keeps chain TVL with the provider dates and daily changes", () => {
+  it("keeps chain TVL with publication and daily-point dates, observation unknown", () => {
     expect(chainTvlOf(market({ chainTvl: block() }), NOW)).toEqual({
       chain: "Ethereum",
       tvlUsd: 52951000000,
-      asOf: "2026-10-07T05:02:21.000Z",
+      publishedAt: "2026-10-07T05:02:21.000Z",
+      sourceObservedAt: null,
       stale: false,
       dayAt: "2026-10-07T00:00:00.000Z",
       change1dPct: 1.65,
@@ -35,14 +37,16 @@ describe("chainTvlOf", () => {
 
   it("an unknown or future time is never fresh; no daily point means no changes", () => {
     expect(
-      chainTvlOf(market({ chainTvl: block({ asOf: null }) }), NOW),
-    ).toMatchObject({ asOf: null, stale: true });
+      chainTvlOf(market({ chainTvl: block({ publishedAt: null }) }), NOW),
+    ).toMatchObject({ publishedAt: null, stale: true });
     expect(
       chainTvlOf(
-        market({ chainTvl: block({ asOf: "2026-10-07T09:00:00.000Z" }) }),
+        market({
+          chainTvl: block({ publishedAt: "2026-10-07T09:00:00.000Z" }),
+        }),
         NOW,
       ),
-    ).toMatchObject({ asOf: null, stale: true });
+    ).toMatchObject({ publishedAt: null, stale: true });
     expect(
       chainTvlOf(market({ chainTvl: block({ dayAt: null }) }), NOW),
     ).toMatchObject({ dayAt: null, change1dPct: null, change7dPct: null });

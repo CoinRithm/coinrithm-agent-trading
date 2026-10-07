@@ -435,7 +435,10 @@ export interface MacroContext {
 export interface ChainTvlContext {
   chain: string;
   tvlUsd: number;
-  asOf: string | null;
+  // Response publication (HTTP Last-Modified), NOT when the TVL was observed.
+  publishedAt: string | null;
+  // The provider gives no observation time for the current TVL.
+  sourceObservedAt: null;
   stale: boolean;
   dayAt: string | null;
   change1dPct: number | null;
