@@ -375,7 +375,13 @@ export class RoutedProvider<Lease = unknown> implements Provider {
       // grid interval later at the same offset, which is how one agent lost
       // every cycle. Same bounds as the malformed retry: owner token/request
       // budget only, <= 60 s, >= 30 s left for the response, re-admission.
-      const firstAttempt = attempts.length === 0;
+      // "First" = nothing has reached a provider yet this cycle. A local
+      // deferral that made no call (a route cooldown on the configured model)
+      // does not count: live 07:37 UTC, house Mia's Nano route was cooling down
+      // on both keys, so her owner denial always landed on the fallback as the
+      // second attempt and never got this wait. An owner denial ends the loop,
+      // so at most one owner wait happens per cycle either way.
+      const firstAttempt = attempts.every((a) => a.outcome === "deferred");
       let routeChanged = false;
       const fairnessWait =
         firstAttempt && options?.nemotronJsonContent !== true;

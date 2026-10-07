@@ -563,4 +563,51 @@ describe("first-attempt owner refill wait (owner fairness, 009)", () => {
     );
     expect(h.hooks.abandonOwnerWait).toHaveBeenCalledOnce();
   });
+
+  it("still waits when the configured route was only cooling down (live Mia, 07:37 UTC)", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const h = harness([good], [nanoRoute, superRoute], () => Date.now());
+    h.hooks.abandonOwnerWait = vi.fn(async () => {});
+    vi.mocked(h.hooks.acquire)
+      .mockResolvedValueOnce({
+        ok: false,
+        scope: "route",
+        admissionReasons: ["model_cooldown"],
+        error: "provider model cooldown active",
+      })
+      .mockResolvedValueOnce(ownerDenial(11_996))
+      .mockResolvedValueOnce({ ok: true, lease: "after-wait" });
+    const pending = h.provider.decide({ ...input, timeoutMs: 100000 });
+    await vi.advanceTimersByTimeAsync(11_996);
+    const result = await pending;
+    expect(result.ok).toBe(true);
+    expect(h.hooks.acquire).toHaveBeenCalledTimes(3);
+    // One provider call, on the fallback, after the bounded wait.
+    expect(h.requests).toHaveLength(1);
+    expect(h.requests[0]!.route).toEqual(superRoute);
+    expect(result.route.attempts.map((a) => a.outcome)).toEqual([
+      "deferred",
+      "success",
+    ]);
+  });
+
+  it("does not wait once a provider call has already been made this cycle", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const h = harness(
+      [{ ok: false, error: "provider HTTP 429", status: 429 }],
+      [nanoRoute, superRoute],
+      () => Date.now(),
+    );
+    h.hooks.abandonOwnerWait = vi.fn(async () => {});
+    vi.mocked(h.hooks.acquire)
+      .mockResolvedValueOnce({ ok: true, lease: "first" })
+      .mockResolvedValueOnce(ownerDenial(5_000));
+    const result = await h.provider.decide({ ...input, timeoutMs: 100000 });
+    expect(result.ok).toBe(false);
+    expect(h.hooks.acquire).toHaveBeenCalledTimes(2);
+    expect(h.requests).toHaveLength(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
 });
