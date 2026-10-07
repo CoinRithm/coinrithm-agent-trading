@@ -24,10 +24,14 @@ import {
   disableAgent,
   persistCycleResult,
   readCreditPosition,
-  insertDebit,
+  reservePaidCall,
+  markPaidCallDispatched,
+  recordPaidCallResult,
+  finalizePaidCall,
   migrateHouseAgentsOffGroq,
   migrateAgentsOffEolModels,
 } from "./db.js";
+import { paidBrainModel, priceRowAt, reserveKeyFor } from "./paidBrain.js";
 
 // Opt-in real SQL regression tests against a disposable LOCAL database only.
 // CAPACITY_TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:15439/capacity_admission_test
@@ -523,41 +527,108 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
         );
       }
       await assertSchemaReady(runtime);
-      // Paid brains: the runtime role reads positions and appends debits on
-      // the credit ledger, and can never rewrite or remove a money row.
+      // Paid brains (contract v2): the runtime role reserves, dispatches and
+      // finalises paid calls under the owner lock, and can never rewrite or
+      // remove a money row or delete a call.
       await pool.query(
         "DELETE FROM agent_runtime.credit_ledger WHERE user_id = 9101",
+      );
+      await pool.query(
+        "DELETE FROM agent_runtime.paid_calls WHERE user_id = 9101",
       );
       await pool.query(
         `INSERT INTO agent_runtime.credit_ledger (user_id, kind, amount_micro_usd, idempotency_key)
          VALUES (9101, 'grant', 1000000, 'grant:restricted-fixture')`,
       );
-      const since = new Date(Date.UTC(2000, 0, 1));
-      expect(
-        await readCreditPosition(runtime, 9101, Number(agent.id), since),
-      ).toEqual({ balanceMicro: 1_000_000, monthSpendMicro: 0 });
-      const cycleId = await persistCycleResult(runtime, Number(agent.id), {
-        state: { sequence: 2 },
-        cycle: { decision: "skip", skipReason: "fixture" },
-      });
-      expect(cycleId).toBeGreaterThan(0);
-      const debit = {
+      const agentId = Number(agent.id);
+      const price = priceRowAt(
+        paidBrainModel("claude-sonnet-5-5")!,
+        Date.UTC(2026, 9, 7),
+      )!;
+      const reserve = (cycleKey: string, monthStart = "2026-10-01") => ({
         userId: 9101,
-        agentId: Number(agent.id),
-        cycleId: cycleId!,
+        agentId,
+        reserveKey: reserveKeyFor(agentId, cycleKey),
         modelId: "claude-sonnet-5-5",
-        tokensIn: 20_000,
-        tokensOut: 400,
-        providerCostMicro: 44_000,
-        marginMicro: 8_800,
-        totalMicro: 52_800,
-        idempotencyKey: `debit:${cycleId}`,
-      };
-      expect(await insertDebit(runtime, debit)).toBe(true);
-      expect(await insertDebit(runtime, debit)).toBe(false);
+        price,
+        marginPct: 20,
+        worstCaseMicro: 202_752,
+        capMicro: 25_000_000,
+        monthStart,
+      });
+      const balance = async () =>
+        Number(
+          (
+            await runtime.query(
+              "SELECT SUM(amount_micro_usd)::text AS b FROM agent_runtime.credit_ledger WHERE user_id = 9101",
+            )
+          ).rows[0].b,
+        );
+      // Answered with usage: reserve, dispatch, record, finalise => debit.
+      const first = reserve("fixture-answered");
+      expect(await reservePaidCall(runtime, first)).toEqual({
+        kind: "reserved",
+      });
+      expect(await balance()).toBe(1_000_000 - 202_752);
+      expect(await markPaidCallDispatched(runtime, first.reserveKey)).toBe(
+        true,
+      );
+      expect(await markPaidCallDispatched(runtime, first.reserveKey)).toBe(
+        false,
+      );
       expect(
-        await readCreditPosition(runtime, 9101, Number(agent.id), since),
-      ).toEqual({ balanceMicro: 947_200, monthSpendMicro: 52_800 });
+        await recordPaidCallResult(runtime, first.reserveKey, {
+          status: "answered",
+          usage: { promptTokens: 20_000, completionTokens: 400 },
+        }),
+      ).toBe(true);
+      expect(
+        await finalizePaidCall(runtime, first.reserveKey, {
+          mode: "cycle_end",
+        }),
+      ).toBe("debited");
+      // Idempotent: a second finalisation (or recovery) moves nothing.
+      expect(
+        await finalizePaidCall(runtime, first.reserveKey, {
+          mode: "recovery",
+        }),
+      ).toBe("closed");
+      expect(await balance()).toBe(1_000_000 - 52_800);
+      // A reserve made in October still counts in October after it closes.
+      expect(
+        await readCreditPosition(runtime, 9101, agentId, "2026-10-01"),
+      ).toEqual({
+        balanceMicro: 947_200,
+        monthSpendMicro: 52_800,
+        uncertain: false,
+      });
+      // Never dispatched: released in full.
+      const second = reserve("fixture-unsent");
+      await reservePaidCall(runtime, second);
+      expect(
+        await finalizePaidCall(runtime, second.reserveKey, {
+          mode: "cycle_end",
+        }),
+      ).toBe("released");
+      expect(await balance()).toBe(947_200);
+      // Answered without usage: uncertain, still reserved, and it blocks the
+      // owner's next paid admission immediately.
+      const third = reserve("fixture-uncertain");
+      await reservePaidCall(runtime, third);
+      await markPaidCallDispatched(runtime, third.reserveKey);
+      await recordPaidCallResult(runtime, third.reserveKey, {
+        status: "uncertain",
+        reason: "answered without usage",
+      });
+      expect(
+        await finalizePaidCall(runtime, third.reserveKey, {
+          mode: "cycle_end",
+        }),
+      ).toBe("closed");
+      expect(await balance()).toBe(947_200 - 202_752);
+      expect(
+        await reservePaidCall(runtime, reserve("fixture-blocked")),
+      ).toEqual({ kind: "refused", reason: "metering_uncertain" });
       await expect(
         runtime.query(
           "UPDATE agent_runtime.credit_ledger SET amount_micro_usd = 0 WHERE user_id = 9101",
@@ -568,13 +639,30 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
           "DELETE FROM agent_runtime.credit_ledger WHERE user_id = 9101",
         ),
       ).rejects.toMatchObject({ code: "42501" });
-      // A debit can never be positive (the contract's sign CHECK).
       await expect(
-        pool.query(
-          `INSERT INTO agent_runtime.credit_ledger (user_id, kind, amount_micro_usd, idempotency_key)
-           VALUES (9101, 'debit', 5, 'debit:positive-fixture')`,
+        runtime.query(
+          "DELETE FROM agent_runtime.paid_calls WHERE user_id = 9101",
         ),
-      ).rejects.toMatchObject({ code: "23514" });
+      ).rejects.toMatchObject({ code: "42501" });
+      await expect(
+        runtime.query("SELECT 1 FROM agent_runtime.credit_checkouts LIMIT 0"),
+      ).rejects.toMatchObject({ code: "42501" });
+      // Signs are enforced by kind: reserve/debit/reversal < 0, others > 0.
+      for (const [kind, amount] of [
+        ["debit", 5],
+        ["reserve", 5],
+        ["reversal", 5],
+        ["release", -5],
+        ["topup", -5],
+      ] as const) {
+        await expect(
+          pool.query(
+            `INSERT INTO agent_runtime.credit_ledger (user_id, kind, amount_micro_usd, idempotency_key)
+             VALUES (9101, $1, $2, $3)`,
+            [kind, amount, `sign-fixture:${kind}`],
+          ),
+        ).rejects.toMatchObject({ code: "23514" });
+      }
     } finally {
       await runtime.end();
     }

@@ -11,9 +11,16 @@ import {
   PAID_BRAIN_PAUSE_REASON,
   fallbackAgentFor,
   paidBrainFor,
+  paidBrainRefusalReason,
+  recoverPaidCalls,
   runAgentOnce,
 } from "./runtime.js";
-import { parsePaidBrain, type PaidBrain } from "./paidBrain.js";
+import {
+  paidBrainModel,
+  parsePaidBrain,
+  priceRowAt,
+  type PaidBrain,
+} from "./paidBrain.js";
 import { NEMOTRON_SUPER } from "./route.js";
 
 const key = Buffer.alloc(32, 9);
@@ -23,20 +30,20 @@ const input = {
   user: "fixture user",
   timeoutMs: 1000,
 };
+const usage = { promptTokens: 20_000, completionTokens: 400 };
 const answered = {
   ok: true as const,
   text: '{"decision":"skip","actions":[]}',
-  usage: { promptTokens: 20_000, completionTokens: 400 },
+  usage,
 };
-// The runner's chars/4 estimate when the provider reports no usage.
-const ESTIMATED_IN = 5_000;
-const ESTIMATED_OUT = 100;
 const fallback = { provider: "nvidia", name: NEMOTRON_SUPER };
+const RESERVE_KEY = /^reserve:42:[0-9a-f-]{36}$/;
 
 function paidFixture(
   paidBrain: Record<string, unknown> = {
     modelId: "claude-sonnet-5-5",
     monthlyCapUsd: 25,
+    onExhausted: "free",
     fallback,
   },
 ) {
@@ -48,7 +55,7 @@ function paidFixture(
     PAID_GEMINI_API_KEY: "fixture-paid-gemini",
   });
   config.encryptionKey = key;
-  const entry = parsePaidBrain({ paidBrain })?.entry;
+  const entry = paidBrainModel(String(paidBrain.modelId));
   const agent: db.AgentRow = {
     id: 42,
     handle: "a7-paid-fixture",
@@ -71,12 +78,21 @@ function paidFixture(
   return { agent, config };
 }
 
+const pausePaidBrain = {
+  modelId: "claude-opus-5-5",
+  monthlyCapUsd: 25,
+  onExhausted: "pause",
+  fallback,
+};
+
 const errorLines = () =>
   vi.mocked(console.error).mock.calls.map((call) => String(call[0]));
 const logLines = () =>
   vi.mocked(console.log).mock.calls.map((call) => String(call[0]));
+const reservedKey = () =>
+  vi.mocked(db.reservePaidCall).mock.calls[0]![1].reserveKey;
 
-describe("paid brain runtime wiring", () => {
+describe("paid brain runtime wiring (contract v2)", () => {
   let decide: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
@@ -94,11 +110,10 @@ describe("paid brain runtime wiring", () => {
     vi.spyOn(db, "disableAgent").mockResolvedValue(undefined);
     vi.spyOn(db, "pauseAgent").mockResolvedValue(undefined);
     vi.spyOn(db, "rescheduleToCadence").mockResolvedValue(undefined);
-    vi.spyOn(db, "readCreditPosition").mockResolvedValue({
-      balanceMicro: 10_000_000,
-      monthSpendMicro: 0,
-    });
-    vi.spyOn(db, "insertDebit").mockResolvedValue(true);
+    vi.spyOn(db, "reservePaidCall").mockResolvedValue({ kind: "reserved" });
+    vi.spyOn(db, "markPaidCallDispatched").mockResolvedValue(true);
+    vi.spyOn(db, "recordPaidCallResult").mockResolvedValue(true);
+    vi.spyOn(db, "finalizePaidCall").mockResolvedValue("debited");
     vi.spyOn(db, "isProviderRouteAvailable").mockResolvedValue(true);
     vi.spyOn(db, "clearProviderCircuit").mockResolvedValue(undefined);
     vi.spyOn(db, "recordProviderStrike").mockResolvedValue(undefined);
@@ -125,8 +140,6 @@ describe("paid brain runtime wiring", () => {
       label: "fixture-direct",
       decide,
     }));
-    // Mirrors the runner's metering: provider-reported usage when present,
-    // else its chars/4 estimate; a deferred attempt made no call.
     vi.spyOn(engine, "runCycle").mockImplementation(async (deps) => {
       const res = await deps.provider.decide(input);
       const made = res.route
@@ -139,14 +152,7 @@ describe("paid brain runtime wiring", () => {
         live: false,
         modelFailed: !res.ok,
         llmCallMade: made,
-        tokensIn: made ? (res.usage?.promptTokens ?? ESTIMATED_IN) : 0,
-        tokensOut: made ? (res.usage?.completionTokens ?? ESTIMATED_OUT) : 0,
-        effectiveProvider: made
-          ? (res.route?.effectiveProvider ?? deps.spec.model?.provider)
-          : undefined,
-        effectiveModel: made
-          ? (res.route?.effectiveModel ?? deps.spec.model?.name)
-          : undefined,
+        providerUsage: made ? res.usage : undefined,
       };
     });
   });
@@ -155,112 +161,209 @@ describe("paid brain runtime wiring", () => {
     vi.unstubAllGlobals();
   });
 
-  it("admits a funded agent, calls the paid model with the platform key and debits once", async () => {
+  it("reserves, commits dispatch, calls with the platform key and cap, records usage and finalises", async () => {
     const { agent, config } = paidFixture();
     await runAgentOnce(pool, agent, config);
 
-    const [, since] = vi.mocked(db.readCreditPosition).mock.calls[0]!.slice(2);
-    expect(vi.mocked(db.readCreditPosition).mock.calls[0]!.slice(0, 3)).toEqual(
-      [pool, 19, 42],
-    );
-    expect((since as Date).getUTCDate()).toBe(1);
-    expect((since as Date).getUTCHours()).toBe(0);
+    expect(db.reservePaidCall).toHaveBeenCalledOnce();
+    const request = vi.mocked(db.reservePaidCall).mock.calls[0]![1];
+    expect(request).toMatchObject({
+      userId: 19,
+      agentId: 42,
+      modelId: "claude-sonnet-5-5",
+      price: priceRowAt(paidBrainModel("claude-sonnet-5-5")!, Date.now()),
+      marginPct: 20,
+      worstCaseMicro: 202_752,
+      capMicro: 25_000_000,
+    });
+    expect(request.reserveKey).toMatch(RESERVE_KEY);
+    expect(request.monthStart).toMatch(/^\d{4}-\d{2}-01$/);
 
-    expect(engine.selectProvider).toHaveBeenCalledOnce();
     const [spec, env] = vi.mocked(engine.selectProvider).mock.calls[0]!;
     expect(spec.model).toEqual({
       provider: "anthropic",
       name: "claude-sonnet-5-5",
     });
-    // ONLY the platform key: no shared NVIDIA key, no BYO key.
+    // ONLY the platform key; never the shared router.
     expect(env).toEqual({ ANTHROPIC_API_KEY: "fixture-paid-anthropic" });
-    // Never through the shared router.
     expect(engine.providerForRoute).not.toHaveBeenCalled();
     expect(capacity.reserveProviderCapacity).not.toHaveBeenCalled();
-    expect(decide).toHaveBeenCalledOnce();
 
-    expect(db.persistCycleResult).toHaveBeenCalledWith(
+    // Dispatch is committed BEFORE the provider is called.
+    expect(db.markPaidCallDispatched).toHaveBeenCalledWith(
       pool,
-      42,
-      expect.objectContaining({
-        model: { provider: "anthropic", name: "claude-sonnet-5-5" },
-      }),
+      request.reserveKey,
     );
-    expect(db.insertDebit).toHaveBeenCalledOnce();
-    // 20k x $2/M + 400 x $10/M = 44,000 micro; +20% margin = 52,800.
-    expect(db.insertDebit).toHaveBeenCalledWith(pool, {
-      userId: 19,
-      agentId: 42,
+    expect(
+      vi.mocked(db.markPaidCallDispatched).mock.invocationCallOrder[0],
+    ).toBeLessThan(decide.mock.invocationCallOrder[0]!);
+    // Hard output cap, thinking included.
+    expect(decide.mock.calls[0]![0].maxTokens).toBe(4096);
+    expect(db.recordPaidCallResult).toHaveBeenCalledWith(
+      pool,
+      request.reserveKey,
+      { status: "answered", usage },
+    );
+    expect(db.finalizePaidCall).toHaveBeenCalledWith(pool, request.reserveKey, {
+      mode: "cycle_end",
       cycleId: 4242,
-      modelId: "claude-sonnet-5-5",
-      tokensIn: 20_000,
-      tokensOut: 400,
-      providerCostMicro: 44_000,
-      marginMicro: 8_800,
-      totalMicro: 52_800,
-      idempotencyKey: "debit:4242",
-      note: undefined,
     });
-    expect(logLines().some((line) => line.includes("paid_brain_debited"))).toBe(
-      true,
-    );
+    expect(
+      vi.mocked(db.persistCycleResult).mock.invocationCallOrder[0],
+    ).toBeLessThan(vi.mocked(db.finalizePaidCall).mock.invocationCallOrder[0]!);
     expect(errorLines()).toEqual([]);
-    expect(db.recordCycle).not.toHaveBeenCalled();
-    expect(db.pauseAgent).not.toHaveBeenCalled();
-  });
-
-  it("debits at the runner's estimate, flagged in the note, when usage is missing", async () => {
-    const { agent, config } = paidFixture();
-    config.paidBrainMarginPct = 0;
-    decide.mockResolvedValue({ ok: true, text: answered.text });
-    await runAgentOnce(pool, agent, config);
-    expect(db.insertDebit).toHaveBeenCalledWith(
-      pool,
-      expect.objectContaining({
-        tokensIn: ESTIMATED_IN,
-        tokensOut: ESTIMATED_OUT,
-        // (5000 x 2000 + 100 x 10000) / 1000 = 11,000; margin 0.
-        providerCostMicro: 11_000,
-        marginMicro: 0,
-        totalMicro: 11_000,
-        note: "usage estimated",
-      }),
-    );
-  });
-
-  it("uses the Gemini platform key for a Gemini paid brain", async () => {
-    const { agent, config } = paidFixture({
-      modelId: "gemini-2.5-flash",
-      monthlyCapUsd: 5,
-      fallback,
-    });
-    await runAgentOnce(pool, agent, config);
-    const [spec, env] = vi.mocked(engine.selectProvider).mock.calls[0]!;
-    expect(spec.model).toEqual({
-      provider: "gemini",
-      name: "gemini-2.5-flash",
-    });
-    expect(env).toEqual({ GEMINI_API_KEY: "fixture-paid-gemini" });
-    expect(db.insertDebit).toHaveBeenCalledWith(
-      pool,
-      expect.objectContaining({ modelId: "gemini-2.5-flash", cycleId: 4242 }),
-    );
+    expect(
+      logLines().some((line) => line.includes("paid_brain_finalized")),
+    ).toBe(true);
   });
 
   it.each([
-    ["the balance is short", { balanceMicro: 0, monthSpendMicro: 0 }],
-    [
-      "the monthly cap is reached",
-      { balanceMicro: 10_000_000, monthSpendMicro: 25_000_000 },
-    ],
+    ["the dispatch was not committed", false],
+    ["the dispatch write failed", new Error("db blip")],
   ])(
-    "runs the free fallback, without a debit, when %s (onExhausted free)",
-    async (_label, position) => {
+    "never calls the provider when %s, and releases",
+    async (_label, outcome) => {
       const { agent, config } = paidFixture();
-      vi.mocked(db.readCreditPosition).mockResolvedValue(position);
+      if (outcome instanceof Error)
+        vi.mocked(db.markPaidCallDispatched).mockRejectedValue(outcome);
+      else vi.mocked(db.markPaidCallDispatched).mockResolvedValue(outcome);
+      vi.mocked(db.finalizePaidCall).mockResolvedValue("released");
       await runAgentOnce(pool, agent, config);
-      // The shared hosted router on the fallback model with the shared key.
-      expect(engine.providerForRoute).toHaveBeenCalled();
+      expect(decide).not.toHaveBeenCalled();
+      expect(db.recordPaidCallResult).not.toHaveBeenCalled();
+      expect(db.finalizePaidCall).toHaveBeenCalledWith(pool, reservedKey(), {
+        mode: "cycle_end",
+        cycleId: 4242,
+      });
+      expect(
+        errorLines().some((line) =>
+          line.includes("paid_brain_dispatch_unrecorded"),
+        ),
+      ).toBe(outcome instanceof Error);
+    },
+  );
+
+  it("never estimates: an answer without usage is recorded uncertain and alerted", async () => {
+    const { agent, config } = paidFixture();
+    decide.mockResolvedValue({ ok: true, text: answered.text });
+    vi.mocked(db.finalizePaidCall).mockResolvedValue("closed");
+    await runAgentOnce(pool, agent, config);
+    expect(db.recordPaidCallResult).toHaveBeenCalledWith(pool, reservedKey(), {
+      status: "uncertain",
+      reason: "answered without usage",
+    });
+    expect(
+      errorLines().some((line) =>
+        line.includes("paid_brain_metering_uncertain"),
+      ),
+    ).toBe(true);
+  });
+
+  it.each([
+    [
+      "an explicit HTTP rejection",
+      { ok: false, error: "anthropic HTTP 529: overloaded", status: 529 },
+      { status: "rejected", providerStatus: 529 },
+    ],
+    [
+      "a timeout without a response",
+      { ok: false, error: "timeout" },
+      { status: "uncertain", reason: "no provider response" },
+    ],
+    [
+      "an incomplete answer the provider billed",
+      {
+        ok: false,
+        failureClass: "malformed",
+        error: "provider returned incomplete decision (output token limit)",
+        usage: { promptTokens: 20_000, completionTokens: 4_096 },
+      },
+      {
+        status: "answered",
+        usage: { promptTokens: 20_000, completionTokens: 4_096 },
+      },
+    ],
+  ])("records %s", async (_label, response, recorded) => {
+    const { agent, config } = paidFixture();
+    decide.mockResolvedValue(response);
+    await runAgentOnce(pool, agent, config);
+    expect(db.recordPaidCallResult).toHaveBeenCalledWith(
+      pool,
+      reservedKey(),
+      recorded,
+    );
+    expect(db.finalizePaidCall).toHaveBeenCalledOnce();
+  });
+
+  it("completes the cycle and alerts when recording the result fails (finalisation then marks it uncertain)", async () => {
+    const { agent, config } = paidFixture();
+    vi.mocked(db.recordPaidCallResult).mockRejectedValue(new Error("db blip"));
+    await runAgentOnce(pool, agent, config);
+    expect(db.persistCycleResult).toHaveBeenCalledOnce();
+    expect(db.finalizePaidCall).toHaveBeenCalledOnce();
+    expect(db.recordCycle).not.toHaveBeenCalled();
+    expect(
+      errorLines().some((line) =>
+        line.includes("paid_brain_result_unrecorded"),
+      ),
+    ).toBe(true);
+  });
+
+  it("completes the cycle and alerts when finalisation throws (the reservation stays open)", async () => {
+    const { agent, config } = paidFixture();
+    vi.mocked(db.finalizePaidCall).mockRejectedValue(new Error("ledger down"));
+    await runAgentOnce(pool, agent, config);
+    expect(db.persistCycleResult).toHaveBeenCalledOnce();
+    expect(db.recordCycle).not.toHaveBeenCalled();
+    expect(db.disableAgent).not.toHaveBeenCalled();
+    expect(
+      errorLines().some(
+        (line) =>
+          line.includes("paid_brain_finalize_failed") &&
+          line.includes("ledger down") &&
+          line.includes('"cycleId":4242'),
+      ),
+    ).toBe(true);
+  });
+
+  it("still finalises from durable state when the cycle row cannot be persisted", async () => {
+    const { agent, config } = paidFixture();
+    vi.mocked(db.persistCycleResult).mockRejectedValue(new Error("db down"));
+    await runAgentOnce(pool, agent, config);
+    expect(db.recordCycle).toHaveBeenCalledWith(
+      pool,
+      42,
+      expect.objectContaining({ decision: "error", error: "db down" }),
+    );
+    expect(db.finalizePaidCall).toHaveBeenCalledWith(pool, reservedKey(), {
+      mode: "cycle_end",
+      cycleId: undefined,
+    });
+  });
+
+  it("releases the reservation when setup fails before any call", async () => {
+    const { agent, config } = paidFixture();
+    vi.mocked(engine.selectProvider).mockImplementation(() => {
+      throw new Error("fixture setup failure");
+    });
+    vi.mocked(db.finalizePaidCall).mockResolvedValue("released");
+    await runAgentOnce(pool, agent, config);
+    expect(decide).not.toHaveBeenCalled();
+    expect(db.finalizePaidCall).toHaveBeenCalledWith(pool, reservedKey(), {
+      mode: "cycle_end",
+      cycleId: undefined,
+    });
+  });
+
+  it.each(["balance_short", "cap_reached", "metering_uncertain"] as const)(
+    "runs the explicit free fallback, never the paid model, when refused for %s",
+    async (reason) => {
+      const { agent, config } = paidFixture();
+      vi.mocked(db.reservePaidCall).mockResolvedValue({
+        kind: "refused",
+        reason,
+      });
+      await runAgentOnce(pool, agent, config);
       const [route, routeKey] = vi.mocked(engine.providerForRoute).mock
         .calls[0]!;
       expect(route).toMatchObject({
@@ -268,91 +371,55 @@ describe("paid brain runtime wiring", () => {
         model: NEMOTRON_SUPER,
       });
       expect(routeKey).toBe("fixture-nvidia");
-      for (const call of vi.mocked(engine.selectProvider).mock.calls) {
-        expect(call[1]).not.toHaveProperty("ANTHROPIC_API_KEY");
-      }
-      expect(db.insertDebit).not.toHaveBeenCalled();
+      expect(db.markPaidCallDispatched).not.toHaveBeenCalled();
+      expect(db.finalizePaidCall).not.toHaveBeenCalled();
       expect(db.pauseAgent).not.toHaveBeenCalled();
-      expect(db.persistCycleResult).toHaveBeenCalledOnce();
       const persisted = vi.mocked(db.persistCycleResult).mock.calls[0]![2];
-      expect(persisted.cycle.log).toContain("running on the free brain");
+      expect(persisted.cycle.log).toContain(
+        `${paidBrainRefusalReason(reason)}: running on the free brain`,
+      );
       expect(
         logLines().some((line) => line.includes("paid_brain_exhausted")),
       ).toBe(true);
     },
   );
 
-  it("pauses an exhausted 'pause' agent without any provider call or debit", async () => {
-    const { agent, config } = paidFixture({
-      modelId: "claude-opus-5-5",
-      monthlyCapUsd: 25,
-      onExhausted: "pause",
-      fallback,
-    });
-    vi.mocked(db.readCreditPosition).mockResolvedValue({
-      balanceMicro: 1,
-      monthSpendMicro: 0,
-    });
-    await runAgentOnce(pool, agent, config);
-    expect(db.pauseAgent).toHaveBeenCalledWith(
-      pool,
-      42,
-      PAID_BRAIN_PAUSE_REASON,
-    );
-    expect(PAID_BRAIN_PAUSE_REASON).toBe("paid brain credit exhausted");
-    expect(db.recordCycle).toHaveBeenCalledWith(
-      pool,
-      42,
-      expect.objectContaining({
-        decision: "skip",
-        skipReason: PAID_BRAIN_PAUSE_REASON,
-        llmCallMade: false,
-      }),
-    );
-    expect(engine.runCycle).not.toHaveBeenCalled();
-    expect(engine.selectProvider).not.toHaveBeenCalled();
-    expect(decide).not.toHaveBeenCalled();
-    expect(db.insertDebit).not.toHaveBeenCalled();
-    expect(db.disableAgent).not.toHaveBeenCalled();
-  });
+  it.each([
+    ["balance_short", PAID_BRAIN_PAUSE_REASON],
+    ["cap_reached", "paid brain credit exhausted"],
+    ["metering_uncertain", "paid brain metering uncertain"],
+  ] as const)(
+    "pauses an explicit 'pause' agent refused for %s, with no call",
+    async (reason, pauseReason) => {
+      const { agent, config } = paidFixture(pausePaidBrain);
+      vi.mocked(db.reservePaidCall).mockResolvedValue({
+        kind: "refused",
+        reason,
+      });
+      await runAgentOnce(pool, agent, config);
+      expect(db.pauseAgent).toHaveBeenCalledWith(pool, 42, pauseReason);
+      expect(db.recordCycle).toHaveBeenCalledWith(
+        pool,
+        42,
+        expect.objectContaining({ decision: "skip", skipReason: pauseReason }),
+      );
+      expect(engine.runCycle).not.toHaveBeenCalled();
+      expect(decide).not.toHaveBeenCalled();
+    },
+  );
 
-  it("still skips (never runs paid) when the pause write itself fails", async () => {
-    const { agent, config } = paidFixture({
-      modelId: "claude-sonnet-5-5",
-      monthlyCapUsd: 25,
-      onExhausted: "pause",
-      fallback,
-    });
-    vi.mocked(db.readCreditPosition).mockResolvedValue({
-      balanceMicro: 0,
-      monthSpendMicro: 0,
-    });
-    vi.mocked(db.pauseAgent).mockRejectedValue(new Error("db blip"));
-    await runAgentOnce(pool, agent, config);
-    expect(decide).not.toHaveBeenCalled();
-    expect(
-      errorLines().some((line) => line.includes("paid_brain_pause_failed")),
-    ).toBe(true);
-  });
-
-  it("treats an unreadable ledger as no credit: free agents fall back, pause agents skip", async () => {
+  it("treats an unavailable ledger as no credit: free agents fall back, pause agents skip", async () => {
     const free = paidFixture();
-    vi.mocked(db.readCreditPosition).mockRejectedValue(new Error("db blip"));
+    vi.mocked(db.reservePaidCall).mockRejectedValue(new Error("db blip"));
     await runAgentOnce(pool, free.agent, free.config);
     expect(engine.providerForRoute).toHaveBeenCalled();
-    expect(db.insertDebit).not.toHaveBeenCalled();
+    expect(db.markPaidCallDispatched).not.toHaveBeenCalled();
     expect(
       errorLines().some((line) => line.includes("paid_brain_admission_failed")),
     ).toBe(true);
 
-    vi.mocked(engine.providerForRoute).mockClear();
     decide.mockClear();
-    const paused = paidFixture({
-      modelId: "claude-sonnet-5-5",
-      monthlyCapUsd: 25,
-      onExhausted: "pause",
-      fallback,
-    });
+    const paused = paidFixture(pausePaidBrain);
     await runAgentOnce(pool, paused.agent, paused.config);
     expect(decide).not.toHaveBeenCalled();
     expect(db.pauseAgent).not.toHaveBeenCalled();
@@ -361,28 +428,39 @@ describe("paid brain runtime wiring", () => {
       pool,
       42,
       expect.objectContaining({
-        decision: "skip",
         skipReason: "paid brain credit check unavailable",
       }),
     );
   });
 
-  it("skips as recoverable infrastructure, never debits, when the platform key is missing", async () => {
+  it("never admits a disabled (Gemini) brain: it follows the exhaustion choice without reserving", async () => {
+    const { agent, config } = paidFixture({
+      modelId: "gemini-2.5-flash",
+      monthlyCapUsd: 5,
+      onExhausted: "free",
+      fallback,
+    });
+    await runAgentOnce(pool, agent, config);
+    expect(db.reservePaidCall).not.toHaveBeenCalled();
+    expect(engine.providerForRoute).toHaveBeenCalled();
+    for (const call of vi.mocked(engine.selectProvider).mock.calls) {
+      expect(call[1]).not.toHaveProperty("GEMINI_API_KEY");
+    }
+  });
+
+  it("skips as recoverable infrastructure, with no reservation, when the platform key is missing", async () => {
     const { agent, config } = paidFixture();
     config.paidAnthropicApiKey = undefined;
     await runAgentOnce(pool, agent, config);
-    expect(engine.selectProvider).not.toHaveBeenCalled();
+    expect(db.reservePaidCall).not.toHaveBeenCalled();
     expect(engine.runCycle).not.toHaveBeenCalled();
-    expect(db.insertDebit).not.toHaveBeenCalled();
     expect(db.disableAgent).not.toHaveBeenCalled();
     expect(db.rescheduleToCadence).toHaveBeenCalledWith(pool, 42);
     expect(db.recordCycle).toHaveBeenCalledWith(
       pool,
       42,
       expect.objectContaining({
-        decision: "skip",
         skipReason: "hosted provider temporarily unavailable",
-        llmCallMade: false,
       }),
     );
     expect(
@@ -393,154 +471,84 @@ describe("paid brain runtime wiring", () => {
     expect(errorLines().join("\n")).not.toContain("fixture-paid");
   });
 
-  it.each([
-    [
-      "a failed provider call",
-      { ok: false, error: "anthropic HTTP 500: upstream", status: 500 },
-    ],
-    [
-      "a provider rate limit",
-      { ok: false, error: "anthropic HTTP 429: slow down", status: 429 },
-    ],
-    [
-      "a malformed (incomplete) response",
-      {
-        ok: false,
-        failureClass: "malformed",
-        error: "provider returned incomplete decision (output token limit)",
-        usage: { promptTokens: 20_000, completionTokens: 1_024 },
-      },
-    ],
-    ["a deferred attempt", { ok: false, error: "deferred", deferred: true }],
-  ])("never debits %s", async (_label, response) => {
-    const { agent, config } = paidFixture();
-    decide.mockResolvedValue(response);
-    await runAgentOnce(pool, agent, config);
-    expect(db.persistCycleResult).toHaveBeenCalledOnce();
-    expect(db.insertDebit).not.toHaveBeenCalled();
-    expect(errorLines()).toEqual([]);
-  });
-
-  it("completes the cycle and alerts when the debit insert throws", async () => {
-    const { agent, config } = paidFixture();
-    vi.mocked(db.insertDebit).mockRejectedValue(new Error("ledger down"));
-    await runAgentOnce(pool, agent, config);
-    expect(db.persistCycleResult).toHaveBeenCalledOnce();
-    expect(db.recordCycle).not.toHaveBeenCalled();
-    expect(db.disableAgent).not.toHaveBeenCalled();
-    expect(
-      errorLines().some(
-        (line) =>
-          line.includes("paid_brain_debit_failed") &&
-          line.includes("ledger down") &&
-          line.includes('"cycleId":4242'),
-      ),
-    ).toBe(true);
-  });
-
-  it("does not debit, and alerts, when the cycle id is unavailable", async () => {
-    const { agent, config } = paidFixture();
-    vi.mocked(db.persistCycleResult).mockResolvedValue(undefined);
-    await runAgentOnce(pool, agent, config);
-    expect(db.insertDebit).not.toHaveBeenCalled();
-    expect(
-      errorLines().some(
-        (line) =>
-          line.includes("paid_brain_debit_failed") &&
-          line.includes("cycle id unavailable"),
-      ),
-    ).toBe(true);
-  });
-
-  it("alerts on an answered call whose cycle could not be persisted, and charges nothing", async () => {
-    const { agent, config } = paidFixture();
-    vi.mocked(db.persistCycleResult).mockRejectedValue(new Error("db down"));
-    await runAgentOnce(pool, agent, config);
-    expect(db.insertDebit).not.toHaveBeenCalled();
-    expect(db.recordCycle).toHaveBeenCalledWith(
-      pool,
-      42,
-      expect.objectContaining({ decision: "error", error: "db down" }),
-    );
-    expect(
-      errorLines().some(
-        (line) =>
-          line.includes("paid_brain_debit_failed") &&
-          line.includes("cycle not persisted"),
-      ),
-    ).toBe(true);
-  });
-
-  it("alerts on an answered call it cannot price (served by another route)", async () => {
-    const { agent, config } = paidFixture();
-    vi.mocked(engine.runCycle).mockImplementation(async (deps) => {
-      await deps.provider.decide(input);
-      return {
-        decision: "skip",
-        planned: [],
-        live: false,
-        llmCallMade: true,
-        tokensIn: 10,
-        tokensOut: 10,
-        effectiveProvider: "nvidia",
-        effectiveModel: NEMOTRON_SUPER,
-      };
-    });
-    await runAgentOnce(pool, agent, config);
-    expect(db.insertDebit).not.toHaveBeenCalled();
-    expect(
-      errorLines().some(
-        (line) =>
-          line.includes("paid_brain_debit_failed") &&
-          line.includes("served by a different route"),
-      ),
-    ).toBe(true);
-  });
-
-  it("charges nothing for an answered call that reported zero tokens", async () => {
-    const { agent, config } = paidFixture();
-    decide.mockResolvedValue({
-      ...answered,
-      usage: { promptTokens: 0, completionTokens: 0 },
-    });
-    await runAgentOnce(pool, agent, config);
-    expect(db.insertDebit).not.toHaveBeenCalled();
-    expect(errorLines()).toEqual([]);
-  });
-
-  it("never uses the platform key for a malformed paid spec", async () => {
+  it("treats a spec without an explicit onExhausted as NOT paid and never uses the platform key", async () => {
     const { agent, config } = paidFixture({
       modelId: "claude-sonnet-5-5",
-      monthlyCapUsd: -1,
+      monthlyCapUsd: 25,
       fallback,
     });
     await runAgentOnce(pool, agent, config);
-    expect(db.readCreditPosition).not.toHaveBeenCalled();
-    expect(db.insertDebit).not.toHaveBeenCalled();
+    expect(db.reservePaidCall).not.toHaveBeenCalled();
     for (const call of vi.mocked(engine.selectProvider).mock.calls) {
       expect(call[1]).toEqual({ ANTHROPIC_API_KEY: undefined });
     }
     expect(
-      errorLines().some((line) => line.includes("paid_brain_spec_invalid")),
+      errorLines().some(
+        (line) =>
+          line.includes("paid_brain_spec_invalid") &&
+          line.includes("onExhausted"),
+      ),
     ).toBe(true);
   });
 
-  it("leaves free agents untouched: no ledger read, no debit", async () => {
+  it("leaves free agents untouched", async () => {
     const { agent, config } = paidFixture();
     agent.spec = parseSkill(renderFolderOfOne("fixture", "conservative")).spec;
     agent.modelProvider = "nvidia";
     agent.modelName = NEMOTRON_SUPER;
     await runAgentOnce(pool, agent, config);
-    expect(db.readCreditPosition).not.toHaveBeenCalled();
-    expect(db.insertDebit).not.toHaveBeenCalled();
+    expect(db.reservePaidCall).not.toHaveBeenCalled();
+    expect(db.finalizePaidCall).not.toHaveBeenCalled();
     expect(errorLines()).toEqual([]);
   });
 });
 
-describe("paidBrainFor and fallbackAgentFor", () => {
+describe("recoverPaidCalls", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "log").mockImplementation(() => {});
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it("finalises idle calls by the durable rules, counts outcomes and alerts each uncertain call once", async () => {
+    vi.spyOn(db, "listPaidRecoveryCandidates").mockResolvedValue({
+      stale: ["reserve:1:a", "reserve:1:b", "reserve:1:c", "reserve:1:d"],
+      uncertain: [{ reserveKey: "reserve:2:u", userId: 19, agentId: 2 }],
+    });
+    vi.spyOn(db, "finalizePaidCall")
+      .mockResolvedValueOnce("released")
+      .mockResolvedValueOnce("debited")
+      .mockResolvedValueOnce("uncertain")
+      .mockRejectedValueOnce(new Error("db blip"))
+      .mockResolvedValue("closed");
+    const alerted = new Set<string>();
+    expect(await recoverPaidCalls(pool, alerted)).toEqual({
+      released: 1,
+      debited: 1,
+      uncertain: 1,
+      failed: 1,
+    });
+    for (const call of vi.mocked(db.finalizePaidCall).mock.calls) {
+      expect(call[2]).toEqual({ mode: "recovery" });
+    }
+    expect(
+      errorLines().some((line) => line.includes("paid_brain_recovery_failed")),
+    ).toBe(true);
+    const uncertainAlerts = () =>
+      errorLines().filter(
+        (line) =>
+          line.includes("paid_brain_metering_uncertain") &&
+          line.includes("reserve:2:u"),
+      ).length;
+    expect(uncertainAlerts()).toBe(1);
+    await recoverPaidCalls(pool, alerted);
+    expect(uncertainAlerts()).toBe(1);
+  });
+});
+
+describe("paidBrainFor, fallbackAgentFor and refusal reasons", () => {
   it("accepts a row on its paid route with no BYO key and a billable owner", () => {
-    const { agent } = paidFixture();
-    expect(paidBrainFor(agent).kind).toBe("paid");
+    expect(paidBrainFor(paidFixture().agent).kind).toBe("paid");
   });
   it.each([
     ["a BYO key", { brainKeyEnc: "enc" }],
@@ -551,12 +559,9 @@ describe("paidBrainFor and fallbackAgentFor", () => {
     ["zero owner", { ownerUserId: 0 }],
     ["fractional owner", { ownerUserId: 1.5 }],
   ])("treats a row with %s as NOT paid", (_label, change) => {
-    const { agent } = paidFixture();
-    expect(paidBrainFor({ ...agent, ...change }).kind).toBe("invalid");
-  });
-  it("passes absent specs through", () => {
-    const { agent } = paidFixture();
-    expect(paidBrainFor({ ...agent, spec: {} }).kind).toBe("absent");
+    expect(paidBrainFor({ ...paidFixture().agent, ...change }).kind).toBe(
+      "invalid",
+    );
   });
   it("routes the fallback as an ordinary shared NVIDIA row", () => {
     const { agent } = paidFixture();
@@ -569,5 +574,19 @@ describe("paidBrainFor and fallbackAgentFor", () => {
       modelName: NEMOTRON_SUPER,
       modelBaseUrl: null,
     });
+  });
+  it("names the refusal for the owner", () => {
+    expect(paidBrainRefusalReason("balance_short")).toBe(
+      "paid brain credit exhausted",
+    );
+    expect(paidBrainRefusalReason("cap_reached")).toBe(
+      "paid brain credit exhausted",
+    );
+    expect(paidBrainRefusalReason("metering_uncertain")).toBe(
+      "paid brain metering uncertain",
+    );
+    expect(paidBrainRefusalReason("model_disabled")).toBe(
+      "paid brain model unavailable",
+    );
   });
 });

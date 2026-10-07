@@ -1,31 +1,52 @@
-// Paid brains (contract v1, 2026-10-07): pure pricing, spec parsing and
-// admission. No I/O here; runtime.ts reads the ledger (db.ts) and calls these.
+// Paid brains (contract v2, 2026-10-07, with the root/Data corrections): pure
+// pricing, spec parsing, admission and call classification. No I/O here;
+// db.ts holds the ledger transactions and runtime.ts the cycle wiring.
 //
-// Money is integer micro-USD end to end (1 USD = 1_000_000 micro). A catalogue
+// Money is integer micro-USD end to end (1 USD = 1_000_000 micro). A list
 // price of P dollars per million tokens is exactly P micro-USD per token, so
-// prices are stored as integer micro-USD per THOUSAND tokens (P * 1000) and a
-// call's cost is ceil((tokensIn * in + tokensOut * out) / 1000): exact integer
-// arithmetic, no float anywhere near a balance, and every rounding goes UP so
-// the platform never under-recovers a provider bill. The margin is applied on
-// top of that rounded provider cost and is itself rounded up.
+// every price is stored as integer micro-USD per THOUSAND tokens (P * 1000).
+// A call's provider cost is then sum(tokens * rate) / 1000 with exact integer
+// arithmetic, and the margin is applied to that exact sum before the single
+// round-up to whole micro-USD:
+//   total    = ceil(sum * (100 + marginPct) / 100_000)
+//   provider = ceil(sum / 1000), margin = total - provider (for the ledger row)
 //
-// The backend half (GET /api/agents/paid-brains, the Studio estimates) carries
-// the same catalogue; PAID_BRAIN_CATALOGUE_VERSION names the price set so a
-// drift between the two is visible in review. Prices: official provider pages,
-// verified 2026-10-07 (Data 56677).
+// We never invoice estimates. Only provider-reported usage is priced: input,
+// output (thinking is billed as output), cache reads, and cache writes at the
+// provider's reported 5m/1h split. A cache write total without the split is
+// priced at the 1h rate (the higher one) and noted. There are no fixed
+// multipliers: each SKU's cache rates come from Data's price table
+// (temp/agentic-baseline-20261007/brain_prices.json, official pages,
+// 2026-10-07). The margin is a configurable markup (PAID_BRAIN_MARGIN_PCT,
+// default 20); it is not a claim to cover every processor or store fee.
 
-export const PAID_BRAIN_CATALOGUE_VERSION = "2026-10-07";
+import type { ProviderUsage } from "@coinrithm/mcp-trading/engine";
+
+export const PAID_BRAIN_CATALOGUE_VERSION = "2026-10-07.v2";
 
 export type PaidBrainProvider = "anthropic" | "gemini";
+
+/** One price row, valid from `validFrom` (inclusive, UTC day) to `validTo`
+ * (inclusive, UTC day) or open-ended. Rates are integer micro-USD per 1,000
+ * tokens; a cache rate the provider does not sell is absent. */
+export interface PaidBrainPriceRow {
+  version: string;
+  validFrom: string;
+  validTo: string | null;
+  inputK: number;
+  outputK: number;
+  cacheReadK?: number;
+  cacheWrite5mK?: number;
+  cacheWrite1hK?: number;
+}
 
 export interface PaidBrainModel {
   id: string;
   provider: PaidBrainProvider;
   model: string;
-  /** Integer micro-USD per 1,000 input tokens (= USD per million * 1000). */
-  inMicroPerKTok: number;
-  /** Integer micro-USD per 1,000 output tokens. */
-  outMicroPerKTok: number;
+  /** Disabled entries stay listed but can never be admitted. */
+  enabled: boolean;
+  prices: readonly PaidBrainPriceRow[];
 }
 
 export const paidBrainCatalogue: readonly PaidBrainModel[] = [
@@ -33,31 +54,98 @@ export const paidBrainCatalogue: readonly PaidBrainModel[] = [
     id: "claude-sonnet-5-5",
     provider: "anthropic",
     model: "claude-sonnet-5-5",
-    inMicroPerKTok: 2_000, // $2.00 / M
-    outMicroPerKTok: 10_000, // $10.00 / M
+    enabled: true,
+    prices: [
+      {
+        version: "claude-sonnet-5-5@2026-10-07",
+        validFrom: "2026-10-07",
+        validTo: null,
+        inputK: 2_000, // $2.00 / M
+        cacheReadK: 200, // $0.20 / M
+        cacheWrite5mK: 2_500, // $2.50 / M
+        cacheWrite1hK: 4_000, // $4.00 / M
+        outputK: 10_000, // $10.00 / M
+      },
+    ],
   },
   {
-    // Thinking is billed as output; provider-reported output tokens include it.
+    // Thinking is always on and billed as output.
     id: "claude-opus-5-5",
     provider: "anthropic",
     model: "claude-opus-5-5",
-    inMicroPerKTok: 4_000, // $4.00 / M
-    outMicroPerKTok: 20_000, // $20.00 / M
+    enabled: true,
+    prices: [
+      {
+        version: "claude-opus-5-5@2026-10-07",
+        validFrom: "2026-10-07",
+        validTo: null,
+        inputK: 4_000, // $4.00 / M
+        cacheReadK: 200, // $0.20 / M (0.05x input)
+        cacheWrite5mK: 5_000, // $5.00 / M
+        cacheWrite1hK: 8_000, // $8.00 / M (2x input)
+        outputK: 20_000, // $20.00 / M
+      },
+    ],
   },
+  // Gemini ships DISABLED until a live probe confirms how the OpenAI-
+  // compatible endpoint reports thinking and cache tokens. Google publishes no
+  // separate cache-write rate here, so a reported write cannot be priced and
+  // would fail closed.
   {
     id: "gemini-2.5-flash",
     provider: "gemini",
     model: "gemini-2.5-flash",
-    inMicroPerKTok: 300, // $0.30 / M
-    outMicroPerKTok: 2_500, // $2.50 / M
+    enabled: false,
+    prices: [
+      {
+        version: "gemini-2.5-flash@2026-10-07",
+        validFrom: "2026-10-07",
+        validTo: null,
+        inputK: 300,
+        cacheReadK: 30,
+        outputK: 2_500,
+      },
+    ],
   },
   {
-    // Provider price doubles on 1 Jan 2027: bump the catalogue version then.
+    id: "gemini-2.5-flash-lite",
+    provider: "gemini",
+    model: "gemini-2.5-flash-lite",
+    enabled: false,
+    prices: [
+      {
+        version: "gemini-2.5-flash-lite@2026-10-07",
+        validFrom: "2026-10-07",
+        validTo: null,
+        inputK: 100,
+        cacheReadK: 10,
+        outputK: 400,
+      },
+    ],
+  },
+  {
     id: "gemini-3.8-flash",
     provider: "gemini",
     model: "gemini-3.8-flash",
-    inMicroPerKTok: 750, // $0.75 / M
-    outMicroPerKTok: 3_750, // $3.75 / M
+    enabled: false,
+    prices: [
+      {
+        version: "gemini-3.8-flash@2026-10-07",
+        validFrom: "2026-10-07",
+        validTo: "2026-12-31",
+        inputK: 750,
+        cacheReadK: 75,
+        outputK: 3_750,
+      },
+      {
+        version: "gemini-3.8-flash@2027-01-01",
+        validFrom: "2027-01-01",
+        validTo: null,
+        inputK: 1_500,
+        cacheReadK: 150,
+        outputK: 7_500,
+      },
+    ],
   },
 ];
 
@@ -65,70 +153,115 @@ export function paidBrainModel(modelId: string): PaidBrainModel | undefined {
   return paidBrainCatalogue.find((entry) => entry.id === modelId);
 }
 
-// Worst case of ONE paid call, used only for admission. The runner asks for at
-// most 1024 output tokens (DecideInput.maxTokens default), so 4096 leaves room
-// for thinking or a provider that bills reasoning outside max_tokens. Input has
-// no hard cap in the engine; the measured agent profile is ~20k tokens per call
-// (Data), so 64k is a deliberately generous ceiling. The paid route makes ONE
-// call per cycle (no same-model retry, no cross-model fallback), so one call is
-// the whole cycle.
-export const PAID_BRAIN_WORST_CASE_INPUT_TOKENS = 64_000;
-export const PAID_BRAIN_WORST_CASE_OUTPUT_TOKENS = 4_096;
+const DAY_MS = 86_400_000;
 
-export interface DebitAmount {
+/** The price row valid at `nowMs` (UTC days, both ends inclusive). */
+export function priceRowAt(
+  entry: PaidBrainModel,
+  nowMs: number,
+): PaidBrainPriceRow | undefined {
+  return entry.prices.find((row) => {
+    const from = Date.parse(`${row.validFrom}T00:00:00Z`);
+    const to =
+      row.validTo === null
+        ? Infinity
+        : Date.parse(`${row.validTo}T00:00:00Z`) + DAY_MS;
+    return nowMs >= from && nowMs < to;
+  });
+}
+
+// Hard per-call cap: every paid call is sent with max_tokens 4096, thinking
+// included, so 4096 output tokens is a true upper bound. Input has no hard cap
+// in the engine; the measured agent profile is ~20k tokens, so 64k is a
+// deliberately generous bound. The paid request carries no cache_control, so
+// the worst case prices the whole prompt as uncached input.
+export const PAID_BRAIN_MAX_OUTPUT_TOKENS = 4_096;
+export const PAID_BRAIN_WORST_CASE_INPUT_TOKENS = 64_000;
+
+export interface PricedCall {
   providerCostMicro: number;
   marginMicro: number;
   totalMicro: number;
+  /** Plain-language pricing notes for the ledger row (never content). */
+  notes: string[];
 }
 
-function tokenCount(value: number, label: string): number {
+function tokens(value: number | undefined, label: string): number {
+  if (value === undefined) return 0;
   if (!Number.isFinite(value) || value < 0) {
-    throw new Error(`paid brain ${label} must be a finite non-negative number`);
+    throw new Error(`paid brain ${label} must be a finite non-negative count`);
   }
   return Math.ceil(value);
 }
 
-/** Integer micro-USD to debit for one call: provider cost rounded up, then the
- * margin (percent of that cost) rounded up on top. Throws on an unknown model
- * or invalid inputs: a debit is never guessed. */
-export function debitMicroUsd(args: {
-  modelId: string;
-  tokensIn: number;
-  tokensOut: number;
-  marginPct: number;
-}): DebitAmount {
-  const entry = paidBrainModel(args.modelId);
-  if (!entry) throw new Error(`unknown paid brain model ${args.modelId}`);
-  if (!Number.isFinite(args.marginPct) || args.marginPct < 0) {
-    throw new Error("paid brain margin must be a finite non-negative percent");
+function rate(value: number | undefined, label: string): number {
+  if (value === undefined) {
+    throw new Error(`price row has no ${label} rate: cannot price this call`);
   }
-  const tokensIn = tokenCount(args.tokensIn, "tokensIn");
-  const tokensOut = tokenCount(args.tokensOut, "tokensOut");
-  const providerCostMicro = Math.ceil(
-    (tokensIn * entry.inMicroPerKTok + tokensOut * entry.outMicroPerKTok) /
-      1000,
-  );
-  const marginMicro = Math.ceil((providerCostMicro * args.marginPct) / 100);
-  const totalMicro = providerCostMicro + marginMicro;
-  if (!Number.isSafeInteger(totalMicro)) {
-    throw new Error("paid brain debit is out of the safe integer range");
-  }
-  return { providerCostMicro, marginMicro, totalMicro };
+  return value;
 }
 
-/** Admission bound: the debit of one call at the worst-case token counts. */
+/** Price provider-reported usage with a (snapshotted) price row and margin.
+ * Throws rather than guess: unknown rates, invalid counts or a non-integer
+ * margin never produce a charge. */
+export function priceUsage(
+  price: PaidBrainPriceRow,
+  usage: ProviderUsage,
+  marginPct: number,
+): PricedCall {
+  if (!Number.isSafeInteger(marginPct) || marginPct < 0) {
+    throw new Error("paid brain margin must be a whole non-negative percent");
+  }
+  const notes: string[] = [];
+  const input = tokens(usage.promptTokens, "input");
+  const output = tokens(usage.completionTokens, "output");
+  const cacheRead = tokens(usage.cacheReadTokens, "cache read");
+  const write5m = tokens(usage.cacheWrite5mTokens, "5m cache write");
+  const write1h = tokens(usage.cacheWrite1hTokens, "1h cache write");
+  const writeTotal = tokens(usage.cacheWriteTokens, "cache write");
+  // Any write the split does not account for is priced at the 1h rate.
+  const unsplitWrite = Math.max(0, writeTotal - write5m - write1h);
+  if (unsplitWrite > 0)
+    notes.push(
+      `cache write split not reported: ${unsplitWrite} priced at the 1h rate`,
+    );
+  let sum = input * price.inputK + output * price.outputK;
+  if (cacheRead > 0) sum += cacheRead * rate(price.cacheReadK, "cache read");
+  if (write5m > 0) sum += write5m * rate(price.cacheWrite5mK, "5m cache write");
+  if (write1h + unsplitWrite > 0)
+    sum +=
+      (write1h + unsplitWrite) * rate(price.cacheWrite1hK, "1h cache write");
+  if (cacheRead > 0 || writeTotal > 0 || write5m > 0 || write1h > 0)
+    notes.push(
+      `cache read ${cacheRead}, cache write 5m ${write5m}, 1h ${write1h + unsplitWrite}`,
+    );
+  if (!Number.isSafeInteger(sum * (100 + marginPct))) {
+    throw new Error("paid brain charge is out of the safe integer range");
+  }
+  const providerCostMicro = Math.ceil(sum / 1000);
+  const totalMicro = Math.ceil((sum * (100 + marginPct)) / 100_000);
+  return {
+    providerCostMicro,
+    marginMicro: totalMicro - providerCostMicro,
+    totalMicro,
+    notes,
+  };
+}
+
+/** The reservation for one paid call: 64k uncached input plus the 4096-token
+ * output cap at the price row's rates, with margin. */
 export function worstCaseCallMicroUsd(
-  modelId: string,
-  maxInputTokens: number,
-  maxOutputTokens: number,
+  price: PaidBrainPriceRow,
   marginPct: number,
 ): number {
-  return debitMicroUsd({
-    modelId,
-    tokensIn: maxInputTokens,
-    tokensOut: maxOutputTokens,
+  return priceUsage(
+    price,
+    {
+      promptTokens: PAID_BRAIN_WORST_CASE_INPUT_TOKENS,
+      completionTokens: PAID_BRAIN_MAX_OUTPUT_TOKENS,
+    },
     marginPct,
-  }).totalMicro;
+  ).totalMicro;
 }
 
 export type PaidBrainOnExhausted = "free" | "pause";
@@ -139,6 +272,7 @@ export interface PaidBrain {
   monthlyCapUsd: number;
   /** The cap in integer micro-USD. */
   capMicro: number;
+  /** The owner's explicit choice; there is no default. */
   onExhausted: PaidBrainOnExhausted;
   /** The free route to use when exhausted. Only the shared NVIDIA pool is a
    * free brain the scheduler can run without a key of the owner's own. */
@@ -156,8 +290,9 @@ const MAX_MONTHLY_CAP_USD = 1_000_000;
 const MAX_MODEL_NAME_LENGTH = 200;
 
 /** Read spec.paidBrain defensively: `spec` is jsonb written by the API and may
- * be anything. Absent means a free or BYO brain; anything malformed is INVALID
- * and the caller treats the agent as NOT paid (never runs the platform key). */
+ * be anything. Absent means a free or BYO brain; anything malformed, including
+ * a missing onExhausted choice, is INVALID and the caller treats the agent as
+ * NOT paid (never runs the platform key). */
 export function paidBrainSpecState(spec: unknown): PaidBrainSpecState {
   if (!spec || typeof spec !== "object" || Array.isArray(spec))
     return { kind: "absent" };
@@ -182,10 +317,12 @@ export function paidBrainSpecState(spec: unknown): PaidBrainSpecState {
   const capMicro = Math.floor(cap * 1_000_000);
   if (capMicro <= 0)
     return { kind: "invalid", reason: "monthlyCapUsd below one micro-USD" };
-  const onExhausted =
-    value.onExhausted === undefined ? "free" : value.onExhausted;
+  const onExhausted = value.onExhausted;
   if (onExhausted !== "free" && onExhausted !== "pause")
-    return { kind: "invalid", reason: "onExhausted must be free or pause" };
+    return {
+      kind: "invalid",
+      reason: "onExhausted must be explicitly free or pause",
+    };
   const fallback = value.fallback;
   if (!fallback || typeof fallback !== "object" || Array.isArray(fallback))
     return { kind: "invalid", reason: "fallback is required" };
@@ -218,16 +355,23 @@ export function parsePaidBrain(spec: unknown): PaidBrain | null {
 }
 
 export type AdmissionReason =
-  "ok" | "balance_short" | "cap_reached" | "invalid_position";
+  | "ok"
+  | "metering_uncertain"
+  | "balance_short"
+  | "cap_reached"
+  | "model_disabled"
+  | "invalid_position";
 
-/** Admit one paid call only when the balance is ABOVE its worst case and the
- * agent's month spend plus that worst case stays within the cap. Any
- * non-integer input fails closed. */
+/** Admit one paid call only when the owner has no uncertain metering, the
+ * balance covers the worst case and the agent's month spend (finalized
+ * debits plus open reservations of this UTC month) plus that worst case stays
+ * within the cap. Any non-integer input fails closed. */
 export function admitPaidCall(args: {
   balanceMicro: number;
   monthSpendMicro: number;
   capMicro: number;
   worstCaseMicro: number;
+  uncertain: boolean;
 }): { admit: boolean; reason: AdmissionReason } {
   const { balanceMicro, monthSpendMicro, capMicro, worstCaseMicro } = args;
   if (
@@ -240,77 +384,64 @@ export function admitPaidCall(args: {
   ) {
     return { admit: false, reason: "invalid_position" };
   }
-  if (balanceMicro <= worstCaseMicro)
+  if (args.uncertain) return { admit: false, reason: "metering_uncertain" };
+  if (balanceMicro < worstCaseMicro)
     return { admit: false, reason: "balance_short" };
   if (monthSpendMicro + worstCaseMicro > capMicro)
     return { admit: false, reason: "cap_reached" };
   return { admit: true, reason: "ok" };
 }
 
-/** 00:00 UTC on the 1st of the month containing `nowMs`. */
-export function monthStartUtc(nowMs: number): Date {
+/** 00:00 UTC on the 1st of the month containing `nowMs`, as YYYY-MM-DD: the
+ * month a reservation is attributed to, even if it is finalised later. */
+export function monthStartUtc(nowMs: number): string {
   const now = new Date(nowMs);
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+    .toISOString()
+    .slice(0, 10);
 }
 
-/** One debit per cycle: the ledger's unique key makes a retried insert a no-op. */
-export function debitIdempotencyKey(cycleId: number): string {
-  if (!Number.isSafeInteger(cycleId) || cycleId <= 0) {
-    throw new Error("paid brain debit needs a persisted cycle id");
-  }
-  return `debit:${cycleId}`;
-}
+const CYCLE_KEY = /^[A-Za-z0-9-]{1,64}$/;
 
-/** What the scheduler observed of each call on the paid provider. */
-export interface PaidCallObservation {
-  ok: boolean;
-  usageReported: boolean;
-}
-
-export type PaidCycleCharge =
-  | { charge: false; reason: string }
-  | {
-      charge: true;
-      tokensIn: number;
-      tokensOut: number;
-      usageEstimated: boolean;
-    };
-
-/** Decide whether a finished cycle is debited, from the engine's CycleResult
- * metering and what the metered provider saw. Debit only a call the provider
- * actually answered (ok): deferred, capacity-only, failed or never-made calls
- * are never charged ("a provider failure skips the cycle as today and is never
- * debited"). Tokens are the runner's: provider-reported usage when present,
- * otherwise its conservative chars/4 estimate, flagged as estimated. */
-export function paidCycleCharge(args: {
-  brain: PaidBrain;
-  llmCallMade?: boolean;
-  effectiveProvider?: string;
-  effectiveModel?: string;
-  tokensIn?: number;
-  tokensOut?: number;
-  calls: readonly PaidCallObservation[];
-}): PaidCycleCharge {
-  if (args.llmCallMade !== true)
-    return { charge: false, reason: "no provider call" };
-  const answered = args.calls.find((call) => call.ok);
-  if (!answered) return { charge: false, reason: "provider call failed" };
+/** reserve:<agentId>:<cycleKey>; release/debit keys are derived from it. */
+export function reserveKeyFor(agentId: number, cycleKey: string): string {
   if (
-    (args.effectiveProvider !== undefined &&
-      args.effectiveProvider !== args.brain.entry.provider) ||
-    (args.effectiveModel !== undefined &&
-      args.effectiveModel !== args.brain.entry.model)
-  ) {
-    return { charge: false, reason: "served by a different route" };
-  }
-  const valid = (value: number | undefined): value is number =>
-    typeof value === "number" && Number.isFinite(value) && value >= 0;
-  if (!valid(args.tokensIn) || !valid(args.tokensOut))
-    return { charge: false, reason: "invalid token counts" };
-  return {
-    charge: true,
-    tokensIn: Math.ceil(args.tokensIn),
-    tokensOut: Math.ceil(args.tokensOut),
-    usageEstimated: !answered.usageReported,
-  };
+    !Number.isSafeInteger(agentId) ||
+    agentId <= 0 ||
+    !CYCLE_KEY.test(cycleKey)
+  )
+    throw new Error("invalid paid reservation key parts");
+  return `reserve:${agentId}:${cycleKey}`;
+}
+export const releaseKeyFor = (reserveKey: string): string =>
+  `release:${reserveKey}`;
+export const debitKeyFor = (reserveKey: string): string =>
+  `debit:${reserveKey}`;
+
+/** What one provider answer means for metering:
+ * - answered: the provider reported usage (an answer, or an incomplete one
+ *   it still billed); price exactly that usage.
+ * - rejected: an explicit HTTP error with no usage; not billable, release.
+ * - uncertain: possibly billed with no usage to price (an answer without
+ *   usage, or a transport failure/timeout with no HTTP status). Never priced
+ *   from an estimate and never auto-refunded.
+ * - not_called: no request reached the provider (deferred). */
+export type PaidCallResult =
+  | { status: "answered"; usage: ProviderUsage }
+  | { status: "rejected"; providerStatus: number }
+  | { status: "uncertain"; reason: string }
+  | { status: "not_called" };
+
+export function classifyPaidCall(res: {
+  ok: boolean;
+  usage?: ProviderUsage;
+  status?: number;
+  deferred?: boolean;
+}): PaidCallResult {
+  if (res.usage) return { status: "answered", usage: res.usage };
+  if (res.ok) return { status: "uncertain", reason: "answered without usage" };
+  if (res.deferred) return { status: "not_called" };
+  if (typeof res.status === "number" && Number.isInteger(res.status))
+    return { status: "rejected", providerStatus: res.status };
+  return { status: "uncertain", reason: "no provider response" };
 }

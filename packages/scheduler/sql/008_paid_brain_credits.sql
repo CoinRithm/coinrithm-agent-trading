@@ -76,7 +76,11 @@ CREATE TABLE IF NOT EXISTS agent_runtime.paid_calls (
   closed_at timestamptz NULL
 );
 CREATE INDEX IF NOT EXISTS paid_calls_agent_month ON agent_runtime.paid_calls (agent_id, month_start);
-CREATE INDEX IF NOT EXISTS paid_calls_open ON agent_runtime.paid_calls (user_id, created_at)
+-- Open calls are few; closed calls accumulate. Admission (per owner) and
+-- recovery (fleet-wide, every pass) only ever look at open calls.
+CREATE INDEX IF NOT EXISTS paid_calls_open_user ON agent_runtime.paid_calls (user_id)
+  WHERE status NOT IN ('released','finalized');
+CREATE INDEX IF NOT EXISTS paid_calls_open_created ON agent_runtime.paid_calls (created_at)
   WHERE status NOT IN ('released','finalized');
 
 -- Payment-provider checkouts (merchant of record). Written by the backend

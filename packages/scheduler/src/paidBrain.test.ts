@@ -1,18 +1,21 @@
 import { describe, expect, it } from "vitest";
 import {
+  PAID_BRAIN_MAX_OUTPUT_TOKENS,
   PAID_BRAIN_WORST_CASE_INPUT_TOKENS,
-  PAID_BRAIN_WORST_CASE_OUTPUT_TOKENS,
   admitPaidCall,
-  debitIdempotencyKey,
-  debitMicroUsd,
+  classifyPaidCall,
+  debitKeyFor,
   monthStartUtc,
   paidBrainCatalogue,
   paidBrainModel,
   paidBrainSpecState,
-  paidCycleCharge,
   parsePaidBrain,
+  priceRowAt,
+  priceUsage,
+  releaseKeyFor,
+  reserveKeyFor,
   worstCaseCallMicroUsd,
-  type PaidBrain,
+  type PaidBrainPriceRow,
 } from "./paidBrain.js";
 
 const fallback = {
@@ -20,202 +23,197 @@ const fallback = {
   name: "nvidia/nemotron-3-super-120b-a12b",
 };
 const paidSpec = (paidBrain: unknown) => ({ pinnedModel: false, paidBrain });
+const OCT_7 = Date.UTC(2026, 9, 7, 12);
+const row = (modelId: string, at = OCT_7): PaidBrainPriceRow =>
+  priceRowAt(paidBrainModel(modelId)!, at)!;
 
-describe("paid brain catalogue", () => {
-  it("prices every model in integer micro-USD per thousand tokens (USD per million x 1000)", () => {
-    expect(
-      paidBrainCatalogue.map((entry) => [
-        entry.id,
-        entry.provider,
-        entry.model,
-        entry.inMicroPerKTok / 1000,
-        entry.outMicroPerKTok / 1000,
-      ]),
-    ).toEqual([
-      ["claude-sonnet-5-5", "anthropic", "claude-sonnet-5-5", 2, 10],
-      ["claude-opus-5-5", "anthropic", "claude-opus-5-5", 4, 20],
-      ["gemini-2.5-flash", "gemini", "gemini-2.5-flash", 0.3, 2.5],
-      ["gemini-3.8-flash", "gemini", "gemini-3.8-flash", 0.75, 3.75],
-    ]);
+describe("paid brain catalogue (Data's price table, 2026-10-07)", () => {
+  it("prices each SKU in integer micro-USD per thousand tokens, cache rates per SKU", () => {
+    expect(row("claude-sonnet-5-5")).toMatchObject({
+      inputK: 2_000,
+      cacheReadK: 200,
+      cacheWrite5mK: 2_500,
+      cacheWrite1hK: 4_000,
+      outputK: 10_000,
+    });
+    // Opus cache read is 0.05x input and the 1h write 2x: no fixed multiplier.
+    expect(row("claude-opus-5-5")).toMatchObject({
+      inputK: 4_000,
+      cacheReadK: 200,
+      cacheWrite5mK: 5_000,
+      cacheWrite1hK: 8_000,
+      outputK: 20_000,
+    });
     for (const entry of paidBrainCatalogue) {
-      expect(Number.isSafeInteger(entry.inMicroPerKTok)).toBe(true);
-      expect(Number.isSafeInteger(entry.outMicroPerKTok)).toBe(true);
+      for (const price of entry.prices) {
+        for (const value of [
+          price.inputK,
+          price.outputK,
+          price.cacheReadK ?? 0,
+          price.cacheWrite5mK ?? 0,
+          price.cacheWrite1hK ?? 0,
+        ]) {
+          expect(Number.isSafeInteger(value)).toBe(true);
+        }
+      }
     }
-    expect(paidBrainModel("gpt-unknown")).toBeUndefined();
+  });
+
+  it("ships Gemini disabled until a live usage probe, Claude enabled", () => {
+    const enabled = Object.fromEntries(
+      paidBrainCatalogue.map((entry) => [entry.id, entry.enabled]),
+    );
+    expect(enabled).toEqual({
+      "claude-sonnet-5-5": true,
+      "claude-opus-5-5": true,
+      "gemini-2.5-flash": false,
+      "gemini-2.5-flash-lite": false,
+      "gemini-3.8-flash": false,
+    });
+  });
+
+  it("selects the price row valid at call time, both UTC days inclusive", () => {
+    const gemini = paidBrainModel("gemini-3.8-flash")!;
+    expect(priceRowAt(gemini, Date.UTC(2026, 11, 31, 23, 59))?.inputK).toBe(
+      750,
+    );
+    expect(priceRowAt(gemini, Date.UTC(2027, 0, 1))?.inputK).toBe(1_500);
+    expect(
+      priceRowAt(paidBrainModel("claude-sonnet-5-5")!, Date.UTC(2026, 9, 6)),
+    ).toBeUndefined();
   });
 });
 
-describe("debitMicroUsd", () => {
-  it("charges provider cost plus the margin for a typical call", () => {
-    // 20k in x $2/M = $0.040, 500 out x $10/M = $0.005, +20% = $0.054.
+describe("priceUsage", () => {
+  it("prices provider-reported input and output with the margin, rounded up once", () => {
+    // 20k x $2/M + 400 x $10/M = 44,000 micro; x 1.20 = 52,800.
     expect(
-      debitMicroUsd({
-        modelId: "claude-sonnet-5-5",
-        tokensIn: 20_000,
-        tokensOut: 500,
-        marginPct: 20,
-      }),
+      priceUsage(
+        row("claude-sonnet-5-5"),
+        { promptTokens: 20_000, completionTokens: 400 },
+        20,
+      ),
     ).toEqual({
-      providerCostMicro: 45_000,
-      marginMicro: 9_000,
-      totalMicro: 54_000,
+      providerCostMicro: 44_000,
+      marginMicro: 8_800,
+      totalMicro: 52_800,
+      notes: [],
     });
   });
 
-  it("rounds the provider cost and the margin UP, never down", () => {
-    // 1 token x $0.30/M = 0.3 micro -> 1; margin 0.2 micro -> 1.
+  it("prices cache reads and the reported 5m/1h write split at their own SKU rates", () => {
+    // Opus: 1,000 in x 4000 + 10,000 read x 200 + 2,000 5m x 5000
+    //       + 1,000 1h x 8000 + 500 out x 20000 = 34,000,000 / 1000 = 34,000.
     expect(
-      debitMicroUsd({
-        modelId: "gemini-2.5-flash",
-        tokensIn: 1,
-        tokensOut: 0,
-        marginPct: 20,
-      }),
-    ).toEqual({ providerCostMicro: 1, marginMicro: 1, totalMicro: 2 });
-    // 3 x 0.3 + 1 x 2.5 = 3.4 micro -> 4; margin 0.8 -> 1.
+      priceUsage(
+        row("claude-opus-5-5"),
+        {
+          promptTokens: 1_000,
+          completionTokens: 500,
+          cacheReadTokens: 10_000,
+          cacheWriteTokens: 3_000,
+          cacheWrite5mTokens: 2_000,
+          cacheWrite1hTokens: 1_000,
+        },
+        20,
+      ),
+    ).toEqual({
+      providerCostMicro: 34_000,
+      marginMicro: 6_800,
+      totalMicro: 40_800,
+      notes: ["cache read 10000, cache write 5m 2000, 1h 1000"],
+    });
+  });
+
+  it("prices a write total without its split at the 1h rate, the higher one, and notes it", () => {
+    const priced = priceUsage(
+      row("claude-sonnet-5-5"),
+      { promptTokens: 0, completionTokens: 0, cacheWriteTokens: 1_000 },
+      0,
+    );
+    expect(priced.providerCostMicro).toBe(4_000);
+    expect(priced.notes[0]).toBe(
+      "cache write split not reported: 1000 priced at the 1h rate",
+    );
+  });
+
+  it("rounds up to whole micro-USD, never down", () => {
+    // 1 cache-read token on Sonnet = 0.2 micro; x 1.2 = 0.24 -> 1.
     expect(
-      debitMicroUsd({
-        modelId: "gemini-2.5-flash",
-        tokensIn: 3,
-        tokensOut: 1,
-        marginPct: 20,
-      }).totalMicro,
-    ).toBe(5);
-    // Fractional token counts round up before pricing.
+      priceUsage(
+        row("claude-sonnet-5-5"),
+        { promptTokens: 0, completionTokens: 0, cacheReadTokens: 1 },
+        20,
+      ),
+    ).toMatchObject({ providerCostMicro: 1, marginMicro: 0, totalMicro: 1 });
     expect(
-      debitMicroUsd({
-        modelId: "claude-sonnet-5-5",
-        tokensIn: 999.2,
-        tokensOut: 0,
-        marginPct: 0,
-      }).providerCostMicro,
+      priceUsage(
+        row("claude-sonnet-5-5"),
+        { promptTokens: 999.2, completionTokens: 0 },
+        0,
+      ).providerCostMicro,
     ).toBe(2_000);
   });
 
-  it("applies no margin at 0 percent and charges nothing for zero tokens", () => {
-    expect(
-      debitMicroUsd({
-        modelId: "claude-opus-5-5",
-        tokensIn: 1_000,
-        tokensOut: 1_000,
-        marginPct: 0,
-      }),
-    ).toEqual({
-      providerCostMicro: 24_000,
-      marginMicro: 0,
-      totalMicro: 24_000,
-    });
-    expect(
-      debitMicroUsd({
-        modelId: "claude-opus-5-5",
-        tokensIn: 0,
-        tokensOut: 0,
-        marginPct: 20,
-      }).totalMicro,
-    ).toBe(0);
-  });
-
-  it.each([
-    [{ modelId: "nope", tokensIn: 1, tokensOut: 1, marginPct: 20 }, "unknown"],
-    [
-      {
-        modelId: "claude-sonnet-5-5",
-        tokensIn: -1,
-        tokensOut: 1,
-        marginPct: 20,
-      },
-      "tokensIn",
-    ],
-    [
-      {
-        modelId: "claude-sonnet-5-5",
-        tokensIn: 1,
-        tokensOut: NaN,
-        marginPct: 20,
-      },
-      "tokensOut",
-    ],
-    [
-      {
-        modelId: "claude-sonnet-5-5",
-        tokensIn: 1,
-        tokensOut: 1,
-        marginPct: -1,
-      },
-      "margin",
-    ],
-    [
-      {
-        modelId: "claude-sonnet-5-5",
-        tokensIn: 1,
-        tokensOut: 1,
-        marginPct: Infinity,
-      },
-      "margin",
-    ],
-    [
-      {
-        modelId: "claude-opus-5-5",
-        tokensIn: 1e16,
-        tokensOut: 0,
-        marginPct: 20,
-      },
-      "safe integer",
-    ],
-  ])("refuses to guess a debit for %j", (args, message) => {
-    expect(() => debitMicroUsd(args)).toThrow(message);
+  it("refuses to price what the row cannot price, or invalid inputs", () => {
+    // Gemini rows carry no cache-write rate.
+    expect(() =>
+      priceUsage(
+        row("gemini-2.5-flash"),
+        { promptTokens: 1, completionTokens: 1, cacheWrite5mTokens: 5 },
+        20,
+      ),
+    ).toThrow("cannot price");
+    expect(() =>
+      priceUsage(
+        row("claude-sonnet-5-5"),
+        { promptTokens: -1, completionTokens: 1 },
+        20,
+      ),
+    ).toThrow("non-negative");
+    for (const margin of [-1, 1.5, Number.NaN]) {
+      expect(() =>
+        priceUsage(
+          row("claude-sonnet-5-5"),
+          { promptTokens: 1, completionTokens: 1 },
+          margin,
+        ),
+      ).toThrow("whole non-negative percent");
+    }
+    expect(() =>
+      priceUsage(
+        row("claude-opus-5-5"),
+        { promptTokens: 1e16, completionTokens: 0 },
+        20,
+      ),
+    ).toThrow("safe integer");
   });
 });
 
 describe("worstCaseCallMicroUsd", () => {
-  it("prices the admission bound at the worst-case token counts with margin", () => {
-    // (64k x 2000 + 4096 x 10000) / 1000 = 168,960; +20% = 202,752.
-    expect(
-      worstCaseCallMicroUsd(
-        "claude-sonnet-5-5",
-        PAID_BRAIN_WORST_CASE_INPUT_TOKENS,
-        PAID_BRAIN_WORST_CASE_OUTPUT_TOKENS,
-        20,
-      ),
-    ).toBe(202_752);
-    expect(
-      worstCaseCallMicroUsd(
-        "claude-opus-5-5",
-        PAID_BRAIN_WORST_CASE_INPUT_TOKENS,
-        PAID_BRAIN_WORST_CASE_OUTPUT_TOKENS,
-        20,
-      ),
-    ).toBe(405_504);
-  });
-  it("stays well above the measured ~20k-token call", () => {
-    for (const entry of paidBrainCatalogue) {
-      const typical = debitMicroUsd({
-        modelId: entry.id,
-        tokensIn: 20_000,
-        tokensOut: 1_024,
-        marginPct: 20,
-      }).totalMicro;
-      expect(
-        worstCaseCallMicroUsd(
-          entry.id,
-          PAID_BRAIN_WORST_CASE_INPUT_TOKENS,
-          PAID_BRAIN_WORST_CASE_OUTPUT_TOKENS,
-          20,
-        ),
-      ).toBeGreaterThan(typical * 2);
-    }
+  it("reserves 64k uncached input plus the 4096-token output cap, with margin", () => {
+    expect(PAID_BRAIN_WORST_CASE_INPUT_TOKENS).toBe(64_000);
+    expect(PAID_BRAIN_MAX_OUTPUT_TOKENS).toBe(4_096);
+    // (64k x 2000 + 4096 x 10000) / 1000 = 168,960; x 1.2 = 202,752.
+    expect(worstCaseCallMicroUsd(row("claude-sonnet-5-5"), 20)).toBe(202_752);
+    expect(worstCaseCallMicroUsd(row("claude-opus-5-5"), 20)).toBe(405_504);
   });
 });
 
 describe("parsePaidBrain", () => {
-  it("parses a complete spec and defaults onExhausted to free", () => {
-    const brain = parsePaidBrain(
-      paidSpec({ modelId: "claude-sonnet-5-5", monthlyCapUsd: 25, fallback }),
-    );
-    expect(brain).toMatchObject({
+  it("parses a complete spec with an explicit exhaustion choice", () => {
+    expect(
+      parsePaidBrain(
+        paidSpec({
+          modelId: "claude-sonnet-5-5",
+          monthlyCapUsd: 25,
+          onExhausted: "free",
+          fallback,
+        }),
+      ),
+    ).toMatchObject({
       modelId: "claude-sonnet-5-5",
       entry: { provider: "anthropic", model: "claude-sonnet-5-5" },
-      monthlyCapUsd: 25,
       capMicro: 25_000_000,
       onExhausted: "free",
       fallback,
@@ -223,17 +221,33 @@ describe("parsePaidBrain", () => {
     expect(
       parsePaidBrain(
         paidSpec({
-          modelId: "gemini-2.5-flash",
+          modelId: "claude-opus-5-5",
           monthlyCapUsd: 0.5,
           onExhausted: "pause",
           fallback: { provider: "nvidia", name: ` ${fallback.name} ` },
         }),
       ),
-    ).toMatchObject({
-      capMicro: 500_000,
-      onExhausted: "pause",
-      fallback,
+    ).toMatchObject({ capMicro: 500_000, onExhausted: "pause", fallback });
+  });
+
+  it("has NO default exhaustion choice: a spec without one is not paid", () => {
+    const state = paidBrainSpecState(
+      paidSpec({ modelId: "claude-sonnet-5-5", monthlyCapUsd: 25, fallback }),
+    );
+    expect(state).toEqual({
+      kind: "invalid",
+      reason: "onExhausted must be explicitly free or pause",
     });
+    expect(
+      parsePaidBrain(
+        paidSpec({
+          modelId: "claude-sonnet-5-5",
+          monthlyCapUsd: 25,
+          onExhausted: null,
+          fallback,
+        }),
+      ),
+    ).toBeNull();
   });
 
   it.each([undefined, null, "spec", 7, [], {}, { paidBrain: null }])(
@@ -244,74 +258,44 @@ describe("parsePaidBrain", () => {
     },
   );
 
+  const base = {
+    modelId: "claude-sonnet-5-5",
+    monthlyCapUsd: 25,
+    onExhausted: "free",
+    fallback,
+  };
   it.each([
     ["not an object", "claude-sonnet-5-5"],
     ["an array", []],
-    ["unknown model", { modelId: "gpt-9", monthlyCapUsd: 25, fallback }],
-    ["model id not a string", { modelId: 5, monthlyCapUsd: 25, fallback }],
-    ["missing cap", { modelId: "claude-sonnet-5-5", fallback }],
-    ["zero cap", { modelId: "claude-sonnet-5-5", monthlyCapUsd: 0, fallback }],
-    [
-      "negative cap",
-      { modelId: "claude-sonnet-5-5", monthlyCapUsd: -5, fallback },
-    ],
-    [
-      "string cap",
-      { modelId: "claude-sonnet-5-5", monthlyCapUsd: "25", fallback },
-    ],
-    [
-      "infinite cap",
-      { modelId: "claude-sonnet-5-5", monthlyCapUsd: Infinity, fallback },
-    ],
-    [
-      "absurd cap",
-      { modelId: "claude-sonnet-5-5", monthlyCapUsd: 1e9, fallback },
-    ],
-    [
-      "sub-micro cap",
-      { modelId: "claude-sonnet-5-5", monthlyCapUsd: 1e-9, fallback },
-    ],
-    [
-      "unknown onExhausted",
-      {
-        modelId: "claude-sonnet-5-5",
-        monthlyCapUsd: 25,
-        onExhausted: "stop",
-        fallback,
-      },
-    ],
-    ["missing fallback", { modelId: "claude-sonnet-5-5", monthlyCapUsd: 25 }],
-    [
-      "array fallback",
-      { modelId: "claude-sonnet-5-5", monthlyCapUsd: 25, fallback: [] },
-    ],
+    ["unknown model", { ...base, modelId: "gpt-9" }],
+    ["model id not a string", { ...base, modelId: 5 }],
+    ["missing cap", { ...base, monthlyCapUsd: undefined }],
+    ["zero cap", { ...base, monthlyCapUsd: 0 }],
+    ["negative cap", { ...base, monthlyCapUsd: -5 }],
+    ["string cap", { ...base, monthlyCapUsd: "25" }],
+    ["infinite cap", { ...base, monthlyCapUsd: Infinity }],
+    ["absurd cap", { ...base, monthlyCapUsd: 1e9 }],
+    ["sub-micro cap", { ...base, monthlyCapUsd: 1e-9 }],
+    ["unknown onExhausted", { ...base, onExhausted: "stop" }],
+    ["missing fallback", { ...base, fallback: undefined }],
+    ["array fallback", { ...base, fallback: [] }],
     [
       "paid fallback provider",
       {
-        modelId: "claude-sonnet-5-5",
-        monthlyCapUsd: 25,
+        ...base,
         fallback: { provider: "anthropic", name: "claude-sonnet-5-5" },
       },
     ],
     [
       "blank fallback name",
-      {
-        modelId: "claude-sonnet-5-5",
-        monthlyCapUsd: 25,
-        fallback: { provider: "nvidia", name: "  " },
-      },
+      { ...base, fallback: { provider: "nvidia", name: " " } },
     ],
     [
       "oversized fallback name",
-      {
-        modelId: "claude-sonnet-5-5",
-        monthlyCapUsd: 25,
-        fallback: { provider: "nvidia", name: "x".repeat(201) },
-      },
+      { ...base, fallback: { provider: "nvidia", name: "x".repeat(201) } },
     ],
   ])("rejects a malformed spec (%s) as NOT paid", (_label, paidBrain) => {
-    const state = paidBrainSpecState(paidSpec(paidBrain));
-    expect(state.kind).toBe("invalid");
+    expect(paidBrainSpecState(paidSpec(paidBrain)).kind).toBe("invalid");
     expect(parsePaidBrain(paidSpec(paidBrain))).toBeNull();
   });
 });
@@ -322,20 +306,27 @@ describe("admitPaidCall", () => {
     monthSpendMicro: 0,
     capMicro: 25_000_000,
     worstCaseMicro: 202_752,
+    uncertain: false,
   };
   it("admits a call the balance and the cap both cover", () => {
     expect(admitPaidCall(position)).toEqual({ admit: true, reason: "ok" });
-    // Month spend plus the worst case exactly AT the cap is within it.
+    // Balance exactly the worst case, and month spend + worst exactly the cap.
     expect(
-      admitPaidCall({ ...position, monthSpendMicro: 25_000_000 - 202_752 }),
+      admitPaidCall({
+        ...position,
+        balanceMicro: 202_752,
+        monthSpendMicro: 25_000_000 - 202_752,
+      }),
     ).toEqual({ admit: true, reason: "ok" });
   });
-  it("requires the balance to be ABOVE the worst case", () => {
-    expect(admitPaidCall({ ...position, balanceMicro: 202_752 })).toEqual({
+  it("refuses every new paid call while the owner's metering is uncertain", () => {
+    expect(admitPaidCall({ ...position, uncertain: true })).toEqual({
       admit: false,
-      reason: "balance_short",
+      reason: "metering_uncertain",
     });
-    expect(admitPaidCall({ ...position, balanceMicro: -10 })).toEqual({
+  });
+  it("refuses when the balance is below the worst case", () => {
+    expect(admitPaidCall({ ...position, balanceMicro: 202_751 })).toEqual({
       admit: false,
       reason: "balance_short",
     });
@@ -344,9 +335,6 @@ describe("admitPaidCall", () => {
     expect(
       admitPaidCall({ ...position, monthSpendMicro: 25_000_000 - 202_751 }),
     ).toEqual({ admit: false, reason: "cap_reached" });
-    expect(admitPaidCall({ ...position, monthSpendMicro: 30_000_000 })).toEqual(
-      { admit: false, reason: "cap_reached" },
-    );
   });
   it.each([
     { balanceMicro: NaN },
@@ -363,72 +351,63 @@ describe("admitPaidCall", () => {
   });
 });
 
-describe("monthStartUtc and debit keys", () => {
-  it("starts the month at 00:00 UTC on the 1st", () => {
-    expect(monthStartUtc(Date.UTC(2026, 9, 7, 13, 5)).toISOString()).toBe(
-      "2026-10-01T00:00:00.000Z",
-    );
-    expect(monthStartUtc(Date.UTC(2026, 9, 31, 23, 59, 59)).toISOString()).toBe(
-      "2026-10-01T00:00:00.000Z",
-    );
-    expect(monthStartUtc(Date.UTC(2026, 10, 1, 0, 0, 0)).toISOString()).toBe(
-      "2026-11-01T00:00:00.000Z",
-    );
+describe("month attribution and ledger keys", () => {
+  it("attributes a reservation to the UTC month it was made in", () => {
+    expect(monthStartUtc(Date.UTC(2026, 9, 7, 13, 5))).toBe("2026-10-01");
+    expect(monthStartUtc(Date.UTC(2026, 9, 31, 23, 59, 59))).toBe("2026-10-01");
+    expect(monthStartUtc(Date.UTC(2026, 10, 1, 0, 0, 0))).toBe("2026-11-01");
   });
-  it("keys one debit per persisted cycle and refuses an unpersisted one", () => {
-    expect(debitIdempotencyKey(4242)).toBe("debit:4242");
-    for (const bad of [0, -1, 1.5, NaN]) {
-      expect(() => debitIdempotencyKey(bad)).toThrow("persisted cycle id");
+  it("derives release and debit keys from the reserve key", () => {
+    const key = reserveKeyFor(42, "0f8c1b2e-aaaa-4bbb-8ccc-123456789abc");
+    expect(key).toBe("reserve:42:0f8c1b2e-aaaa-4bbb-8ccc-123456789abc");
+    expect(releaseKeyFor(key)).toBe(`release:${key}`);
+    expect(debitKeyFor(key)).toBe(`debit:${key}`);
+    for (const [agentId, cycleKey] of [
+      [0, "a"],
+      [1.5, "a"],
+      [42, ""],
+      [42, "has:colon"],
+      [42, "x".repeat(65)],
+    ] as const) {
+      expect(() => reserveKeyFor(agentId, cycleKey)).toThrow();
     }
   });
 });
 
-describe("paidCycleCharge", () => {
-  const brain = parsePaidBrain(
-    paidSpec({ modelId: "claude-sonnet-5-5", monthlyCapUsd: 25, fallback }),
-  ) as PaidBrain;
-  const answered = {
-    brain,
-    llmCallMade: true,
-    effectiveProvider: "anthropic",
-    effectiveModel: "claude-sonnet-5-5",
-    tokensIn: 20_000,
-    tokensOut: 400,
-    calls: [{ ok: true, usageReported: true }],
-  };
-  it("charges an answered call with provider-reported usage", () => {
-    expect(paidCycleCharge(answered)).toEqual({
-      charge: true,
-      tokensIn: 20_000,
-      tokensOut: 400,
-      usageEstimated: false,
-    });
-  });
-  it("still charges, flagged estimated, when the provider reported no usage", () => {
-    expect(
-      paidCycleCharge({
-        ...answered,
-        tokensIn: 5_000.4,
-        calls: [{ ok: true, usageReported: false }],
-      }),
-    ).toEqual({
-      charge: true,
-      tokensIn: 5_001,
-      tokensOut: 400,
-      usageEstimated: true,
-    });
-  });
+describe("classifyPaidCall", () => {
+  const usage = { promptTokens: 10, completionTokens: 5 };
   it.each([
-    ["deferred: no call made", { llmCallMade: false }],
-    ["metering absent", { llmCallMade: undefined }],
-    ["failed call", { calls: [{ ok: false, usageReported: true }] }],
-    ["no observed call", { calls: [] }],
-    ["another provider served", { effectiveProvider: "nvidia" }],
-    ["another model served", { effectiveModel: "claude-opus-5-5" }],
-    ["missing tokens", { tokensIn: undefined }],
-    ["negative tokens", { tokensOut: -1 }],
-    ["non-finite tokens", { tokensIn: NaN }],
-  ])("never charges %s", (_label, change) => {
-    expect(paidCycleCharge({ ...answered, ...change }).charge).toBe(false);
+    [
+      "an answer with usage",
+      { ok: true, usage },
+      { status: "answered", usage },
+    ],
+    [
+      "an incomplete answer the provider still billed",
+      { ok: false, usage, status: undefined },
+      { status: "answered", usage },
+    ],
+    [
+      "an answer without usage (never estimated)",
+      { ok: true },
+      { status: "uncertain", reason: "answered without usage" },
+    ],
+    [
+      "a timeout or transport failure (no HTTP status)",
+      { ok: false },
+      { status: "uncertain", reason: "no provider response" },
+    ],
+    [
+      "an explicit HTTP rejection",
+      { ok: false, status: 529 },
+      { status: "rejected", providerStatus: 529 },
+    ],
+    [
+      "a deferred attempt",
+      { ok: false, deferred: true },
+      { status: "not_called" },
+    ],
+  ])("classifies %s", (_label, res, expected) => {
+    expect(classifyPaidCall(res)).toEqual(expected);
   });
 });

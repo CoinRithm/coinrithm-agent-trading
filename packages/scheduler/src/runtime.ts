@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import {
   runCycle,
@@ -16,7 +17,6 @@ import {
   type DecideInput,
   type DecideResult,
   type DecisionInputRecord,
-  type CycleResult,
 } from "@coinrithm/mcp-trading/engine";
 import { decrypt } from "./crypto.js";
 import {
@@ -29,24 +29,25 @@ import {
   recordProviderStrike,
   clearProviderCircuit,
   rescheduleToCadence,
-  readCreditPosition,
-  insertDebit,
   pauseAgent,
+  reservePaidCall,
+  markPaidCallDispatched,
+  recordPaidCallResult,
+  finalizePaidCall,
+  listPaidRecoveryCandidates,
 } from "./db.js";
 import {
-  PAID_BRAIN_WORST_CASE_INPUT_TOKENS,
-  PAID_BRAIN_WORST_CASE_OUTPUT_TOKENS,
-  admitPaidCall,
-  debitIdempotencyKey,
-  debitMicroUsd,
+  PAID_BRAIN_MAX_OUTPUT_TOKENS,
+  classifyPaidCall,
   monthStartUtc,
   paidBrainSpecState,
-  paidCycleCharge,
+  priceRowAt,
+  reserveKeyFor,
   worstCaseCallMicroUsd,
   type AdmissionReason,
   type PaidBrain,
   type PaidBrainSpecState,
-  type PaidCallObservation,
+  type PaidCallResult,
 } from "./paidBrain.js";
 import type { Config } from "./config.js";
 import { sharedOwnerLimit } from "./sharedPolicy.js";
@@ -504,31 +505,54 @@ function routedProviderFor(
   );
 }
 
-// --- Paid brains (contract v1, 2026-10-07) ----------------------------------
+// --- Paid brains (contract v2 + root/Data corrections, 2026-10-07) ---------
 // An agent whose spec carries a valid `paidBrain` runs on a PAID model with a
-// PLATFORM key from scheduler env, metered per call into the append-only
-// credit ledger. The money rules, in order:
-//   1. ADMISSION before the provider is built: the owner's balance must be
-//      above the worst case of one call and the agent's month spend plus that
-//      worst case must stay within its monthly cap. Not admitted means either
-//      the free fallback brain for this cycle ("free", the default) or a pause
-//      ("pause"). An unreadable position is never treated as credit.
-//   2. The CALL goes direct to the paid model: never through the shared NVIDIA
-//      router, no same-model retry, no cross-model fallback. A missing platform
-//      key is recoverable infrastructure (skip, keep the agent active), exactly
-//      like a missing shared key today, and is never debited.
-//   3. The DEBIT is written after the cycle row commits, keyed 'debit:<cycle
-//      id>' with ON CONFLICT DO NOTHING, and only for a call the provider
-//      answered. Deferred, capacity-only, failed or never-made calls are never
-//      charged. A ledger error is logged with an alertable event name and NEVER
-//      fails or skips the trading cycle, which has already been persisted.
+// PLATFORM key from scheduler env. Every paid call moves through durable state
+// in agent_runtime.paid_calls, committed before each step it guards:
+//   1. RESERVE (one transaction under the owner credit lock, db.ts
+//      reservePaidCall): refused while the owner has uncertain metering, when
+//      the balance is below the worst case, or when the month spend plus the
+//      worst case exceeds the cap. Otherwise a negative `reserve` row of the
+//      worst case and a 'reserved' call, with the price row and margin
+//      snapshotted. A refusal follows the owner's EXPLICIT onExhausted choice.
+//   2. DISPATCH: 'dispatched' is committed immediately before the HTTP call;
+//      without that commit the provider is never called. The call goes direct
+//      to the paid model (no shared router, no retry, no other model) with
+//      max_tokens 4096 including thinking. What the provider answered is
+//      recorded right after: usage ('answered'), an explicit HTTP rejection
+//      ('rejected'), or 'uncertain' (an answer without usage, or no response
+//      at all), which blocks the owner's next paid admission at once.
+//   3. FINALISE (one transaction under the lock, db.ts finalizePaidCall), from
+//      the durable state only: never dispatched or rejected => release;
+//      answered => release + debit of the provider-reported usage at the
+//      snapshotted price; a dispatched call without a recorded result =>
+//      uncertain. Estimates are never invoiced and uncertain calls are never
+//      auto-refunded: root reconciles them.
+//   4. RECOVERY (every scheduler pass, recoverPaidCalls): calls idle for 15
+//      minutes are finalised by the same rules, so a crash at any point
+//      resolves without guessing.
+// Ledger and finalisation errors never fail or skip the trading cycle. They
+// leave the reservation open (counted against balance and cap), which is the
+// safe direction, and are logged under alertable event names.
 
-export const PAID_BRAIN_PAUSE_REASON = "paid brain credit exhausted";
+const PAID_BRAIN_CREDIT_REASON = "paid brain credit exhausted";
+export const PAID_BRAIN_PAUSE_REASON = PAID_BRAIN_CREDIT_REASON;
+
+/** Pause/skip reason shown to the owner for a refused reservation. */
+export function paidBrainRefusalReason(reason: AdmissionReason): string {
+  if (reason === "metering_uncertain") return "paid brain metering uncertain";
+  if (reason === "model_disabled") return "paid brain model unavailable";
+  return PAID_BRAIN_CREDIT_REASON;
+}
 
 // Greppable events for ops alerting. Fields are ids, reasons and integer
 // amounts only: never a key, a prompt, model output or an owner's balance.
 const PAID_BRAIN_ALERT_EVENTS = new Set([
-  "paid_brain_debit_failed",
+  "paid_brain_metering_uncertain",
+  "paid_brain_finalize_failed",
+  "paid_brain_dispatch_unrecorded",
+  "paid_brain_result_unrecorded",
+  "paid_brain_recovery_failed",
   "paid_brain_platform_key_missing",
   "paid_brain_admission_failed",
   "paid_brain_spec_invalid",
@@ -562,39 +586,46 @@ export function paidBrainFor(agent: AgentRow): PaidBrainSpecState {
   return state;
 }
 
+function platformKeyFor(brain: PaidBrain, config: Config): string | undefined {
+  return brain.entry.provider === "anthropic"
+    ? config.paidAnthropicApiKey
+    : config.paidGeminiApiKey;
+}
+
 type PaidAdmission =
-  | { kind: "admit" }
-  | { kind: "exhausted"; reason: AdmissionReason }
+  | { kind: "reserved"; reserveKey: string }
+  | { kind: "refused"; reason: AdmissionReason }
   | { kind: "unavailable"; error: string };
 
-async function admitPaidBrain(
+async function reservePaidBrain(
   pool: Pool,
   agent: AgentRow,
   brain: PaidBrain,
   config: Config,
   nowMs: number,
 ): Promise<PaidAdmission> {
+  const price = priceRowAt(brain.entry, nowMs);
+  if (!brain.entry.enabled || !price)
+    return { kind: "refused", reason: "model_disabled" };
   try {
-    const worstCaseMicro = worstCaseCallMicroUsd(
-      brain.modelId,
-      PAID_BRAIN_WORST_CASE_INPUT_TOKENS,
-      PAID_BRAIN_WORST_CASE_OUTPUT_TOKENS,
-      config.paidBrainMarginPct,
-    );
-    const position = await readCreditPosition(
-      pool,
-      agent.ownerUserId as number,
-      agent.id,
-      monthStartUtc(nowMs),
-    );
-    const decision = admitPaidCall({
-      ...position,
+    const marginPct = config.paidBrainMarginPct;
+    // A fresh key per attempt: the key is durable from the moment the
+    // reservation commits (ledger row + paid_calls row), before any call.
+    const reserveKey = reserveKeyFor(agent.id, randomUUID());
+    const reservation = await reservePaidCall(pool, {
+      userId: agent.ownerUserId as number,
+      agentId: agent.id,
+      reserveKey,
+      modelId: brain.modelId,
+      price,
+      marginPct,
+      worstCaseMicro: worstCaseCallMicroUsd(price, marginPct),
       capMicro: brain.capMicro,
-      worstCaseMicro,
+      monthStart: monthStartUtc(nowMs),
     });
-    return decision.admit
-      ? { kind: "admit" }
-      : { kind: "exhausted", reason: decision.reason };
+    return reservation.kind === "reserved"
+      ? { kind: "reserved", reserveKey }
+      : reservation;
   } catch (e) {
     return { kind: "unavailable", error: errMsg(e).slice(0, 200) };
   }
@@ -613,122 +644,169 @@ export function fallbackAgentFor(agent: AgentRow, brain: PaidBrain): AgentRow {
   };
 }
 
-// Records what the paid provider actually answered, call by call, so the debit
-// can tell an answered call from a failed one and provider-reported usage from
-// the runner's chars/4 estimate (CycleResult carries the tokens, not that).
-class MeteredProvider implements Provider {
+// The paid provider. It refuses to call the model unless 'dispatched' was
+// committed first, sends the hard output cap, and records the provider's
+// answer (classified by classifyPaidCall) before the runner sees it.
+class PaidCallProvider implements Provider {
   readonly label: string;
-  readonly calls: PaidCallObservation[] = [];
-  constructor(private readonly inner: Provider) {
+  readonly results: PaidCallResult[] = [];
+  constructor(
+    private readonly inner: Provider,
+    private readonly pool: Pool,
+    private readonly agentId: number,
+    private readonly reserveKey: string,
+  ) {
     this.label = inner.label;
   }
   async decide(input: DecideInput): Promise<DecideResult> {
-    const result = await this.inner.decide(input);
-    this.calls.push({
-      ok: result.ok,
-      usageReported: result.usage !== undefined,
+    const ids = { agentId: this.agentId, reserveKey: this.reserveKey };
+    let dispatched = false;
+    try {
+      dispatched = await markPaidCallDispatched(this.pool, this.reserveKey);
+    } catch (e) {
+      logPaidBrain("paid_brain_dispatch_unrecorded", {
+        ...ids,
+        error: errMsg(e).slice(0, 200),
+      });
+    }
+    if (!dispatched) {
+      // No durable dispatch record => no provider call. The runner treats a
+      // deferred answer as "no call made", and finalisation releases.
+      this.results.push({ status: "not_called" });
+      return {
+        ok: false,
+        deferred: true,
+        error: "paid call not dispatched: reservation unavailable",
+      };
+    }
+    const res = await this.inner.decide({
+      ...input,
+      maxTokens: Math.min(
+        input.maxTokens ?? PAID_BRAIN_MAX_OUTPUT_TOKENS,
+        PAID_BRAIN_MAX_OUTPUT_TOKENS,
+      ),
     });
-    return result;
+    const result = classifyPaidCall(res);
+    this.results.push(result);
+    if (result.status === "uncertain")
+      logPaidBrain("paid_brain_metering_uncertain", {
+        ...ids,
+        reason: result.reason,
+      });
+    try {
+      await recordPaidCallResult(this.pool, this.reserveKey, result);
+    } catch (e) {
+      // Left 'dispatched': finalisation marks it uncertain, never refunds it.
+      logPaidBrain("paid_brain_result_unrecorded", {
+        ...ids,
+        error: errMsg(e).slice(0, 200),
+      });
+    }
+    return res;
   }
 }
 
 function paidProviderFor(
+  pool: Pool,
   agentId: number,
-  brain: PaidBrain,
+  paid: { brain: PaidBrain; reserveKey: string; platformKey: string },
   spec: AgentSpec,
-  config: Config,
-): MeteredProvider {
-  const provider = brain.entry.provider;
-  const key =
-    provider === "anthropic"
-      ? config.paidAnthropicApiKey
-      : config.paidGeminiApiKey;
-  if (!key) {
-    logPaidBrain("paid_brain_platform_key_missing", { agentId, provider });
-    throw new HostedProviderSetupError("paid brain platform key unavailable");
-  }
+): PaidCallProvider {
+  const provider = paid.brain.entry.provider;
   const env: ProviderEnv =
     provider === "anthropic"
-      ? { ANTHROPIC_API_KEY: key }
-      : { GEMINI_API_KEY: key };
+      ? { ANTHROPIC_API_KEY: paid.platformKey }
+      : { GEMINI_API_KEY: paid.platformKey };
   // selectProvider builds the bare provider for anthropic and gemini: no
   // same-model retry (that wrapper is NVIDIA-only) and no route chain.
-  return new MeteredProvider(
+  return new PaidCallProvider(
     selectProvider(
-      { ...spec, model: { provider, name: brain.entry.model } },
+      { ...spec, model: { provider, name: paid.brain.entry.model } },
       env,
       fetch,
     ),
+    pool,
+    agentId,
+    paid.reserveKey,
   );
 }
 
-async function debitPaidCycle(
+// Finalise a paid cycle's reservation from its durable state. Never throws: a
+// failure leaves the reservation open (still counted against balance and cap)
+// for recovery, which is the safe direction.
+async function finalizePaidRun(
   pool: Pool,
-  agent: AgentRow,
-  brain: PaidBrain,
+  agentId: number,
+  reserveKey: string,
   cycleId: number | undefined,
-  result: CycleResult,
-  calls: readonly PaidCallObservation[],
-  config: Config,
 ): Promise<void> {
   try {
-    const charge = paidCycleCharge({
-      brain,
-      llmCallMade: result.llmCallMade,
-      effectiveProvider: result.effectiveProvider,
-      effectiveModel: result.effectiveModel,
-      tokensIn: result.tokensIn,
-      tokensOut: result.tokensOut,
-      calls,
-    });
-    if (!charge.charge) {
-      // No call or a failed call is the normal never-debited path. A call the
-      // provider ANSWERED that cannot be priced is an anomaly to alert on.
-      if (calls.some((call) => call.ok))
-        logPaidBrain("paid_brain_debit_failed", {
-          agentId: agent.id,
-          cycleId,
-          reason: charge.reason,
-        });
-      return;
-    }
-    const amount = debitMicroUsd({
-      modelId: brain.modelId,
-      tokensIn: charge.tokensIn,
-      tokensOut: charge.tokensOut,
-      marginPct: config.paidBrainMarginPct,
-    });
-    // Zero reported tokens price at zero; the ledger has no zero debit.
-    if (amount.totalMicro <= 0) return;
-    if (cycleId === undefined) throw new Error("cycle id unavailable");
-    const inserted = await insertDebit(pool, {
-      userId: agent.ownerUserId as number,
-      agentId: agent.id,
+    const outcome = await finalizePaidCall(pool, reserveKey, {
+      mode: "cycle_end",
       cycleId,
-      modelId: brain.modelId,
-      tokensIn: charge.tokensIn,
-      tokensOut: charge.tokensOut,
-      providerCostMicro: amount.providerCostMicro,
-      marginMicro: amount.marginMicro,
-      totalMicro: amount.totalMicro,
-      idempotencyKey: debitIdempotencyKey(cycleId),
-      note: charge.usageEstimated ? "usage estimated" : undefined,
     });
-    logPaidBrain("paid_brain_debited", {
-      agentId: agent.id,
-      cycleId,
-      modelId: brain.modelId,
-      totalMicro: amount.totalMicro,
-      usageEstimated: charge.usageEstimated,
-      inserted,
-    });
+    logPaidBrain(
+      outcome === "uncertain"
+        ? "paid_brain_metering_uncertain"
+        : "paid_brain_finalized",
+      { agentId, reserveKey, cycleId, outcome },
+    );
   } catch (e) {
-    logPaidBrain("paid_brain_debit_failed", {
-      agentId: agent.id,
+    logPaidBrain("paid_brain_finalize_failed", {
+      agentId,
+      reserveKey,
       cycleId,
       error: errMsg(e).slice(0, 200),
     });
   }
+}
+
+export interface PaidRecoverySummary {
+  released: number;
+  debited: number;
+  uncertain: number;
+  failed: number;
+}
+
+/** One recovery pass (scheduler maintenance): finalise every call idle for
+ * 15 minutes by the same durable-state rules, and alert each uncertain call
+ * once per process (`alerted`). Never throws for a single call. */
+export async function recoverPaidCalls(
+  pool: Pool,
+  alerted: Set<string> = new Set(),
+): Promise<PaidRecoverySummary> {
+  const summary: PaidRecoverySummary = {
+    released: 0,
+    debited: 0,
+    uncertain: 0,
+    failed: 0,
+  };
+  const candidates = await listPaidRecoveryCandidates(pool);
+  for (const reserveKey of candidates.stale) {
+    try {
+      const outcome = await finalizePaidCall(pool, reserveKey, {
+        mode: "recovery",
+      });
+      if (outcome === "released") summary.released += 1;
+      else if (outcome === "debited") summary.debited += 1;
+      else if (outcome === "uncertain") summary.uncertain += 1;
+    } catch (e) {
+      summary.failed += 1;
+      logPaidBrain("paid_brain_recovery_failed", {
+        reserveKey,
+        error: errMsg(e).slice(0, 200),
+      });
+    }
+  }
+  for (const call of candidates.uncertain) {
+    if (alerted.has(call.reserveKey)) continue;
+    alerted.add(call.reserveKey);
+    logPaidBrain("paid_brain_metering_uncertain", {
+      ...call,
+      source: "recovery",
+    });
+  }
+  return summary;
 }
 
 // Reconstruct a RunState from stored JSON with the SAME fail-closed contract the
@@ -787,12 +865,13 @@ export async function runAgentOnce(
     return;
   }
 
-  // PAID BRAIN admission, before any provider exists (see the section above).
-  // `runAgent` is the row whose model the rest of this cycle routes on: the
-  // agent itself, or its free fallback when an exhausted "free" agent runs on
-  // the shared pool this cycle.
+  // PAID BRAIN reservation, before any provider exists (see the section
+  // above). `runAgent` is the row whose model the rest of this cycle routes
+  // on: the agent itself, or its free fallback when a refused "free" agent
+  // runs on the shared pool this cycle.
   let runAgent: AgentRow = agent;
-  let paidBrain: PaidBrain | undefined;
+  let paid:
+    { brain: PaidBrain; reserveKey: string; platformKey: string } | undefined;
   const paidState = paidBrainFor(agent);
   if (paidState.kind === "invalid") {
     logPaidBrain("paid_brain_spec_invalid", {
@@ -801,25 +880,44 @@ export async function runAgentOnce(
     });
   } else if (paidState.kind === "paid") {
     const brain = paidState.brain;
-    const admission = await admitPaidBrain(
+    const platformKey = platformKeyFor(brain, config);
+    if (!platformKey) {
+      // Recoverable platform infrastructure, exactly like a missing shared
+      // key: no reservation, no call, the agent stays active.
+      logPaidBrain("paid_brain_platform_key_missing", {
+        agentId: agent.id,
+        provider: brain.entry.provider,
+      });
+      await recordCycle(pool, agent.id, {
+        decision: "skip",
+        skipReason: "hosted provider temporarily unavailable",
+        modelFailed: false,
+        llmCallMade: false,
+        error: "platform setup: paid brain platform key unavailable",
+      }).catch(() => {});
+      await rescheduleToCadence(pool, agent.id).catch(() => {});
+      return;
+    }
+    const admission = await reservePaidBrain(
       pool,
       agent,
       brain,
       config,
       Date.now(),
     );
-    if (admission.kind === "admit") {
-      paidBrain = brain;
+    if (admission.kind === "reserved") {
+      paid = { brain, reserveKey: admission.reserveKey, platformKey };
     } else if (brain.onExhausted === "pause") {
-      if (admission.kind === "exhausted") {
+      if (admission.kind === "refused") {
         // The owner chose to stop rather than trade on the free brain. A
         // pause (not a disable) is resumed by the owner after a top-up.
+        const reason = paidBrainRefusalReason(admission.reason);
         logPaidBrain("paid_brain_exhausted", {
           agentId: agent.id,
           reason: admission.reason,
           action: "pause",
         });
-        await pauseAgent(pool, agent.id, PAID_BRAIN_PAUSE_REASON).catch((e) =>
+        await pauseAgent(pool, agent.id, reason).catch((e) =>
           logPaidBrain("paid_brain_pause_failed", {
             agentId: agent.id,
             error: errMsg(e).slice(0, 200),
@@ -827,13 +925,13 @@ export async function runAgentOnce(
         );
         await recordCycle(pool, agent.id, {
           decision: "skip",
-          skipReason: PAID_BRAIN_PAUSE_REASON,
+          skipReason: reason,
           modelFailed: false,
           llmCallMade: false,
         }).catch(() => {});
         return;
       }
-      // Position unknown (ledger read failed): neither pay nor pause on a
+      // Position unknown (ledger unavailable): neither pay nor pause on a
       // database blip. Skip this cycle and retry next cadence.
       logPaidBrain("paid_brain_admission_failed", {
         agentId: agent.id,
@@ -849,22 +947,25 @@ export async function runAgentOnce(
       await rescheduleToCadence(pool, agent.id).catch(() => {});
       return;
     } else {
-      // "free": exhausted (or an unknown position, which is never credit)
-      // runs this cycle on the free brain exactly like a shared-pool agent.
+      // "free" (the owner's explicit choice): a refusal or an unknown
+      // position runs this cycle on the recorded free route, exactly like a
+      // shared-pool agent.
       logPaidBrain(
-        admission.kind === "exhausted"
+        admission.kind === "refused"
           ? "paid_brain_exhausted"
           : "paid_brain_admission_failed",
         {
           agentId: agent.id,
-          ...(admission.kind === "exhausted"
+          ...(admission.kind === "refused"
             ? { reason: admission.reason }
             : { error: admission.error }),
           action: "free",
         },
       );
       log.push(
-        "paid brain not available this cycle (credit or monthly cap): running on the free brain",
+        admission.kind === "refused"
+          ? `${paidBrainRefusalReason(admission.reason)}: running on the free brain`
+          : "paid brain credit check unavailable: running on the free brain",
       );
       runAgent = fallbackAgentFor(agent, brain);
     }
@@ -874,7 +975,7 @@ export async function runAgentOnce(
   // shared provider credential is recoverable infrastructure: keep the agent
   // active and retry rather than converting an operator mistake into user state.
   let deps: RunnerDeps;
-  let metered: MeteredProvider | undefined;
+  let metered: PaidCallProvider | undefined;
   try {
     const spec: AgentSpec = {
       ...(agent.spec as AgentSpec),
@@ -884,8 +985,8 @@ export async function runAgentOnce(
         baseUrl: runAgent.modelBaseUrl ?? undefined,
       },
     };
-    // An admitted paid brain calls its model directly with the platform key.
-    if (paidBrain) metered = paidProviderFor(agent.id, paidBrain, spec, config);
+    // A reserved paid brain calls its model directly with the platform key.
+    if (paid) metered = paidProviderFor(pool, agent.id, paid, spec);
     // Ordinary BYO/direct agents keep the identical 3-argument call; only an
     // agent enrolled in the BYO trial gets the per-attempt transport check.
     const provider =
@@ -934,6 +1035,8 @@ export async function runAgentOnce(
       },
     };
   } catch (e) {
+    // Setup failed before any call: the reservation is still 'reserved'.
+    if (paid) await finalizePaidRun(pool, agent.id, paid.reserveKey, undefined);
     const msg = errMsg(e);
     if (e instanceof HostedProviderSetupError) {
       await recordCycle(pool, agent.id, {
@@ -1020,31 +1123,17 @@ export async function runAgentOnce(
           ? undefined
           : { provider: runAgent.modelProvider, name: runAgent.modelName },
     });
-    // The cycle is committed; the debit follows it and never throws.
-    if (paidBrain && metered)
-      await debitPaidCycle(
-        pool,
-        agent,
-        paidBrain,
-        cycleId,
-        result,
-        metered.calls,
-        config,
-      );
+    // The cycle is committed; finalisation follows and never throws.
+    if (paid) await finalizePaidRun(pool, agent.id, paid.reserveKey, cycleId);
   } catch (e) {
-    // An answered paid call whose cycle could not be persisted has no cycle id
-    // to key a debit on: it is NOT charged (fail closed for the owner), and
-    // ops is told the platform absorbed that call.
-    if (paidBrain && metered?.calls.some((call) => call.ok))
-      logPaidBrain("paid_brain_debit_failed", {
-        agentId: agent.id,
-        reason: "cycle not persisted",
-      });
     await recordCycle(pool, agent.id, {
       decision: "error",
       error: errMsg(e),
       log: log.join("\n"),
       decisionInputRecord,
     }).catch(() => {});
+    // The paid call's durable state is independent of the cycle row: an
+    // answered call is still debited from its recorded usage.
+    if (paid) await finalizePaidRun(pool, agent.id, paid.reserveKey, undefined);
   }
 }

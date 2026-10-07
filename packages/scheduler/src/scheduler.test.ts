@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   rescheduleToCadence: vi.fn(),
   runAgentOnce: vi.fn(),
   shouldUseHostedRouter: vi.fn(),
+  recoverPaidCalls: vi.fn(),
 }));
 vi.mock("./db.js", () => mocks);
 vi.mock("./runtime.js", () => mocks);
@@ -41,6 +42,12 @@ beforeEach(() => {
   mocks.rescheduleToCadence.mockResolvedValue(undefined);
   mocks.runAgentOnce.mockResolvedValue(undefined);
   mocks.shouldUseHostedRouter.mockReturnValue(false);
+  mocks.recoverPaidCalls.mockResolvedValue({
+    released: 0,
+    debited: 0,
+    uncertain: 0,
+    failed: 0,
+  });
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -119,6 +126,39 @@ describe("scheduler polling", () => {
       1, 2, 3,
     ]);
     expect(mocks.rescheduleToCadence).toHaveBeenCalledWith(pool, 4);
+  });
+
+  it("runs paid-brain recovery at most once a minute and never lets it block claiming", async () => {
+    const control = { stopped: false };
+    let clock = 0;
+    let polls = 0;
+    mocks.claimDueAgents.mockImplementation(async () => {
+      polls += 1;
+      clock += 30_000; // each poll advances the scheduler clock 30 s
+      if (polls === 4) control.stopped = true;
+      return [];
+    });
+    mocks.recoverPaidCalls
+      .mockRejectedValueOnce(new Error("ledger unavailable"))
+      .mockResolvedValue({ released: 1, debited: 2, uncertain: 0, failed: 0 });
+    const log = vi.fn();
+    const running = runScheduler(pool, config(), control, log, () => clock);
+    await vi.runAllTimersAsync();
+    await running;
+    // Polls at t=0, 30, 60, 90 s: recovery at 0 and 60 only.
+    expect(mocks.recoverPaidCalls).toHaveBeenCalledTimes(2);
+    expect(mocks.recoverPaidCalls.mock.calls[0]![0]).toBe(pool);
+    // The same alert set is reused across passes (one alert per call).
+    expect(mocks.recoverPaidCalls.mock.calls[0]![1]).toBe(
+      mocks.recoverPaidCalls.mock.calls[1]![1],
+    );
+    expect(polls).toBe(4);
+    expect(log).toHaveBeenCalledWith(
+      "[scheduler] paid recovery error: ledger unavailable",
+    );
+    expect(log).toHaveBeenCalledWith(
+      "[scheduler] paid recovery: released 1, debited 2, uncertain 0",
+    );
   });
 
   it("keeps draining when skip persistence fails and both cleanup operations are attempted", async () => {

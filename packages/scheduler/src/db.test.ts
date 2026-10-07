@@ -15,14 +15,19 @@ import {
   nextRunAtSql,
   phaseOffsetSeconds,
   reviveDisabledAgents,
-  readCreditPosition,
-  insertDebit,
   pauseAgent,
+  reservePaidCall,
+  markPaidCallDispatched,
+  recordPaidCallResult,
+  finalizePaidCall,
+  listPaidRecoveryCandidates,
+  OWNER_CREDIT_LOCK,
   sharedCadenceFloorSeconds,
   SHARED_CADENCE_TARGET_RPM,
   EOL_MODEL_SUCCESSORS,
   type CycleRecord,
 } from "./db.js";
+import { paidBrainModel, priceRowAt } from "./paidBrain.js";
 
 describe.each(["recordCycle", "persistCycleResult"] as const)(
   "%s model diagnostic persistence boundary",
@@ -1020,73 +1025,240 @@ describe("claimDueAgents in-flight exclusion", () => {
   });
 });
 
-describe("paid brain credit ledger helpers", () => {
-  const debit = {
+describe("paid brain ledger and call state (contract v2)", () => {
+  const KEY = "reserve:42:0f8c1b2e-aaaa-4bbb-8ccc-123456789abc";
+  const sonnet = priceRowAt(
+    paidBrainModel("claude-sonnet-5-5")!,
+    Date.UTC(2026, 9, 7),
+  )!;
+  const request = {
     userId: 19,
     agentId: 42,
-    cycleId: 4242,
+    reserveKey: KEY,
     modelId: "claude-sonnet-5-5",
-    tokensIn: 20_000,
-    tokensOut: 400,
-    providerCostMicro: 44_000,
-    marginMicro: 8_800,
-    totalMicro: 52_800,
-    idempotencyKey: "debit:4242",
+    price: sonnet,
+    marginPct: 20,
+    worstCaseMicro: 202_752,
+    capMicro: 25_000_000,
+    monthStart: "2026-10-01",
   };
 
-  it("reads the balance and this agent's month spend in one query", async () => {
-    const query = vi.fn().mockResolvedValue({
-      rows: [{ balance: "947200", month_spend: "52800" }],
+  // A pool whose transactional client answers by SQL shape. `position` is
+  // the admission read; `call` the paid_calls row seen FOR UPDATE.
+  function ledgerPool(options: {
+    position?: { balance: string; month_spend: string; uncertain: boolean };
+    call?: Record<string, unknown> | null;
+    insertRowCount?: number;
+  }) {
+    const client = vi.fn(async (sql: string) => {
+      if (sql.includes("AS month_spend"))
+        return { rows: options.position ? [options.position] : [] };
+      if (sql.includes("FOR UPDATE"))
+        return { rows: options.call ? [options.call] : [] };
+      if (sql.startsWith("INSERT"))
+        return { rows: [], rowCount: options.insertRowCount ?? 1 };
+      return { rows: [], rowCount: 1 };
     });
-    const pool = { query } as unknown as Pool;
-    const since = new Date(Date.UTC(2026, 9, 1));
-    expect(await readCreditPosition(pool, 19, 42, since)).toEqual({
-      balanceMicro: 947_200,
-      monthSpendMicro: 52_800,
-    });
-    expect(query).toHaveBeenCalledTimes(1);
-    const [sql, params] = query.mock.calls[0]!;
-    expect(sql).toContain("FROM agent_runtime.credit_ledger");
-    expect(sql).toContain("WHERE user_id = $1");
-    expect(sql).toContain(
-      "WHERE kind = 'debit' AND agent_id = $2 AND created_at >= $3",
+    const query = vi.fn(async (sql: string) =>
+      sql.includes("SELECT user_id FROM agent_runtime.paid_calls")
+        ? { rows: options.call === null ? [] : [{ user_id: "19" }] }
+        : { rows: [], rowCount: 1 },
     );
-    expect(params).toEqual([19, 42, since]);
-  });
-
-  it("reads an empty ledger as a zero position", async () => {
+    const release = vi.fn();
     const pool = {
-      query: vi.fn().mockResolvedValue({ rows: [] }),
+      query,
+      connect: vi.fn().mockResolvedValue({ query: client, release }),
     } as unknown as Pool;
-    expect(await readCreditPosition(pool, 19, 42, new Date(0))).toEqual({
-      balanceMicro: 0,
-      monthSpendMicro: 0,
-    });
+    const sqls = () => client.mock.calls.map((c) => String(c[0]));
+    const call = (fragment: string) =>
+      client.mock.calls.find((c) => String(c[0]).includes(fragment));
+    return { pool, client, query, release, sqls, call };
+  }
+
+  const answeredCall = (overrides: Record<string, unknown> = {}) => ({
+    user_id: "19",
+    agent_id: "42",
+    model_id: "claude-sonnet-5-5",
+    status: "answered",
+    price: sonnet,
+    margin_pct: 20,
+    usage: { promptTokens: 20_000, completionTokens: 400 },
+    stale_reserved: false,
+    stale_dispatched: false,
+    stale_answered: false,
+    ...overrides,
   });
 
-  it("refuses a sum it cannot represent exactly", async () => {
-    const pool = {
-      query: vi.fn().mockResolvedValue({
-        rows: [{ balance: "99999999999999999999", month_spend: "0" }],
+  it("reserves under the owner credit lock: position, admission, reserve row and call row in one transaction", async () => {
+    const ledger = ledgerPool({
+      position: { balance: "1000000", month_spend: "0", uncertain: false },
+    });
+    expect(await reservePaidCall(ledger.pool, request)).toEqual({
+      kind: "reserved",
+    });
+    const sqls = ledger.sqls();
+    expect(sqls[0]).toBe("BEGIN");
+    // The lock is the FIRST statement of the transaction.
+    expect(sqls[1]).toBe(
+      "SELECT pg_advisory_xact_lock($1::integer, $2::integer)",
+    );
+    expect(ledger.client.mock.calls[1]![1]).toEqual([OWNER_CREDIT_LOCK, 19]);
+    expect(OWNER_CREDIT_LOCK).toBe(734202);
+    const [positionSql, positionParams] = ledger.call("AS month_spend")!;
+    expect(positionParams).toEqual([19, 42, "2026-10-01"]);
+    expect(positionSql).toContain("month_start = $3::date");
+    expect(positionSql).toContain("status = 'uncertain'");
+    expect(positionSql).toContain(
+      "status = 'dispatched' AND dispatched_at < now() - interval '15 minutes'",
+    );
+    expect(ledger.call("'reserve'")![1]).toEqual([
+      19,
+      -202_752,
+      42,
+      "claude-sonnet-5-5",
+      "price claude-sonnet-5-5@2026-10-07, margin 20%",
+      KEY,
+    ]);
+    const callInsert = ledger.call("INSERT INTO agent_runtime.paid_calls")!;
+    expect(callInsert[1]).toEqual([
+      KEY,
+      19,
+      42,
+      "claude-sonnet-5-5",
+      JSON.stringify(sonnet),
+      20,
+      202_752,
+      "2026-10-01",
+    ]);
+    expect(sqls.at(-1)).toBe("COMMIT");
+    expect(ledger.release).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    [
+      { balance: "1000000", month_spend: "0", uncertain: true },
+      "metering_uncertain",
+    ],
+    [
+      { balance: "202751", month_spend: "0", uncertain: false },
+      "balance_short",
+    ],
+    [
+      { balance: "1000000", month_spend: "24900000", uncertain: false },
+      "cap_reached",
+    ],
+  ])("refuses %j as %s without writing anything", async (position, reason) => {
+    const ledger = ledgerPool({ position });
+    expect(await reservePaidCall(ledger.pool, request)).toEqual({
+      kind: "refused",
+      reason,
+    });
+    expect(ledger.sqls().some((sql) => sql.startsWith("INSERT"))).toBe(false);
+  });
+
+  it("aborts the whole reservation when its key was already used", async () => {
+    const ledger = ledgerPool({
+      position: { balance: "1000000", month_spend: "0", uncertain: false },
+      insertRowCount: 0,
+    });
+    await expect(reservePaidCall(ledger.pool, request)).rejects.toThrow(
+      "already used",
+    );
+    expect(ledger.sqls()).toContain("ROLLBACK");
+    expect(ledger.sqls()).not.toContain("COMMIT");
+  });
+
+  it("dispatches only a call that is still 'reserved'", async () => {
+    const query = vi.fn().mockResolvedValueOnce({ rows: [], rowCount: 1 });
+    const pool = { query } as unknown as Pool;
+    expect(await markPaidCallDispatched(pool, KEY)).toBe(true);
+    expect(query.mock.calls[0]![0]).toContain(
+      "SET status = 'dispatched', dispatched_at = now()",
+    );
+    expect(query.mock.calls[0]![0]).toContain("AND status = 'reserved'");
+    query.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    expect(await markPaidCallDispatched(pool, KEY)).toBe(false);
+  });
+
+  it.each([
+    [
+      { status: "answered", usage: { promptTokens: 1, completionTokens: 2 } },
+      "status = 'answered', usage = $2::jsonb",
+      [KEY, '{"promptTokens":1,"completionTokens":2}'],
+    ],
+    [
+      { status: "rejected", providerStatus: 529 },
+      "status = 'rejected', provider_status = $2",
+      [KEY, 529],
+    ],
+    [
+      { status: "uncertain", reason: "answered without usage" },
+      "status = 'uncertain', note = $2",
+      [KEY, "answered without usage"],
+    ],
+    [
+      { status: "not_called" },
+      "status = 'reserved', dispatched_at = NULL",
+      [KEY],
+    ],
+  ] as const)(
+    "records a %j result only on a dispatched call",
+    async (result, set, params) => {
+      const query = vi.fn().mockResolvedValue({ rows: [], rowCount: 1 });
+      const pool = { query } as unknown as Pool;
+      expect(await recordPaidCallResult(pool, KEY, result)).toBe(true);
+      const [sql, sent] = query.mock.calls[0]!;
+      expect(sql).toContain(set);
+      expect(sql).toContain("AND status = 'dispatched'");
+      expect(sent).toEqual(params);
+    },
+  );
+
+  it("releases a never-dispatched call at cycle end, returning exactly the reserved amount", async () => {
+    const ledger = ledgerPool({ call: answeredCall({ status: "reserved" }) });
+    expect(
+      await finalizePaidCall(ledger.pool, KEY, {
+        mode: "cycle_end",
+        cycleId: 7,
       }),
-    } as unknown as Pool;
-    await expect(readCreditPosition(pool, 19, 42, new Date(0))).rejects.toThrow(
-      "out of range",
+    ).toBe("released");
+    expect(ledger.sqls()[1]).toContain("pg_advisory_xact_lock");
+    const [releaseSql, releaseParams] = ledger.call("'release'")!;
+    expect(releaseSql).toContain("-amount_micro_usd");
+    expect(releaseSql).toContain(
+      "WHERE idempotency_key = $1 AND kind = 'reserve'",
     );
+    expect(releaseSql).toContain("ON CONFLICT (idempotency_key) DO NOTHING");
+    expect(releaseParams).toEqual([KEY, `release:${KEY}`, 7]);
+    expect(ledger.sqls().some((sql) => sql.includes("'debit'"))).toBe(false);
+    expect(ledger.call("SET status = $2")![1]).toEqual([
+      KEY,
+      "released",
+      0,
+      7,
+      "reserved",
+    ]);
   });
 
-  it("inserts one negative debit keyed for idempotency and reports whether it wrote", async () => {
-    const query = vi.fn().mockResolvedValue({ rows: [], rowCount: 1 });
-    const pool = { query } as unknown as Pool;
-    expect(await insertDebit(pool, { ...debit, note: "usage estimated" })).toBe(
-      true,
-    );
-    const [sql, params] = query.mock.calls[0]!;
-    expect(sql).toContain("INSERT INTO agent_runtime.credit_ledger");
-    expect(sql).toContain("'debit'");
-    expect(sql).toContain("ON CONFLICT (idempotency_key) DO NOTHING");
-    expect(sql).not.toMatch(/UPDATE|DELETE/);
-    expect(params).toEqual([
+  it("releases an explicit provider rejection", async () => {
+    const ledger = ledgerPool({ call: answeredCall({ status: "rejected" }) });
+    expect(
+      await finalizePaidCall(ledger.pool, KEY, { mode: "cycle_end" }),
+    ).toBe("released");
+  });
+
+  it("releases the reserve and debits provider-reported usage at the SNAPSHOTTED price and margin", async () => {
+    const ledger = ledgerPool({ call: answeredCall() });
+    expect(
+      await finalizePaidCall(ledger.pool, KEY, {
+        mode: "cycle_end",
+        cycleId: 4242,
+      }),
+    ).toBe("debited");
+    expect(ledger.call("'release'")).toBeDefined();
+    const [debitSql, debitParams] = ledger.call("'debit'")!;
+    expect(debitSql).toContain("ON CONFLICT (idempotency_key) DO NOTHING");
+    expect(debitParams).toEqual([
       19,
       -52_800,
       42,
@@ -1096,26 +1268,151 @@ describe("paid brain credit ledger helpers", () => {
       400,
       44_000,
       8_800,
-      "usage estimated",
-      "debit:4242",
+      "price claude-sonnet-5-5@2026-10-07",
+      `debit:${KEY}`,
     ]);
-    query.mockResolvedValueOnce({ rows: [], rowCount: 0 });
-    expect(await insertDebit(pool, debit)).toBe(false);
-    expect(query.mock.calls[1]![1][9]).toBeNull();
+    expect(ledger.call("SET status = $2")![1]).toEqual([
+      KEY,
+      "finalized",
+      52_800,
+      4242,
+      "answered",
+    ]);
+
+    // The call's own snapshot wins over today's catalogue and config.
+    const snapshot = { ...sonnet, version: "old@2026-01-01", inputK: 1_000 };
+    const old = ledgerPool({
+      call: answeredCall({ price: snapshot, margin_pct: 0 }),
+    });
+    await finalizePaidCall(old.pool, KEY, { mode: "cycle_end" });
+    // 20k x 1000 + 400 x 10000 = 24,000,000 / 1000 = 24,000; margin 0.
+    expect(old.call("'debit'")![1].slice(1, 2)).toEqual([-24_000]);
+    expect(old.call("'debit'")![1][9]).toBe("price old@2026-01-01");
   });
 
-  it.each([0, -1, 1.5, NaN])(
-    "never writes a debit of %s",
-    async (totalMicro) => {
-      const query = vi.fn();
-      const pool = { query } as unknown as Pool;
-      await expect(insertDebit(pool, { ...debit, totalMicro })).rejects.toThrow(
-        "positive integer",
-      );
-      expect(query).not.toHaveBeenCalled();
+  it("prices cache reads and writes into the debit and notes them", async () => {
+    const ledger = ledgerPool({
+      call: answeredCall({
+        usage: {
+          promptTokens: 1_000,
+          completionTokens: 100,
+          cacheReadTokens: 10_000,
+          cacheWriteTokens: 2_000,
+        },
+      }),
+    });
+    await finalizePaidCall(ledger.pool, KEY, { mode: "cycle_end" });
+    const params = ledger.call("'debit'")![1];
+    // 1,000 x 2000 + 10,000 x 200 + 2,000 x 4000 (unsplit => 1h)
+    // + 100 x 10000 = 13,000,000 / 1000 = 13,000; x 1.2 = 15,600.
+    expect(params[1]).toBe(-15_600);
+    expect(params[9]).toContain("cache write split not reported");
+  });
+
+  it("marks an unpriceable answered call uncertain instead of guessing", async () => {
+    const ledger = ledgerPool({
+      call: answeredCall({
+        price: { ...sonnet, cacheWrite1hK: undefined },
+        usage: { promptTokens: 1, completionTokens: 1, cacheWriteTokens: 5 },
+      }),
+    });
+    expect(
+      await finalizePaidCall(ledger.pool, KEY, { mode: "cycle_end" }),
+    ).toBe("uncertain");
+    expect(ledger.call("SET status = 'uncertain'")).toBeDefined();
+    expect(
+      ledger
+        .sqls()
+        .some((sql) => sql.includes("INSERT INTO agent_runtime.credit_ledger")),
+    ).toBe(false);
+  });
+
+  it("never refunds a dispatched call without a recorded result: it becomes uncertain", async () => {
+    const ledger = ledgerPool({ call: answeredCall({ status: "dispatched" }) });
+    expect(
+      await finalizePaidCall(ledger.pool, KEY, { mode: "cycle_end" }),
+    ).toBe("uncertain");
+    expect(ledger.call("'release'")).toBeUndefined();
+    expect(ledger.call("SET status = 'uncertain'")![1]).toEqual([
+      KEY,
+      "dispatched call left without a recorded result",
+      null,
+      "dispatched",
+    ]);
+  });
+
+  it.each([
+    ["reserved", "stale_reserved", "released"],
+    ["dispatched", "stale_dispatched", "uncertain"],
+    ["answered", "stale_answered", "debited"],
+    ["rejected", "stale_answered", "released"],
+  ])(
+    "recovery leaves a fresh %s call alone and resolves it once idle for 15 minutes",
+    async (status, staleFlag, resolved) => {
+      const fresh = ledgerPool({ call: answeredCall({ status }) });
+      expect(
+        await finalizePaidCall(fresh.pool, KEY, { mode: "recovery" }),
+      ).toBe("open");
+      expect(fresh.sqls().some((sql) => sql.startsWith("INSERT"))).toBe(false);
+      const stale = ledgerPool({
+        call: answeredCall({ status, [staleFlag]: true }),
+      });
+      expect(
+        await finalizePaidCall(stale.pool, KEY, { mode: "recovery" }),
+      ).toBe(resolved);
     },
   );
 
+  it.each(["uncertain", "released", "finalized"])(
+    "does nothing for a %s call",
+    async (status) => {
+      const ledger = ledgerPool({ call: answeredCall({ status }) });
+      expect(
+        await finalizePaidCall(ledger.pool, KEY, { mode: "recovery" }),
+      ).toBe("closed");
+      expect(
+        ledger
+          .sqls()
+          .filter(
+            (sql) => sql.startsWith("INSERT") || sql.startsWith("UPDATE"),
+          ),
+      ).toEqual([]);
+    },
+  );
+
+  it("reports an unknown reservation without opening a transaction", async () => {
+    const ledger = ledgerPool({ call: null });
+    expect(await finalizePaidCall(ledger.pool, KEY, { mode: "recovery" })).toBe(
+      "missing",
+    );
+    expect(ledger.pool.connect).not.toHaveBeenCalled();
+  });
+
+  it("lists only open calls idle for 15 minutes, and uncertain calls for alerts", async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ reserve_key: KEY }] })
+      .mockResolvedValueOnce({
+        rows: [{ reserve_key: "reserve:7:x", user_id: "19", agent_id: "7" }],
+      });
+    const pool = { query } as unknown as Pool;
+    expect(await listPaidRecoveryCandidates(pool, 50)).toEqual({
+      stale: [KEY],
+      uncertain: [{ reserveKey: "reserve:7:x", userId: 19, agentId: 7 }],
+    });
+    const staleSql = String(query.mock.calls[0]![0]);
+    expect(staleSql).toContain("status NOT IN ('released', 'finalized')");
+    expect(staleSql).toContain(
+      "status = 'reserved' AND created_at < now() - interval '15 minutes'",
+    );
+    expect(staleSql).toContain(
+      "status = 'dispatched' AND dispatched_at < now() - interval '15 minutes'",
+    );
+    expect(query.mock.calls[0]![1]).toEqual([50]);
+  });
+});
+
+describe("paid brain pause and cycle id", () => {
   it("pauses only a still-active agent, with its reason", async () => {
     const query = vi.fn().mockResolvedValue({ rows: [], rowCount: 1 });
     const pool = { query } as unknown as Pool;
