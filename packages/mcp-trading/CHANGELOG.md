@@ -61,7 +61,8 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
     (`pm_coin_horizon_cap`). Reads the additive discover `relatedCoins` and
     `/positions/pm` `relatedCoins` / `eventEndDate`; a missing coin, or an end
     that is missing, past or over 5 years out, never blocks. A count cap, not
-    a correlation model.
+    a correlation model, over the open positions the feed returns (at most
+    200, newest first).
   - `risk.pmMinMinutesToClose` (0..10080): reject a market whose known close is
     nearer than that to the later of `observation.asOf` and the validation
     clock after the model call (`pm_closes_too_soon`). An unknown or

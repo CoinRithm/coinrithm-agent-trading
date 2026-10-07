@@ -154,7 +154,9 @@ export interface RiskConfig {
   // open positions plus opens accepted this cycle, per directly linked coin.
   // Only a known coin and a plausible end date group: no linked coin, or an
   // end that is missing, unparseable, already past or more than 5 years out
-  // (venue sentinels), never blocks. A count cap, not a correlation model.
+  // (venue sentinels), never blocks. A count cap, not a correlation model,
+  // and only over the open positions the feed returns (/positions/pm serves at
+  // most 200 open rows, newest first): a larger book is not fully counted.
   // Absent = no cap (unchanged behaviour).
   pmMaxOpenPerCoinHorizon?: number;
   // Optional HARD cutoff (minutes): reject a pm_open whose market closes within

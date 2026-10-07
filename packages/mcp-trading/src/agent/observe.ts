@@ -875,8 +875,9 @@ const depthSideOf = (v: unknown): DepthSideContext | null => {
 // visible book; omitted when malformed, future-dated or without any side.
 /**
  * `{ coins }` from an additive `relatedCoins` array (direct coin slugs), or
- * nothing: non-arrays and non-string/blank entries are dropped, at most 5
- * distinct slugs are kept. An empty result adds no field.
+ * nothing: non-arrays and non-string/blank entries are dropped. The API never
+ * truncates the list (production max 10); 20 distinct slugs is only a
+ * defensive bound. An empty result adds no field.
  */
 export function coinsField(value: unknown): { coins?: string[] } {
   if (!Array.isArray(value)) return {};
@@ -887,7 +888,7 @@ export function coinsField(value: unknown): { coins?: string[] } {
         .map((c) => c.trim().toLowerCase())
         .filter((c) => c.length > 0 && c.length <= 100),
     ),
-  ].slice(0, 5);
+  ].slice(0, 20);
   return coins.length ? { coins } : {};
 }
 
