@@ -1834,16 +1834,22 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
         // historical #132 rule.
         const run = async (ceilingMs: number, claimantOnly = false) => {
           const ttl = ceilingMs / 1000 + WAITER_RETRY_SLACK_SECONDS;
-          // The bucket also refills on the real clock while the test runs.
-          const wallStart = Date.now();
           await drainedAgo(0);
-          await pool.query(
-            `UPDATE agent_runtime.provider_capacity_buckets
-              SET waiter_key = NULL, waiter_tokens = NULL, waiter_since = NULL,
-                  waiter_expires_at = NULL, model_tokens = 0,
-                  last_refill_at = clock_timestamp()
-            WHERE route_key = $1`,
-            [routeKey],
+          // The bucket also refills on the DATABASE clock while each mode
+          // runs (advance() only adds simulated seconds), so measure that
+          // clock from this reset through the last event.
+          const dbStart = Number(
+            (
+              await pool.query(
+                `UPDATE agent_runtime.provider_capacity_buckets
+                    SET waiter_key = NULL, waiter_tokens = NULL, waiter_since = NULL,
+                        waiter_expires_at = NULL, model_tokens = 0,
+                        last_refill_at = clock_timestamp()
+                  WHERE route_key = $1
+              RETURNING extract(epoch FROM last_refill_at) AS s`,
+                [routeKey],
+              )
+            ).rows[0].s,
           );
           let t = 0;
           const advance = async (to: number) => {
@@ -1920,7 +1926,14 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
             reserved,
             consumed,
             horizon: t,
-            realSeconds: (Date.now() - wallStart) / 1000,
+            realSeconds:
+              Number(
+                (
+                  await pool.query(
+                    "SELECT extract(epoch FROM clock_timestamp()) AS s",
+                  )
+                ).rows[0].s,
+              ) - dbStart,
           };
         };
 
@@ -1934,7 +1947,8 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
         // Reported usage, not the estimate, stays within the owner's refill
         // plus the largest single reported excess (a44: 49,150 - 29,774); the
         // old floor at 0 let ~1.5x through.
-        // Refill time = simulated horizon + the real seconds the run took.
+        // Refill time = simulated horizon + database-clock seconds the mode
+        // actually ran (reset to completion). No other tolerance.
         const budget = (m: { horizon: number; realSeconds: number }) =>
           (RATE * (m.horizon + m.realSeconds)) / 60 + 19_376;
         for (const mode of [before, after, current])
