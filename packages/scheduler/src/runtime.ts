@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
+import { publicFetch } from "./publicEgress.js";
 import {
   runCycle,
   selectProvider,
@@ -121,6 +122,25 @@ function providerEnvFor(agent: AgentRow, config: Config): ProviderEnv {
     default:
       return { MODEL_API_KEY: byo };
   }
+}
+
+/**
+ * The fetch a hosted agent's model calls use. A user-chosen endpoint (a BYO
+ * openai-compatible provider or BYO custom base URL) goes only to the public
+ * internet: every DNS answer checked at connect time, redirects never
+ * followed (publicEgress.ts). Fixed provider hosts keep plain fetch.
+ */
+export function modelFetchFor(agent: {
+  modelProvider: string;
+  modelBaseUrl?: string | null;
+  brainKeyEnc?: string | null;
+}): typeof fetch {
+  // Only a BYO agent's endpoint is user-chosen; shared routes are platform
+  // configured (official provider hosts) and keep their existing transport.
+  const userChosen =
+    !!agent.brainKeyEnc &&
+    (agent.modelProvider === "openai-compatible" || !!agent.modelBaseUrl);
+  return userChosen ? publicFetch : fetch;
 }
 
 export function shouldUseHostedRouter(
@@ -1011,16 +1031,18 @@ export async function runAgentOnce(
     if (paid) metered = paidProviderFor(pool, agent.id, paid, spec);
     // Ordinary BYO/direct agents keep the identical 3-argument call; only an
     // agent enrolled in the BYO trial gets the per-attempt transport check.
+    // Hosted BYO endpoints go through the public-only egress (#119).
+    const modelFetch = modelFetchFor(runAgent);
     const provider =
       metered ??
       (shouldUseHostedRouter(runAgent, config)
         ? routedProviderFor(pool, runAgent, config, log)
         : usesCustomerByoSuperJsonContent(runAgent, config)
-          ? selectProvider(spec, providerEnvFor(runAgent, config), fetch, {
+          ? selectProvider(spec, providerEnvFor(runAgent, config), modelFetch, {
               nemotronJsonContent: () =>
                 usesCustomerByoSuperJsonContent(runAgent, config),
             })
-          : selectProvider(spec, providerEnvFor(runAgent, config), fetch));
+          : selectProvider(spec, providerEnvFor(runAgent, config), modelFetch));
     const apiKey = decrypt(agent.coinrithmKeyEnc, config.encryptionKey);
     const client = new CoinRithmClient({
       apiKey,

@@ -5,6 +5,7 @@
 // The model only PROPOSES — the runner re-checks every action against the caps,
 // so the prompt states the caps but never relies on the model to honor them.
 
+import { describeUniverse, scansUniverse } from "./universe.js";
 import { AgentSpec, Observation, PmResolution, RunState } from "./types.js";
 import { pmQualityOf, pmDecisionSupportOf } from "./pmContext.js";
 import { usesCapitalSizing } from "./capitalSizing.js";
@@ -225,7 +226,7 @@ export function buildSystemPrompt(
     // sections telling one story.
     ...(hasCoinVenue
       ? [
-          spec.capabilities.includes("universe_scan")
+          scansUniverse(spec)
             ? `- tradable symbols (${coinVenueLabel}): your watchlist (${r.watchlist.join(", ")}) PLUS this cycle's watch entries marked \`discovered: true\` — nothing outside those`
             : `- watchlist (${coinVenueLabel} use ONLY these): ${r.watchlist.join(", ")}`,
         ]
@@ -247,6 +248,26 @@ export function buildSystemPrompt(
           `- PM ENTRY FLOOR: pm_open on an outcome whose market probability is below ${r.pmMinEntryProbabilityPct} points is REJECTED by the runner (the chosen outcome's own price; fees are not counted). Do not propose cheaper longshots; look for edge on outcomes priced at or above the floor.`,
         ]
       : []),
+    ...(hasPm && typeof r.pmMinEdgeGapPct === "number"
+      ? [
+          `- PM EDGE RULE: every pm_open MUST carry forecastProbability, and it must beat the fee-inclusive cost by ${r.pmMinEdgeGapPct}% of the room left to 100 (cost 50 needs ${(50 + (r.pmMinEdgeGapPct / 100) * 50).toFixed(1)}, cost 70 needs ${(70 + (r.pmMinEdgeGapPct / 100) * 30).toFixed(1)}). The runner REJECTS an open without a forecast or under this bar.`,
+        ]
+      : []),
+    ...(hasPm && typeof r.pmMaxEdgePoints === "number"
+      ? [
+          `- PM OVERCONFIDENCE CAP: every pm_open MUST carry forecastProbability, and it may beat the fee-inclusive cost by at most ${r.pmMaxEdgePoints} points. Base the forecast on current evidence. Do not alter a forecast to pass this cap: skip the trade if your evidence-based forecast falls outside the permitted range. Opens over the cap are REJECTED.`,
+        ]
+      : []),
+    ...(hasPm && typeof r.pmMaxOpenPerEvent === "number"
+      ? [
+          `- PM PER-EVENT CAP: at most ${r.pmMaxOpenPerEvent} open bet(s) per event (same market slug, counting bets you already hold). Extra opens are REJECTED.`,
+        ]
+      : []),
+    ...(hasPm && typeof r.pmMinMinutesToClose === "number"
+      ? [
+          `- PM CLOSE CUTOFF: a market whose \`end\` is less than ${r.pmMinMinutesToClose} minutes away when the runner validates your action is REJECTED; the price already knows.`,
+        ]
+      : []),
     ...(includeForecast
       ? [
           "- FORECAST RULE (pm_open forecastProbability): the current market probability is already included in this request, so this is a market-aware estimate, not a blinded forecast. Form your own evidence-based probability that the outcome you are backing actually WINS, using the question, its resolution criteria, deadline, and available evidence. Put that number (1-99, whole or one decimal) in `forecastProbability`. This is graded against reality as your PUBLIC calibration record, so it must reflect your judgement: do NOT mechanically copy or round observation.pmMarkets `prob` to produce a forecast. It is FINE if your honest forecast happens to land on the market's number — but reaching that by echoing the price defeats the point. If you genuinely cannot form an evidence-based view, OMIT the field rather than parroting the market (an absent forecast is better than a fake one, and it never blocks the bet). A forecast you DO give is enforced: if it is not above what the outcome currently costs, the open is rejected, because buying something you price below the market is a losing trade by your own numbers.",
@@ -255,6 +276,7 @@ export function buildSystemPrompt(
     `- abstention.minConfidence ${spec.abstention.minConfidence}: opens below this are rejected, so act with genuine conviction — but routine caution is no reason to sit out a clear setup`,
     ...(hasCoinVenue
       ? [
+          "- Open interest (watch[].openInterest) is single-side perpetual exposure in USD across the named venues, not the entire market. Each contract has both a long and a short: OI with price alone cannot establish who opened, closed, or was liquidated. USD OI can also move as price changes without contract counts changing. Treat long/short-covering interpretations as hypotheses requiring other evidence, never as a standalone trade signal. Read each change WITH its change1hVenues/change24hVenues: only matching venue-contracts contribute, and that set may differ from the total's venues. Null changes are unknown; a reported zero total is valid. Ignore stale or missing readings and check asOf against the current observation clock.",
           "- Community sentiment is a dated sample: read sentimentBullishPct WITH sentimentTotalVotes and sentimentDayUtc. A tiny or old cohort is weak evidence, not current market consensus. sentimentUpdatedAt is the cohort's write time. Missing counts/dates are unknown; price freshness does not date sentiment. marketMood.fetchedAt is Fear & Greed collection time, not its provider observation time. Compare each clock with observation.asOf; never invent currentness from a missing date.",
         ]
       : []),
@@ -268,7 +290,17 @@ export function buildSystemPrompt(
           "- a null field = not enough data; ignore it. These INFORM your decision; they never widen a cap.",
         ]
       : []),
-    ...(spec.capabilities.includes("universe_scan")
+    ...(spec.universe
+      ? [
+          "",
+          "## Your market (declared boundaries) — candidates beyond your watchlist",
+          `Each cycle the runner scans the market inside YOUR boundaries: ${describeUniverse(spec.universe)}. Watch entries with \`discovered: true\` are the top rows of that scan, resolved with the same price/sentiment (and indicators) data as your watchlist. observation.universeMovers lists further rows as symbol + 24h change only (context — you cannot trade those directly this cycle). Nothing outside these boundaries is shown to you or tradable.`,
+          "- Treat a discovered candidate like any other symbol: analyze it for catalysts, exhaustion and reversal BEFORE acting. A big move is as often a top as a beginning — chasing candles blind is how discovery loses money.",
+          "- All your normal risk rules apply unchanged: caps, stops, blocklist, confidence floor. Discovery widens what you can SEE, never what you may risk.",
+          "- Your boundaries also bind your watchlist: a watch entry with `withinBoundaries: false` (or no withinBoundaries and not discovered) is context only. You may close or sell an existing position in it, but a new entry is REJECTED (outside_universe).",
+        ]
+      : []),
+    ...(!spec.universe && spec.capabilities.includes("universe_scan")
       ? [
           "",
           "## Universe scan (discovered movers) — candidates beyond your watchlist",
@@ -477,6 +509,44 @@ export function buildUserPrompt(
             ]
           : []),
     );
+  }
+  // Futures entry rules the runner enforces, stated with THIS agent's numbers.
+  // The weekly house report (2026-09-30..10-07) found the two largest refusal
+  // classes were opens below the fee-inclusive reward:risk floor
+  // (capital_quote_reward_risk_too_low) and SL/TP on an add
+  // (add_cannot_carry_sltp). Wording only: the validators are unchanged.
+  if (hasFutures && !futuresOpenWithheld) {
+    const held = Array.from(
+      new Set(
+        obs.openPositions
+          .filter(
+            (p) =>
+              p.venue === "futures" &&
+              (p.status ?? "open") === "open" &&
+              typeof p.symbol === "string" &&
+              p.symbol.length > 0,
+          )
+          .map((p) => (p.symbol as string).toUpperCase()),
+      ),
+    );
+    const minRewardRisk = opts.capitalSizing?.minRewardRisk;
+    if (
+      typeof minRewardRisk === "number" &&
+      Number.isFinite(minRewardRisk) &&
+      minRewardRisk >= 1
+    ) {
+      lines.push(
+        `REWARD:RISK FLOOR ${minRewardRisk} (your capitalSizing.minRewardRisk, enforced with fees; an open below it is rejected as capital_quote_reward_risk_too_low): the take-profit's distance from entry, minus the entry and exit fees, must be at least ${minRewardRisk}x the stop's distance from entry plus those fees. A target exactly ${minRewardRisk}x the stop distance FAILS once fees are counted, so leave room. If the setup cannot offer such a target, do not open it.`,
+      );
+    }
+    if (held.length > 0) {
+      const list = held.join(", ");
+      lines.push(
+        opts.capitalSizing
+          ? `You already hold futures on ${list}. Under your capital policy you cannot ADD to them: every futures_open needs its own stopLossPrice and takeProfitPrice for sizing, and the server refuses SL/TP on an add (add_cannot_carry_sltp). Propose NO futures_open on ${list}; manage them with futures_set_sltp or futures_close on their positionId.`
+          : `You already hold futures on ${list}. A futures_open on any of them is an ADD and must carry NO stopLossPrice or takeProfitPrice (the whole open is rejected as add_cannot_carry_sltp); adjust protection with futures_set_sltp on the positionId instead.`,
+      );
+    }
   }
   // Flat-state steer: when the agent holds NOTHING, weaker models (Llama 3.1 8B)
   // still emit futures_close / futures_set_sltp / spot_cancel with a hallucinated
