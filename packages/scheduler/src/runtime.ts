@@ -326,6 +326,46 @@ export function usesCustomerByoSuperJsonContent(
   );
 }
 
+/**
+ * The scheduler's routed provider for an operator bench run (C3 of the item-3
+ * plan; run only via scripts/bench-admitted.mjs, never by the scheduler). A
+ * synthetic, never-persisted agent row owned by `ownerUserId` and pinned to
+ * `modelName` (no fallback model, so a model comparison is not mixed), so
+ * every bench call passes the same NVIDIA key buckets, model cooldowns and
+ * usage debt as live agents, under that owner's own budget. Its id is 0:
+ * sharedOwnerLimit adds a waiter only for a real agent id, so a bench call
+ * never holds an owner claim, and the post-wait eligibility re-check finds no
+ * agent, so it never dispatches after an owner wait.
+ */
+export function benchRoutedProvider(
+  pool: Pool,
+  config: Config,
+  opts: { modelName: string; ownerUserId: number },
+): RoutedProvider<
+  ProviderCapacityLease & { ownerLease?: ProviderCapacityLease }
+> {
+  if (!Number.isSafeInteger(opts.ownerUserId) || opts.ownerUserId <= 0)
+    throw new Error("bench ownerUserId must be a positive integer");
+  if (!opts.modelName.trim()) throw new Error("bench modelName is required");
+  const agent: AgentRow = {
+    id: 0,
+    handle: "bench",
+    displayName: "bench",
+    live: false,
+    cadenceSeconds: 300,
+    modelProvider: "nvidia",
+    modelName: opts.modelName,
+    modelBaseUrl: null,
+    spec: { pinnedModel: true },
+    prose: "",
+    coinrithmKeyEnc: "",
+    brainKeyEnc: null,
+    ownerUserId: opts.ownerUserId,
+    isHouse: false,
+  };
+  return routedProviderFor(pool, agent, config, []);
+}
+
 function routedProviderFor(
   pool: Pool,
   agent: AgentRow,
