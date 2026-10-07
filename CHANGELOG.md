@@ -8,7 +8,7 @@ Each package has its own version; the API contract is versioned separately.
 [TypeScript history](packages/sdk/CHANGELOG.md) ·
 [Python release notes](packages/sdk-python/README.md)
 
-## MCP 0.7.16, TypeScript 0.3.5, Python 1.8.5 (unpublished)
+## MCP 0.7.16, TypeScript 0.3.5, Python 1.8.5 (2026-10-07)
 
 The agent runner now rejects OpenAI-compatible and Anthropic output explicitly
 stopped at the completion-token limit, plus Anthropic context-window truncation,
@@ -26,9 +26,11 @@ reports retain bounded provider-attempt provenance without raw model output.
 
 Both SDKs are regenerated from the current contract, including the new optional
 market-context and related-coin fields. The API contract version remains 1.7.0.
-These source versions do not establish npm/PyPI or MCP Registry publication;
-published versions remain MCP 0.7.15, TypeScript 0.3.4 and Python 1.8.4 until
-registry archives are verified.
+Published to npm/PyPI and verified on 7 October 2026. All four downloaded
+archives match the reviewed manifest; clean-install checks passed. The
+[GitHub release](https://github.com/CoinRithm/coinrithm-agent-trading/releases/tag/mcp-trading-v0.7.16) and official MCP Registry 0.7.16 entry are published
+([registry workflow](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/37692247498)). Hosted MCP 0.7.16 was separately verified
+with 41 tools; package publication did not restart the scheduler.
 
 ## MCP 0.7.15, TypeScript 0.3.4, Python 1.8.4 (2026-10-02)
 

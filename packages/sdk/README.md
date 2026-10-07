@@ -11,7 +11,7 @@ real money. Not financial advice.
 
 ## 0.3.5
 
-Release preparation; publication is pending. This version adds optional typed
+Published on npm and verified on 2026-10-07. This version adds optional typed
 market context for price timing, funding, open interest, positioning, captured
 liquidations, observed depth, macro derivative proxies and DeFi. Each source
 retains its own coverage, freshness and nullability; response time does not make
