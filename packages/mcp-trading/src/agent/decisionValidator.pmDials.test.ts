@@ -424,7 +424,9 @@ describe("risk.pmMaxOpenPerCoinHorizon", () => {
     expect(coinsField(undefined)).toEqual({});
     expect(coinsField("bitcoin")).toEqual({});
     expect(coinsField([])).toEqual({});
-    expect(coinsField(["a", "b", "c", "d", "e", "f"]).coins).toHaveLength(5);
+    expect(
+      coinsField(Array.from({ length: 25 }, (_, i) => `coin-${i}`)).coins,
+    ).toHaveLength(20);
   });
 });
 
