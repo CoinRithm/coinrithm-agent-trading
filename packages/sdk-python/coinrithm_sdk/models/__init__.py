@@ -218,6 +218,21 @@ from .get_public_prediction_market_whale_wallets_window import GetPublicPredicti
 from .list_competitions_response_200 import ListCompetitionsResponse200
 from .list_open_orders_response_200 import ListOpenOrdersResponse200
 from .list_public_prediction_market_surprises_window import ListPublicPredictionMarketSurprisesWindow
+from .market_chain_tvl_context import MarketChainTvlContext
+from .market_defi_context import MarketDefiContext
+from .market_depth_context import MarketDepthContext
+from .market_depth_side import MarketDepthSide
+from .market_derivatives_context import MarketDerivativesContext
+from .market_funding_context import MarketFundingContext
+from .market_liquidation_context import MarketLiquidationContext
+from .market_liquidation_window import MarketLiquidationWindow
+from .market_macro_context import MarketMacroContext
+from .market_macro_quote import MarketMacroQuote
+from .market_open_interest_context import MarketOpenInterestContext
+from .market_open_interest_venue import MarketOpenInterestVenue
+from .market_positioning_context import MarketPositioningContext
+from .market_positioning_metric import MarketPositioningMetric
+from .market_stablecoin_context import MarketStablecoinContext
 from .open_futures_position_response_422 import OpenFuturesPositionResponse422
 from .open_order import OpenOrder
 from .open_order_order_type import OpenOrderOrderType
@@ -606,6 +621,21 @@ __all__ = (
     "ListCompetitionsResponse200",
     "ListOpenOrdersResponse200",
     "ListPublicPredictionMarketSurprisesWindow",
+    "MarketChainTvlContext",
+    "MarketDefiContext",
+    "MarketDepthContext",
+    "MarketDepthSide",
+    "MarketDerivativesContext",
+    "MarketFundingContext",
+    "MarketLiquidationContext",
+    "MarketLiquidationWindow",
+    "MarketMacroContext",
+    "MarketMacroQuote",
+    "MarketOpenInterestContext",
+    "MarketOpenInterestVenue",
+    "MarketPositioningContext",
+    "MarketPositioningMetric",
+    "MarketStablecoinContext",
     "OpenFuturesPositionResponse422",
     "OpenOrder",
     "OpenOrderOrderType",

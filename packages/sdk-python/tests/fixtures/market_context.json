@@ -1,0 +1,156 @@
+{
+  "price": {
+    "usd": 84071.5,
+    "change1h": null,
+    "change24h": 0,
+    "change7d": null,
+    "marketCapUsd": null,
+    "asOf": "2026-10-07T05:36:56.603Z"
+  },
+  "priceTiming": {
+    "rowWrittenAt": "2026-10-07T05:36:56.603Z",
+    "sourceObservedAt": "2026-10-07T05:36:53.174Z",
+    "sourceAgeSeconds": 20,
+    "writeLagSeconds": 3,
+    "coverage": "recorded",
+    "basis": "venue_snapshot_time"
+  },
+  "funding": {
+    "venue": "binance",
+    "symbol": "BTCUSDT",
+    "ratePct": -0.0056,
+    "intervalHours": 8,
+    "annualizedPct": -6.13,
+    "nextFundingTime": "2026-10-07T08:00:00.000Z",
+    "asOf": "2026-10-07T05:30:00.000Z",
+    "ageSeconds": 433,
+    "stale": false
+  },
+  "derivatives": {
+    "openInterest": {
+      "totalUsd": 5025468044,
+      "change1hPct": 0.3,
+      "change1hVenues": ["bybit", "okx"],
+      "change24hPct": null,
+      "change24hVenues": [],
+      "venues": [
+        {
+          "venue": "okx",
+          "symbol": "BTC-USDT-SWAP",
+          "openInterestUsd": 2567439370,
+          "asOf": "2026-10-07T05:30:16.304Z"
+        },
+        {
+          "venue": "bybit",
+          "symbol": "BTCUSDT",
+          "openInterestUsd": 2458028675,
+          "asOf": "2026-10-07T05:30:16.238Z"
+        }
+      ],
+      "asOf": "2026-10-07T05:30:16.304Z",
+      "ageSeconds": 417,
+      "stale": false
+    },
+    "positioning": {
+      "venue": "binance",
+      "symbol": "BTCUSDT",
+      "longShortAccountRatio": {
+        "value": 1.377,
+        "asOf": "2026-10-07T05:15:00Z",
+        "stale": false
+      },
+      "longAccountPct": {
+        "value": 57.93,
+        "asOf": "2026-10-07T05:15:00Z",
+        "stale": false
+      },
+      "topTraderPositionRatio": {
+        "value": 1.6083,
+        "asOf": "2026-10-07T05:15:00Z",
+        "stale": false
+      },
+      "takerBuySellRatio": {
+        "value": 1.2636,
+        "asOf": "2026-10-07T05:00:00Z",
+        "stale": false
+      }
+    },
+    "liquidations": {
+      "venue": "okx",
+      "instId": "BTC-USDT-SWAP",
+      "note": "OKX USDT-margined swaps only. Sums of liquidations OKX pushed while our capture was running; capturedPct is a lower bound of our capture uptime for the window, not exchange completeness.",
+      "last1h": {
+        "longLiquidatedUsdt": 0,
+        "shortLiquidatedUsdt": 0,
+        "events": 0,
+        "capturedPct": 21.4
+      },
+      "last24h": {
+        "longLiquidatedUsdt": 0,
+        "shortLiquidatedUsdt": 0,
+        "events": 0,
+        "capturedPct": 0.8
+      },
+      "lastEventAt": null
+    },
+    "depth": {
+      "venue": "hyperliquid",
+      "mid": 84071.5,
+      "bid": {
+        "usd": 10096600,
+        "reachPct": 0.0351,
+        "levels": 20,
+        "complete": false
+      },
+      "ask": {
+        "usd": 12607785,
+        "reachPct": 0.0232,
+        "levels": 20,
+        "complete": false
+      },
+      "asOf": "2026-10-07T08:05:37.881Z",
+      "ageSeconds": 54,
+      "stale": false,
+      "note": "Hyperliquid order book only (one venue's visible resting orders, at most 20 price levels per side), not total market liquidity and not an executable fill. usd is the resting USD in the visible levels, which reach reachPct percent from the mid; complete=false means liquidity beyond reachPct was not returned and remains unknown, not zero."
+    }
+  },
+  "macro": {
+    "note": "Hyperliquid xyz perpetuals that track these markets around the clock: proxies, not exchange quotes.",
+    "quotes": [
+      {
+        "symbol": "xyz:KR200",
+        "label": "KOSPI 200",
+        "kind": "index",
+        "price": 1081,
+        "change24hPct": -1.34,
+        "asOf": "2026-10-07T05:34:00Z",
+        "ageSeconds": 193,
+        "stale": false
+      }
+    ]
+  },
+  "defi": {
+    "chainTvl": {
+      "chain": "Bitcoin",
+      "tvlUsd": 4495291699,
+      "publishedAt": "2026-10-07T06:40:23Z",
+      "fetchedAt": "2026-10-07T07:17:45.681Z",
+      "sourceObservedAt": null,
+      "stale": false,
+      "dayAt": "2026-10-07T00:00:00Z",
+      "change1dPct": -1.92,
+      "change7dPct": 0.69,
+      "note": "Total value locked on the chain associated with this asset by DefiLlama (an association, not proof it is the chain's native token). It is not the coin's market value; changes compare the provider's daily points."
+    },
+    "stablecoinSupply": {
+      "totalUsd": 314571834429,
+      "dayAt": "2026-10-07T00:00:00Z",
+      "change1dPct": 0.07,
+      "change7dPct": 0.54,
+      "stale": false,
+      "publishedAt": "2026-10-07T05:22:27Z",
+      "fetchedAt": "2026-10-07T07:17:45.681Z",
+      "note": "Total stablecoin supply across all pegs in USD (DefiLlama daily points), market-wide."
+    }
+  }
+}
