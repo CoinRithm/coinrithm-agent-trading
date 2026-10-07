@@ -7,6 +7,8 @@
 //
 //   OPERATOR_DATABASE_URL=... node scripts/house-rollout.mjs --hashes
 //       print each house agent's live contentHash/status for writing a plan
+//   OPERATOR_DATABASE_URL=... node scripts/house-rollout.mjs --hashes --handles a12-mrmoney,a17-bekir
+//       the same for the listed (e.g. user_default) handles
 //   OPERATOR_DATABASE_URL=... node scripts/house-rollout.mjs --plan plan.json
 //       review: evaluate every entry, write nothing, exit 1 on any rejection;
 //       also reports recent database activity markers, not process liveness
@@ -22,6 +24,9 @@
 // plan.json: { "version": "personas-v2", "entries": [ { "handle": "...",
 //   "bundlePath": "examples/agents/<handle>", "expectedContentHash": "<sha256>",
 //   "resume": false, "changeNote": "optional" } ] }
+// A user agent still on an untouched template (reviewed list) uses
+//   { "kind": "user_default", "ownerUserId": 11, "handle": "a12-mrmoney",
+//     "bundlePath": "examples/agents/mia-trend-rider", "expectedContentHash": "..." }
 //
 // Build first (npm run build in scheduler and mcp-trading): this imports dist.
 import { readFileSync } from "node:fs";
@@ -70,7 +75,16 @@ const printQuiescence = (q) => {
 
 try {
   if (flag("--hashes")) {
-    for (const s of await readHouseState(pool)) {
+    const handles = value("--handles");
+    for (const s of await readHouseState(
+      pool,
+      handles
+        ? handles
+            .split(",")
+            .map((h) => h.trim())
+            .filter(Boolean)
+        : undefined,
+    )) {
       console.log(
         `${s.handle.padEnd(26)} id ${s.agentId ?? "?"} ${s.status ?? "no row"}${s.disabledReason ? ` (${s.disabledReason})` : ""} lastClaim=${age(s.lastRunAgeSeconds)} claimLockVisible=${s.claimLockVisible} hash=${s.contentHash ?? "-"}`,
       );
