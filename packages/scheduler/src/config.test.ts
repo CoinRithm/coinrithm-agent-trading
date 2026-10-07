@@ -161,6 +161,48 @@ describe("customer Super JSON-content enrollment", () => {
   });
 });
 
+describe("paid brain config", () => {
+  it("defaults the margin to 20 percent and leaves both platform keys unset", () => {
+    const config = loadConfig(baseEnv());
+    expect(config.paidBrainMarginPct).toBe(20);
+    expect(config.paidAnthropicApiKey).toBeUndefined();
+    expect(config.paidGeminiApiKey).toBeUndefined();
+  });
+  it("reads an explicit margin and trimmed platform keys", () => {
+    const config = loadConfig({
+      ...baseEnv(),
+      PAID_BRAIN_MARGIN_PCT: "35",
+      PAID_ANTHROPIC_API_KEY: " fixture-anthropic ",
+      PAID_GEMINI_API_KEY: " fixture-gemini ",
+    });
+    expect(config.paidBrainMarginPct).toBe(35);
+    expect(config.paidAnthropicApiKey).toBe("fixture-anthropic");
+    expect(config.paidGeminiApiKey).toBe("fixture-gemini");
+    expect(
+      loadConfig({ ...baseEnv(), PAID_BRAIN_MARGIN_PCT: "0" })
+        .paidBrainMarginPct,
+    ).toBe(0);
+  });
+  it.each(["-5", "NaN", "Infinity", "abc"])(
+    "falls back to the default margin for %s, never to zero",
+    (value) => {
+      expect(
+        loadConfig({ ...baseEnv(), PAID_BRAIN_MARGIN_PCT: value })
+          .paidBrainMarginPct,
+      ).toBe(20);
+    },
+  );
+  it.each(["", "   "])("treats a blank platform key %j as unset", (value) => {
+    const config = loadConfig({
+      ...baseEnv(),
+      PAID_ANTHROPIC_API_KEY: value,
+      PAID_GEMINI_API_KEY: value,
+    });
+    expect(config.paidAnthropicApiKey).toBeUndefined();
+    expect(config.paidGeminiApiKey).toBeUndefined();
+  });
+});
+
 describe("provider capacity config", () => {
   it("requires opt-in for Lightning and supports rollback", () => {
     expect(loadConfig(baseEnv()).lightningFallbackEnabled).toBe(false);
