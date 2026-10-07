@@ -5,6 +5,7 @@
 Evidence, read-only from production on 2026-10-07 (Data, temp/agentic-baseline-20261007/BASELINE.md):
 - On settled prediction-market decisions every house agent's own probability scored worse than the market price (Brier skill vs market -19% to -91%).
 - Numbers written in prose (edge rules, bets per event, last-minutes cutoffs) were never enforced in code; editing them changed nothing.
+- The settings below are hypotheses from a historical counterfactual, not a promised improvement: the forward bench measures whether they help.
 
 Changes:
 - character/risk.yaml: `pmMaxEdgePoints: 20` (overconfidence cap) and `pmMaxOpenPerEvent: 1` (per event, same market slug), now runner-enforced. A minimum-edge rule and a 30-minute cutoff were tested against the same 3,428 settled bets and dropped: the minimum edge kept exactly the overconfident losers (blocked bets +0.8%, kept -25%), the cutoff was mixed.
