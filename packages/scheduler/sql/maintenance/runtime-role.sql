@@ -34,6 +34,14 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON
   agent_runtime.provider_capacity_leases,
   agent_runtime.provider_route_cooldowns
 TO coinrithm_scheduler;
+-- Paid brains. The credit ledger is append-only: the scheduler reads balances
+-- and inserts reserve/release/debit rows; it never rewrites or removes a money
+-- row. paid_calls holds each call's state, advanced in place, never deleted.
+REVOKE UPDATE, DELETE, TRUNCATE ON agent_runtime.credit_ledger FROM PUBLIC, coinrithm_scheduler;
+GRANT SELECT, INSERT ON agent_runtime.credit_ledger TO coinrithm_scheduler;
+REVOKE DELETE, TRUNCATE ON agent_runtime.paid_calls FROM PUBLIC, coinrithm_scheduler;
+GRANT SELECT, INSERT, UPDATE ON agent_runtime.paid_calls TO coinrithm_scheduler;
+GRANT USAGE ON SEQUENCE agent_runtime.credit_ledger_id_seq TO coinrithm_scheduler;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA agent_runtime TO coinrithm_scheduler;
 GRANT SELECT ON agent_runtime.schema_migrations TO coinrithm_scheduler;
 -- Only these identity fields are read by the existing de-Groq startup repair.

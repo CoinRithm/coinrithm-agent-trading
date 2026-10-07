@@ -2122,6 +2122,8 @@ describe("runCycle", () => {
       llmCallMade: true,
       tokensIn: 100,
       tokensOut: 10,
+      // The provider's own report, never the chars/4 estimate.
+      providerUsage: { promptTokens: 100, completionTokens: 10 },
       writeAttempted: 0,
       writeAccepted: 0,
       routeAttempts: [

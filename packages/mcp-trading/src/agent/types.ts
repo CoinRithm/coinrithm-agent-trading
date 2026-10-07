@@ -1215,6 +1215,17 @@ export interface CycleResult {
   tokensIn?: number; // prompt tokens (provider-reported)
   tokensOut?: number; // completion tokens
   estimatedCostUsd?: number; // notional cost from a per-provider rate (0 for free tiers)
+  // The provider's OWN usage report for this cycle's call, when it sent one
+  // (tokensIn/tokensOut fall back to a chars/4 estimate; this never does).
+  // Paid metering prices only this. Cache fields appear only when reported.
+  providerUsage?: {
+    promptTokens: number;
+    completionTokens: number;
+    cacheReadTokens?: number;
+    cacheWriteTokens?: number;
+    cacheWrite5mTokens?: number;
+    cacheWrite1hTokens?: number;
+  };
   // Hosted router truth. Configured model remains immutable on the agent; these
   // fields say what actually served this cycle and why. Attempts are bounded to
   // two and sanitized before persistence (no prompt/output/key material).

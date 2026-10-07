@@ -87,7 +87,9 @@ export async function assertSchemaReady(pool: Pool): Promise<void> {
     );
   }
   // ...and it must have EVERY grant the scheduler uses (runtimeGrants.ts), each
-  // checked on its own: a comma list in has_table_privilege means ANY.
+  // checked on its own: a comma list in has_table_privilege means ANY. USAGE
+  // exists only on sequences (a bigserial's nextval), so it selects the
+  // sequence check; every other table-level privilege is a table check.
   const checks = runtimePrivilegeChecks();
   const missing = await pool.query<{
     table: string;
@@ -96,9 +98,11 @@ export async function assertSchemaReady(pool: Pool): Promise<void> {
   }>(
     `SELECT c.tbl AS "table", c.col AS "column", c.priv AS privilege
        FROM unnest($1::text[], $2::text[], $3::text[]) AS c(tbl, col, priv)
-      WHERE NOT CASE WHEN c.col IS NULL
-                     THEN has_table_privilege(current_user, c.tbl, c.priv)
-                     ELSE has_column_privilege(current_user, c.tbl, c.col, c.priv)
+      WHERE NOT CASE WHEN c.col IS NOT NULL
+                     THEN has_column_privilege(current_user, c.tbl, c.col, c.priv)
+                     WHEN c.priv = 'USAGE'
+                     THEN has_sequence_privilege(current_user, c.tbl, c.priv)
+                     ELSE has_table_privilege(current_user, c.tbl, c.priv)
                 END`,
     [
       checks.map((check) => check.table),

@@ -16,6 +16,86 @@ import {
   type DecisionActionExclusion,
 } from "./providerCapabilities.js";
 
+// Provider-reported token usage of one decision. promptTokens/completionTokens
+// are what every provider reports; the cache fields are present only when the
+// provider reports them (Anthropic). Anthropic's input_tokens excludes cached
+// tokens, so promptTokens + cache reads + cache writes is the whole prompt.
+// Thinking is billed as output and is included in completionTokens.
+export interface ProviderUsage {
+  promptTokens: number;
+  completionTokens: number;
+  cacheReadTokens?: number;
+  // Total cache creation, and its split by cache TTL when reported.
+  cacheWriteTokens?: number;
+  cacheWrite5mTokens?: number;
+  cacheWrite1hTokens?: number;
+}
+
+interface AnthropicUsage {
+  input_tokens?: number;
+  output_tokens?: number;
+  cache_creation_input_tokens?: number;
+  cache_read_input_tokens?: number;
+  cache_creation?: {
+    ephemeral_5m_input_tokens?: number;
+    ephemeral_1h_input_tokens?: number;
+  };
+}
+
+// A token count as Anthropic reports it: a non-negative safe integer. Zero
+// is a real count; anything else (missing, null, negative, NaN, fractional,
+// a string) is malformed.
+function exactCount(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0
+    ? value
+    : undefined;
+}
+
+// Anthropic usage, including prompt-cache reads and writes (and the 5m/1h
+// write split) when reported. Strict, because paid metering prices it (root
+// review of #118): input_tokens and output_tokens are mandatory, and a
+// malformed reported field (mandatory or cache) makes the WHOLE usage unknown
+// (undefined), never zero, so the call is metered uncertain instead of free.
+// Cache fields the response does not carry at all stay absent. A reported
+// write total must equal its 5m/1h split; a split without a total implies it.
+export function anthropicUsage(raw: unknown): ProviderUsage | undefined {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw))
+    return undefined;
+  const u = raw as AnthropicUsage & Record<string, unknown>;
+  const promptTokens = exactCount(u.input_tokens);
+  const completionTokens = exactCount(u.output_tokens);
+  if (promptTokens === undefined || completionTokens === undefined)
+    return undefined;
+  const usage: ProviderUsage = { promptTokens, completionTokens };
+  const optional = (value: unknown): number | undefined | null =>
+    value === undefined ? undefined : (exactCount(value) ?? null);
+  const cacheRead = optional(u.cache_read_input_tokens);
+  const cacheWrite = optional(u.cache_creation_input_tokens);
+  let write5m: number | undefined | null;
+  let write1h: number | undefined | null;
+  if (u.cache_creation !== undefined) {
+    const split = u.cache_creation as unknown;
+    if (typeof split !== "object" || split === null || Array.isArray(split))
+      return undefined;
+    const s = split as Record<string, unknown>;
+    write5m = optional(s.ephemeral_5m_input_tokens);
+    write1h = optional(s.ephemeral_1h_input_tokens);
+  }
+  if ([cacheRead, cacheWrite, write5m, write1h].includes(null))
+    return undefined;
+  if (write5m != null || write1h != null) {
+    const splitTotal = (write5m ?? 0) + (write1h ?? 0);
+    if (cacheWrite != null && cacheWrite !== splitTotal) return undefined;
+    usage.cacheWriteTokens = splitTotal;
+    if (write5m != null) usage.cacheWrite5mTokens = write5m;
+    if (write1h != null) usage.cacheWrite1hTokens = write1h;
+  } else if (cacheWrite != null) {
+    usage.cacheWriteTokens = cacheWrite;
+  }
+  if (cacheRead != null) usage.cacheReadTokens = cacheRead;
+  return usage;
+}
+
 export interface DecideInput {
   system: string;
   user: string;
@@ -69,7 +149,7 @@ export type DecideResult =
       // without arguments for the named decision tool.
       responseSource?: "tool_call" | "content_fallback" | "content";
       // Provider-reported token usage when available (for slice-2 metering).
-      usage?: { promptTokens: number; completionTokens: number };
+      usage?: ProviderUsage;
       route?: DecideRouteMeta;
     }
   | {
@@ -78,7 +158,7 @@ export type DecideResult =
       // An HTTP-success response can still be an incomplete decision. Never
       // execute a valid-looking prefix or retry it as a server refusal.
       failureClass?: "malformed";
-      usage?: { promptTokens: number; completionTokens: number };
+      usage?: ProviderUsage;
       // Structured failure metadata (slice A2, Codex amendment 2026-08-26):
       // the router must classify 429 (capacity: fall back / cool down NOW)
       // separately from 5xx/timeout (transient thresholds) without string
@@ -330,15 +410,11 @@ class AnthropicProvider implements Provider {
           const json = (await res.json()) as {
             content?: Array<{ text?: string }>;
             stop_reason?: string | null;
-            usage?: { input_tokens?: number; output_tokens?: number };
+            usage?: AnthropicUsage;
           };
           const text = json.content?.map((c) => c.text ?? "").join("") ?? "";
-          const usage = json.usage
-            ? {
-                promptTokens: json.usage.input_tokens ?? 0,
-                completionTokens: json.usage.output_tokens ?? 0,
-              }
-            : undefined;
+          // Absent or malformed usage is undefined (unknown), never zero.
+          const usage = anthropicUsage(json.usage);
           if (
             json.stop_reason === "max_tokens" ||
             json.stop_reason === "model_context_window_exceeded"
@@ -355,7 +431,12 @@ class AnthropicProvider implements Provider {
           }
           return text
             ? { ok: true, text, usage, responseSource: "content" }
-            : { ok: false, error: "anthropic returned empty content" };
+            : // Answered (and billed) with nothing usable: keep the usage.
+              {
+                ok: false,
+                error: "anthropic returned empty content",
+                ...(usage ? { usage } : {}),
+              };
         },
       );
     } catch (err) {

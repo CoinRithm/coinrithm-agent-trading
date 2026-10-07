@@ -7,7 +7,11 @@ import {
   configureScheduling,
   type AgentRow,
 } from "./db.js";
-import { runAgentOnce, shouldUseHostedRouter } from "./runtime.js";
+import {
+  runAgentOnce,
+  shouldUseHostedRouter,
+  recoverPaidCalls,
+} from "./runtime.js";
 import { RateBudget, sharedKeyFor, type SharedKey } from "./rateBudget.js";
 import type { Config } from "./config.js";
 
@@ -121,6 +125,11 @@ export async function runScheduler(
   };
   const staleAfterMs = config.capacityLeaseTtlSeconds * 1000;
   let staleLoggedFor: number | undefined;
+  // Paid-brain recovery runs at most once a minute (it only acts on calls
+  // idle for 15 minutes), on every replica; it is idempotent by design.
+  const PAID_RECOVERY_INTERVAL_MS = 60_000;
+  let lastPaidRecoveryAt: number | undefined;
+  const alertedUncertain = new Set<string>();
 
   while (!control.stopped) {
     // Liveness heartbeat: the health endpoint reports UNHEALTHY if this stops
@@ -138,6 +147,28 @@ export async function runScheduler(
       }
     } else {
       staleLoggedFor = undefined;
+    }
+    if (
+      lastPaidRecoveryAt === undefined ||
+      now() - lastPaidRecoveryAt >= PAID_RECOVERY_INTERVAL_MS
+    ) {
+      lastPaidRecoveryAt = now();
+      try {
+        const recovered = await recoverPaidCalls(pool, alertedUncertain);
+        if (
+          recovered &&
+          recovered.released + recovered.debited + recovered.uncertain > 0
+        )
+          logFn(
+            `[scheduler] paid recovery: released ${recovered.released}, debited ${recovered.debited}, uncertain ${recovered.uncertain}`,
+          );
+      } catch (e) {
+        // Never blocks claiming: open reservations stay counted until the
+        // next pass.
+        logFn(
+          `[scheduler] paid recovery error: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
     }
     try {
       // Recover transient failures FIRST so revived agents can run this tick.

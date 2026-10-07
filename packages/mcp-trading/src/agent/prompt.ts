@@ -7,7 +7,13 @@
 
 import { barLabel, indicatorRangeOf, signalThresholdsOf } from "./signals.js";
 import { describeUniverse, scansUniverse } from "./universe.js";
-import { AgentSpec, Observation, PmResolution, RunState } from "./types.js";
+import {
+  AgentSpec,
+  Observation,
+  PmResolution,
+  RunState,
+  type ObjectivePrimary,
+} from "./types.js";
 import { pmQualityOf, pmDecisionSupportOf } from "./pmContext.js";
 import { usesCapitalSizing } from "./capitalSizing.js";
 import type { DecisionActionExclusion } from "./providerCapabilities.js";
@@ -117,6 +123,31 @@ export function formatPmResolutions(resolutions: PmResolution[]): string[] {
   ];
 }
 
+// The agent's declared objective (spec.objective.primary), stated to the
+// model as how to weigh trade-offs (Studio audit, root 56825: the Studio
+// promised the objective "shapes how it weighs risk vs return", but nothing
+// read it). Guidance only: the hard caps below still decide what executes.
+export const OBJECTIVE_GUIDANCE: Record<ObjectivePrimary, string> = {
+  realized_pnl:
+    "realized PnL after fees. Prefer setups with clear reward over risk; closing winners and cutting losers counts as much as entries.",
+  risk_adjusted:
+    "return per unit of risk. Prefer fewer, cleaner setups with a meaningful stop; when the risk is unclear, skip.",
+  drawdown_control:
+    "preserving capital and keeping drawdowns small, within your declared strategy and the existing risk limits.",
+  calibration:
+    "honest, evidence-based probabilities. Report what the evidence supports and keep your uncertainty visible; a forecast is valid without a trade, and a trade needs adequate edge, otherwise skip it.",
+};
+
+export function objectiveLine(
+  spec: Pick<AgentSpec, "objective">,
+): string | null {
+  const primary = spec.objective?.primary;
+  return primary &&
+    Object.prototype.hasOwnProperty.call(OBJECTIVE_GUIDANCE, primary)
+    ? `Optimise for ${OBJECTIVE_GUIDANCE[primary as ObjectivePrimary]} This is how to weigh trade-offs within your strategy; it never overrides a hard cap.`
+    : null;
+}
+
 export function buildSystemPrompt(
   spec: AgentSpec,
   mergedProse: string,
@@ -193,6 +224,9 @@ export function buildSystemPrompt(
     "## Your strategy (your borders)",
     mergedProse.trim() || "(no strategy prose provided)",
     "",
+    ...(objectiveLine(spec)
+      ? ["## Your objective", objectiveLine(spec) as string, ""]
+      : []),
     "## Hard caps the runner enforces (do not exceed; proposing over a cap wastes the cycle)",
     "- When supplied, the user prompt's dailyRiskBudget is the remaining UTC-day entry/add allowance. It outranks setup/entry pressure: exhaustion is a legitimate skip for new risk, never a reason to skip otherwise-valid closes or protection. All other caps still apply, even when this daily count is unlimited.",
     `- venues you may act in: ${v.join(", ")}`,

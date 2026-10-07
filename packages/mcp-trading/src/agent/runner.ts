@@ -863,6 +863,7 @@ async function runCycleCore(
     effectiveModel?: string;
     routeReason?: string;
     routeAttempts?: NonNullable<CycleResult["routeAttempts"]>;
+    providerUsage?: CycleResult["providerUsage"];
   };
   if (providerName === "mechanical") {
     const mech = decideMechanical({
@@ -970,6 +971,8 @@ async function runCycleCore(
       routeReason:
         route?.reason ?? (actualCallMade ? "configured_direct" : undefined),
       routeAttempts: route?.attempts,
+      // Provider-reported usage only, never the estimate above.
+      ...(actualCallMade && res.usage ? { providerUsage: res.usage } : {}),
     };
     if (!res.ok) {
       // Upstream 429s are expected provider backpressure, not evidence that the

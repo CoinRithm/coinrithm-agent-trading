@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
+  anthropicUsage,
   classifyProviderFailure,
   providerForRoute,
   selectProvider,
@@ -1009,5 +1010,196 @@ describe("selectProvider", () => {
     const r = await p.decide({ system: "s", user: "u", timeoutMs: 20 });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/timed out/);
+  });
+});
+
+describe("Anthropic usage reporting (paid metering)", () => {
+  it("reports cache reads, cache writes and the 5m/1h write split when present", () => {
+    expect(
+      anthropicUsage({
+        input_tokens: 1200,
+        output_tokens: 300,
+        cache_creation_input_tokens: 5000,
+        cache_read_input_tokens: 18000,
+        cache_creation: {
+          ephemeral_5m_input_tokens: 4000,
+          ephemeral_1h_input_tokens: 1000,
+        },
+      }),
+    ).toEqual({
+      promptTokens: 1200,
+      completionTokens: 300,
+      cacheReadTokens: 18000,
+      cacheWriteTokens: 5000,
+      cacheWrite5mTokens: 4000,
+      cacheWrite1hTokens: 1000,
+    });
+  });
+
+  it("omits cache fields the provider did not report instead of zeroing them", () => {
+    expect(anthropicUsage({ input_tokens: 7, output_tokens: 3 })).toEqual({
+      promptTokens: 7,
+      completionTokens: 3,
+    });
+  });
+
+  it("keeps real zero counts as zero", () => {
+    expect(
+      anthropicUsage({
+        input_tokens: 0,
+        output_tokens: 0,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 0,
+        cache_creation: {
+          ephemeral_5m_input_tokens: 0,
+          ephemeral_1h_input_tokens: 0,
+        },
+      }),
+    ).toEqual({
+      promptTokens: 0,
+      completionTokens: 0,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      cacheWrite5mTokens: 0,
+      cacheWrite1hTokens: 0,
+    });
+  });
+
+  // Root review of #118: malformed usage is unknown (metered uncertain),
+  // never zero (which would make a billed call free).
+  it.each([
+    ["no usage object", undefined],
+    ["null", null],
+    ["an array", [1, 2]],
+    ["an empty object", {}],
+    ["missing input_tokens", { output_tokens: 3 }],
+    ["missing output_tokens", { input_tokens: 7 }],
+    ["negative input", { input_tokens: -1, output_tokens: 3 }],
+    ["NaN output", { input_tokens: 7, output_tokens: Number.NaN }],
+    ["fractional input", { input_tokens: 7.5, output_tokens: 3 }],
+    ["string output", { input_tokens: 7, output_tokens: "3" }],
+    ["null input", { input_tokens: null, output_tokens: 3 }],
+    ["infinite input", { input_tokens: Infinity, output_tokens: 3 }],
+    [
+      "invalid cache read",
+      { input_tokens: 7, output_tokens: 3, cache_read_input_tokens: -1 },
+    ],
+    [
+      "invalid cache write total",
+      { input_tokens: 7, output_tokens: 3, cache_creation_input_tokens: 1.5 },
+    ],
+    [
+      "invalid 5m split",
+      {
+        input_tokens: 7,
+        output_tokens: 3,
+        cache_creation: { ephemeral_5m_input_tokens: Number.NaN },
+      },
+    ],
+    [
+      "a non-object split",
+      { input_tokens: 7, output_tokens: 3, cache_creation: 40 },
+    ],
+    [
+      "a write total that disagrees with its split",
+      {
+        input_tokens: 7,
+        output_tokens: 3,
+        cache_creation_input_tokens: 40,
+        cache_creation: {
+          ephemeral_5m_input_tokens: 10,
+          ephemeral_1h_input_tokens: 20,
+        },
+      },
+    ],
+  ])("is unknown (undefined) for %s", (_label, raw) => {
+    expect(anthropicUsage(raw)).toBeUndefined();
+  });
+
+  it("derives the write total from a split reported without one", () => {
+    expect(
+      anthropicUsage({
+        input_tokens: 7,
+        output_tokens: 3,
+        cache_creation: { ephemeral_1h_input_tokens: 25 },
+      }),
+    ).toEqual({
+      promptTokens: 7,
+      completionTokens: 3,
+      cacheWriteTokens: 25,
+      cacheWrite1hTokens: 25,
+    });
+  });
+
+  it("returns no usage from decide when the reported usage is malformed", async () => {
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          stop_reason: "end_turn",
+          content: [{ text: '{"decision":"skip"}' }],
+          usage: {},
+        }),
+        { status: 200 },
+      ),
+    );
+    const result = await providerForRoute(
+      { provider: "anthropic", model: "test-model" },
+      "test-only",
+      fetchFn,
+    ).decide({ system: "s", user: "u" });
+    expect(result.ok).toBe(true);
+    expect((result as { usage?: unknown }).usage).toBeUndefined();
+  });
+
+  it("carries cache usage through decide and sends the caller's max_tokens", async () => {
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          stop_reason: "end_turn",
+          content: [{ text: '{"decision":"skip"}' }],
+          usage: {
+            input_tokens: 10,
+            output_tokens: 20,
+            cache_creation_input_tokens: 30,
+            cache_read_input_tokens: 40,
+          },
+        }),
+      ),
+    );
+    const result = await providerForRoute(
+      { provider: "anthropic", model: "test-model" },
+      "test-only",
+      fetchFn,
+    ).decide({ system: "s", user: "u", maxTokens: 4096 });
+    expect(result).toMatchObject({
+      ok: true,
+      usage: {
+        promptTokens: 10,
+        completionTokens: 20,
+        cacheWriteTokens: 30,
+        cacheReadTokens: 40,
+      },
+    });
+    const body = JSON.parse(String(fetchFn.mock.calls[0]![1]!.body));
+    expect(body.max_tokens).toBe(4096);
+  });
+
+  it("keeps the usage of an answered but empty Anthropic response", async () => {
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        content: [],
+        usage: { input_tokens: 9, output_tokens: 0 },
+      }),
+    );
+    const result = await providerForRoute(
+      { provider: "anthropic", model: "test-model" },
+      "test-only",
+      fetchFn,
+    ).decide({ system: "s", user: "u" });
+    expect(result).toEqual({
+      ok: false,
+      error: "anthropic returned empty content",
+      usage: { promptTokens: 9, completionTokens: 0 },
+    });
   });
 });

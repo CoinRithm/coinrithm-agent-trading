@@ -8,6 +8,8 @@ import {
   buildSystemPrompt,
   buildUserPrompt,
   formatPmResolutions,
+  OBJECTIVE_GUIDANCE,
+  objectiveLine,
 } from "./prompt.js";
 import { loadAgent, parseSkill } from "./skill.js";
 import { renderFolderOfOne } from "./templates.js";
@@ -1003,5 +1005,39 @@ describe("futuresCapacity context (max_positions / open_margin_exceeds_cap waste
       futuresCapacity: buildFuturesCapacity(spec(), obs),
     });
     expect(pmOnly).not.toContain("futuresCapacity");
+  });
+});
+
+describe("the agent's objective reaches the prompt (Studio audit)", () => {
+  const spec = () => parseSkill(renderFolderOfOne("a", "conservative")).spec;
+
+  it.each(Object.keys(OBJECTIVE_GUIDANCE))(
+    "states %s as trade-off guidance under the hard caps",
+    (primary) => {
+      const s = spec();
+      s.objective = { ...(s.objective ?? {}), primary } as typeof s.objective;
+      const text = buildSystemPrompt(s, "strategy");
+      expect(text).toContain("## Your objective");
+      expect(text).toContain(
+        OBJECTIVE_GUIDANCE[primary as keyof typeof OBJECTIVE_GUIDANCE],
+      );
+      expect(text).toContain("it never overrides a hard cap");
+      // The objective sits after the strategy and before the hard caps.
+      expect(text.indexOf("## Your objective")).toBeGreaterThan(
+        text.indexOf("## Your strategy"),
+      );
+      expect(text.indexOf("## Your objective")).toBeLessThan(
+        text.indexOf("## Hard caps"),
+      );
+    },
+  );
+
+  it("says nothing for an absent or unknown objective", () => {
+    const s = spec();
+    s.objective = undefined;
+    expect(buildSystemPrompt(s, "strategy")).not.toContain("## Your objective");
+    expect(
+      objectiveLine({ objective: { primary: "moonshot" } } as never),
+    ).toBeNull();
   });
 });

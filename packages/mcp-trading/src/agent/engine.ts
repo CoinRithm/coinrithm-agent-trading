@@ -20,6 +20,8 @@ export {
   selectProvider,
   providerForRoute,
   classifyProviderFailure,
+  anthropicUsage,
+  type ProviderUsage,
   type ProviderEnv,
   type ProviderRouteOptions,
   type Provider,

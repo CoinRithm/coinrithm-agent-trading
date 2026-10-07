@@ -22,6 +22,28 @@ export const RUNTIME_DML_PRIVILEGES = [
   "DELETE",
 ] as const;
 
+// Paid brains (sql/008_paid_brain_credits.sql): limited grants, each table
+// with exactly these privileges and runtime-role.sql revoking the rest.
+// credit_ledger is append-only money (never UPDATE/DELETE); paid_calls is the
+// per-call state machine, advanced in place by UPDATE but never deleted.
+export const RUNTIME_LIMITED_GRANTS: ReadonlyArray<{
+  table: string;
+  privileges: readonly string[];
+}> = [
+  { table: "agent_runtime.credit_ledger", privileges: ["SELECT", "INSERT"] },
+  {
+    table: "agent_runtime.paid_calls",
+    privileges: ["SELECT", "INSERT", "UPDATE"],
+  },
+];
+
+// Sequences behind the ledger's bigserial id: an INSERT calls nextval, which
+// needs USAGE. Checked with has_sequence_privilege (see schema.ts); USAGE is
+// not a table privilege, so the privilege name alone selects that check.
+export const RUNTIME_SEQUENCE_USAGE = [
+  "agent_runtime.credit_ledger_id_seq",
+] as const;
+
 // Read-only: migration receipts (startup contract).
 export const RUNTIME_READ_TABLES = ["agent_runtime.schema_migrations"] as const;
 
@@ -48,6 +70,18 @@ export function runtimePrivilegeChecks(): RuntimePrivilegeCheck[] {
         privilege,
       })),
     ),
+    ...RUNTIME_LIMITED_GRANTS.flatMap(({ table, privileges }) =>
+      privileges.map((privilege) => ({
+        table,
+        column: null,
+        privilege,
+      })),
+    ),
+    ...RUNTIME_SEQUENCE_USAGE.map((table) => ({
+      table,
+      column: null,
+      privilege: "USAGE",
+    })),
     ...RUNTIME_READ_TABLES.map((table) => ({
       table,
       column: null,

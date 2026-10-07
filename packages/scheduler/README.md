@@ -82,10 +82,12 @@ Operational must-knows:
   without BYO credentials need an eligible shared route. Router mode can use
   configured fallback providers; missing capacity is not proof of provider health.
 - **Startup checks the schema; it never runs DDL.** The runtime connects as
-  `coinrithm_scheduler`, with DML on its seven runtime tables and read access
+  `coinrithm_scheduler`, with DML on its seven runtime tables, append-only
+  access (SELECT, INSERT) to the paid-brain credit ledger, SELECT, INSERT and
+  UPDATE on `paid_calls`, read access
   to migration receipts and the three API-key identity fields used by the
   existing startup repair. Startup refuses missing/changed migration receipts,
-  superuser authority, role membership, schema creation or ledger writes.
+  superuser authority, role membership, schema creation or migration-receipt writes.
   Run migrations explicitly with a separate privileged connection before
   deploying a schema change (see below). Shared capacity remains necessary
   for multiple replicas.
@@ -277,6 +279,95 @@ it cannot clear a failure newer than that request. Five quiet minutes also reset
 the failure sequence. This is bounded retry policy, not a guarantee that NVIDIA
 recovers within seconds. Set `SCHEDULER_ADAPTIVE_COOLDOWN_ENABLED=false` to
 restore the previous 60-second default; explicit `Retry-After` still applies.
+
+## Paid brains
+
+An agent can opt into a paid model (contract v2, 2026-10-07, with the root and
+Data corrections). It runs on prepaid credits under a monthly cap per agent,
+and only provider-reported usage is charged. Free agents, BYO keys and the free
+brain are unchanged and never touch the ledger.
+
+| Var                      | Notes                                                                     |
+| ------------------------ | ------------------------------------------------------------------------- |
+| `PAID_ANTHROPIC_API_KEY` | platform key for the Claude paid brains; scheduler env only, never logged |
+| `PAID_GEMINI_API_KEY`    | platform key for Gemini; the Gemini brains ship disabled for now          |
+| `PAID_BRAIN_MARGIN_PCT`  | whole-percent markup on provider cost; default 20 (same env in backend)   |
+
+**Schema.** `sql/008_paid_brain_credits.sql` creates:
+
+- `credit_ledger`, append-only integer micro-USD. Positive kinds: grant,
+  topup, refund, release. Negative kinds: reserve, debit, reversal. Each row has
+  a unique idempotency key.
+- `paid_calls`, the durable state of each paid call:
+  `reserved -> dispatched -> answered | rejected | uncertain -> released | finalized`.
+  The price row and margin are snapshotted on the call.
+- `credit_checkouts`, written only by the backend.
+
+The runtime role gets ledger `SELECT, INSERT`, `paid_calls`
+`SELECT, INSERT, UPDATE`, and nothing on checkouts. `coinrithm_app` gets ledger
+`SELECT, INSERT`, `paid_calls` `SELECT`, and checkouts `SELECT, INSERT, UPDATE`.
+No role gets DELETE. Run the operator migration, then re-run `runtime-role.sql`.
+
+**One paid cycle** (`src/runtime.ts`; SQL in `src/db.ts`; pricing in
+`src/paidBrain.ts`). Every balance-changing transaction first takes
+`pg_advisory_xact_lock(734202, owner_user_id)`.
+
+1. **Reserve.** The reservation is refused when any of these holds:
+   - the owner has an uncertain call;
+   - the balance is below the worst case;
+   - the agent's month spend plus the worst case exceeds the cap.
+
+   The worst case is an estimated input allowance (160,000 bytes of prompt
+   text at one token per byte, plus 512 framing tokens; an estimate, not a
+   provider tokenizer guarantee) priced as uncached input, plus the
+   4,096-token output cap, at the price row valid now, with margin. The hard
+   guarantee is the credit hold: nothing is ever charged above it. A prompt over 160,000 bytes is never sent (and never truncated):
+   the call is released. Should reported usage still exceed the reserve, the
+   debit is capped at the reserve and the call is flagged uncertain for root
+   review. Month spend counts each call in the
+   UTC month it was reserved in: finalized calls count their debit, open calls
+   their worst case.
+
+   On refusal the agent follows the owner's explicit `onExhausted` choice:
+   - `"free"` runs this cycle on `spec.paidBrain.fallback` like any
+     shared-pool agent;
+   - `"pause"` pauses the agent.
+
+   A spec without an explicit choice is not paid. A missing platform key skips
+   the cycle with no reservation.
+
+2. **Dispatch.** `dispatched` is committed before the HTTP call; without it the
+   provider is never called. The call goes straight to the paid model with
+   `max_tokens` 4096 (thinking included): no shared router, no retry, no other
+   model. The answer is recorded at once:
+   - usage => `answered`;
+   - a known pre-processing rejection without usage (400, 401, 403, 404,
+     413, 429) => `rejected`;
+   - anything else without usage (an answer, a 5xx, a 529 overload, a
+     timeout) => `uncertain`, which blocks the owner's next paid call
+     immediately.
+3. **Finalise**, from the durable state:
+   - never dispatched, or rejected => release;
+   - answered => release plus a debit of the reported input, output, cache
+     reads and 5m/1h cache writes at the snapshotted price;
+   - dispatched without a recorded result => uncertain.
+4. **Recovery.** At most once a minute, calls idle for 15 minutes are resolved
+   by the same rules. Uncertain calls are alerted once per process
+   (`paid_brain_metering_uncertain`) and are never auto-refunded; root
+   reconciles them.
+
+Ledger or finalisation errors never fail the trading cycle. They leave the
+reservation open, which is the safe direction.
+
+Alert events: `paid_brain_metering_uncertain`, `paid_brain_finalize_failed`,
+`paid_brain_dispatch_unrecorded`, `paid_brain_result_unrecorded`,
+`paid_brain_recovery_failed`, `paid_brain_platform_key_missing`,
+`paid_brain_admission_failed`, `paid_brain_spec_invalid`,
+`paid_brain_pause_failed`.
+
+**Not part of the scheduler.** Top-ups, payment collection and refunds belong
+to the backend: Paddle checkouts, the signed webhook, and `topup`/`reversal`
+rows under the same lock.
 
 ## Schema deployment and runtime role
 

@@ -1,8 +1,19 @@
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 import {
   sanitizeDecisionInputRecord,
   ACTIONS_STRING_DIAGNOSTICS,
+  type ProviderUsage,
 } from "@coinrithm/mcp-trading/engine";
+import {
+  admitPaidCall,
+  debitKeyFor,
+  priceUsage,
+  releaseKeyFor,
+  type AdmissionReason,
+  type PaidBrainPriceRow,
+  type PaidCallResult,
+  type PricedCall,
+} from "./paidBrain.js";
 export { migrate, assertSchemaReady } from "./schema.js";
 
 export interface AgentRow {
@@ -366,6 +377,448 @@ export async function costByOwnerSince(
   return Number(rows[0]?.total ?? 0);
 }
 
+// --- Paid brains: credit ledger + paid call state (sql/008, contract v2) ----
+// Money rows are append-only (credit_ledger); each paid call's durable state
+// lives in paid_calls and is advanced only along guarded transitions
+// (`WHERE status = <expected>`), so two workers, a crash, or recovery racing a
+// live cycle can never move money twice: every ledger row is keyed and every
+// transition is conditional.
+//
+// Every balance-changing transaction FIRST takes the owner credit lock
+// pg_advisory_xact_lock(734202, owner_user_id) (the backend's grants and
+// top-ups take the same lock; 734201 is the separate agent-slot lock).
+
+export const OWNER_CREDIT_LOCK = 734202;
+
+// A call left 'reserved' or 'dispatched' this long is no longer in flight:
+// longer than the 360 s run lock and the 300 s model timeout.
+const STALE_CALL = "interval '15 minutes'";
+
+type Queryable = Pick<PoolClient, "query">;
+
+async function ownerCreditTransaction<T>(
+  pool: Pool,
+  userId: number,
+  operation: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "SELECT pg_advisory_xact_lock($1::integer, $2::integer)",
+      [OWNER_CREDIT_LOCK, userId],
+    );
+    const result = await operation(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+function ledgerMicro(value: string | null | undefined, label: string): number {
+  const parsed = Number(value ?? 0);
+  if (!Number.isSafeInteger(parsed)) {
+    throw new Error(`credit ledger ${label} is out of range`);
+  }
+  return parsed;
+}
+
+export interface CreditPosition {
+  /** SUM(amount_micro_usd) of the user: open reserves already subtracted. */
+  balanceMicro: number;
+  /** This agent's spend in the reservation month: finalized debits plus the
+   * worst case of every call still open; released calls count zero. A call
+   * counts in the UTC month it was RESERVED in, even if finalised later. */
+  monthSpendMicro: number;
+  /** The owner has a call that may have been billed without usage (status
+   * 'uncertain', or 'dispatched' and stale). Blocks every new paid call. */
+  uncertain: boolean;
+}
+
+export async function readCreditPosition(
+  client: Queryable,
+  userId: number,
+  agentId: number,
+  monthStart: string,
+): Promise<CreditPosition> {
+  const { rows } = await client.query<{
+    balance: string | null;
+    month_spend: string | null;
+    uncertain: boolean;
+  }>(
+    `SELECT
+       (SELECT COALESCE(SUM(amount_micro_usd), 0)
+          FROM agent_runtime.credit_ledger WHERE user_id = $1)::text AS balance,
+       (SELECT COALESCE(SUM(CASE WHEN status = 'finalized' THEN COALESCE(debit_micro_usd, 0)
+                                 WHEN status = 'released' THEN 0
+                                 ELSE worst_case_micro_usd END), 0)
+          FROM agent_runtime.paid_calls
+         WHERE agent_id = $2 AND month_start = $3::date)::text AS month_spend,
+       EXISTS (SELECT 1 FROM agent_runtime.paid_calls
+                WHERE user_id = $1
+                  AND status NOT IN ('released', 'finalized')
+                  AND (status = 'uncertain'
+                       OR (status = 'dispatched' AND dispatched_at < now() - ${STALE_CALL}))
+       ) AS uncertain`,
+    [userId, agentId, monthStart],
+  );
+  return {
+    balanceMicro: ledgerMicro(rows[0]?.balance, "balance"),
+    monthSpendMicro: ledgerMicro(rows[0]?.month_spend, "month spend"),
+    uncertain: rows[0]?.uncertain === true,
+  };
+}
+
+export interface PaidReservationRequest {
+  userId: number;
+  agentId: number;
+  reserveKey: string;
+  modelId: string;
+  /** Snapshotted on the call: finalisation never reprices it. */
+  price: PaidBrainPriceRow;
+  marginPct: number;
+  worstCaseMicro: number;
+  capMicro: number;
+  /** YYYY-MM-DD, the UTC month this reservation counts in. */
+  monthStart: string;
+}
+
+export type PaidReservation =
+  { kind: "reserved" } | { kind: "refused"; reason: AdmissionReason };
+
+/** Step 1 of a paid cycle, in ONE transaction under the owner credit lock:
+ * read the position, admit, and (if admitted) insert the negative `reserve`
+ * row plus the paid_calls row in state 'reserved'. A reused key aborts the
+ * whole transaction rather than run a call on someone else's reservation. */
+export async function reservePaidCall(
+  pool: Pool,
+  request: PaidReservationRequest,
+): Promise<PaidReservation> {
+  return ownerCreditTransaction(pool, request.userId, async (client) => {
+    const position = await readCreditPosition(
+      client,
+      request.userId,
+      request.agentId,
+      request.monthStart,
+    );
+    const decision = admitPaidCall({
+      ...position,
+      capMicro: request.capMicro,
+      worstCaseMicro: request.worstCaseMicro,
+    });
+    if (!decision.admit) return { kind: "refused", reason: decision.reason };
+    const ledger = await client.query(
+      `INSERT INTO agent_runtime.credit_ledger
+         (user_id, kind, amount_micro_usd, agent_id, model_id, note, idempotency_key)
+       VALUES ($1, 'reserve', $2, $3, $4, $5, $6)
+       ON CONFLICT (idempotency_key) DO NOTHING`,
+      [
+        request.userId,
+        -request.worstCaseMicro,
+        request.agentId,
+        request.modelId,
+        `price ${request.price.version}, margin ${request.marginPct}%`,
+        request.reserveKey,
+      ],
+    );
+    const call = await client.query(
+      `INSERT INTO agent_runtime.paid_calls
+         (reserve_key, user_id, agent_id, model_id, price, margin_pct,
+          worst_case_micro_usd, month_start)
+       VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8::date)
+       ON CONFLICT (reserve_key) DO NOTHING`,
+      [
+        request.reserveKey,
+        request.userId,
+        request.agentId,
+        request.modelId,
+        JSON.stringify(request.price),
+        request.marginPct,
+        request.worstCaseMicro,
+        request.monthStart,
+      ],
+    );
+    if (ledger.rowCount !== 1 || call.rowCount !== 1) {
+      throw new Error("paid reservation key already used");
+    }
+    return { kind: "reserved" };
+  });
+}
+
+/** Step 2a: commit 'dispatched' IMMEDIATELY before the HTTP call. Only a call
+ * still 'reserved' may be dispatched, so recovery having released it, or a
+ * second decide on the same reservation, can never reach the provider. */
+export async function markPaidCallDispatched(
+  pool: Pool,
+  reserveKey: string,
+): Promise<boolean> {
+  const { rowCount } = await pool.query(
+    `UPDATE agent_runtime.paid_calls
+        SET status = 'dispatched', dispatched_at = now()
+      WHERE reserve_key = $1 AND status = 'reserved'`,
+    [reserveKey],
+  );
+  return rowCount === 1;
+}
+
+/** Step 2b: record what the provider answered, right after the call. An
+ * answer without usage becomes 'uncertain' at once, which blocks the owner's
+ * next paid admission immediately. */
+export async function recordPaidCallResult(
+  pool: Pool,
+  reserveKey: string,
+  result: PaidCallResult,
+): Promise<boolean> {
+  const update = (set: string, params: unknown[]) =>
+    pool.query(
+      `UPDATE agent_runtime.paid_calls SET ${set}
+        WHERE reserve_key = $1 AND status = 'dispatched'`,
+      [reserveKey, ...params],
+    );
+  const { rowCount } =
+    result.status === "answered"
+      ? await update(
+          "status = 'answered', usage = $2::jsonb, answered_at = now()",
+          [JSON.stringify(result.usage)],
+        )
+      : result.status === "rejected"
+        ? await update(
+            "status = 'rejected', provider_status = $2, answered_at = now()",
+            [result.providerStatus],
+          )
+        : result.status === "uncertain"
+          ? await update(
+              "status = 'uncertain', note = $2, answered_at = now()",
+              [result.reason.slice(0, 200)],
+            )
+          : // Proven not sent (the provider layer deferred before any request).
+            await update("status = 'reserved', dispatched_at = NULL", []);
+  return rowCount === 1;
+}
+
+export type PaidFinalization =
+  "released" | "debited" | "uncertain" | "open" | "closed" | "missing";
+
+interface PaidCallRow {
+  user_id: string;
+  agent_id: string;
+  model_id: string;
+  status: string;
+  price: PaidBrainPriceRow;
+  margin_pct: number;
+  usage: ProviderUsage | null;
+  worst_case_micro_usd: string;
+  stale_reserved: boolean;
+  stale_dispatched: boolean;
+  stale_answered: boolean;
+}
+
+/** Step 3 (and recovery), in ONE transaction under the owner credit lock,
+ * driven only by the call's durable state:
+ * - 'reserved' (never dispatched; proof the provider was not called):
+ *   release. At cycle end always; in recovery once stale.
+ * - 'rejected' (a known pre-processing rejection: 400/401/403/404/413/429
+ *   without usage): release. Any other HTTP error is recorded uncertain.
+ * - 'answered' (provider-reported usage): release the reserve and debit the
+ *   actual, priced with the price row and margin SNAPSHOTTED on the call.
+ * - 'dispatched' with no recorded result: uncertain (never refunded).
+ * - 'uncertain', 'released', 'finalized': nothing.
+ * Recovery only touches calls idle for 15 minutes, so it never races a live
+ * cycle; both paths are idempotent through the ledger keys and the guarded
+ * status update. */
+export async function finalizePaidCall(
+  pool: Pool,
+  reserveKey: string,
+  options: { mode: "cycle_end" | "recovery"; cycleId?: number },
+): Promise<PaidFinalization> {
+  const head = await pool.query<{ user_id: string }>(
+    "SELECT user_id FROM agent_runtime.paid_calls WHERE reserve_key = $1",
+    [reserveKey],
+  );
+  const userId = Number(head.rows[0]?.user_id);
+  if (!Number.isSafeInteger(userId)) return "missing";
+  return ownerCreditTransaction(pool, userId, async (client) => {
+    const { rows } = await client.query<PaidCallRow>(
+      `SELECT user_id, agent_id, model_id, status, price, margin_pct, usage,
+              worst_case_micro_usd::text AS worst_case_micro_usd,
+              created_at < now() - ${STALE_CALL} AS stale_reserved,
+              COALESCE(dispatched_at < now() - ${STALE_CALL}, false) AS stale_dispatched,
+              COALESCE(answered_at < now() - ${STALE_CALL}, false) AS stale_answered
+         FROM agent_runtime.paid_calls
+        WHERE reserve_key = $1
+        FOR UPDATE`,
+      [reserveKey],
+    );
+    const call = rows[0];
+    if (!call) return "missing";
+    const recovery = options.mode === "recovery";
+    const cycleId = options.cycleId ?? null;
+    const close = (status: "released" | "finalized", debitMicro: number) =>
+      client.query(
+        `UPDATE agent_runtime.paid_calls
+            SET status = $2, debit_micro_usd = $3, closed_at = now(),
+                cycle_id = COALESCE(cycle_id, $4)
+          WHERE reserve_key = $1 AND status = $5`,
+        [reserveKey, status, debitMicro, cycleId, call.status],
+      );
+    const markUncertain = (note: string) =>
+      client.query(
+        `UPDATE agent_runtime.paid_calls
+            SET status = 'uncertain', note = $2, cycle_id = COALESCE(cycle_id, $3)
+          WHERE reserve_key = $1 AND status = $4`,
+        [reserveKey, note.slice(0, 200), cycleId, call.status],
+      );
+    const release = () =>
+      client.query(
+        `INSERT INTO agent_runtime.credit_ledger
+           (user_id, kind, amount_micro_usd, agent_id, cycle_id, model_id, idempotency_key)
+         SELECT user_id, 'release', -amount_micro_usd, agent_id, $3, model_id, $2
+           FROM agent_runtime.credit_ledger
+          WHERE idempotency_key = $1 AND kind = 'reserve'
+         ON CONFLICT (idempotency_key) DO NOTHING`,
+        [reserveKey, releaseKeyFor(reserveKey), cycleId],
+      );
+
+    switch (call.status) {
+      case "reserved":
+        if (recovery && !call.stale_reserved) return "open";
+        await release();
+        await close("released", 0);
+        return "released";
+      case "rejected":
+        if (recovery && !call.stale_answered) return "open";
+        await release();
+        await close("released", 0);
+        return "released";
+      case "dispatched":
+        if (recovery && !call.stale_dispatched) return "open";
+        await markUncertain("dispatched call left without a recorded result");
+        return "uncertain";
+      case "answered": {
+        if (recovery && !call.stale_answered) return "open";
+        let priced: PricedCall;
+        try {
+          if (!call.usage) throw new Error("answered call has no usage");
+          priced = priceUsage(call.price, call.usage, call.margin_pct);
+        } catch (e) {
+          await markUncertain(
+            `cannot price: ${e instanceof Error ? e.message : String(e)}`,
+          );
+          return "uncertain";
+        }
+        // Never charge above the reserve the owner's balance and cap
+        // admitted. The input allowance is an estimate, so usage above the
+        // reserve can happen: the excess is not charged, and the call is
+        // flagged uncertain (blocking the owner's next paid call) for root
+        // review.
+        const reserved = Number(call.worst_case_micro_usd);
+        if (!Number.isSafeInteger(reserved) || reserved <= 0) {
+          await markUncertain("cannot read the call's reserve");
+          return "uncertain";
+        }
+        const overReserve = priced.totalMicro > reserved;
+        const debitMicro = overReserve ? reserved : priced.totalMicro;
+        // The ledger keeps what WE pay the provider and what the owner was
+        // charged apart: provider_cost is the provider-priced cost; margin is
+        // what the charge earned over it, negative when an over-reserve
+        // write-off exceeded the margin (root review of #118).
+        const chargedMarginMicro = debitMicro - priced.providerCostMicro;
+        const writtenOffMicro = priced.totalMicro - debitMicro;
+        const notes = overReserve
+          ? [
+              `over reserve: priced ${priced.totalMicro}, charged the ${reserved} reserve, written off ${writtenOffMicro}`,
+              ...priced.notes,
+            ]
+          : priced.notes;
+        await release();
+        if (debitMicro > 0) {
+          await client.query(
+            `INSERT INTO agent_runtime.credit_ledger
+               (user_id, kind, amount_micro_usd, agent_id, cycle_id, model_id,
+                tokens_in, tokens_out, provider_cost_micro_usd, margin_micro_usd,
+                note, idempotency_key)
+             VALUES ($1, 'debit', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+             ON CONFLICT (idempotency_key) DO NOTHING`,
+            [
+              Number(call.user_id),
+              -debitMicro,
+              Number(call.agent_id),
+              cycleId,
+              call.model_id,
+              Math.ceil(call.usage!.promptTokens),
+              Math.ceil(call.usage!.completionTokens),
+              priced.providerCostMicro,
+              chargedMarginMicro,
+              [`price ${call.price.version}`, ...notes].join("; "),
+              debitKeyFor(reserveKey),
+            ],
+          );
+        }
+        if (overReserve) {
+          await client.query(
+            `UPDATE agent_runtime.paid_calls
+                SET status = 'uncertain', debit_micro_usd = $2, note = $3,
+                    cycle_id = COALESCE(cycle_id, $4)
+              WHERE reserve_key = $1 AND status = 'answered'`,
+            [reserveKey, debitMicro, notes[0]!.slice(0, 200), cycleId],
+          );
+          return "uncertain";
+        }
+        await close("finalized", debitMicro);
+        return "debited";
+      }
+      default:
+        return "closed";
+    }
+  });
+}
+
+export interface PaidRecoveryCandidates {
+  /** Open calls idle for 15 minutes: finalise, release or mark uncertain. */
+  stale: string[];
+  /** Calls awaiting root reconciliation (alerted, never auto-refunded). */
+  uncertain: Array<{ reserveKey: string; userId: number; agentId: number }>;
+}
+
+export async function listPaidRecoveryCandidates(
+  pool: Pool,
+  limit = 100,
+): Promise<PaidRecoveryCandidates> {
+  const stale = await pool.query<{ reserve_key: string }>(
+    `SELECT reserve_key FROM agent_runtime.paid_calls
+      WHERE status NOT IN ('released', 'finalized')
+        AND ((status = 'reserved' AND created_at < now() - ${STALE_CALL})
+          OR (status = 'dispatched' AND dispatched_at < now() - ${STALE_CALL})
+          OR (status IN ('answered', 'rejected') AND answered_at < now() - ${STALE_CALL}))
+      ORDER BY created_at
+      LIMIT $1`,
+    [limit],
+  );
+  const uncertain = await pool.query<{
+    reserve_key: string;
+    user_id: string;
+    agent_id: string;
+  }>(
+    `SELECT reserve_key, user_id, agent_id FROM agent_runtime.paid_calls
+      WHERE status NOT IN ('released', 'finalized') AND status = 'uncertain'
+      ORDER BY created_at
+      LIMIT $1`,
+    [limit],
+  );
+  return {
+    stale: stale.rows.map((row) => row.reserve_key),
+    uncertain: uncertain.rows.map((row) => ({
+      reserveKey: row.reserve_key,
+      userId: Number(row.user_id),
+      agentId: Number(row.agent_id),
+    })),
+  };
+}
+
 interface RawAgent {
   id: string;
   handle: string;
@@ -684,7 +1137,7 @@ export async function persistCycleResult(
      * failover routing exists. Recorded as agent_cycles.effective_model. */
     model?: { provider: string; name: string };
   },
-): Promise<void> {
+): Promise<number | undefined> {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -695,7 +1148,9 @@ export async function persistCycleResult(
       [agentId, JSON.stringify(args.state)],
     );
     const c = args.cycle;
-    await client.query(
+    // RETURNING id: the paid-brain debit is keyed by this cycle's id
+    // ('debit:<cycle_id>'), written right after this transaction commits.
+    const inserted = await client.query<{ id: string }>(
       `INSERT INTO agent_runtime.agent_cycles
          (agent_id, decision, skip_reason, rationale, confidence, raw_model_output, model_failed, disabled, actions, log, error,
           trigger_codes, llm_call_made, tokens_in, tokens_out, estimated_cost_usd, decision_type, write_attempted, write_accepted,
@@ -703,7 +1158,8 @@ export async function persistCycleResult(
           route_reason, route_attempts, decision_input_record, decision_input_record_expires_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21,
                $22, $23, $24, $25::jsonb, $26::jsonb,
-               CASE WHEN $26::jsonb IS NOT NULL THEN now() + interval '30 days' ELSE NULL END)`,
+               CASE WHEN $26::jsonb IS NOT NULL THEN now() + interval '30 days' ELSE NULL END)
+       RETURNING id`,
       [
         agentId,
         c.decision,
@@ -793,6 +1249,8 @@ export async function persistCycleResult(
       );
     }
     await client.query("COMMIT");
+    const cycleId = Number(inserted?.rows?.[0]?.id);
+    return Number.isSafeInteger(cycleId) && cycleId > 0 ? cycleId : undefined;
   } catch (e) {
     await client.query("ROLLBACK").catch(() => {});
     throw e;
@@ -905,6 +1363,22 @@ export async function rescheduleToCadence(
             updated_at = now()
       WHERE id = $1 AND status = 'active'`,
     [agentId],
+  );
+}
+
+// Pause (not disable) with a reason: the owner's own resume path
+// (POST /api/agents/:id/resume) re-arms it after a top-up, and
+// reviveDisabledAgents never touches a paused row, so it cannot thrash.
+// Like disableAgent, only an agent that is still active is paused; a newer
+// owner stop or pause keeps its own status and reason.
+export async function pauseAgent(
+  pool: Pool,
+  agentId: number,
+  reason: string,
+): Promise<void> {
+  await pool.query(
+    "UPDATE agent_runtime.agents SET status = 'paused', disabled_reason = $2, updated_at = now() WHERE id = $1 AND status = 'active'",
+    [agentId, reason.slice(0, 500)],
   );
 }
 
