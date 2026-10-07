@@ -161,6 +161,12 @@ export function buildSpec(raw: Record<string, unknown>): AgentSpec {
               risk.pmMinEdgeGapPct as AgentSpec["risk"]["pmMinEdgeGapPct"],
           }
         : {}),
+      ...(risk.pmMaxEdgePoints !== undefined
+        ? {
+            pmMaxEdgePoints:
+              risk.pmMaxEdgePoints as AgentSpec["risk"]["pmMaxEdgePoints"],
+          }
+        : {}),
       ...(risk.pmMaxOpenPerEvent !== undefined
         ? {
             pmMaxOpenPerEvent:

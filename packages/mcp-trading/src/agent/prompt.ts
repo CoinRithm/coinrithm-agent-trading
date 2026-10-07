@@ -252,6 +252,11 @@ export function buildSystemPrompt(
           `- PM EDGE RULE: every pm_open MUST carry forecastProbability, and it must beat the fee-inclusive cost by ${r.pmMinEdgeGapPct}% of the room left to 100 (cost 50 needs ${(50 + (r.pmMinEdgeGapPct / 100) * 50).toFixed(1)}, cost 70 needs ${(70 + (r.pmMinEdgeGapPct / 100) * 30).toFixed(1)}). The runner REJECTS an open without a forecast or under this bar.`,
         ]
       : []),
+    ...(hasPm && typeof r.pmMaxEdgePoints === "number"
+      ? [
+          `- PM OVERCONFIDENCE CAP: every pm_open MUST carry forecastProbability, and it may beat the fee-inclusive cost by at most ${r.pmMaxEdgePoints} points. Start from the market price and move only as far as specific evidence justifies: in our own record, the bigger the edge an agent claimed, the more it lost. Opens over the cap are REJECTED.`,
+        ]
+      : []),
     ...(hasPm && typeof r.pmMaxOpenPerEvent === "number"
       ? [
           `- PM PER-EVENT CAP: at most ${r.pmMaxOpenPerEvent} open bet(s) per event (same market slug, counting bets you already hold). Extra opens are REJECTED.`,

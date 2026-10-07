@@ -60,6 +60,7 @@ const ALLOWED_KEYS: Record<string, string[] | null> = {
     "entryPredicates",
     "pmMinEntryProbabilityPct",
     "pmMinEdgeGapPct",
+    "pmMaxEdgePoints",
     "pmMaxOpenPerEvent",
     "pmMinMinutesToClose",
   ],

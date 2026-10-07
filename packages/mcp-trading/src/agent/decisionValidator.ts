@@ -779,6 +779,27 @@ export function validateAction(
     // The API's entryProbability is the RAW mid, and executionModel's effective
     // probability excludes fee. Total stake / net shares is the fee-inclusive
     // break-even cost. Do not guess units or fall back to a discovery mid.
+    const maxEdge = spec.risk.pmMaxEdgePoints;
+    if (!ctx.mechanical && maxEdge !== undefined) {
+      if (
+        typeof maxEdge !== "number" ||
+        !Number.isFinite(maxEdge) ||
+        maxEdge < 0 ||
+        maxEdge > 100
+      ) {
+        return fail(
+          "pm_max_edge_invalid",
+          `risk.pmMaxEdgePoints ${JSON.stringify(maxEdge)} is not a number between 0 and 100`,
+        );
+      }
+      // An overconfidence cap cannot be checked against a missing number.
+      if (action.forecastProbability == null) {
+        return fail(
+          "pm_forecast_required",
+          `risk.pmMaxEdgePoints ${maxEdge} needs forecastProbability on every pm_open`,
+        );
+      }
+    }
     const edgeGapPct = spec.risk.pmMinEdgeGapPct;
     if (!ctx.mechanical && edgeGapPct !== undefined) {
       if (
@@ -825,6 +846,12 @@ export function validateAction(
         return fail(
           "forecast_no_positive_edge",
           `forecast ${action.forecastProbability} vs entry ${entryPct.toFixed(1)} = ${edge.toFixed(1)}pt edge, under the ${PM_MIN_FORECAST_EDGE_POINTS}pt minimum`,
+        );
+      }
+      if (maxEdge !== undefined && edge > maxEdge + 1e-9) {
+        return fail(
+          "pm_edge_overconfident",
+          `forecast ${action.forecastProbability} vs entry ${entryPct.toFixed(1)} = ${edge.toFixed(1)}pt edge, over the ${maxEdge}pt cap (large claimed edges have lost the most)`,
         );
       }
       if (edgeGapPct !== undefined) {
