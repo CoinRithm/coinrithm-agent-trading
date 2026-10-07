@@ -16,6 +16,57 @@ import {
   type DecisionActionExclusion,
 } from "./providerCapabilities.js";
 
+// Provider-reported token usage of one decision. promptTokens/completionTokens
+// are what every provider reports; the cache fields are present only when the
+// provider reports them (Anthropic). Anthropic's input_tokens excludes cached
+// tokens, so promptTokens + cache reads + cache writes is the whole prompt.
+// Thinking is billed as output and is included in completionTokens.
+export interface ProviderUsage {
+  promptTokens: number;
+  completionTokens: number;
+  cacheReadTokens?: number;
+  // Total cache creation, and its split by cache TTL when reported.
+  cacheWriteTokens?: number;
+  cacheWrite5mTokens?: number;
+  cacheWrite1hTokens?: number;
+}
+
+function reportedCount(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? value
+    : undefined;
+}
+
+interface AnthropicUsage {
+  input_tokens?: number;
+  output_tokens?: number;
+  cache_creation_input_tokens?: number;
+  cache_read_input_tokens?: number;
+  cache_creation?: {
+    ephemeral_5m_input_tokens?: number;
+    ephemeral_1h_input_tokens?: number;
+  };
+}
+
+// Anthropic usage, including prompt-cache reads and writes (and the 5m/1h
+// write split) when reported. Cache fields are omitted, not zeroed, when the
+// response does not carry them: absent is unknown, never free.
+export function anthropicUsage(raw: AnthropicUsage): ProviderUsage {
+  const usage: ProviderUsage = {
+    promptTokens: reportedCount(raw.input_tokens) ?? 0,
+    completionTokens: reportedCount(raw.output_tokens) ?? 0,
+  };
+  const cacheRead = reportedCount(raw.cache_read_input_tokens);
+  const cacheWrite = reportedCount(raw.cache_creation_input_tokens);
+  const write5m = reportedCount(raw.cache_creation?.ephemeral_5m_input_tokens);
+  const write1h = reportedCount(raw.cache_creation?.ephemeral_1h_input_tokens);
+  if (cacheRead !== undefined) usage.cacheReadTokens = cacheRead;
+  if (cacheWrite !== undefined) usage.cacheWriteTokens = cacheWrite;
+  if (write5m !== undefined) usage.cacheWrite5mTokens = write5m;
+  if (write1h !== undefined) usage.cacheWrite1hTokens = write1h;
+  return usage;
+}
+
 export interface DecideInput {
   system: string;
   user: string;
@@ -69,7 +120,7 @@ export type DecideResult =
       // without arguments for the named decision tool.
       responseSource?: "tool_call" | "content_fallback" | "content";
       // Provider-reported token usage when available (for slice-2 metering).
-      usage?: { promptTokens: number; completionTokens: number };
+      usage?: ProviderUsage;
       route?: DecideRouteMeta;
     }
   | {
@@ -78,7 +129,7 @@ export type DecideResult =
       // An HTTP-success response can still be an incomplete decision. Never
       // execute a valid-looking prefix or retry it as a server refusal.
       failureClass?: "malformed";
-      usage?: { promptTokens: number; completionTokens: number };
+      usage?: ProviderUsage;
       // Structured failure metadata (slice A2, Codex amendment 2026-08-26):
       // the router must classify 429 (capacity: fall back / cool down NOW)
       // separately from 5xx/timeout (transient thresholds) without string
@@ -330,15 +381,10 @@ class AnthropicProvider implements Provider {
           const json = (await res.json()) as {
             content?: Array<{ text?: string }>;
             stop_reason?: string | null;
-            usage?: { input_tokens?: number; output_tokens?: number };
+            usage?: AnthropicUsage;
           };
           const text = json.content?.map((c) => c.text ?? "").join("") ?? "";
-          const usage = json.usage
-            ? {
-                promptTokens: json.usage.input_tokens ?? 0,
-                completionTokens: json.usage.output_tokens ?? 0,
-              }
-            : undefined;
+          const usage = json.usage ? anthropicUsage(json.usage) : undefined;
           if (
             json.stop_reason === "max_tokens" ||
             json.stop_reason === "model_context_window_exceeded"

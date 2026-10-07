@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
+  anthropicUsage,
   classifyProviderFailure,
   providerForRoute,
   selectProvider,
@@ -1009,5 +1010,78 @@ describe("selectProvider", () => {
     const r = await p.decide({ system: "s", user: "u", timeoutMs: 20 });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/timed out/);
+  });
+});
+
+describe("Anthropic usage reporting (paid metering)", () => {
+  it("reports cache reads, cache writes and the 5m/1h write split when present", () => {
+    expect(
+      anthropicUsage({
+        input_tokens: 1200,
+        output_tokens: 300,
+        cache_creation_input_tokens: 5000,
+        cache_read_input_tokens: 18000,
+        cache_creation: {
+          ephemeral_5m_input_tokens: 4000,
+          ephemeral_1h_input_tokens: 1000,
+        },
+      }),
+    ).toEqual({
+      promptTokens: 1200,
+      completionTokens: 300,
+      cacheReadTokens: 18000,
+      cacheWriteTokens: 5000,
+      cacheWrite5mTokens: 4000,
+      cacheWrite1hTokens: 1000,
+    });
+  });
+
+  it("omits cache fields the provider did not report instead of zeroing them", () => {
+    expect(anthropicUsage({ input_tokens: 7, output_tokens: 3 })).toEqual({
+      promptTokens: 7,
+      completionTokens: 3,
+    });
+    expect(
+      anthropicUsage({
+        input_tokens: 7,
+        output_tokens: 3,
+        cache_creation_input_tokens: 40,
+        cache_read_input_tokens: -1,
+        cache_creation: { ephemeral_5m_input_tokens: Number.NaN },
+      }),
+    ).toEqual({ promptTokens: 7, completionTokens: 3, cacheWriteTokens: 40 });
+  });
+
+  it("carries cache usage through decide and sends the caller's max_tokens", async () => {
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          stop_reason: "end_turn",
+          content: [{ text: '{"decision":"skip"}' }],
+          usage: {
+            input_tokens: 10,
+            output_tokens: 20,
+            cache_creation_input_tokens: 30,
+            cache_read_input_tokens: 40,
+          },
+        }),
+      ),
+    );
+    const result = await providerForRoute(
+      { provider: "anthropic", model: "test-model" },
+      "test-only",
+      fetchFn,
+    ).decide({ system: "s", user: "u", maxTokens: 4096 });
+    expect(result).toMatchObject({
+      ok: true,
+      usage: {
+        promptTokens: 10,
+        completionTokens: 20,
+        cacheWriteTokens: 30,
+        cacheReadTokens: 40,
+      },
+    });
+    const body = JSON.parse(String(fetchFn.mock.calls[0]![1]!.body));
+    expect(body.max_tokens).toBe(4096);
   });
 });
