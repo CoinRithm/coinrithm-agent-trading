@@ -38,6 +38,8 @@ import {
   MacroContext,
   ChainTvlContext,
   StablecoinSupplyContext,
+  DepthContext,
+  DepthBoundContext,
   MacroQuote,
   DatedValue,
   WatchEntry,
@@ -860,6 +862,46 @@ const optPct = (v: unknown): number | null => {
 // coin has no verified chain association or the block is malformed. publishedAt is
 // response provenance, never the TVL's observation time (unknown, null); a
 // future-dated time is never shown and an unknown one stays stale.
+const depthBoundOf = (v: unknown): DepthBoundContext | null => {
+  const o = asObj(v);
+  const lo = asNum(o.lo);
+  const hi = asNum(o.hi);
+  if (lo == null || hi == null || lo < 0 || hi < lo) return null;
+  return { lo, hi };
+};
+
+// Depth bounds from the same /market context (no extra call). One venue's
+// visible book; omitted when malformed, future-dated or without any band.
+export function depthOf(
+  m: Record<string, unknown>,
+  nowMs = Date.now(),
+): DepthContext | undefined {
+  const d = asObj(asObj(m.derivatives).depth);
+  const venue = asStr(d.venue);
+  const precision = asNum(d.precisionPct);
+  const asOf = shownTime(d.asOf, nowMs);
+  if (!venue || precision == null || precision < 0 || !asOf) return undefined;
+  const bands: DepthContext["bands"] = [];
+  for (const raw of asArr(d.bands)) {
+    const b = asObj(raw);
+    const pct = asNum(b.pct);
+    if (pct == null || pct <= 0) continue;
+    bands.push({
+      pct,
+      bidUsd: depthBoundOf(b.bidUsd),
+      askUsd: depthBoundOf(b.askUsd),
+    });
+  }
+  if (!bands.some((b) => b.bidUsd || b.askUsd)) return undefined;
+  return {
+    venue,
+    precisionPct: precision,
+    bands,
+    asOf,
+    stale: d.stale !== false,
+  };
+}
+
 export function chainTvlOf(
   m: Record<string, unknown>,
   nowMs = Date.now(),
@@ -1326,6 +1368,8 @@ export async function observe(
     if (liquidations) entry.liquidations = liquidations;
     const chainTvl = chainTvlOf(m);
     if (chainTvl) entry.chainTvl = chainTvl;
+    const depth = depthOf(m);
+    if (depth) entry.depth = depth;
     // Macro proxies are the same for every coin: keep the first usable block.
     if (!macro) macro = macroOf(m);
     if (!stablecoinSupply) stablecoinSupply = stablecoinSupplyOf(m);
@@ -1467,6 +1511,8 @@ export async function observe(
       if (liquidations) entry.liquidations = liquidations;
       const chainTvl = chainTvlOf(m);
       if (chainTvl) entry.chainTvl = chainTvl;
+      const depth = depthOf(m);
+      if (depth) entry.depth = depth;
       if (!macro) macro = macroOf(m);
       if (!stablecoinSupply) stablecoinSupply = stablecoinSupplyOf(m);
       if (wantIndicators)
