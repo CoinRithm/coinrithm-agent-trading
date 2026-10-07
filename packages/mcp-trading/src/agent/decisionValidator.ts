@@ -45,6 +45,11 @@ export interface DecisionContext {
   // entry per accepted open, for risk.pmMaxOpenPerEvent. Optional so callers
   // without the per-event policy need not track it.
   pmEventsOpenedThisCycle?: string[];
+  // Validation clock (epoch ms), injected by the runner at validation time,
+  // AFTER the model call. Time-based rules use the later of this and
+  // observation.asOf, so a slow model call cannot open inside a cutoff the
+  // observation was still outside of. Absent = observation.asOf only.
+  nowMs?: number;
 }
 
 /**
@@ -655,9 +660,13 @@ export function validateAction(
       // Only a KNOWN close can trip the cutoff: venues publish null/sentinel
       // end dates, and an unparseable one is unknown, never "closing now".
       const endMs = mkt.endDate ? Date.parse(mkt.endDate) : NaN;
-      const asOfMs = Date.parse(observation.asOf);
-      if (Number.isFinite(endMs) && Number.isFinite(asOfMs)) {
-        const minutesLeft = (endMs - asOfMs) / 60_000;
+      const refMs = Math.max(
+        ...[Date.parse(observation.asOf), ctx.nowMs ?? NaN].filter((t) =>
+          Number.isFinite(t),
+        ),
+      );
+      if (Number.isFinite(endMs) && Number.isFinite(refMs)) {
+        const minutesLeft = (endMs - refMs) / 60_000;
         if (minutesLeft < closeCutoff) {
           return fail(
             "pm_closes_too_soon",
