@@ -11,6 +11,12 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
   `baseline:random` (seeded 20-80%), next to `baseline:skip` and
   `baseline:market`. They replay the same recorded market pass, so existing
   corpora need no re-recording; futures/spot-only corpora still get skip only.
+- Add `coinrithm-agent label --corpus <dir> [--horizon-hours 24] [--overwrite]`:
+  writes `labels/<cassetteId>.json` price bars from candles published after
+  each cassette's asOf (reads only). It waits for the horizon to elapse, uses
+  the finest bar size the cassette's age still allows, keeps existing PM and
+  funding labels, and does not write PM settlement (PM opens stay
+  unlabelled until the production settlement verdict is readable).
 - Add optional per-agent `signals` thresholds (`rsiOversold`, `rsiOverbought`,
   `strongMovePct`, `leanMovePct`, `minStrength`) and a `data.indicatorRange`
   data diet (`1D` 5m bars, `1W` 15m, `1M` 1h, `3M` 4h). They change the setup
