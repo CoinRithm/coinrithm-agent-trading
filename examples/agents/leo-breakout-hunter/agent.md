@@ -22,6 +22,8 @@ capabilities:
   - indicators
   - news
   - universe_scan
+universe:
+  $ref: character/universe.yaml
 sizing:
   $ref: character/sizing.yaml
 # Enforced sizing. The runner replaces proposed margins and stakes with these

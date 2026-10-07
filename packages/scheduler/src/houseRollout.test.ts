@@ -573,10 +573,14 @@ describe("house rollout: apply", () => {
         q.sql.includes("SET spec"),
     )!;
     expect(update.sql).not.toMatch(/model_|cadence|key_enc|status|next_run_at/);
+    // The fourth parameter pins the row kind: a house entry writes only
+    // where is_house = true.
+    expect(update.sql).toContain("is_house = $4");
     expect(update.params).toEqual([
       3,
       JSON.stringify({ ...nextBundle.spec, model: liveModel }),
       nextBundle.prose,
+      true,
     ]);
     expect(writes.indexOf(next)).toBeLessThan(writes.indexOf(update));
     // No resume, no state touch, no deletion, no pruning.

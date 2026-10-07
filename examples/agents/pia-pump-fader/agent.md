@@ -32,6 +32,8 @@ capabilities:
   - indicators
   - universe_scan
   - news
+universe:
+  $ref: character/universe.yaml
 sizing:
   $ref: character/sizing.yaml
 risk:

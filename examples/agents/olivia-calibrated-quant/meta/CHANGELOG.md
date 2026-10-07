@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-07 - granular, enforced settings
+
+Evidence, read-only from production on 2026-10-07 (Data, temp/agentic-baseline-20261007/BASELINE.md):
+- On settled prediction-market decisions every house agent's own probability scored worse than the market price (Brier skill vs market -19% to -91%).
+- Numbers written in prose (edge rules, bets per event, last-minutes cutoffs) were never enforced in code; editing them changed nothing.
+- The settings below are hypotheses from a historical counterfactual, not a promised improvement: the forward bench measures whether they help.
+
+Changes:
+- character/risk.yaml: her prose dials are now enforced: `pmMinEdgeGapPct: 16` with an overconfidence cap `pmMaxEdgePoints: 20` (a band: at cost 50 an edge of 8 to 20 points), `pmMaxOpenPerEvent: 2` (per event, same market slug; the broader coin and date rule stays prose), `pmMinMinutesToClose: 10`.
+- entries.md and sizing.md point at the enforced fields instead of "edit freely" prose.
+
 ## 2026-09-24 - v2: priced forecasts, Kelly edge rule, no longshots
 
 Evidence, read-only from production on 2026-09-24:

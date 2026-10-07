@@ -2,6 +2,13 @@ maxLeverage: 2
 perTradeMarginMusd: 600
 maxConcurrentPositions: 2
 requireStopLoss: true
+pmMinEntryProbabilityPct: 20 # chosen-outcome entry price in points, before fees
+# Prediction-market discipline, enforced by the runner (2026-10-07). Measured
+# on 3,428 settled agent bets (temp/agentic-bench-20261007/FINDINGS-PM-DIALS.md):
+# the bigger the edge an agent claimed, the more it lost (40+ points: -78%),
+# and stacking bets on one event lost the most for user agents.
+pmMaxEdgePoints: 20 # forecast may beat the fee-inclusive cost by at most 20 points
+pmMaxOpenPerEvent: 1 # one open bet per event (same market slug)
 # BTC/ETH are REGIME ANCHORS: on the watchlist so every cycle carries their
 # price/indicator read (State 1's beta check + market barometer), and on the
 # blocklist so they can never be traded (deny wins over allow). Pia's tradable
