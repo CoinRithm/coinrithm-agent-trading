@@ -178,6 +178,10 @@ describe("futures OHLC walk model", () => {
       funding: {
         BTC: [
           { t: T0 + 400, rate: 0.001 },
+          // Inside the final bar (opens +600, closes +900): settled before
+          // the horizon close the exit is priced at, so it counts.
+          { t: T0 + 700, rate: 0.001 },
+          { t: T0 + 950, rate: 1 }, // after that close: never counted
           { t: T0 - 10, rate: 1 },
         ],
       },
@@ -188,7 +192,7 @@ describe("futures OHLC walk model", () => {
       fundingIncluded: true,
     });
     expect((s as { returnOnMargin: number }).returnOnMargin).toBeCloseTo(
-      0.06 - fees(2) - 0.002,
+      0.06 - fees(2) - 0.004,
       12,
     );
   });
