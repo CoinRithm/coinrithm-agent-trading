@@ -335,8 +335,10 @@ No role gets DELETE. Run the operator migration, then re-run `runtime-role.sql`.
    `max_tokens` 4096 (thinking included): no shared router, no retry, no other
    model. The answer is recorded at once:
    - usage => `answered`;
-   - an HTTP error without usage => `rejected`;
-   - no usage at all => `uncertain`, which blocks the owner's next paid call
+   - a known pre-processing rejection without usage (400, 401, 403, 404,
+     413, 429) => `rejected`;
+   - anything else without usage (an answer, a 5xx, a 529 overload, a
+     timeout) => `uncertain`, which blocks the owner's next paid call
      immediately.
 3. **Finalise**, from the durable state:
    - never dispatched, or rejected => release;

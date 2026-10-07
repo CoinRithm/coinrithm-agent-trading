@@ -261,9 +261,14 @@ describe("paid brain runtime wiring (contract v2)", () => {
 
   it.each([
     [
-      "an explicit HTTP rejection",
+      "a known pre-processing rejection",
+      { ok: false, error: "anthropic HTTP 429: rate_limit_error", status: 429 },
+      { status: "rejected", providerStatus: 429 },
+    ],
+    [
+      "an overload without usage (possibly billed)",
       { ok: false, error: "anthropic HTTP 529: overloaded", status: 529 },
-      { status: "rejected", providerStatus: 529 },
+      { status: "uncertain", reason: "HTTP 529 without usage" },
     ],
     [
       "a timeout without a response",

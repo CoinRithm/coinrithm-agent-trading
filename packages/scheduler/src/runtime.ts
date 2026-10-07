@@ -519,9 +519,10 @@ function routedProviderFor(
 //      without that commit the provider is never called. The call goes direct
 //      to the paid model (no shared router, no retry, no other model) with
 //      max_tokens 4096 including thinking. What the provider answered is
-//      recorded right after: usage ('answered'), an explicit HTTP rejection
-//      ('rejected'), or 'uncertain' (an answer without usage, or no response
-//      at all), which blocks the owner's next paid admission at once.
+//      recorded right after: usage ('answered'), a known pre-processing
+//      rejection ('rejected': 400/401/403/404/413/429), or 'uncertain' (an
+//      answer without usage, any other HTTP error such as 5xx/529, or no
+//      response at all), which blocks the owner's next paid admission at once.
 //   3. FINALISE (one transaction under the lock, db.ts finalizePaidCall), from
 //      the durable state only: never dispatched or rejected => release;
 //      answered => release + debit of the provider-reported usage at the

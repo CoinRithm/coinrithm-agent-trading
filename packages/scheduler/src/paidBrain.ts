@@ -421,16 +421,27 @@ export const debitKeyFor = (reserveKey: string): string =>
 /** What one provider answer means for metering:
  * - answered: the provider reported usage (an answer, or an incomplete one
  *   it still billed); price exactly that usage.
- * - rejected: an explicit HTTP error with no usage; not billable, release.
+ * - rejected: a KNOWN non-billable rejection with no usage (the request
+ *   was refused before processing: see NONBILLABLE_REJECTION_STATUSES);
+ *   release.
  * - uncertain: possibly billed with no usage to price (an answer without
- *   usage, or a transport failure/timeout with no HTTP status). Never priced
- *   from an estimate and never auto-refunded.
+ *   usage, any other HTTP error including 5xx/529 overload, or a transport
+ *   failure/timeout). Never priced from an estimate and never auto-refunded
+ *   (root 56750).
  * - not_called: no request reached the provider (deferred). */
 export type PaidCallResult =
   | { status: "answered"; usage: ProviderUsage }
   | { status: "rejected"; providerStatus: number }
   | { status: "uncertain"; reason: string }
   | { status: "not_called" };
+
+/** Anthropic's documented errors for a request refused before processing
+ * (invalid_request, authentication, permission, not_found, request_too_large,
+ * rate_limit). Only these release a reservation without usage; a 5xx or an
+ * overload (529) may have consumed compute and stays uncertain. */
+export const NONBILLABLE_REJECTION_STATUSES: ReadonlySet<number> = new Set([
+  400, 401, 403, 404, 413, 429,
+]);
 
 export function classifyPaidCall(res: {
   ok: boolean;
@@ -442,6 +453,8 @@ export function classifyPaidCall(res: {
   if (res.ok) return { status: "uncertain", reason: "answered without usage" };
   if (res.deferred) return { status: "not_called" };
   if (typeof res.status === "number" && Number.isInteger(res.status))
-    return { status: "rejected", providerStatus: res.status };
+    return NONBILLABLE_REJECTION_STATUSES.has(res.status)
+      ? { status: "rejected", providerStatus: res.status }
+      : { status: "uncertain", reason: `HTTP ${res.status} without usage` };
   return { status: "uncertain", reason: "no provider response" };
 }

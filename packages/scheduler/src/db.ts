@@ -620,7 +620,8 @@ interface PaidCallRow {
  * driven only by the call's durable state:
  * - 'reserved' (never dispatched; proof the provider was not called):
  *   release. At cycle end always; in recovery once stale.
- * - 'rejected' (explicit non-billable provider error): release.
+ * - 'rejected' (a known pre-processing rejection: 400/401/403/404/413/429
+ *   without usage): release. Any other HTTP error is recorded uncertain.
  * - 'answered' (provider-reported usage): release the reserve and debit the
  *   actual, priced with the price row and margin SNAPSHOTTED on the call.
  * - 'dispatched' with no recorded result: uncertain (never refunded).

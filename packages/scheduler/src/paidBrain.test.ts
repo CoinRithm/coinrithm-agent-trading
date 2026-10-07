@@ -398,9 +398,24 @@ describe("classifyPaidCall", () => {
       { status: "uncertain", reason: "no provider response" },
     ],
     [
-      "an explicit HTTP rejection",
+      "a known pre-processing rejection (rate limit)",
+      { ok: false, status: 429 },
+      { status: "rejected", providerStatus: 429 },
+    ],
+    [
+      "a known pre-processing rejection (invalid request)",
+      { ok: false, status: 400 },
+      { status: "rejected", providerStatus: 400 },
+    ],
+    [
+      "an overload (529) without usage, never released",
       { ok: false, status: 529 },
-      { status: "rejected", providerStatus: 529 },
+      { status: "uncertain", reason: "HTTP 529 without usage" },
+    ],
+    [
+      "a 5xx without usage, never released",
+      { ok: false, status: 500 },
+      { status: "uncertain", reason: "HTTP 500 without usage" },
     ],
     [
       "a deferred attempt",
