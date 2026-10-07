@@ -137,6 +137,13 @@ export interface RiskConfig {
   // prose ("beat the price by 16% of the gap") that no code enforced. Absent =
   // the global minimum edge only (unchanged behaviour).
   pmMinEdgeGapPct?: number;
+  // Optional HARD overconfidence guard (2026-10-07): reject a pm_open whose
+  // forecast exceeds the fee-inclusive cost by MORE than this many points,
+  // and require a forecast while it is set. Evidence (3,428 settled agent
+  // bets, temp/agentic-bench-20261007/FINDINGS-PM-DIALS.md): the bigger the
+  // edge an agent claimed, the worse it did; house bets claiming 40+ points
+  // won 12% while forecasting 69%, ROI -78%. Absent = no cap.
+  pmMaxEdgePoints?: number;
   // Optional HARD cap on open bets per prediction-market EVENT (source + slug),
   // counting held open positions plus opens already accepted this cycle.
   // Bands listed as outcomes of ONE event are covered; separate events about

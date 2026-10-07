@@ -26,6 +26,10 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
     never lowers the global minimum edge, and with it set a `pm_open` without
     `forecastProbability` is rejected (`pm_forecast_required`,
     `pm_edge_below_gap_rule`). Mechanical benchmarks are exempt.
+  - `risk.pmMaxEdgePoints` (0..100): overconfidence guard; the forecast may
+    beat the fee-inclusive cost by at most that many points, and a forecast
+    becomes mandatory (`pm_edge_overconfident`). Evidence: across 3,428
+    settled agent bets, the bigger the claimed edge the worse the result.
   - `risk.pmMaxOpenPerEvent` (1..50): open bets per event (source + slug),
     counting held positions and opens accepted this cycle (`pm_event_cap`).
   - `risk.pmMinMinutesToClose` (0..10080): reject a market whose known close is
