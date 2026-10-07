@@ -128,6 +128,33 @@ export interface RiskConfig {
   // cost above 20. Absent = no floor (unchanged behaviour). Born from the
   // house prose rule "no PM outcome under 20" that prose alone never enforced.
   pmMinEntryProbabilityPct?: number;
+  // Optional HARD forecast-edge rule (2026-10-07), as a share of the room left
+  // to 100: a pm_open needs forecastProbability >= cost + pct% x (100 - cost),
+  // where cost is the fee-inclusive entry (stake / net shares, points). At 16
+  // that is price 50 -> 58, 70 -> 75, 85 -> 88. It never lowers the global
+  // minimum edge, and with this set a pm_open WITHOUT a forecast is rejected
+  // (an edge rule cannot be checked against a missing number). Born from house
+  // prose ("beat the price by 16% of the gap") that no code enforced. Absent =
+  // the global minimum edge only (unchanged behaviour).
+  pmMinEdgeGapPct?: number;
+  // Optional HARD overconfidence guard (2026-10-07): reject a pm_open whose
+  // forecast exceeds the fee-inclusive cost by MORE than this many points,
+  // and require a forecast while it is set. This constrains allowed actions;
+  // it does not establish forecast calibration or profitability. Absent = no cap.
+  pmMaxEdgePoints?: number;
+  // Optional HARD cap on open bets per prediction-market EVENT (source + slug),
+  // counting held open positions plus opens already accepted this cycle.
+  // Bands listed as outcomes of ONE event are covered; separate events about
+  // the same coin and date are not (that broader cross-event rule has no
+  // structured coin/date field to enforce and stays prose).
+  // Absent = no per-event cap (unchanged behaviour).
+  pmMaxOpenPerEvent?: number;
+  // Optional HARD cutoff (minutes): reject a pm_open whose market closes within
+  // this many minutes of the later of observation.asOf and the validation
+  // clock (after the model call). Only a KNOWN, valid endDate can trip
+  // it; venues publish null or sentinel end dates, so an unknown close never
+  // blocks (the market's own open-time guard still applies). Absent = no cutoff.
+  pmMinMinutesToClose?: number;
 }
 
 export interface LimitsConfig {
@@ -257,6 +284,27 @@ export interface AgentSpec {
   capabilities: Capability[];
   // Slice-2 gate policy (OKF intent). Omitted => DEFAULT_TRIGGER_POLICY.
   triggerPolicy?: TriggerPolicy;
+  // Market boundaries the agent scans inside each cycle (universe.ts).
+  // Omitted => watchlist only, or today's top-gainers scan with universe_scan.
+  universe?: UniverseConfig;
+}
+
+/** Declared market boundaries; see universe.ts for semantics and defaults. */
+export interface UniverseConfig {
+  rank?: { min?: number; max?: number };
+  minVolume24hUsd?: number;
+  excludeStablecoins?: boolean;
+  includeSectors?: string[];
+  excludeSectors?: string[];
+  sort?:
+    | "gainers_24h"
+    | "losers_24h"
+    | "abs_change_24h"
+    | "abs_change_1h"
+    | "volume_24h"
+    | "rank";
+  resolveTop?: number;
+  scanLimit?: number;
 }
 
 export interface ParsedSkill {
@@ -336,6 +384,10 @@ export interface WatchEntry {
   // sweep, not the spec watchlist. Valid for THIS cycle only; the prompt labels
   // it so the model knows it is a discovered candidate, not a standing holding.
   discovered?: boolean;
+  // With a declared `universe`: true when the screener confirmed this
+  // watchlist coin is inside the boundaries this cycle, false when it is not,
+  // absent when unverified. Only true (or discovered) allows a new entry.
+  withinBoundaries?: boolean;
   // Canonical coin slug (the key the news graph uses). Carried so headlines can
   // be attributed to the coin without a second lookup.
   slug?: string;

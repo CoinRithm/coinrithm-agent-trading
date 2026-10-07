@@ -154,6 +154,31 @@ export function buildSpec(raw: Record<string, unknown>): AgentSpec {
               risk.pmMinEntryProbabilityPct as AgentSpec["risk"]["pmMinEntryProbabilityPct"],
           }
         : {}),
+      // The three PM policy dials follow the same as-written rule.
+      ...(risk.pmMinEdgeGapPct !== undefined
+        ? {
+            pmMinEdgeGapPct:
+              risk.pmMinEdgeGapPct as AgentSpec["risk"]["pmMinEdgeGapPct"],
+          }
+        : {}),
+      ...(risk.pmMaxEdgePoints !== undefined
+        ? {
+            pmMaxEdgePoints:
+              risk.pmMaxEdgePoints as AgentSpec["risk"]["pmMaxEdgePoints"],
+          }
+        : {}),
+      ...(risk.pmMaxOpenPerEvent !== undefined
+        ? {
+            pmMaxOpenPerEvent:
+              risk.pmMaxOpenPerEvent as AgentSpec["risk"]["pmMaxOpenPerEvent"],
+          }
+        : {}),
+      ...(risk.pmMinMinutesToClose !== undefined
+        ? {
+            pmMinMinutesToClose:
+              risk.pmMinMinutesToClose as AgentSpec["risk"]["pmMinMinutesToClose"],
+          }
+        : {}),
       maxLeverage: num(risk.maxLeverage, 1),
       perTradeMarginMusd: num(risk.perTradeMarginMusd, 0),
       maxConcurrentPositions: num(risk.maxConcurrentPositions, 0),
@@ -226,6 +251,11 @@ export function buildSpec(raw: Record<string, unknown>): AgentSpec {
     capabilities: strArr(raw.capabilities).filter((c): c is Capability =>
       (ALLOWED_CAPABILITIES as readonly string[]).includes(c),
     ),
+    // Market boundaries: carried AS WRITTEN (an object) so skillValidator can
+    // fail closed on a malformed block instead of a typo meaning "no limits".
+    ...(raw.universe !== undefined
+      ? { universe: raw.universe as AgentSpec["universe"] }
+      : {}),
     // OKF v2 (load-bearing): the gate reads this; omitted -> DEFAULT_TRIGGER_POLICY.
     // This is the agent's INTENT — the platform deployment overlay may tighten it
     // server-side, and it can never widen a hard cap (caps live in the runner).
