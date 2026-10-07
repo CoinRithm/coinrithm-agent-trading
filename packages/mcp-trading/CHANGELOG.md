@@ -7,6 +7,12 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
 ## 0.7.16 (unpublished)
 
+- Every watch entry now carries perpetual open interest when the API serves it
+  (`openInterest`: single-side USD over Bybit and OKX, 1h and 24h change,
+  `asOf`, `stale`), read from the existing `/api/agent/market` call. The prompt
+  explains how to read it with price; it is context, never a trade rule. Older
+  APIs without the block leave entries unchanged.
+
 - Add an optional `universe` block (market boundaries): a market-cap rank
   band, a minimum 24h volume, stablecoins in or out, curated sectors and chain
   ecosystems in or out, and the sort that defines an opportunity. Each cycle
