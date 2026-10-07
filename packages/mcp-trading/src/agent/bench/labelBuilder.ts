@@ -10,11 +10,9 @@
 // size follows the cassette's age: the finest range whose window still covers
 // asOf. A label file has one bar size (barSeconds).
 //
-// PM settlement is NOT built here. A pm_open's outcome needs the production
-// settlement verdict (backend-v2 decideSettlement: single-winner events vs
-// per-market contracts, the outcome set frozen at open, voids). Rebuilding it
-// here would be an approximation, so PM opens stay "unlabelled" until that
-// verdict is readable.
+// PM settlement comes from the platform's own public event verdict (see the
+// PM section below), never a rule rebuilt here; anything short of a settled
+// provider result stays "unlabelled".
 
 import { ApiResult } from "../types.js";
 import { Cassette } from "./cassette.js";
@@ -232,6 +230,146 @@ export async function buildPriceLabels(
         barSeconds: plan.barSeconds,
         horizonHours,
       },
+    });
+  }
+  return results;
+}
+
+// ── PM settlement labels (root 57074) ──────────────────────────────────────
+// From the EXISTING public event read GET /api/prediction-markets/events/
+// :source/:slug, never an invented verdict: an outcome is labelled only when
+// the event's settlementTrust says settlementEligible AND limboVerdict
+// "settle", and the outcome's own lifecycle is a provider result (isResult,
+// basis "provider", result won|lost). Probed live 2026-10-07: a Kalshi ladder
+// (1 won / 74 lost, eligible, settle) and a ForecastEx event whose winner is
+// known but whose time is unverified (eligible false, limbo "void"), which
+// stays unlabelled. A pm_open buys its named outcome, so settled = won.
+
+/** The PM events a cassette discovered (its recorded /pm/discover reads). */
+export function cassettePmEvents(
+  cassette: Pick<Cassette, "responses">,
+): Array<{ source: string; slug: string }> {
+  const out = new Map<string, { source: string; slug: string }>();
+  for (const r of cassette.responses) {
+    if (r.path !== "/api/agent/pm/discover" || r.method !== "GET" || !r.ok)
+      continue;
+    const rows =
+      isObject(r.data) && Array.isArray(r.data.data) ? r.data.data : [];
+    for (const ev of rows) {
+      if (!isObject(ev)) continue;
+      const { source, slug } = ev;
+      if (typeof source !== "string" || typeof slug !== "string") continue;
+      const s = source.trim().toLowerCase();
+      const g = slug.trim().toLowerCase();
+      if (s && g) out.set(`${s}/${g}`, { source: s, slug: g });
+    }
+  }
+  return [...out.values()];
+}
+
+/**
+ * Pure: settled labels from one public event-detail body, keyed
+ * `source/slug/outcomeExternalMarketId`. Empty unless the platform's own
+ * verdict says the event settles and the outcome has a provider result.
+ */
+export function pmVerdictLabels(
+  source: string,
+  slug: string,
+  body: unknown,
+): Record<string, { settled: 0 | 1 }> {
+  const out: Record<string, { settled: 0 | 1 }> = {};
+  if (!isObject(body)) return out;
+  const resolution = isObject(body.resolution) ? body.resolution : undefined;
+  const trust =
+    resolution && isObject(resolution.settlementTrust)
+      ? resolution.settlementTrust
+      : undefined;
+  if (
+    !trust ||
+    trust.settlementEligible !== true ||
+    trust.limboVerdict !== "settle"
+  )
+    return out;
+  const event = isObject(body.event) ? body.event : undefined;
+  const outcomes = event && Array.isArray(event.outcomes) ? event.outcomes : [];
+  for (const o of outcomes) {
+    if (!isObject(o) || typeof o.externalMarketId !== "string") continue;
+    const lc = isObject(o.lifecycle) ? o.lifecycle : undefined;
+    if (
+      !lc ||
+      lc.isResult !== true ||
+      lc.basis !== "provider" ||
+      (lc.result !== "won" && lc.result !== "lost")
+    )
+      continue;
+    out[`${source}/${slug}/${o.externalMarketId}`] = {
+      settled: lc.result === "won" ? 1 : 0,
+    };
+  }
+  return out;
+}
+
+export type CassettePmResult = {
+  id: string;
+  events: number;
+  labelled: number;
+  failed: number;
+  pm: Record<string, { settled: 0 | 1 }>;
+};
+
+/**
+ * Settled PM labels per cassette from the public event verdict. One read per
+ * event serves every cassette; a failed or unusable read leaves that event
+ * unlabelled and is counted. Existing PM labels are kept unless `overwrite`.
+ */
+export async function buildPmLabels(
+  cassettes: ReadonlyArray<Pick<Cassette, "id" | "responses">>,
+  opts: {
+    fetchEvent: (source: string, slug: string) => Promise<ApiResult>;
+    existing?: Record<string, LabelFile>;
+    overwrite?: boolean;
+  },
+): Promise<CassettePmResult[]> {
+  const cache = new Map<string, Promise<ApiResult>>();
+  const read = (source: string, slug: string) => {
+    const key = `${source}/${slug}`;
+    let hit = cache.get(key);
+    if (!hit) {
+      hit = opts
+        .fetchEvent(source, slug)
+        .catch((): ApiResult => ({ ok: false, status: 0, data: null }));
+      cache.set(key, hit);
+    }
+    return hit;
+  };
+  const results: CassettePmResult[] = [];
+  for (const cassette of cassettes) {
+    const events = cassettePmEvents(cassette);
+    const pm: Record<string, { settled: 0 | 1 }> = opts.overwrite
+      ? {}
+      : { ...(opts.existing?.[cassette.id]?.pm ?? {}) };
+    let failed = 0;
+    let labelled = 0;
+    for (const { source, slug } of events) {
+      const res = await read(source, slug);
+      if (!res.ok) {
+        failed += 1;
+        continue;
+      }
+      for (const [key, label] of Object.entries(
+        pmVerdictLabels(source, slug, res.data),
+      )) {
+        if (!opts.overwrite && pm[key] !== undefined) continue;
+        pm[key] = label;
+        labelled += 1;
+      }
+    }
+    results.push({
+      id: cassette.id,
+      events: events.length,
+      labelled,
+      failed,
+      pm,
     });
   }
   return results;

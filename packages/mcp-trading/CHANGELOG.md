@@ -15,8 +15,9 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
   writes `labels/<cassetteId>.json` price bars from candles published after
   each cassette's asOf (reads only). It waits for the horizon to elapse, uses
   the finest bar size the cassette's age still allows, keeps existing PM and
-  funding labels, and does not write PM settlement (PM opens stay
-  unlabelled until the production settlement verdict is readable). Only
+  funding labels, and writes PM settlement only from the public event
+  verdict (settlement-eligible + "settle" + a provider won/lost outcome
+  result; anything else stays unlabelled). Only
   bars that close by the horizon are stored, and an existing file for
   another horizon is reported (`horizon_mismatch`), never kept silently.
 - Bench futures scoring walks only bars that open after asOf and close by

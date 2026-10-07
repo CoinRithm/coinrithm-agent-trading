@@ -382,8 +382,11 @@ What it does:
   elapsed and picks the finest bar size the cassette's age still allows
   (5-minute bars within a day, then 15-minute, hourly, 4-hourly). Existing
   PM and funding labels are kept, existing prices only with `--overwrite`.
-  It does not write PM settlement: that needs the production settlement
-  verdict, so PM opens stay unlabelled. Missing labels are not zero profit: paired
+  PM settlement comes from the public event read
+  (`/api/prediction-markets/events/:source/:slug`): an outcome is labelled
+  only when the platform's verdict is settlement-eligible with "settle" and
+  the outcome has a provider won/lost result; any other state stays
+  unlabelled. Missing labels are not zero profit: paired
   P&L excludes a cassette if either variant has any repeat with an unscored
   accepted action, missing input, or runtime error. Comparable and excluded
   cycle counts are reported; genuine complete no-action cycles count as zero.

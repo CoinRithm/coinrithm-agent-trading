@@ -9,9 +9,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  buildPmLabels,
   buildPriceLabels,
   cassetteCoins,
+  cassettePmEvents,
   planPriceLabels,
+  pmVerdictLabels,
   priceBarsFor,
 } from "./labelBuilder.js";
 import { parseLabelFile } from "./labels.js";
@@ -243,7 +246,7 @@ describe("cmdLabel", () => {
     );
     expect(written.barSeconds).toBe(300);
     expect(Object.keys(written.prices ?? {}).sort()).toEqual(["BTC", "ETH"]);
-    expect(r.lines.join("\n")).toContain("PM opens stay unlabelled");
+    expect(r.lines.join("\n")).toContain("stay unlabelled");
   });
 
   it("refuses to run without a key or with a bad horizon", async () => {
@@ -253,5 +256,180 @@ describe("cmdLabel", () => {
     expect((await cmdLabel({ corpus: tmpdir(), horizonHours: 0 })).ok).toBe(
       false,
     );
+  });
+});
+
+// Shapes follow the live public event reads of 2026-10-07 (kalshi
+// kxbnbd-26oct0706: 1 won / 74 lost, eligible, limbo settle; forecastex
+// axxsc-110326-lg: winner known, time unverified, eligible false, void).
+const outcome = (
+  id: string,
+  result: string,
+  over: Record<string, unknown> = {},
+) => ({
+  externalMarketId: id,
+  lifecycle: { isResult: true, result, basis: "provider", ...over },
+});
+const eventBody = (trust: Record<string, unknown>, outcomes: unknown[]) => ({
+  event: { outcomes },
+  resolution: {
+    resolutionState: "resolved",
+    settlementTrust: { shape: "multi", ...trust },
+  },
+});
+const SETTLE = { settlementEligible: true, limboVerdict: "settle" };
+
+describe("pmVerdictLabels (existing public verdict only)", () => {
+  it("labels provider results of a settled, eligible event", () => {
+    expect(
+      pmVerdictLabels(
+        "kalshi",
+        "kxbnbd-26oct0706",
+        eventBody(SETTLE, [
+          outcome("T764.99", "won"),
+          outcome("T759.99", "lost"),
+          outcome("T754.99", "lost", { basis: "derived" }),
+          outcome("T749.99", "won", { isResult: false }),
+          outcome("T744.99", "void"),
+        ]),
+      ),
+    ).toEqual({
+      "kalshi/kxbnbd-26oct0706/T764.99": { settled: 1 },
+      "kalshi/kxbnbd-26oct0706/T759.99": { settled: 0 },
+    });
+  });
+
+  it("labels nothing for a void, ineligible or malformed verdict", () => {
+    const outs = [outcome("YES", "won"), outcome("NO", "lost")];
+    for (const trust of [
+      { settlementEligible: false, limboVerdict: "void" },
+      { settlementEligible: true, limboVerdict: "void" },
+      { settlementEligible: false, limboVerdict: "settle" },
+      {},
+    ])
+      expect(
+        pmVerdictLabels("forecastex", "x", eventBody(trust, outs)),
+      ).toEqual({});
+    expect(pmVerdictLabels("kalshi", "x", null)).toEqual({});
+    expect(
+      pmVerdictLabels("kalshi", "x", { event: { outcomes: outs } }),
+    ).toEqual({});
+  });
+});
+
+describe("buildPmLabels", () => {
+  const discover = (events: Array<{ source: string; slug: string }>) => ({
+    key: "GET /api/agent/pm/discover?limit=30&q=Bitcoin",
+    method: "GET",
+    path: "/api/agent/pm/discover",
+    query: { limit: "30", q: "Bitcoin" },
+    status: 200,
+    ok: true,
+    data: { data: events.map((e) => ({ ...e, outcomes: [] })) },
+  });
+  const pmCassette = (id: string) => ({
+    id,
+    responses: [
+      discover([
+        { source: "Kalshi", slug: "KXBTC-A" },
+        { source: "kalshi", slug: "kxbtc-a" },
+        { source: "forecastex", slug: "fx-b" },
+      ]),
+    ],
+  });
+
+  it("collects each discovered event once, lower-cased", () => {
+    expect(cassettePmEvents(pmCassette("c1"))).toEqual([
+      { source: "kalshi", slug: "kxbtc-a" },
+      { source: "forecastex", slug: "fx-b" },
+    ]);
+  });
+
+  it("reads each event once, counts failed reads, and keeps existing labels", async () => {
+    const fetchEvent = vi.fn(async (source: string): Promise<ApiResult> =>
+      source === "kalshi"
+        ? {
+            ok: true,
+            status: 200,
+            data: eventBody(SETTLE, [
+              outcome("A-YES", "won"),
+              outcome("A-NO", "lost"),
+            ]),
+          }
+        : { ok: false, status: 503, data: null },
+    );
+    const results = await buildPmLabels([pmCassette("c1"), pmCassette("c2")], {
+      fetchEvent,
+      existing: { c2: { pm: { "kalshi/kxbtc-a/A-YES": { settled: 0 } } } },
+    });
+    expect(fetchEvent).toHaveBeenCalledTimes(2);
+    expect(results[0]).toMatchObject({ events: 2, labelled: 2, failed: 1 });
+    expect(results[0]!.pm).toEqual({
+      "kalshi/kxbtc-a/A-YES": { settled: 1 },
+      "kalshi/kxbtc-a/A-NO": { settled: 0 },
+    });
+    // c2 already had A-YES: kept as is without --overwrite.
+    expect(results[1]!.pm["kalshi/kxbtc-a/A-YES"]).toEqual({ settled: 0 });
+    expect(results[1]!.labelled).toBe(1);
+  });
+});
+
+describe("cmdLabel with PM verdicts", () => {
+  const prior = process.env.COINRITHM_API_KEY;
+  afterEach(() => {
+    if (prior === undefined) delete process.env.COINRITHM_API_KEY;
+    else process.env.COINRITHM_API_KEY = prior;
+  });
+
+  it("writes a PM-only label file while prices are not yet due", async () => {
+    process.env.COINRITHM_API_KEY = "fixture-key";
+    const dir = mkdtempSync(join(tmpdir(), "label-pm-"));
+    const id = "2026-10-07T07-52-00-689Z-e9eaa6887d61";
+    const file = {
+      schema: "coinrithm.bench.cassette.v1",
+      id,
+      asOf: ASOF,
+      clockMs: Date.parse(ASOF),
+      agentSpecHash: "sha256:fixture",
+      marketBaselineRecorded: true,
+      recordCycle: { decision: "skip" },
+      refusedRequests: [],
+      spec: { venues: ["pm"] },
+      recordedAt: ASOF,
+      responses: [
+        {
+          key: "GET /api/agent/pm/discover?limit=30&q=Bitcoin",
+          method: "GET",
+          path: "/api/agent/pm/discover",
+          query: {},
+          status: 200,
+          ok: true,
+          data: { data: [{ source: "kalshi", slug: "kxbtc-a", outcomes: [] }] },
+        },
+      ],
+    };
+    writeFileSync(join(dir, `${id}.json`), JSON.stringify(file));
+    const paths: string[] = [];
+    const fetchFn = (async (input: unknown, init?: { method?: string }) => {
+      expect(init?.method ?? "GET").toBe("GET");
+      const url = new URL(String(input));
+      paths.push(url.pathname);
+      return new Response(
+        JSON.stringify(eventBody(SETTLE, [outcome("A-YES", "won")])),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+    const r = await cmdLabel({
+      corpus: dir,
+      fetchFn,
+      nowMs: Date.parse(ASOF) + HOUR, // 24 h prices not due yet
+    });
+    expect(r.ok).toBe(true);
+    expect(paths).toEqual(["/api/prediction-markets/events/kalshi/kxbtc-a"]);
+    const written = parseLabelFile(
+      JSON.parse(readFileSync(join(dir, "labels", `${id}.json`), "utf8")),
+      "written",
+    );
+    expect(written).toEqual({ pm: { "kalshi/kxbtc-a/A-YES": { settled: 1 } } });
   });
 });
