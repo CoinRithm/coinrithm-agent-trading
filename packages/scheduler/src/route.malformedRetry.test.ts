@@ -9,6 +9,7 @@ import {
   NEMOTRON_SUPER,
   NEMOTRON_NANO,
   ownerWaitsInFlightNow,
+  DISPATCH_STOPPED_ERROR,
   ROUTE_CHANGED_ERROR,
   RoutedProvider,
   type ModelRoute,
@@ -925,5 +926,87 @@ describe("first-attempt owner refill wait (owner fairness, 009)", () => {
     expect(h.hooks.acquire).toHaveBeenCalledTimes(2);
     expect(h.requests).toHaveLength(1);
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe("operator dispatch gate (bench, root 57096)", () => {
+  afterEach(() => vi.useRealTimers());
+  const ownerDenial = (retryAfterMs: number) => ({
+    ok: false as const,
+    scope: "owner" as const,
+    admissionReasons: ["token_budget" as const],
+    retryAfterMs,
+  });
+
+  it("sends no request after a cancel during the owner wait", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const h = harness([good], [superRoute], () => Date.now());
+    let open = true;
+    h.hooks.mayDispatch = () => open;
+    h.hooks.stillEligible = vi.fn(async () => open);
+    h.hooks.abandonOwnerWait = vi.fn(async () => {});
+    const events: OwnerWaitEvent[] = [];
+    h.hooks.onOwnerWait = (e) => events.push(e);
+    vi.mocked(h.hooks.acquire).mockResolvedValueOnce(ownerDenial(5000));
+    const pending = h.provider.decide({ ...input, timeoutMs: 100000 });
+    await vi.advanceTimersByTimeAsync(2000);
+    open = false; // SIGTERM or the window end while sleeping
+    await vi.advanceTimersByTimeAsync(3000);
+    const result = await pending;
+    expect(result.ok).toBe(false);
+    expect(h.build).not.toHaveBeenCalled();
+    expect(h.hooks.acquire).toHaveBeenCalledOnce();
+    expect(h.hooks.abandonOwnerWait).toHaveBeenCalledWith(superRoute);
+    expect(result.route.attempts[0]).toMatchObject({
+      outcome: "deferred",
+      error: DISPATCH_STOPPED_ERROR,
+    });
+    expect(result.route.attempts[0]!.admissionReasons).toBeUndefined();
+    expect(events[events.length - 1]).toMatchObject({
+      event: "owner_wait_outcome",
+      outcome: "stopped",
+    });
+  });
+
+  it("returns an admitted lease unused when the gate closes before the request", async () => {
+    const h = harness([good], [superRoute]);
+    let checks = 0;
+    // Open at the loop top, closed by the pre-request check.
+    h.hooks.mayDispatch = () => (checks += 1) < 2;
+    h.hooks.abandonOwnerWait = vi.fn(async () => {});
+    const result = await h.provider.decide(input);
+    expect(result).toMatchObject({ ok: false, error: DISPATCH_STOPPED_ERROR });
+    expect(h.build).not.toHaveBeenCalled();
+    expect(h.hooks.release).toHaveBeenCalledWith(
+      superRoute,
+      "fixture",
+      { ok: false, error: DISPATCH_STOPPED_ERROR },
+      true,
+    );
+  });
+
+  it("starts no recovery retry after the gate closes", async () => {
+    const h = harness([bad, good], [superRoute]);
+    let open = true;
+    h.hooks.mayDispatch = () => open;
+    h.build.mockImplementationOnce((route, options) => ({
+      label: "fixture",
+      decide: async () => {
+        open = false; // closed while the first request was in flight
+        h.requests.push({ route, options });
+        return bad;
+      },
+    }));
+    const result = await h.provider.decide({ ...input, timeoutMs: 100000 });
+    expect(result.ok).toBe(false);
+    expect(h.requests).toHaveLength(1);
+    expect(h.hooks.acquire).toHaveBeenCalledOnce();
+  });
+
+  it("changes nothing for live agents (no gate)", async () => {
+    const h = harness([good], [superRoute]);
+    expect((await h.provider.decide(input)).ok).toBe(true);
+    expect(h.build).toHaveBeenCalledOnce();
   });
 });

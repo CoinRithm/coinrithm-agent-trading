@@ -96,6 +96,10 @@ export function createBenchGuard(opts: BenchGuardOptions): {
   wrap(inner: GuardedProvider): GuardedProvider;
   /** Stop the run: every later decision is deferred (signal, operator). */
   abort(reason: string): void;
+  /** The router's dispatch gate (RouteHooks.mayDispatch): false once the
+   *  run is aborted or the approved window has ended on the real clock.
+   *  No new admission or provider request starts after that. */
+  mayDispatch(): boolean;
 } {
   if (
     !Number.isInteger(opts.maxCalls) ||
@@ -121,6 +125,15 @@ export function createBenchGuard(opts: BenchGuardOptions): {
     aborted: null,
   };
   let lastDecisionAt: number | null = null;
+  const deadline = opts.deadlineMs ?? Infinity;
+  const mayDispatch = (): boolean => {
+    if (state.aborted) return false;
+    if (realNow() >= deadline) {
+      state.aborted = "approved window ended";
+      return false;
+    }
+    return true;
+  };
   // Decisions are serialized: the bench runs sequentially, and a guard that
   // let two through at once could exceed the cap or the interval.
   let queue: Promise<unknown> = Promise.resolve();
@@ -137,7 +150,6 @@ export function createBenchGuard(opts: BenchGuardOptions): {
       state.aborted = `call cap ${opts.maxCalls} reached (${state.providerCalls} used, a decision may need ${perDecision})`;
       return deferred(state.aborted);
     }
-    const deadline = opts.deadlineMs ?? Infinity;
     const startAt =
       lastDecisionAt === null
         ? realNow()
@@ -150,7 +162,9 @@ export function createBenchGuard(opts: BenchGuardOptions): {
       const wait = lastDecisionAt + opts.minIntervalMs - now();
       if (wait > 0) await sleep(wait);
     }
-    if (state.aborted) return deferred(state.aborted);
+    // Re-check on the real clock after waking: a late wake, or a signal
+    // during the spacing wait, starts nothing.
+    if (!mayDispatch()) return deferred(state.aborted ?? "stopped");
     lastDecisionAt = now();
     state.decisions += 1;
     // The provider path (Retry-After parsing, call timing, backoff clearing)
@@ -183,6 +197,7 @@ export function createBenchGuard(opts: BenchGuardOptions): {
     abort: (reason: string) => {
       state.aborted ??= reason;
     },
+    mayDispatch,
     wrap: (inner) => ({
       label: `bench-guard(${inner.label})`,
       decide: (input) => {
