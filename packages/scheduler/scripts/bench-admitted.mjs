@@ -19,8 +19,9 @@
 //   decisions, and aborts on the first provider 429, any cooldown hold or 3
 //   owner-budget denials in a row; after an abort nothing reaches a provider.
 // - --until is the approved window's end (UTC, at most 6 h ahead): no
-//   decision starts at or after it. SIGINT/SIGTERM stop the run after the
-//   decision in flight; the receipt is written and the pool closed on every
+//   decision, admission, owner-wait dispatch or recovery retry starts at
+//   or after it (the guard's mayDispatch gate inside the router).
+//   SIGINT/SIGTERM close the same gate; a request in flight finishes; the receipt is written and the pool closed on every
 //   exit path (a second signal writes the receipt and exits at once).
 // - Before the first call it refuses when the planned worst case
 //   (cassettes x variants x repeats x 2) exceeds the cap; when a variant is
@@ -232,6 +233,7 @@ async function main() {
       guard.wrap(
         benchRoutedProvider(pool, config, {
           modelName: spec.model?.name ?? "",
+          mayDispatch: guard.mayDispatch,
         }),
       );
     result = await cmdBench({

@@ -232,3 +232,49 @@ describe("bench guard window and abort (root 57087)", () => {
     expect(h.guard.state.aborted).toBe("SIGTERM");
   });
 });
+
+describe("bench guard real-clock rechecks (root 57096)", () => {
+  it("starts nothing when the spacing wait wakes after the window end", async () => {
+    let real = 0;
+    const guard = createBenchGuard({
+      maxCalls: 40,
+      minIntervalMs: 90_000,
+      maxOwnerDenialStreak: 3,
+      deadlineMs: 100_000,
+      realNow: () => real,
+      now: () => real,
+      sleep: async (ms) => {
+        real += ms + 20_000; // the process wakes 20 s late
+      },
+    });
+    const decide = vi.fn(async () => ok);
+    const provider = guard.wrap({ label: "router", decide } as never);
+    await provider.decide(input); // t = 0
+    real = 5_000;
+    // Predicted start 90 s is inside the window; the real wake is 110 s.
+    expect(await provider.decide(input)).toMatchObject({ ok: false });
+    expect(decide).toHaveBeenCalledOnce();
+    expect(guard.state.aborted).toBe("approved window ended");
+  });
+
+  it("closes the dispatch gate on abort and at the window end", () => {
+    let real = 0;
+    const guard = createBenchGuard({
+      maxCalls: 40,
+      minIntervalMs: 60_000,
+      maxOwnerDenialStreak: 3,
+      deadlineMs: 1_000,
+      realNow: () => real,
+    });
+    expect(guard.mayDispatch()).toBe(true);
+    real = 1_000;
+    expect(guard.mayDispatch()).toBe(false);
+    const other = createBenchGuard({
+      maxCalls: 40,
+      minIntervalMs: 60_000,
+      maxOwnerDenialStreak: 3,
+    });
+    other.abort("SIGTERM");
+    expect(other.mayDispatch()).toBe(false);
+  });
+});

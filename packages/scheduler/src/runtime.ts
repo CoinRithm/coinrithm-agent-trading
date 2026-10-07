@@ -343,12 +343,15 @@ export function usesCustomerByoSuperJsonContent(
 export function benchRoutedProvider(
   pool: Pool,
   config: Config,
-  opts: { modelName: string },
+  // mayDispatch: the bench guard's gate (approved window and cancellation),
+  // checked by the router before every admission and provider request.
+  opts: { modelName: string; mayDispatch?: () => boolean },
 ): RoutedProvider<
   ProviderCapacityLease & { ownerLease?: ProviderCapacityLease }
 > {
   benchKeyRef(config);
-  return routedProviderFor(pool, benchAgentRow(opts.modelName), config, []);
+  const agent = benchAgentRow(opts.modelName);
+  return routedProviderFor(pool, agent, config, [], agent, opts.mayDispatch);
 }
 
 /** The only models a bench may compare (root 57088): the NVIDIA pair. */
@@ -398,6 +401,8 @@ function routedProviderFor(
   // The row as loaded for this cycle: the route snapshot an owner-refill
   // wait must still match before dispatch (agentStillSharedEligible).
   loaded: AgentRow = agent,
+  // Operator gate; only the bench sets it (benchRoutedProvider).
+  mayDispatch?: () => boolean,
 ): RoutedProvider<
   ProviderCapacityLease & { ownerLease?: ProviderCapacityLease }
 > {
@@ -521,12 +526,15 @@ function routedProviderFor(
       // Owner fairness (009): after an in-cycle refill wait, dispatch only if
       // this agent is still active on the shared pool with the same model;
       // a cycle that will not wait ends its owner-bucket claim at once.
-      // The operator bench's synthetic agent has no row to re-check; it stays
-      // eligible, so a post-wait denial keeps its typed owner-budget reason
+      // The operator bench's synthetic agent has no row to re-check: it is
+      // eligible while its gate is open (window and cancellation, root
+      // 57096), so a post-wait denial keeps its typed owner-budget reason
       // instead of becoming a route change (root 57087).
       stillEligible: async () =>
-        agent.capacityTenant === "bench" ||
-        agentStillSharedEligible(pool, loaded),
+        agent.capacityTenant === "bench"
+          ? (mayDispatch?.() ?? true)
+          : agentStillSharedEligible(pool, loaded),
+      ...(mayDispatch ? { mayDispatch } : {}),
       // Bounded structured diagnostics: agent id, model, path, timings and a
       // reason code only (no prompt, credential, handle or owner identity).
       onOwnerWait: (event) => {

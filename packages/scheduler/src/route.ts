@@ -114,7 +114,8 @@ export type OwnerWaitEvent =
       path: "first_call" | "recovery";
       model: string;
       waitedMs: number;
-      outcome: "admitted" | "denied" | "route_changed" | "route_unusable";
+      outcome:
+        "admitted" | "denied" | "route_changed" | "route_unusable" | "stopped";
     };
 
 export interface RouteHooks<Lease = unknown> {
@@ -137,6 +138,10 @@ export interface RouteHooks<Lease = unknown> {
   ): Promise<void>;
   /** After an owner-refill wait: may this agent still dispatch on route? */
   stillEligible?(route: ModelRoute): Promise<boolean>;
+  /** Operator gate (the bench only): false = start no new admission or
+   *  provider request, including after an owner wait and before a
+   *  recovery retry. A request already in flight finishes normally. */
+  mayDispatch?(): boolean;
   /** This cycle will not (or no longer) wait: end its owner-bucket claim. */
   abandonOwnerWait?(route: ModelRoute): Promise<void>;
   /** Diagnostics for owner-refill waits; failures never affect routing. */
@@ -170,6 +175,9 @@ let ownerWaitsInFlight = 0;
  */
 export const ROUTE_CHANGED_ERROR =
   "route_changed: agent paused, removed or re-routed during owner refill wait";
+/** The operator gate closed (bench window ended or run cancelled). */
+export const DISPATCH_STOPPED_ERROR =
+  "dispatch_stopped: operator window ended or run cancelled";
 /** Tests and diagnostics: first-attempt owner waits currently sleeping. */
 export function ownerWaitsInFlightNow(): number {
   return ownerWaitsInFlight;
@@ -332,6 +340,10 @@ export class RoutedProvider<Lease = unknown> implements Provider {
     this.label = `router/${profile}/${ROUTE_POLICY_VERSION}`;
   }
 
+  private stopped(): boolean {
+    return !!this.hooks.mayDispatch && !this.hooks.mayDispatch();
+  }
+
   private ownerWaitEvent(event: OwnerWaitEvent): void {
     try {
       this.hooks.onOwnerWait?.(event);
@@ -391,6 +403,14 @@ export class RoutedProvider<Lease = unknown> implements Provider {
       const { route, options } = candidates[index]!;
       if (attempts.length >= MAX_ROUTE_ATTEMPTS) break;
       if (this.now() >= deadline) break;
+      if (this.stopped()) {
+        lastFailure = {
+          ok: false,
+          error: DISPATCH_STOPPED_ERROR,
+          deferred: true,
+        };
+        break;
+      }
       // Local budget exhaustion is credential-key scoped; an upstream 429 is
       // route/model scoped (live NIM evidence). Track both without conflating
       // them so a healthy alternate can absorb a model-specific limit.
@@ -439,6 +459,7 @@ export class RoutedProvider<Lease = unknown> implements Provider {
       // so at most one owner wait happens per cycle either way.
       const firstAttempt = attempts.every((a) => a.outcome === "deferred");
       let routeChanged = false;
+      let stoppedAfterWait = false;
       const fairnessWait =
         firstAttempt && options?.nemotronJsonContent !== true;
       const waitCeilingMs = fairnessWait
@@ -507,7 +528,10 @@ export class RoutedProvider<Lease = unknown> implements Provider {
         } finally {
           if (fairnessWait) ownerWaitsInFlight -= 1;
         }
+        // The operator gate may have closed while this cycle slept.
+        stoppedAfterWait = this.stopped();
         const routeUsable =
+          !stoppedAfterWait &&
           this.now() + MIN_RECOVERY_RESPONSE_MS <= deadline &&
           (await this.hooks.availability(route)).eligible &&
           this.now() + MIN_RECOVERY_RESPONSE_MS <= deadline;
@@ -523,16 +547,24 @@ export class RoutedProvider<Lease = unknown> implements Provider {
           path: waitPath,
           model: route.model,
           waitedMs: Math.max(0, this.now() - waitStarted),
-          outcome: !routeUsable
-            ? "route_unusable"
-            : routeChanged
-              ? "route_changed"
-              : acquired.ok
-                ? "admitted"
-                : "denied",
+          outcome: stoppedAfterWait
+            ? "stopped"
+            : !routeUsable
+              ? "route_unusable"
+              : routeChanged
+                ? "route_changed"
+                : acquired.ok
+                  ? "admitted"
+                  : "denied",
         });
         if (!canDispatch && !firstAttempt) {
           await this.abandonOwnerWait(route);
+          if (stoppedAfterWait)
+            lastFailure = {
+              ok: false,
+              error: DISPATCH_STOPPED_ERROR,
+              deferred: true,
+            };
           break;
         }
       }
@@ -547,12 +579,15 @@ export class RoutedProvider<Lease = unknown> implements Provider {
           failureClass: "capacity",
           retryAfterMs: acquired.retryAfterMs,
           latencyMs: 0,
-          error: routeChanged
-            ? ROUTE_CHANGED_ERROR
-            : this.clean(acquired.error ?? "provider capacity unavailable"),
-          admissionReasons: routeChanged
-            ? undefined
-            : acquired.admissionReasons,
+          error: stoppedAfterWait
+            ? DISPATCH_STOPPED_ERROR
+            : routeChanged
+              ? ROUTE_CHANGED_ERROR
+              : this.clean(acquired.error ?? "provider capacity unavailable"),
+          admissionReasons:
+            routeChanged || stoppedAfterWait
+              ? undefined
+              : acquired.admissionReasons,
         };
         attempts.push(attempt);
         if (acquired.scope === "route") blockedRoutes.add(routeKey(route));
@@ -582,6 +617,23 @@ export class RoutedProvider<Lease = unknown> implements Provider {
         );
         // The unused release keeps a claim; this cycle has ended, so end it.
         await this.abandonOwnerWait(route);
+        break;
+      }
+      // Last boundary before a NEW provider request: an admitted lease is
+      // returned unused when the operator gate has closed meanwhile.
+      if (this.stopped()) {
+        await this.hooks.release(
+          route,
+          acquired.lease,
+          { ok: false, error: DISPATCH_STOPPED_ERROR },
+          true,
+        );
+        await this.abandonOwnerWait(route);
+        lastFailure = {
+          ok: false,
+          error: DISPATCH_STOPPED_ERROR,
+          deferred: true,
+        };
         break;
       }
       lastAttemptedRoute = route;
