@@ -42,7 +42,7 @@ import {
 import { COINRITHM_API } from "./version.js";
 import { stableStringify, envFlag, parseCadenceMs, sleep } from "./util.js";
 import { AgentSpec, ResolveIssue } from "./types.js";
-import { CoinRithmClient } from "./client.js";
+import { CoinRithmClient, DEFAULT_BASE_URL } from "./client.js";
 import { Provider, selectProvider } from "./providers.js";
 import { runLoop, RunnerDeps } from "./runner.js";
 import { loadState, saveState } from "./state.js";
@@ -51,9 +51,11 @@ import { readCorpus, writeCassette } from "./bench/cassette.js";
 import { recordCassette } from "./bench/recordingClient.js";
 import { BenchVariant, runBench } from "./bench/bench.js";
 import {
+  buildPmLabels,
   buildPriceLabels,
   DEFAULT_LABEL_HORIZON_HOURS,
 } from "./bench/labelBuilder.js";
+import type { LabelFile } from "./bench/labels.js";
 import { parseLabelFile } from "./bench/labels.js";
 
 export interface CmdResult {
@@ -592,10 +594,11 @@ export async function cmdRecord(
   return { ok: true, code: 0, lines, data: files };
 }
 
-// Write price outcome labels for a recorded corpus (bench/labelBuilder.ts):
-// reads only, with COINRITHM_API_KEY, from candles published after each
-// cassette's asOf. PM settlement labels are not built (they need the
-// production settlement verdict), so PM opens stay unlabelled.
+// Write outcome labels for a recorded corpus (bench/labelBuilder.ts), reads
+// only: price bars from candles published after each cassette's asOf (with
+// COINRITHM_API_KEY), and PM settlement from the public event verdict
+// (settlementEligible + "settle" + a provider won/lost outcome result; any
+// other state stays unlabelled).
 export async function cmdLabel(
   opts: {
     corpus?: string;
@@ -633,31 +636,65 @@ export async function cmdLabel(
     existing: corpus.labels,
     overwrite: opts.overwrite,
   });
+  const base = (process.env.COINRITHM_API_URL || DEFAULT_BASE_URL).replace(
+    /\/+$/,
+    "",
+  );
+  const fetchFn = opts.fetchFn ?? fetch;
+  const pmResults = await buildPmLabels(corpus.cassettes, {
+    // The public event detail: the same verdict the event page shows.
+    fetchEvent: async (source, slug) => {
+      const res = await fetchFn(
+        `${base}/api/prediction-markets/events/${encodeURIComponent(source)}/${encodeURIComponent(slug)}`,
+        { method: "GET", signal: AbortSignal.timeout(15_000) },
+      );
+      return {
+        ok: res.ok,
+        status: res.status,
+        data: res.ok ? await res.json() : null,
+      };
+    },
+    existing: corpus.labels,
+    overwrite: opts.overwrite,
+  });
   const lines = [
     `label (reads only): ${corpus.cassettes.length} cassette(s), horizon ${horizonHours} h`,
   ];
   let written = 0;
   for (const r of results) {
-    if (r.status !== "built") {
-      lines.push(
-        `${r.id}: ${r.status}${r.status === "not_yet" ? ` (labelable after ${r.labelableAfter})` : ""}${r.status === "horizon_mismatch" ? ` (existing file labels ${r.existingHorizonHours ?? "no"} h, not ${horizonHours} h; rerun with --overwrite)` : ""}`,
+    const pm = pmResults.find((p) => p.id === r.id);
+    const notes: string[] = [];
+    let file: LabelFile | undefined;
+    if (r.status === "built") {
+      file = { ...r.file };
+      notes.push(
+        `${r.range} bars for ${r.symbols.length} symbol(s)${r.missing.length ? `, missing ${r.missing.join(",")}` : ""}`,
       );
-      continue;
+    } else {
+      notes.push(
+        `prices ${r.status}${r.status === "not_yet" ? ` (labelable after ${r.labelableAfter})` : ""}${r.status === "horizon_mismatch" ? ` (existing file labels ${r.existingHorizonHours ?? "no"} h, not ${horizonHours} h; rerun with --overwrite)` : ""}`,
+      );
     }
-    const file = join(dir, "labels", `${r.id}.json`);
+    if (pm) {
+      notes.push(
+        `pm ${pm.labelled} new settled outcome(s) from ${pm.events} event(s)${pm.failed ? `, ${pm.failed} read(s) failed` : ""}`,
+      );
+      if (pm.labelled > 0 || (file && Object.keys(pm.pm).length > 0))
+        file = { ...(file ?? corpus.labels[r.id] ?? {}), pm: pm.pm };
+    }
+    lines.push(`${r.id}: ${notes.join("; ")}`);
+    if (!file) continue;
+    const path = join(dir, "labels", `${r.id}.json`);
     // The bench reads it back through the same validator; fail closed here.
-    parseLabelFile(r.file, `labels/${r.id}.json`);
-    mkdirSync(dirname(file), { recursive: true });
-    writeFileSync(file, `${JSON.stringify(r.file, null, 2)}\n`, "utf8");
+    parseLabelFile(file, `labels/${r.id}.json`);
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, `${JSON.stringify(file, null, 2)}\n`, "utf8");
     written += 1;
-    lines.push(
-      `${r.id}: ${r.range} bars for ${r.symbols.length} symbol(s)${r.missing.length ? `, missing ${r.missing.join(",")}` : ""}`,
-    );
   }
   lines.push(
-    `wrote ${written} label file(s); PM opens stay unlabelled (no production settlement verdict read)`,
+    `wrote ${written} label file(s); PM outcomes without a settled platform verdict stay unlabelled`,
   );
-  return { ok: true, code: 0, lines, data: results };
+  return { ok: true, code: 0, lines, data: { prices: results, pm: pmResults } };
 }
 
 // Compare agent variants on a recorded corpus (see bench/bench.ts). Each
