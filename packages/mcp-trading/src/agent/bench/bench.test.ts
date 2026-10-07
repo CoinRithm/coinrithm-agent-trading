@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   actionKey,
+  BASELINE_BASE_RATE,
   BASELINE_MARKET,
+  BASELINE_RANDOM,
   BASELINE_SKIP,
   runBench,
   withReplayClock,
@@ -314,6 +316,23 @@ describe("runBench", () => {
     expect(market.cycles).toBe(3);
     expect(market.actions.accepted).toBe(3);
     expect(market.cyclesWithMissingInputs).toBe(0);
+    // Baselines 3 and 4 replay from the same recorded market pass.
+    for (const name of [BASELINE_BASE_RATE, BASELINE_RANDOM]) {
+      const all = report.variants[name].all;
+      expect(report.variants[name].kind).toBe("baseline");
+      expect(all.cycles).toBe(3);
+      expect(all.actions.accepted).toBe(3);
+      expect(all.cyclesWithMissingInputs).toBe(0);
+    }
+    const forecasts = (name: string) =>
+      report.cycles
+        .filter((r: Json) => r.variant === name)
+        .map((r: Json) => r.actions[0].forecastProbability);
+    expect(forecasts(BASELINE_BASE_RATE)).toEqual([50, 50, 50]);
+    for (const f of forecasts(BASELINE_RANDOM)) {
+      expect(f).toBeGreaterThanOrEqual(20);
+      expect(f).toBeLessThanOrEqual(80);
+    }
     expect(report.assumptions.pmFee.constant).toBe(
       "PM_SYNTHETIC_FEE_RATE_AT_MID",
     );
@@ -384,6 +403,10 @@ describe("runBench", () => {
     expect(b.labelledPnlMusd).toBe(-30);
     const market = report.variants[BASELINE_MARKET].all.labelled;
     expect(market.pmBrierMean).toBeCloseTo(0.01, 9);
+    // The uninformative 50% forecast scores (0.5 - 0)^2 on a losing outcome.
+    expect(
+      report.variants[BASELINE_BASE_RATE].all.labelled.pmBrierMean,
+    ).toBeCloseTo(0.25, 9);
     // Not trading beat trading here: skip made 0, b lost 10 per cassette.
     const vsSkip = report.comparisons.find(
       (c: Json) => c.a === "b" && c.b === BASELINE_SKIP,

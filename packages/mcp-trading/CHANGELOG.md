@@ -7,6 +7,22 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
 ## 0.7.16 (unpublished)
 
+- Bench: two more PM baselines, `baseline:base-rate` (uninformative 50%) and
+  `baseline:random` (seeded 20-80%), next to `baseline:skip` and
+  `baseline:market`. They replay the same recorded market pass, so existing
+  corpora need no re-recording; futures/spot-only corpora still get skip only.
+- Add `coinrithm-agent label --corpus <dir> [--horizon-hours 24] [--overwrite]`:
+  writes `labels/<cassetteId>.json` price bars from candles published after
+  each cassette's asOf (reads only). It waits for the horizon to elapse, uses
+  the finest bar size the cassette's age still allows, keeps existing PM and
+  funding labels, and writes PM settlement only from the public event
+  verdict (settlement-eligible + "settle" + a provider won/lost outcome
+  result; anything else stays unlabelled). Only
+  bars that close by the horizon are stored, and an existing file for
+  another horizon is reported (`horizon_mismatch`), never kept silently.
+- Bench futures scoring walks only bars that open after asOf and close by
+  the horizon end; a horizon off the bar grid stops at the last full bar
+  before it (`horizonFlooredToBar`), so no price after the horizon is used.
 - Add optional per-agent `signals` thresholds (`rsiOversold`, `rsiOverbought`,
   `strongMovePct`, `leanMovePct`, `minStrength`) and a `data.indicatorRange`
   data diet (`1D` 5m bars, `1W` 15m, `1M` 1h, `3M` 4h). They change the setup

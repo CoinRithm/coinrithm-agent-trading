@@ -63,6 +63,7 @@ import {
   RoutedProvider,
   resolveRouteChain,
   NEMOTRON_SUPER,
+  NEMOTRON_LIGHTNING,
   type ModelRoute,
   type RouteAttempt,
 } from "./route.js";
@@ -326,6 +327,72 @@ export function usesCustomerByoSuperJsonContent(
   );
 }
 
+/**
+ * The scheduler's routed provider for an operator bench run (C3 of the item-3
+ * plan; run only via scripts/bench-admitted.mjs, never by the scheduler). A
+ * synthetic, never-persisted agent row pinned to `modelName` (no fallback
+ * model, so a model comparison is not mixed), so every bench call passes
+ * the same NVIDIA key buckets, model cooldowns and usage debt as live
+ * agents, under its OWN owner budget `shared-owner:bench` (same 25k TPM and
+ * concurrency 1; never a house, QA or customer tenant). Its id is 0:
+ * sharedOwnerLimit adds a waiter only for a real agent id, so a bench call
+ * never holds an owner claim. It may wait for its own bucket's refill and
+ * stays eligible across that wait (no row to re-check), so a denial after
+ * re-admission keeps its owner-budget reason.
+ */
+export function benchRoutedProvider(
+  pool: Pool,
+  config: Config,
+  // mayDispatch: the bench guard's gate (approved window and cancellation),
+  // checked by the router before every admission and provider request.
+  opts: { modelName: string; mayDispatch?: () => boolean },
+): RoutedProvider<
+  ProviderCapacityLease & { ownerLease?: ProviderCapacityLease }
+> {
+  benchKeyRef(config);
+  const agent = benchAgentRow(opts.modelName);
+  return routedProviderFor(pool, agent, config, [], agent, opts.mayDispatch);
+}
+
+/** The only models a bench may compare (root 57088): the NVIDIA pair. */
+export const BENCH_MODELS: readonly string[] = [
+  NEMOTRON_SUPER,
+  NEMOTRON_LIGHTNING,
+];
+
+/** The synthetic bench agent row (see benchRoutedProvider). */
+export function benchAgentRow(modelName: string): AgentRow {
+  if (!BENCH_MODELS.includes(modelName))
+    throw new Error(
+      `bench model must be one of ${BENCH_MODELS.join(", ")}, got "${modelName}"`,
+    );
+  return {
+    id: 0,
+    handle: "bench",
+    displayName: "bench",
+    live: false,
+    cadenceSeconds: 300,
+    modelProvider: "nvidia",
+    modelName,
+    modelBaseUrl: null,
+    spec: { pinnedModel: true },
+    prose: "",
+    coinrithmKeyEnc: "",
+    brainKeyEnc: null,
+    ownerUserId: null,
+    isHouse: false,
+    capacityTenant: "bench",
+  };
+}
+
+/** The shared NVIDIA key bucket every bench call uses (the same pick as a
+ *  live agent with this id), for the operator preflight. */
+export function benchKeyRef(config: Config): string {
+  const picked = pickNvidiaKey(benchAgentRow(NEMOTRON_SUPER), config);
+  if (!picked) throw new Error("no shared NVIDIA key is configured");
+  return picked.keyRef;
+}
+
 function routedProviderFor(
   pool: Pool,
   agent: AgentRow,
@@ -334,6 +401,8 @@ function routedProviderFor(
   // The row as loaded for this cycle: the route snapshot an owner-refill
   // wait must still match before dispatch (agentStillSharedEligible).
   loaded: AgentRow = agent,
+  // Operator gate; only the bench sets it (benchRoutedProvider).
+  mayDispatch?: () => boolean,
 ): RoutedProvider<
   ProviderCapacityLease & { ownerLease?: ProviderCapacityLease }
 > {
@@ -457,7 +526,15 @@ function routedProviderFor(
       // Owner fairness (009): after an in-cycle refill wait, dispatch only if
       // this agent is still active on the shared pool with the same model;
       // a cycle that will not wait ends its owner-bucket claim at once.
-      stillEligible: async () => agentStillSharedEligible(pool, loaded),
+      // The operator bench's synthetic agent has no row to re-check: it is
+      // eligible while its gate is open (window and cancellation, root
+      // 57096), so a post-wait denial keeps its typed owner-budget reason
+      // instead of becoming a route change (root 57087).
+      stillEligible: async () =>
+        agent.capacityTenant === "bench"
+          ? (mayDispatch?.() ?? true)
+          : agentStillSharedEligible(pool, loaded),
+      ...(mayDispatch ? { mayDispatch } : {}),
       // Bounded structured diagnostics: agent id, model, path, timings and a
       // reason code only (no prompt, credential, handle or owner identity).
       onOwnerWait: (event) => {

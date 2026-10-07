@@ -123,6 +123,7 @@ touch local files.
 | `run <path> [--once] [--live] [--dry-run] [--state <file>]`                   | run the loop (dry-run by default)                              |
 | `record <path> --out <dir> [--cycles N] [--every 5m]`                         | record bench inputs (reads only, no model call)                |
 | `bench --corpus <dir> --variant a=<path> --variant b=<path> [--repeats 3]`    | compare agent variants on recorded inputs (never writes)       |
+| `label --corpus <dir> [--horizon-hours 24] [--overwrite]`                     | write price outcome labels after each asOf (reads only)        |
 
 ## Examples
 
@@ -353,8 +354,11 @@ What it does:
   completes. A malformed corpus JSON file stops the run for explicit repair.
 - `bench` replays each cassette through the same `runCycle` for every variant,
   `--repeats` times, starting each cycle from a fresh run state. It also runs
-  two baselines on every cassette: `baseline:skip` (never trades) and, for PM
-  agents, `baseline:market` (the mechanical market-implied strategy).
+  baselines on every cassette: `baseline:skip` (never trades) and, for PM
+  agents, three mechanical PM strategies on the same recorded market pass:
+  `baseline:market` (the market's own probability), `baseline:base-rate` (an
+  uninformative 50%) and `baseline:random` (a seeded 20-80% forecast). A
+  futures/spot-only agent gets `baseline:skip` only.
 - The report (`coinrithm.bench.report.v1`) gives, per variant: decision mix,
   model failures and crashes, accepted and rejected actions with reject codes,
   repeat consistency, missing inputs and synthesized quotes. Per pair of
@@ -372,7 +376,17 @@ What it does:
 { "BTC": [{ "t": 1791367500, "h": 1, "l": 1, "c": 1 }] } }` adds Brier
   (agent and market), return on stake, futures return on margin and labelled
   P&L. Without labels, opens are counted as unlabelled, never dropped. The
-  bench does not fetch labels. Missing labels are not zero profit: paired
+  bench does not fetch labels; `coinrithm-agent label --corpus <dir>` writes
+  the `prices` part from candles published after each asOf (reads only,
+  `COINRITHM_API_KEY`). It waits until the horizon (default 24 h) has
+  elapsed and picks the finest bar size the cassette's age still allows
+  (5-minute bars within a day, then 15-minute, hourly, 4-hourly). Existing
+  PM and funding labels are kept, existing prices only with `--overwrite`.
+  PM settlement comes from the public event read
+  (`/api/prediction-markets/events/:source/:slug`): an outcome is labelled
+  only when the platform's verdict is settlement-eligible with "settle" and
+  the outcome has a provider won/lost result; any other state stays
+  unlabelled. Missing labels are not zero profit: paired
   P&L excludes a cassette if either variant has any repeat with an unscored
   accepted action, missing input, or runtime error. Comparable and excluded
   cycle counts are reported; genuine complete no-action cycles count as zero.
@@ -405,6 +419,8 @@ Honest limits (also written into every report's `assumptions`):
 - Futures outcomes are an OHLC walk model, not fills: entry at the
   synthesized quote, no entry latency, a bar touching both stop and target
   counts as the stop (and is counted), a missing bar gives `unlabelled_gap`,
+  only bars that close by the horizon end are walked (a horizon off the bar
+  grid stops at the last full bar before it, flagged `horizonFlooredToBar`),
   and funding is included only when the label file carries funding events.
 - Cassettes hold your paper account's reads (never the API key). Keep a corpus
   as private as the account. Benching a corpus costs one model call per

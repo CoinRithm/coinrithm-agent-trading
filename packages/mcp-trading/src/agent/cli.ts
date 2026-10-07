@@ -42,7 +42,7 @@ import {
 import { COINRITHM_API } from "./version.js";
 import { stableStringify, envFlag, parseCadenceMs, sleep } from "./util.js";
 import { AgentSpec, ResolveIssue } from "./types.js";
-import { CoinRithmClient } from "./client.js";
+import { CoinRithmClient, DEFAULT_BASE_URL } from "./client.js";
 import { Provider, selectProvider } from "./providers.js";
 import { runLoop, RunnerDeps } from "./runner.js";
 import { loadState, saveState } from "./state.js";
@@ -50,6 +50,13 @@ import { makeRunId } from "./runEvidence.js";
 import { readCorpus, writeCassette } from "./bench/cassette.js";
 import { recordCassette } from "./bench/recordingClient.js";
 import { BenchVariant, runBench } from "./bench/bench.js";
+import {
+  buildPmLabels,
+  buildPriceLabels,
+  DEFAULT_LABEL_HORIZON_HOURS,
+} from "./bench/labelBuilder.js";
+import type { LabelFile } from "./bench/labels.js";
+import { parseLabelFile } from "./bench/labels.js";
 
 export interface CmdResult {
   ok: boolean;
@@ -587,6 +594,118 @@ export async function cmdRecord(
   return { ok: true, code: 0, lines, data: files };
 }
 
+// Write outcome labels for a recorded corpus (bench/labelBuilder.ts), reads
+// only: price bars from candles published after each cassette's asOf (with
+// COINRITHM_API_KEY), and PM settlement from the public event verdict
+// (settlementEligible + "settle" + a provider won/lost outcome result; any
+// other state stays unlabelled).
+export async function cmdLabel(
+  opts: {
+    corpus?: string;
+    horizonHours?: number;
+    overwrite?: boolean;
+    fetchFn?: typeof fetch;
+    nowMs?: number;
+  } = {},
+): Promise<CmdResult> {
+  if (!opts.corpus) return fail(["label needs --corpus <dir>"]);
+  const horizonHours = opts.horizonHours ?? DEFAULT_LABEL_HORIZON_HOURS;
+  if (!Number.isFinite(horizonHours) || horizonHours <= 0 || horizonHours > 720)
+    return fail(["--horizon-hours must be a number in (0, 720]"]);
+  const apiKey = process.env.COINRITHM_API_KEY;
+  if (!apiKey)
+    return fail([
+      "COINRITHM_API_KEY is not set (labels read public market candles through your key; nothing is written)",
+    ]);
+  const dir = resolvePath(opts.corpus);
+  let corpus;
+  try {
+    corpus = readCorpus(dir);
+  } catch (e) {
+    return fail([(e as Error).message]);
+  }
+  const client = new CoinRithmClient({
+    apiKey,
+    baseUrl: process.env.COINRITHM_API_URL || undefined,
+    fetchFn: opts.fetchFn,
+  });
+  const results = await buildPriceLabels(corpus.cassettes, {
+    fetchCandles: (coinId, range) => client.candles(coinId, range),
+    horizonHours,
+    nowMs: opts.nowMs ?? Date.now(),
+    existing: corpus.labels,
+    overwrite: opts.overwrite,
+  });
+  const base = (process.env.COINRITHM_API_URL || DEFAULT_BASE_URL).replace(
+    /\/+$/,
+    "",
+  );
+  const fetchFn = opts.fetchFn ?? fetch;
+  const pmResults = await buildPmLabels(corpus.cassettes, {
+    // The public event detail: the same verdict the event page shows.
+    fetchEvent: async (source, slug) => {
+      const res = await fetchFn(
+        `${base}/api/prediction-markets/events/${encodeURIComponent(source)}/${encodeURIComponent(slug)}`,
+        { method: "GET", signal: AbortSignal.timeout(15_000) },
+      );
+      return {
+        ok: res.ok,
+        status: res.status,
+        data: res.ok ? await res.json() : null,
+      };
+    },
+    existing: corpus.labels,
+    overwrite: opts.overwrite,
+  });
+  const lines = [
+    `label (reads only): ${corpus.cassettes.length} cassette(s), horizon ${horizonHours} h`,
+  ];
+  let written = 0;
+  for (const r of results) {
+    const pm = pmResults.find((p) => p.id === r.id);
+    const notes: string[] = [];
+    let file: LabelFile | undefined;
+    if (r.status === "built") {
+      file = { ...r.file };
+      notes.push(
+        `${r.range} bars for ${r.symbols.length} symbol(s)${r.missing.length ? `, missing ${r.missing.join(",")}` : ""}`,
+      );
+    } else {
+      notes.push(
+        `prices ${r.status}${r.status === "not_yet" ? ` (labelable after ${r.labelableAfter})` : ""}${r.status === "horizon_mismatch" ? ` (existing file labels ${r.existingHorizonHours ?? "no"} h, not ${horizonHours} h; rerun with --overwrite)` : ""}`,
+      );
+    }
+    if (pm) {
+      notes.push(
+        `pm ${pm.labelled} new settled outcome(s) from ${pm.events} event(s)${pm.failed ? `, ${pm.failed} read(s) failed` : ""}`,
+      );
+      const hasPm = Object.keys(pm.pm).length > 0;
+      if (opts.overwrite) {
+        // --overwrite REPLACES the PM part, even with nothing: a label that
+        // was settled before but is void/unresolved now must not survive.
+        const base = file ?? corpus.labels[r.id];
+        if (base || hasPm) {
+          const { pm: _replaced, ...rest } = base ?? {};
+          file = hasPm ? { ...rest, pm: pm.pm } : rest;
+        }
+      } else if (pm.labelled > 0 || (file && hasPm))
+        file = { ...(file ?? corpus.labels[r.id] ?? {}), pm: pm.pm };
+    }
+    lines.push(`${r.id}: ${notes.join("; ")}`);
+    if (!file) continue;
+    const path = join(dir, "labels", `${r.id}.json`);
+    // The bench reads it back through the same validator; fail closed here.
+    parseLabelFile(file, `labels/${r.id}.json`);
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, `${JSON.stringify(file, null, 2)}\n`, "utf8");
+    written += 1;
+  }
+  lines.push(
+    `wrote ${written} label file(s); PM outcomes without a settled platform verdict stay unlabelled`,
+  );
+  return { ok: true, code: 0, lines, data: { prices: results, pm: pmResults } };
+}
+
 // Compare agent variants on a recorded corpus (see bench/bench.ts). Each
 // variant runs with its own model, built exactly as `run` builds it from the
 // variant's model config and the environment's keys. Never writes.
@@ -732,6 +851,8 @@ interface ParsedFlags {
   repeats?: number;
   seed?: number;
   noBaselines?: boolean;
+  horizonHours?: number;
+  overwrite?: boolean;
 }
 
 function parseFlags(args: string[]): ParsedFlags {
@@ -761,6 +882,8 @@ function parseFlags(args: string[]): ParsedFlags {
     else if (a === "--repeats") out.repeats = num(args[++i]);
     else if (a === "--seed") out.seed = num(args[++i]);
     else if (a === "--no-baselines") out.noBaselines = true;
+    else if (a === "--horizon-hours") out.horizonHours = num(args[++i]);
+    else if (a === "--overwrite") out.overwrite = true;
     else out._.push(a);
   }
   return out;
@@ -777,6 +900,7 @@ function usageLines(): string[] {
     "  run <path> [--once] [--live] [--dry-run] [--state <file>] [--expect-definition sha256:...]   (dry-run by default)",
     "  record <path> --out <dir> [--cycles N] [--every 5m]   (bench inputs; reads only, no model call)",
     "  bench --corpus <dir> --variant a=<path> --variant b=<path> [--repeats 3] [--seed N] [--no-baselines] [--out report.json]",
+    "  label --corpus <dir> [--horizon-hours 24] [--overwrite]   (price outcome labels after asOf; reads only)",
   ];
 }
 
@@ -820,6 +944,13 @@ export async function main(argv: string[]): Promise<number> {
         out: flags.out,
         cycles: flags.cycles,
         every: flags.every,
+      });
+      break;
+    case "label":
+      r = await cmdLabel({
+        corpus: flags.corpus,
+        horizonHours: flags.horizonHours,
+        overwrite: flags.overwrite,
       });
       break;
     case "bench":
