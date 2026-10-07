@@ -63,6 +63,7 @@ import {
   RoutedProvider,
   resolveRouteChain,
   NEMOTRON_SUPER,
+  NEMOTRON_LIGHTNING,
   type ModelRoute,
   type RouteAttempt,
 } from "./route.js";
@@ -335,8 +336,9 @@ export function usesCustomerByoSuperJsonContent(
  * agents, under its OWN owner budget `shared-owner:bench` (same 25k TPM and
  * concurrency 1; never a house, QA or customer tenant). Its id is 0:
  * sharedOwnerLimit adds a waiter only for a real agent id, so a bench call
- * never holds an owner claim, and the post-wait eligibility re-check finds no
- * agent, so it never dispatches after an owner wait.
+ * never holds an owner claim. It may wait for its own bucket's refill and
+ * stays eligible across that wait (no row to re-check), so a denial after
+ * re-admission keeps its owner-budget reason.
  */
 export function benchRoutedProvider(
   pool: Pool,
@@ -345,15 +347,30 @@ export function benchRoutedProvider(
 ): RoutedProvider<
   ProviderCapacityLease & { ownerLease?: ProviderCapacityLease }
 > {
-  if (!opts.modelName.trim()) throw new Error("bench modelName is required");
-  const agent: AgentRow = {
+  benchKeyRef(config);
+  return routedProviderFor(pool, benchAgentRow(opts.modelName), config, []);
+}
+
+/** The only models a bench may compare (root 57088): the NVIDIA pair. */
+export const BENCH_MODELS: readonly string[] = [
+  NEMOTRON_SUPER,
+  NEMOTRON_LIGHTNING,
+];
+
+/** The synthetic bench agent row (see benchRoutedProvider). */
+export function benchAgentRow(modelName: string): AgentRow {
+  if (!BENCH_MODELS.includes(modelName))
+    throw new Error(
+      `bench model must be one of ${BENCH_MODELS.join(", ")}, got "${modelName}"`,
+    );
+  return {
     id: 0,
     handle: "bench",
     displayName: "bench",
     live: false,
     cadenceSeconds: 300,
     modelProvider: "nvidia",
-    modelName: opts.modelName,
+    modelName,
     modelBaseUrl: null,
     spec: { pinnedModel: true },
     prose: "",
@@ -363,7 +380,14 @@ export function benchRoutedProvider(
     isHouse: false,
     capacityTenant: "bench",
   };
-  return routedProviderFor(pool, agent, config, []);
+}
+
+/** The shared NVIDIA key bucket every bench call uses (the same pick as a
+ *  live agent with this id), for the operator preflight. */
+export function benchKeyRef(config: Config): string {
+  const picked = pickNvidiaKey(benchAgentRow(NEMOTRON_SUPER), config);
+  if (!picked) throw new Error("no shared NVIDIA key is configured");
+  return picked.keyRef;
 }
 
 function routedProviderFor(
@@ -497,7 +521,12 @@ function routedProviderFor(
       // Owner fairness (009): after an in-cycle refill wait, dispatch only if
       // this agent is still active on the shared pool with the same model;
       // a cycle that will not wait ends its owner-bucket claim at once.
-      stillEligible: async () => agentStillSharedEligible(pool, loaded),
+      // The operator bench's synthetic agent has no row to re-check; it stays
+      // eligible, so a post-wait denial keeps its typed owner-budget reason
+      // instead of becoming a route change (root 57087).
+      stillEligible: async () =>
+        agent.capacityTenant === "bench" ||
+        agentStillSharedEligible(pool, loaded),
       // Bounded structured diagnostics: agent id, model, path, timings and a
       // reason code only (no prompt, credential, handle or owner identity).
       onOwnerWait: (event) => {

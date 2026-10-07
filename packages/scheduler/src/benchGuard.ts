@@ -37,6 +37,9 @@ export interface BenchGuardOptions {
   maxOwnerDenialStreak: number;
   /** Worst-case provider calls one decision can make (router limit). */
   attemptsPerDecision?: number;
+  /** Real-clock end of the approved window (epoch ms): no decision starts
+   *  at or after it, nor one whose spacing wait would cross it. */
+  deadlineMs?: number;
   /** The real clock. Default: Date.now as it is when the guard is created,
    *  which must be before any replay clock is installed. */
   realNow?: () => number;
@@ -91,6 +94,8 @@ export function providerCallsOf(route: RouteMetadata | undefined): number {
 export function createBenchGuard(opts: BenchGuardOptions): {
   state: BenchGuardState;
   wrap(inner: GuardedProvider): GuardedProvider;
+  /** Stop the run: every later decision is deferred (signal, operator). */
+  abort(reason: string): void;
 } {
   if (
     !Number.isInteger(opts.maxCalls) ||
@@ -132,10 +137,20 @@ export function createBenchGuard(opts: BenchGuardOptions): {
       state.aborted = `call cap ${opts.maxCalls} reached (${state.providerCalls} used, a decision may need ${perDecision})`;
       return deferred(state.aborted);
     }
+    const deadline = opts.deadlineMs ?? Infinity;
+    const startAt =
+      lastDecisionAt === null
+        ? realNow()
+        : Math.max(realNow(), lastDecisionAt + opts.minIntervalMs);
+    if (startAt >= deadline) {
+      state.aborted = "approved window ended";
+      return deferred(state.aborted);
+    }
     if (lastDecisionAt !== null) {
       const wait = lastDecisionAt + opts.minIntervalMs - now();
       if (wait > 0) await sleep(wait);
     }
+    if (state.aborted) return deferred(state.aborted);
     lastDecisionAt = now();
     state.decisions += 1;
     // The provider path (Retry-After parsing, call timing, backoff clearing)
@@ -165,6 +180,9 @@ export function createBenchGuard(opts: BenchGuardOptions): {
 
   return {
     state,
+    abort: (reason: string) => {
+      state.aborted ??= reason;
+    },
     wrap: (inner) => ({
       label: `bench-guard(${inner.label})`,
       decide: (input) => {

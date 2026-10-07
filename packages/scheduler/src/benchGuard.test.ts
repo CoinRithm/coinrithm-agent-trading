@@ -198,3 +198,37 @@ describe("bench guard clocks (root 57085)", () => {
     }
   });
 });
+
+describe("bench guard window and abort (root 57087)", () => {
+  it("never starts a decision at or after the approved window end", async () => {
+    let clock = 0;
+    const guard = createBenchGuard({
+      maxCalls: 40,
+      minIntervalMs: 90_000,
+      maxOwnerDenialStreak: 3,
+      deadlineMs: 100_000,
+      realNow: () => clock,
+      now: () => clock,
+      sleep: async (ms) => {
+        clock += ms;
+      },
+    });
+    const decide = vi.fn(async () => ok);
+    const provider = guard.wrap({ label: "router", decide } as never);
+    expect((await provider.decide(input)).ok).toBe(true); // t = 0
+    expect((await provider.decide(input)).ok).toBe(true); // t = 90 s
+    // The next slot (180 s) is past the 100 s window end: refused, no call.
+    expect(await provider.decide(input)).toMatchObject({ ok: false });
+    expect(decide).toHaveBeenCalledTimes(2);
+    expect(guard.state.aborted).toBe("approved window ended");
+  });
+
+  it("stops every later decision after an explicit abort", async () => {
+    const h = harness([]);
+    await h.provider.decide(input);
+    h.guard.abort("SIGTERM");
+    expect(await h.provider.decide(input)).toMatchObject({ ok: false });
+    expect(h.decide).toHaveBeenCalledOnce();
+    expect(h.guard.state.aborted).toBe("SIGTERM");
+  });
+});
