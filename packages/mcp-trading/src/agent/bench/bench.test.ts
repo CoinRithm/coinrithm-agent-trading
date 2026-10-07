@@ -10,6 +10,7 @@ import {
   recordCassette,
   RecordingClient,
   ResponseRecorder,
+  SKIP_PROVIDER,
 } from "./recordingClient.js";
 import type { Cassette } from "./cassette.js";
 import { parseSkill } from "../skill.js";
@@ -431,6 +432,54 @@ describe("runBench", () => {
     expect(report.variants[BASELINE_SKIP]).toBeUndefined();
     const row = report.cycles.find((r: Json) => r.variant === "crash");
     expect(row.runtimeError).toBe("boom");
+  });
+
+  it("records gate trigger codes, so a periodic PM wake is not read as a setup", async () => {
+    // Every bench cycle starts from a fresh state, so with PM markets present
+    // the periodic PM wake fires on every cassette whatever the signal dials.
+    const eventDriven = (pmEvalCooldownMinutes: number): AgentSpec => ({
+      ...pmSpec(),
+      triggerPolicy: {
+        mode: "event_driven",
+        skipLlmWhenNoTrigger: true,
+        alwaysManageOpenPositions: true,
+        maxLlmCallsPerHour: 0,
+        debounceMinutes: 0,
+        pmEvalCooldownMinutes,
+      },
+    });
+    const report = (await runBench({
+      cassettes: await corpus(),
+      repeats: 1,
+      baselines: false,
+      variants: [
+        {
+          name: "pm-wake",
+          spec: eventDriven(10),
+          mergedProse: "strategy",
+          provider: SKIP_PROVIDER,
+        },
+        {
+          name: "no-wake",
+          spec: eventDriven(0),
+          mergedProse: "strategy",
+          provider: SKIP_PROVIDER,
+        },
+      ],
+    })) as Json;
+
+    const wake = report.variants["pm-wake"].all;
+    expect(wake.decisionMix).toMatchObject({ skip: 3, gate_skip: 0 });
+    expect(wake.triggerMix).toEqual({ PM_PERIODIC: 3 });
+    const quiet = report.variants["no-wake"].all;
+    expect(quiet.decisionMix).toMatchObject({ skip: 0, gate_skip: 3 });
+    expect(quiet.triggerMix).toEqual({});
+    const rows = report.cycles.filter((r: Json) => r.variant === "pm-wake");
+    expect(rows.map((r: Json) => r.triggerCodes)).toEqual([
+      ["PM_PERIODIC"],
+      ["PM_PERIODIC"],
+      ["PM_PERIODIC"],
+    ]);
   });
 
   it("validates its options", async () => {
