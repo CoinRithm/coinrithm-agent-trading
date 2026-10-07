@@ -1,6 +1,29 @@
 # Changelog
 
-## 0.3.4 (current source, not yet published)
+## 0.3.5 (release preparation; publication pending)
+
+- Types optional market-context `priceTiming`, `funding`, `derivatives`,
+  `macro` and `defi` blocks, including open interest, positioning, captured
+  liquidations, observed book depth, associated-chain TVL and stablecoin supply.
+  Coverage and freshness belong to each block: depth covers one venue's
+  observed 20-level book, macro quotes are derivative proxies, and a chain
+  association does not identify a coin as its native token.
+- Adds optional `derivatives.fundingByVenue` with independently collected
+  settlement-reference and Hyperliquid context rates. `rateFraction` is a raw
+  fraction per interval; `hourlyEquivalentFraction` is simple division by
+  `intervalHours`, not APR or a return forecast. Unknown intervals/times remain
+  null, `sourceAt` is null and `sameTime` is false. The existing top-level
+  funding reference and futures-entry rules are unchanged.
+- Types optional PM discovery/position `relatedCoins` and position
+  `eventEndDate`. Missing metadata stays unknown; linked coins are not a
+  correlation model and implausible venue dates are not usable horizons.
+- Regenerated from API contract 1.7.0. New fields are additive and optional;
+  unavailable values remain null. The TypeScript runtime wrapper and runtime
+  dependencies are unchanged from the published 0.3.4 release.
+
+## 0.3.4
+
+Published on npm and verified on 2026-10-02.
 
 - Adds optional `representativeOutcome` (a full `PublicPmOutcome`, or `null`)
   and `representativeOutcomeBasis` (`threshold_ladder_line` or
