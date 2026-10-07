@@ -1834,6 +1834,8 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
         // historical #132 rule.
         const run = async (ceilingMs: number, claimantOnly = false) => {
           const ttl = ceilingMs / 1000 + WAITER_RETRY_SLACK_SECONDS;
+          // The bucket also refills on the real clock while the test runs.
+          const wallStart = Date.now();
           await drainedAgo(0);
           await pool.query(
             `UPDATE agent_runtime.provider_capacity_buckets
@@ -1913,7 +1915,13 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
               });
             } else await releaseOwnerClaim(pool, routeKey, key);
           }
-          return { calls, reserved, consumed, horizon: t };
+          return {
+            calls,
+            reserved,
+            consumed,
+            horizon: t,
+            realSeconds: (Date.now() - wallStart) / 1000,
+          };
         };
 
         const before = await run(60_000);
@@ -1926,10 +1934,11 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
         // Reported usage, not the estimate, stays within the owner's refill
         // plus the largest single reported excess (a44: 49,150 - 29,774); the
         // old floor at 0 let ~1.5x through.
-        const budget = (h: number) => (RATE * h) / 60 + 19_376;
-        expect(before.consumed).toBeLessThanOrEqual(budget(before.horizon));
-        expect(after.consumed).toBeLessThanOrEqual(budget(after.horizon));
-        expect(current.consumed).toBeLessThanOrEqual(budget(current.horizon));
+        // Refill time = simulated horizon + the real seconds the run took.
+        const budget = (m: { horizon: number; realSeconds: number }) =>
+          (RATE * (m.horizon + m.realSeconds)) / 60 + 19_376;
+        for (const mode of [before, after, current])
+          expect(mode.consumed).toBeLessThanOrEqual(budget(mode));
         // 60 s: a41 is the fixed loser (live: 1 call in 6 cycles).
         expect(before.calls.a41).toBe(Math.min(...Object.values(before.calls)));
         expect(before.calls.a41).toBeLessThan(cycles / 4);
