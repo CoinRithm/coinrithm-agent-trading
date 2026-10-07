@@ -4269,6 +4269,15 @@ export interface components {
             title?: string;
             /** Format: date-time */
             endDate?: string | null;
+            /**
+             * @description CoinRithm slugs of the coins this event is DIRECTLY about (admin-
+             *     rejected links excluded; the same set the public event page shows),
+             *     de-duplicated and sorted. Empty = no linked coin. Lets an agent
+             *     group separate events on one coin and horizon (opt-in cross-event
+             *     exposure cap); it is not a correlation model. Absent on older API
+             *     versions.
+             */
+            relatedCoins?: string[];
             freshness?: components["schemas"]["Freshness"];
             /**
              * @description True when the market is effectively decided (leading outcome at/
@@ -4621,6 +4630,20 @@ export interface components {
             currentProbability?: number | null;
             unrealizedMark?: number | null;
             unrealizedPnl?: number | null;
+            /**
+             * @description List endpoint, open positions only: slugs of the coins the event is
+             *     DIRECTLY about (admin-rejected links excluded), sorted; empty = no
+             *     linked coin. Omitted when it could not be read (treat as unknown).
+             */
+            relatedCoins?: string[];
+            /**
+             * Format: date-time
+             * @description List endpoint, open positions only: the venue's own event end date,
+             *     passed through unchanged. Venues publish null or sentinel values,
+             *     so treat implausible dates as unknown. Omitted when it could not be
+             *     read.
+             */
+            eventEndDate?: string | null;
         };
         /**
          * @description Data-freshness descriptor. Futures + spot use ageSeconds; PM uses

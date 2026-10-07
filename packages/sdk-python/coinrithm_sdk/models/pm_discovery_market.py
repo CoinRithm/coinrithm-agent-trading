@@ -30,6 +30,12 @@ class PmDiscoveryMarket:
         slug (str | Unset):
         title (str | Unset):
         end_date (datetime.datetime | None | Unset):
+        related_coins (list[str] | Unset): CoinRithm slugs of the coins this event is DIRECTLY about (admin-
+            rejected links excluded; the same set the public event page shows),
+            de-duplicated and sorted. Empty = no linked coin. Lets an agent
+            group separate events on one coin and horizon (opt-in cross-event
+            exposure cap); it is not a correlation model. Absent on older API
+            versions.
         freshness (Freshness | Unset): Data-freshness descriptor. Futures + spot use ageSeconds; PM uses
             ageMinutes. `status` is a freshness label; `basis` (PM only) names which
             timestamp the age was measured against.
@@ -67,6 +73,7 @@ class PmDiscoveryMarket:
     slug: str | Unset = UNSET
     title: str | Unset = UNSET
     end_date: datetime.datetime | None | Unset = UNSET
+    related_coins: list[str] | Unset = UNSET
     freshness: Freshness | Unset = UNSET
     pinned: bool | Unset = UNSET
     eligible: bool | None | Unset = UNSET
@@ -100,6 +107,10 @@ class PmDiscoveryMarket:
             end_date = self.end_date.isoformat()
         else:
             end_date = self.end_date
+
+        related_coins: list[str] | Unset = UNSET
+        if not isinstance(self.related_coins, Unset):
+            related_coins = self.related_coins
 
         freshness: dict[str, Any] | Unset = UNSET
         if not isinstance(self.freshness, Unset):
@@ -169,6 +180,8 @@ class PmDiscoveryMarket:
             field_dict["title"] = title
         if end_date is not UNSET:
             field_dict["endDate"] = end_date
+        if related_coins is not UNSET:
+            field_dict["relatedCoins"] = related_coins
         if freshness is not UNSET:
             field_dict["freshness"] = freshness
         if pinned is not UNSET:
@@ -233,6 +246,8 @@ class PmDiscoveryMarket:
             return cast(datetime.datetime | None | Unset, data)
 
         end_date = _parse_end_date(d.pop("endDate", UNSET))
+
+        related_coins = cast(list[str], d.pop("relatedCoins", UNSET))
 
         _freshness = d.pop("freshness", UNSET)
         freshness: Freshness | Unset
@@ -329,6 +344,7 @@ class PmDiscoveryMarket:
             slug=slug,
             title=title,
             end_date=end_date,
+            related_coins=related_coins,
             freshness=freshness,
             pinned=pinned,
             eligible=eligible,

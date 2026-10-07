@@ -6103,6 +6103,16 @@ components:
         slug: { type: string }
         title: { type: string }
         endDate: { type: [string, "null"], format: date-time }
+        relatedCoins:
+          type: array
+          items: { type: string }
+          description: |
+            CoinRithm slugs of the coins this event is DIRECTLY about (admin-
+            rejected links excluded; the same set the public event page shows),
+            de-duplicated and sorted. Empty = no linked coin. Lets an agent
+            group separate events on one coin and horizon (opt-in cross-event
+            exposure cap); it is not a correlation model. Absent on older API
+            versions.
         freshness: { $ref: "#/components/schemas/Freshness" }
         pinned:
           type: boolean
@@ -6527,6 +6537,21 @@ components:
         currentProbability: { type: [number, "null"], description: "list endpoint, open only; 0..100" }
         unrealizedMark: { type: [number, "null"] }
         unrealizedPnl: { type: [number, "null"] }
+        relatedCoins:
+          type: array
+          items: { type: string }
+          description: |
+            List endpoint, open positions only: slugs of the coins the event is
+            DIRECTLY about (admin-rejected links excluded), sorted; empty = no
+            linked coin. Omitted when it could not be read (treat as unknown).
+        eventEndDate:
+          type: [string, "null"]
+          format: date-time
+          description: |
+            List endpoint, open positions only: the venue's own event end date,
+            passed through unchanged. Venues publish null or sentinel values,
+            so treat implausible dates as unknown. Omitted when it could not be
+            read.
 
     Freshness:
       type: object
