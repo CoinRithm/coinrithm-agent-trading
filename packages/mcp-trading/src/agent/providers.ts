@@ -401,7 +401,12 @@ class AnthropicProvider implements Provider {
           }
           return text
             ? { ok: true, text, usage, responseSource: "content" }
-            : { ok: false, error: "anthropic returned empty content" };
+            : // Answered (and billed) with nothing usable: keep the usage.
+              {
+                ok: false,
+                error: "anthropic returned empty content",
+                ...(usage ? { usage } : {}),
+              };
         },
       );
     } catch (err) {

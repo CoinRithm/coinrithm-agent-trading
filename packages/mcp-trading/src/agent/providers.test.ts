@@ -1084,4 +1084,23 @@ describe("Anthropic usage reporting (paid metering)", () => {
     const body = JSON.parse(String(fetchFn.mock.calls[0]![1]!.body));
     expect(body.max_tokens).toBe(4096);
   });
+
+  it("keeps the usage of an answered but empty Anthropic response", async () => {
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        content: [],
+        usage: { input_tokens: 9, output_tokens: 0 },
+      }),
+    );
+    const result = await providerForRoute(
+      { provider: "anthropic", model: "test-model" },
+      "test-only",
+      fetchFn,
+    ).decide({ system: "s", user: "u" });
+    expect(result).toEqual({
+      ok: false,
+      error: "anthropic returned empty content",
+      usage: { promptTokens: 9, completionTokens: 0 },
+    });
+  });
 });
