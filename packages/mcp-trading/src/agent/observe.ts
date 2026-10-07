@@ -38,6 +38,8 @@ import {
   MacroContext,
   ChainTvlContext,
   StablecoinSupplyContext,
+  DepthContext,
+  DepthSideContext,
   MacroQuote,
   DatedValue,
   WatchEntry,
@@ -856,6 +858,35 @@ const optPct = (v: unknown): number | null => {
   return n == null ? null : n;
 };
 
+const depthSideOf = (v: unknown): DepthSideContext | null => {
+  const o = asObj(v);
+  const usd = asNum(o.usd);
+  const reachPct = asNum(o.reachPct);
+  const levels = asNum(o.levels);
+  if (usd == null || usd < 0 || reachPct == null || reachPct < 0) return null;
+  if (levels == null || !Number.isInteger(levels) || levels < 1 || levels > 20)
+    return null;
+  if (typeof o.complete !== "boolean") return null;
+  if (o.complete && levels >= 20) return null; // a full side is never whole
+  return { usd, reachPct, levels, complete: o.complete };
+};
+
+// Observed depth from the same /market context (no extra call). One venue's
+// visible book; omitted when malformed, future-dated or without any side.
+export function depthOf(
+  m: Record<string, unknown>,
+  nowMs = Date.now(),
+): DepthContext | undefined {
+  const d = asObj(asObj(m.derivatives).depth);
+  const venue = asStr(d.venue);
+  const asOf = shownTime(d.asOf, nowMs);
+  if (!venue || !asOf) return undefined;
+  const bid = depthSideOf(d.bid);
+  const ask = depthSideOf(d.ask);
+  if (!bid && !ask) return undefined;
+  return { venue, bid, ask, asOf, stale: d.stale !== false };
+}
+
 // Chain TVL from the same /market context (no extra call). Omitted when the
 // coin has no verified chain association or the block is malformed. publishedAt is
 // response provenance, never the TVL's observation time (unknown, null); a
@@ -1326,6 +1357,8 @@ export async function observe(
     if (liquidations) entry.liquidations = liquidations;
     const chainTvl = chainTvlOf(m);
     if (chainTvl) entry.chainTvl = chainTvl;
+    const depth = depthOf(m);
+    if (depth) entry.depth = depth;
     // Macro proxies are the same for every coin: keep the first usable block.
     if (!macro) macro = macroOf(m);
     if (!stablecoinSupply) stablecoinSupply = stablecoinSupplyOf(m);
@@ -1467,6 +1500,8 @@ export async function observe(
       if (liquidations) entry.liquidations = liquidations;
       const chainTvl = chainTvlOf(m);
       if (chainTvl) entry.chainTvl = chainTvl;
+      const depth = depthOf(m);
+      if (depth) entry.depth = depth;
       if (!macro) macro = macroOf(m);
       if (!stablecoinSupply) stablecoinSupply = stablecoinSupplyOf(m);
       if (wantIndicators)
