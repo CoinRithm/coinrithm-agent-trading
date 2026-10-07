@@ -861,12 +861,18 @@ const optPct = (v: unknown): number | null => {
 const depthSideOf = (v: unknown): DepthSideContext | null => {
   const o = asObj(v);
   const usd = asNum(o.usd);
-  if (usd == null || usd < 0 || typeof o.complete !== "boolean") return null;
-  return { usd, complete: o.complete };
+  const reachPct = asNum(o.reachPct);
+  const levels = asNum(o.levels);
+  if (usd == null || usd < 0 || reachPct == null || reachPct < 0) return null;
+  if (levels == null || !Number.isInteger(levels) || levels < 1 || levels > 20)
+    return null;
+  if (typeof o.complete !== "boolean") return null;
+  if (o.complete && levels >= 20) return null; // a full side is never whole
+  return { usd, reachPct, levels, complete: o.complete };
 };
 
 // Observed depth from the same /market context (no extra call). One venue's
-// visible book; omitted when malformed, future-dated or without any band.
+// visible book; omitted when malformed, future-dated or without any side.
 export function depthOf(
   m: Record<string, unknown>,
   nowMs = Date.now(),
@@ -875,15 +881,10 @@ export function depthOf(
   const venue = asStr(d.venue);
   const asOf = shownTime(d.asOf, nowMs);
   if (!venue || !asOf) return undefined;
-  const bands: DepthContext["bands"] = [];
-  for (const raw of asArr(d.bands)) {
-    const b = asObj(raw);
-    const pct = asNum(b.pct);
-    if (pct == null || pct <= 0) continue;
-    bands.push({ pct, bid: depthSideOf(b.bid), ask: depthSideOf(b.ask) });
-  }
-  if (!bands.some((b) => b.bid || b.ask)) return undefined;
-  return { venue, bands, asOf, stale: d.stale !== false };
+  const bid = depthSideOf(d.bid);
+  const ask = depthSideOf(d.ask);
+  if (!bid && !ask) return undefined;
+  return { venue, bid, ask, asOf, stale: d.stale !== false };
 }
 
 // Chain TVL from the same /market context (no extra call). Omitted when the

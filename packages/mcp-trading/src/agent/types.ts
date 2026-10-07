@@ -456,22 +456,21 @@ export interface StablecoinSupplyContext {
 }
 
 // Observed order-book depth (GET /api/agent/market derivatives.depth,
-// backend-v2 #150): ONE venue's visible book (Hyperliquid), not total market
-// liquidity and not an executable fill. Per band and side the observed USD
-// inside the band; complete=false means the book snapshot ended inside the
-// band, so deeper liquidity is unknown and usd is only what was seen.
+// backend-v2 #150): ONE venue's visible book (Hyperliquid, at most 20 levels
+// per side), not total market liquidity and not an executable fill. Per side:
+// usd of the visible levels, reachPct (how far from the mid they reach),
+// levels returned, complete (false: liquidity beyond reachPct is unknown).
 export interface DepthSideContext {
   usd: number;
+  reachPct: number;
+  levels: number;
   complete: boolean;
 }
 
 export interface DepthContext {
   venue: string;
-  bands: Array<{
-    pct: number;
-    bid: DepthSideContext | null;
-    ask: DepthSideContext | null;
-  }>;
+  bid: DepthSideContext | null;
+  ask: DepthSideContext | null;
   asOf: string;
   stale: boolean;
 }
