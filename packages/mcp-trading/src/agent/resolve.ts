@@ -60,6 +60,8 @@ const CONFIG_BLOCKS = [
   "killSwitch",
   "objective",
   "capabilities",
+  "signals",
+  "data",
   "universe",
 ];
 const JOURNAL_MAX_LINES = 200;

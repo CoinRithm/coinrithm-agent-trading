@@ -11,16 +11,17 @@
 // Pure + stateless: no I/O, no model. Strategy-neutral — it reports the structure
 // and the trend-following bias; a contrarian agent fades the same facts.
 
+import { DEFAULT_SIGNAL_THRESHOLDS, type SignalThresholds } from "./signals.js";
 import { OpenPosition, SetupSignal, WatchEntry } from "./types.js";
 
 // Thresholds tuned to FIRE readily on a normal moving market (the failure mode we
 // are fixing is under-firing). A genuinely flat tape still yields an empty list,
 // which is the correct "nothing to do" signal.
-const STRONG_MOVE_PCT = 2.0; // |24h %| that counts as a real directional push
-const LEAN_MOVE_PCT = 0.8; // smaller move that still confirms an EMA-stack trend
-const RSI_OVERSOLD = 35;
-const RSI_OVERBOUGHT = 68;
-const MIN_STRENGTH = 0.5; // below this we do not flag (avoid noise)
+// Defaults live in signals.ts (DEFAULT_SIGNAL_THRESHOLDS): |24h %| 2.0 for a
+// strong push, 0.8 for a move that still confirms an EMA-stack trend, RSI 35 /
+// 68, and 0.5 as the strength under which nothing is flagged. An agent may
+// declare its own (spec.signals), which changes both this shortlist and the
+// gate that decides whether the model is called.
 
 function pct(n: number): string {
   return `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`;
@@ -40,15 +41,19 @@ export function baseSymbol(s: string | undefined): string {
 // signal — the same structure is a momentum trade to a trend-follower and a
 // mean-reversion trade to a contrarian, so we surface both and let each agent pick
 // the one matching its style (fixes contrarians skipping "no setup fits me").
-function classify(w: WatchEntry, openPositions: OpenPosition[]): SetupSignal[] {
+function classify(
+  w: WatchEntry,
+  openPositions: OpenPosition[],
+  t: SignalThresholds,
+): SetupSignal[] {
   const ind = w.indicators;
   if (!ind) return [];
   const ch = w.change24h ?? 0;
   const rsi = ind.rsi14;
   const up = ind.ema20AboveEma50 === true && ind.aboveEma20 === true;
   const down = ind.ema20AboveEma50 === false && ind.aboveEma20 === false;
-  const oversold = rsi != null && rsi <= RSI_OVERSOLD;
-  const overbought = rsi != null && rsi >= RSI_OVERBOUGHT;
+  const oversold = rsi != null && rsi <= t.rsiOversold;
+  const overbought = rsi != null && rsi >= t.rsiOverbought;
 
   // Compact, factual note the model reads (no interpretation — just the structure).
   const facts: string[] = [`${pct(ch)} 24h`];
@@ -85,20 +90,20 @@ function classify(w: WatchEntry, openPositions: OpenPosition[]): SetupSignal[] {
       strength: 0.8,
       note,
     });
-  } else if (up && ch >= LEAN_MOVE_PCT) {
+  } else if (up && ch >= t.leanMovePct) {
     out.push({
       symbol: w.symbol,
       kind: "uptrend",
       bias: "long",
-      strength: ch >= STRONG_MOVE_PCT ? 0.75 : 0.6,
+      strength: ch >= t.strongMovePct ? 0.75 : 0.6,
       note,
     });
-  } else if (down && ch <= -LEAN_MOVE_PCT) {
+  } else if (down && ch <= -t.leanMovePct) {
     out.push({
       symbol: w.symbol,
       kind: "downtrend",
       bias: "short",
-      strength: ch <= -STRONG_MOVE_PCT ? 0.75 : 0.6,
+      strength: ch <= -t.strongMovePct ? 0.75 : 0.6,
       note,
     });
   } else if (overbought) {
@@ -117,7 +122,7 @@ function classify(w: WatchEntry, openPositions: OpenPosition[]): SetupSignal[] {
       strength: 0.55,
       note,
     });
-  } else if (Math.abs(ch) >= STRONG_MOVE_PCT) {
+  } else if (Math.abs(ch) >= t.strongMovePct) {
     // A strong move with no clean EMA stack — still tradeable momentum.
     out.push({
       symbol: w.symbol,
@@ -182,11 +187,12 @@ function classify(w: WatchEntry, openPositions: OpenPosition[]): SetupSignal[] {
 export function scanSetups(
   watch: WatchEntry[],
   openPositions: OpenPosition[] = [],
+  thresholds: SignalThresholds = DEFAULT_SIGNAL_THRESHOLDS,
 ): SetupSignal[] {
   const out: SetupSignal[] = [];
   for (const w of watch) {
-    for (const s of classify(w, openPositions))
-      if (s.strength >= MIN_STRENGTH) out.push(s);
+    for (const s of classify(w, openPositions, thresholds))
+      if (s.strength >= thresholds.minStrength) out.push(s);
   }
   return out.sort((a, b) => b.strength - a.strength);
 }

@@ -3,6 +3,7 @@
 // idempotency keys + agentTrace and exports run evidence. The client + provider
 // are injected so the loop is fully unit-testable with no network/model calls.
 
+import { signalThresholdsOf } from "./signals.js";
 import { CoinRithmClient, ProvenanceReport } from "./client.js";
 import { Provider, classifyProviderFailure } from "./providers.js";
 import { COINRITHM_API } from "./version.js";
@@ -778,6 +779,7 @@ async function runCycleCore(
     observation.setups = scanSetups(
       observation.watch,
       observation.openPositions,
+      signalThresholdsOf(spec),
     );
     observationReceipt = buildObservationReceipt(observation);
     Object.assign(baseTrace, observationReceipt);
