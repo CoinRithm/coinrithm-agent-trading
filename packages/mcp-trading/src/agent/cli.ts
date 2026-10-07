@@ -640,7 +640,7 @@ export async function cmdLabel(
   for (const r of results) {
     if (r.status !== "built") {
       lines.push(
-        `${r.id}: ${r.status}${r.status === "not_yet" ? ` (labelable after ${r.labelableAfter})` : ""}`,
+        `${r.id}: ${r.status}${r.status === "not_yet" ? ` (labelable after ${r.labelableAfter})` : ""}${r.status === "horizon_mismatch" ? ` (existing file labels ${r.existingHorizonHours ?? "no"} h, not ${horizonHours} h; rerun with --overwrite)` : ""}`,
       );
       continue;
     }

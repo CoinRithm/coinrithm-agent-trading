@@ -16,7 +16,12 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
   each cassette's asOf (reads only). It waits for the horizon to elapse, uses
   the finest bar size the cassette's age still allows, keeps existing PM and
   funding labels, and does not write PM settlement (PM opens stay
-  unlabelled until the production settlement verdict is readable).
+  unlabelled until the production settlement verdict is readable). Only
+  bars that close by the horizon are stored, and an existing file for
+  another horizon is reported (`horizon_mismatch`), never kept silently.
+- Bench futures scoring walks only bars that open after asOf and close by
+  the horizon end; a horizon off the bar grid stops at the last full bar
+  before it (`horizonFlooredToBar`), so no price after the horizon is used.
 - Add optional per-agent `signals` thresholds (`rsiOversold`, `rsiOverbought`,
   `strongMovePct`, `leanMovePct`, `minStrength`) and a `data.indicatorRange`
   data diet (`1D` 5m bars, `1W` 15m, `1M` 1h, `3M` 4h). They change the setup
