@@ -145,10 +145,18 @@ export interface RiskConfig {
   // Optional HARD cap on open bets per prediction-market EVENT (source + slug),
   // counting held open positions plus opens already accepted this cycle.
   // Bands listed as outcomes of ONE event are covered; separate events about
-  // the same coin and date are not (that broader cross-event rule has no
-  // structured coin/date field to enforce and stays prose).
+  // the same coin and date are capped by pmMaxOpenPerCoinHorizon below.
   // Absent = no per-event cap (unchanged behaviour).
   pmMaxOpenPerEvent?: number;
+  // Optional HARD cap on open bets on the SAME COIN whose events end within
+  // 24 h of each other, across different events (2026-10-07: 25 wallet x coin
+  // x end-date groups held 2+ separate BTC 'end of 2026' events). Counts held
+  // open positions plus opens accepted this cycle, per directly linked coin.
+  // Only a known coin and a plausible end date group: no linked coin, or an
+  // end that is missing, unparseable, already past or more than 5 years out
+  // (venue sentinels), never blocks. A count cap, not a correlation model.
+  // Absent = no cap (unchanged behaviour).
+  pmMaxOpenPerCoinHorizon?: number;
   // Optional HARD cutoff (minutes): reject a pm_open whose market closes within
   // this many minutes of the later of observation.asOf and the validation
   // clock (after the model call). Only a KNOWN, valid endDate can trip
@@ -616,6 +624,11 @@ export interface PmPosition {
   entryProbability?: number;
   currentProbability?: number;
   openedAt?: string;
+  // The event's directly linked coins (slugs) and its end time, from the
+  // additive /positions/pm `relatedCoins` / `eventEndDate` (open positions).
+  // Absent on older backends: the position then never groups by coin.
+  coins?: string[];
+  endDate?: string;
   // The thesis this bet was opened on, evaluated for THIS cycle. PM has no close
   // endpoint, so an invalidated PM thesis is surfaced to the model (do not add,
   // let it settle), never auto-closed.
@@ -671,6 +684,10 @@ export interface PmMarket {
   // (absent > fabricated).
   endDate?: string;
   liquidityUsd?: number;
+  // The event's directly linked coins (slugs) from the discover row's
+  // additive `relatedCoins` (admin-rejected links excluded at the API).
+  // Absent on older backends. Feeds risk.pmMaxOpenPerCoinHorizon.
+  coins?: string[];
   quality?: PmQuality;
   decisionSupport?: PmDecisionSupport;
   // Event-level cross-venue consensus from the discover row's

@@ -3,8 +3,11 @@ import {
   validateAction,
   requiredGapEdgePoints,
   pmEventKey,
+  pmCoinHorizonOf,
   DecisionContext,
 } from "./decisionValidator.js";
+import { buildSystemPrompt } from "./prompt.js";
+import { coinsField } from "./observe.js";
 import { parseSkill } from "./skill.js";
 import { validateSkill } from "./skillValidator.js";
 import { renderFolderOfOne } from "./templates.js";
@@ -294,6 +297,137 @@ describe("risk.pmMaxOpenPerEvent", () => {
   });
 });
 
+describe("risk.pmMaxOpenPerCoinHorizon", () => {
+  // Live 2026-10-07: BTC "end of 2026" events end on 2026-12-31 or 2027-01-01.
+  const END = "2026-12-31T23:59:00.000Z";
+  const candidate = (over: Partial<PmMarket> = {}) =>
+    market({
+      slug: "btc-price-end-2026",
+      coins: ["bitcoin"],
+      endDate: END,
+      ...over,
+    });
+  const btcOpen = open({ slug: "btc-price-end-2026" });
+  let heldId = 0;
+  const held = (over: Record<string, unknown> = {}) => ({
+    id: ++heldId,
+    source: "polymarket",
+    slug: `btc-other-${heldId}`,
+    outcomeExternalMarketId: "yes",
+    status: "open",
+    coins: ["bitcoin"],
+    endDate: "2027-01-01T00:00:00.000Z",
+    ...over,
+  });
+  const withHeld = (positions: unknown[], mkt = candidate()) =>
+    obs({
+      pmMarkets: [mkt],
+      pmPositions: positions as Observation["pmPositions"],
+    });
+  const check = (
+    risk: Partial<AgentSpec["risk"]>,
+    o: Observation,
+    over: Partial<DecisionContext> = {},
+  ) => validateAction(btcOpen, ctx(pmSpec(risk), { observation: o, ...over }));
+
+  it("absent: no cap", () => {
+    expect(check({}, withHeld([held(), held(), held()])).valid).toBe(true);
+  });
+
+  it("groups different events on one coin whose ends fall within 24 h", () => {
+    const spec = { pmMaxOpenPerCoinHorizon: 2 };
+    expect(check(spec, withHeld([held()])).valid).toBe(true);
+    const r = check(spec, withHeld([held(), held()]));
+    expect(r.code).toBe("pm_coin_horizon_cap");
+    expect(r.reason).toContain("bitcoin");
+    expect(r.reason).toContain("per-coin-horizon cap 2");
+  });
+
+  it("does not group other coins, far-apart ends or settled bets", () => {
+    const spec = { pmMaxOpenPerCoinHorizon: 1 };
+    const o = withHeld([
+      held({ coins: ["ethereum"] }),
+      held({ endDate: "2027-01-02T00:00:01.000Z" }),
+      held({ status: "won" }),
+    ]);
+    expect(check(spec, o).valid).toBe(true);
+  });
+
+  it("counts a multi-coin event under each of its coins", () => {
+    const spec = { pmMaxOpenPerCoinHorizon: 1 };
+    const both = candidate({ coins: ["bitcoin", "solana"] });
+    const r = check(spec, withHeld([held({ coins: ["solana"] })], both));
+    expect(r.code).toBe("pm_coin_horizon_cap");
+    expect(r.reason).toContain("solana");
+  });
+
+  it("never blocks on an unknown coin or an implausible end", () => {
+    const spec = { pmMaxOpenPerCoinHorizon: 1 };
+    const full = [held(), held()];
+    for (const mkt of [
+      candidate({ coins: undefined }),
+      candidate({ endDate: undefined }),
+      candidate({ endDate: "not-a-date" }),
+      candidate({ endDate: "2026-10-07T11:00:00.000Z" }), // already past
+      candidate({ endDate: "2099-12-31T00:00:00.000Z" }), // venue sentinel
+    ])
+      expect(check(spec, withHeld(full, mkt)).valid).toBe(true);
+    // Held bets without coin or with a sentinel end are never counted.
+    const unknownHeld = withHeld([
+      held({ coins: undefined }),
+      held({ endDate: "2099-12-31T00:00:00.000Z" }),
+    ]);
+    expect(check(spec, unknownHeld).valid).toBe(true);
+  });
+
+  it("counts opens already accepted this cycle", () => {
+    const spec = { pmMaxOpenPerCoinHorizon: 2 };
+    const same = pmCoinHorizonOf(
+      { coins: ["bitcoin"], endDate: "2027-01-01T00:00:00.000Z" },
+      Date.parse(ASOF),
+    )!;
+    expect(
+      check(spec, withHeld([]), { pmCoinHorizonsOpenedThisCycle: [same] })
+        .valid,
+    ).toBe(true);
+    expect(
+      check(spec, withHeld([held()]), {
+        pmCoinHorizonsOpenedThisCycle: [same],
+      }).code,
+    ).toBe("pm_coin_horizon_cap");
+  });
+
+  it("leaves the per-event cap unchanged and fails closed on a bad value", () => {
+    expect(check({ pmMaxOpenPerCoinHorizon: 0 }, withHeld([])).code).toBe(
+      "pm_coin_horizon_cap_invalid",
+    );
+    const perEvent = check(
+      { pmMaxOpenPerEvent: 1, pmMaxOpenPerCoinHorizon: 5 },
+      withHeld([held({ source: "kalshi", slug: "btc-price-end-2026" })]),
+    );
+    expect(perEvent.code).toBe("pm_event_cap");
+  });
+
+  it("tells a PM agent about the cap in the system prompt", () => {
+    expect(
+      buildSystemPrompt(pmSpec({ pmMaxOpenPerCoinHorizon: 2 }), ""),
+    ).toContain("PM COIN-HORIZON CAP: at most 2 open bet(s)");
+    expect(buildSystemPrompt(pmSpec(), "")).not.toContain(
+      "PM COIN-HORIZON CAP",
+    );
+  });
+
+  it("parses the additive relatedCoins field defensively", () => {
+    expect(coinsField(["Bitcoin", "bitcoin", " solana ", "", 7])).toEqual({
+      coins: ["bitcoin", "solana"],
+    });
+    expect(coinsField(undefined)).toEqual({});
+    expect(coinsField("bitcoin")).toEqual({});
+    expect(coinsField([])).toEqual({});
+    expect(coinsField(["a", "b", "c", "d", "e", "f"]).coins).toHaveLength(5);
+  });
+});
+
 describe("risk.pmMinMinutesToClose", () => {
   const closingIn = (minutes: number) =>
     obs({
@@ -380,10 +514,12 @@ describe("skill validation of the PM dials", () => {
     const c = codes({
       pmMinEdgeGapPct: 16,
       pmMaxOpenPerEvent: 2,
+      pmMaxOpenPerCoinHorizon: 2,
       pmMinMinutesToClose: 10,
     });
     expect(c).not.toContain("skill_risk_pm_edge_gap");
     expect(c).not.toContain("skill_risk_pm_per_event");
+    expect(c).not.toContain("skill_risk_pm_coin_horizon");
     expect(c).not.toContain("skill_risk_pm_close_cutoff");
   });
 
@@ -392,6 +528,9 @@ describe("skill validation of the PM dials", () => {
     expect(codes({ pmMaxEdgePoints: 150 })).toContain("skill_risk_pm_max_edge");
     expect(codes({ pmMaxOpenPerEvent: 0 })).toContain(
       "skill_risk_pm_per_event",
+    );
+    expect(codes({ pmMaxOpenPerCoinHorizon: 51 })).toContain(
+      "skill_risk_pm_coin_horizon",
     );
     expect(codes({ pmMinMinutesToClose: 20_000 })).toContain(
       "skill_risk_pm_close_cutoff",

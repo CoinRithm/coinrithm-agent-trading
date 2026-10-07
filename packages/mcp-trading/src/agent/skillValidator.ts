@@ -232,6 +232,14 @@ export function validateSkill(
           "risk.pmMaxOpenPerEvent must be a whole number between 1 and 50 (omit for no per-event cap)",
         );
     }
+    if (r.pmMaxOpenPerCoinHorizon !== undefined) {
+      const n = r.pmMaxOpenPerCoinHorizon;
+      if (typeof n !== "number" || !Number.isInteger(n) || n < 1 || n > 50)
+        add(
+          "skill_risk_pm_coin_horizon",
+          "risk.pmMaxOpenPerCoinHorizon must be a whole number between 1 and 50 (omit for no per-coin-horizon cap)",
+        );
+    }
     if (r.pmMinMinutesToClose !== undefined) {
       const m = r.pmMinMinutesToClose;
       if (typeof m !== "number" || !Number.isFinite(m) || m < 0 || m > 10_080)

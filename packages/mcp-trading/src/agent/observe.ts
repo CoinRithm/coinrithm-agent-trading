@@ -873,6 +873,24 @@ const depthSideOf = (v: unknown): DepthSideContext | null => {
 
 // Observed depth from the same /market context (no extra call). One venue's
 // visible book; omitted when malformed, future-dated or without any side.
+/**
+ * `{ coins }` from an additive `relatedCoins` array (direct coin slugs), or
+ * nothing: non-arrays and non-string/blank entries are dropped, at most 5
+ * distinct slugs are kept. An empty result adds no field.
+ */
+export function coinsField(value: unknown): { coins?: string[] } {
+  if (!Array.isArray(value)) return {};
+  const coins = [
+    ...new Set(
+      value
+        .filter((c): c is string => typeof c === "string")
+        .map((c) => c.trim().toLowerCase())
+        .filter((c) => c.length > 0 && c.length <= 100),
+    ),
+  ].slice(0, 5);
+  return coins.length ? { coins } : {};
+}
+
 export function depthOf(
   m: Record<string, unknown>,
   nowMs = Date.now(),
@@ -1147,6 +1165,7 @@ function expandPmMarkets(
             // resolution date and the venue-reported liquidity (USD).
             endDate: asStr(ev.endDate) ?? undefined,
             liquidityUsd: asNum(ev.liquidity) ?? undefined,
+            ...coinsField(ev.relatedCoins),
             ...(consensus !== undefined ? { consensus } : {}),
             ...(rules !== undefined ? { rules } : {}),
             ...(outcomeRule ? { outcomeRule } : {}),
@@ -1679,6 +1698,8 @@ export async function observe(
           entryProbability: asNum(p.entryProbability),
           currentProbability: asNum(p.currentProbability),
           openedAt: asStr(p.openedAt),
+          ...coinsField(p.relatedCoins),
+          ...(asStr(p.eventEndDate) ? { endDate: asStr(p.eventEndDate) } : {}),
         }));
       // Settlement-feedback loop: the SAME /positions/pm response carries an
       // additive `recentlyResolved` array — the agent's OWN bets that settled
