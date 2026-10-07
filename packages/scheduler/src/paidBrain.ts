@@ -170,19 +170,20 @@ export function priceRowAt(
   });
 }
 
-// Hard per-call caps (root review of #118: the reserve must be a proven bound,
-// enforced BEFORE dispatch, not an estimate).
-// - Output: every paid call is sent with max_tokens 4096, thinking included.
+// Per-call caps, enforced BEFORE dispatch (root review of #118).
+// - Output: a hard cap: every paid call is sent with max_tokens 4096,
+//   thinking included.
 // - Input: the paid request is exactly {system, one user message}; no tools,
 //   images or cache_control. Its text is capped at PAID_BRAIN_MAX_INPUT_BYTES
-//   of UTF-8 and a prompt over the cap is NOT sent (never truncated). A
-//   byte-level BPE token covers at least one byte of text, so the text cannot
-//   exceed that many tokens; the request framing (role and system markers) is
-//   covered by a fixed allowance. The measured agent prompt is ~16-20k tokens
-//   (~50-80 KB), well inside the cap.
-// - Should provider-reported usage ever still exceed the reserve, the debit is
-//   capped at the reserve (never above what the owner's balance and cap
-//   admitted) and the call is flagged for root review (finalizePaidCall).
+//   of UTF-8 and a prompt over the cap is NOT sent (never truncated). The
+//   token allowance (one token per byte plus a fixed framing allowance) is an
+//   ESTIMATE from how byte-level BPE tokenizers behave; it is not a
+//   provider-published tokenizer guarantee. The measured agent prompt is
+//   ~16-20k tokens (~50-80 KB), far inside it.
+// - What actually guarantees the money: the reserve is held from the owner's
+//   balance and cap before dispatch, and finalisation never charges above it.
+//   Usage above the reserve is not charged; the call is flagged uncertain for
+//   root review (finalizePaidCall).
 // The paid request carries no cache_control, so the reserve prices the whole
 // prompt as uncached input.
 export const PAID_BRAIN_MAX_OUTPUT_TOKENS = 4_096;
@@ -278,9 +279,9 @@ export function priceUsage(
   };
 }
 
-/** The reservation for one paid call: the proven input bound priced as
- * uncached input plus the 4096-token output cap, at the price row's rates,
- * with margin. */
+/** The reservation for one paid call: the estimated input token allowance
+ * priced as uncached input plus the 4096-token output cap, at the price row's
+ * rates, with margin. A hard credit hold, not a tokenizer proof. */
 export function worstCaseCallMicroUsd(
   price: PaidBrainPriceRow,
   marginPct: number,

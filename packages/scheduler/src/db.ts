@@ -711,9 +711,10 @@ export async function finalizePaidCall(
           return "uncertain";
         }
         // Never charge above the reserve the owner's balance and cap
-        // admitted. Usage above the proven bound should be impossible; if it
-        // happens anyway, the excess is not charged, and the call is flagged
-        // uncertain (blocking the owner's next paid call) for root review.
+        // admitted. The input allowance is an estimate, so usage above the
+        // reserve can happen: the excess is not charged, and the call is
+        // flagged uncertain (blocking the owner's next paid call) for root
+        // review.
         const reserved = Number(call.worst_case_micro_usd);
         if (!Number.isSafeInteger(reserved) || reserved <= 0) {
           await markUncertain("cannot read the call's reserve");
