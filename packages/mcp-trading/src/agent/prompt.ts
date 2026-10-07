@@ -255,12 +255,12 @@ export function buildSystemPrompt(
       : []),
     ...(hasPm && typeof r.pmMaxOpenPerEvent === "number"
       ? [
-          `- PM PER-EVENT CAP: at most ${r.pmMaxOpenPerEvent} open bet(s) per event (same market slug, counting bets you already hold). Neighbouring bands of one coin and close date are one event. Extra opens are REJECTED.`,
+          `- PM PER-EVENT CAP: at most ${r.pmMaxOpenPerEvent} open bet(s) per event (same market slug, counting bets you already hold). Extra opens are REJECTED.`,
         ]
       : []),
     ...(hasPm && typeof r.pmMinMinutesToClose === "number"
       ? [
-          `- PM CLOSE CUTOFF: a market whose \`end\` is less than ${r.pmMinMinutesToClose} minutes after observation.asOf is REJECTED; the price already knows.`,
+          `- PM CLOSE CUTOFF: a market whose \`end\` is less than ${r.pmMinMinutesToClose} minutes away when the runner validates your action is REJECTED; the price already knows.`,
         ]
       : []),
     ...(includeForecast
@@ -291,6 +291,7 @@ export function buildSystemPrompt(
           `Each cycle the runner scans the market inside YOUR boundaries: ${describeUniverse(spec.universe)}. Watch entries with \`discovered: true\` are the top rows of that scan, resolved with the same price/sentiment (and indicators) data as your watchlist. observation.universeMovers lists further rows as symbol + 24h change only (context — you cannot trade those directly this cycle). Nothing outside these boundaries is shown to you or tradable.`,
           "- Treat a discovered candidate like any other symbol: analyze it for catalysts, exhaustion and reversal BEFORE acting. A big move is as often a top as a beginning — chasing candles blind is how discovery loses money.",
           "- All your normal risk rules apply unchanged: caps, stops, blocklist, confidence floor. Discovery widens what you can SEE, never what you may risk.",
+          "- Your boundaries also bind your watchlist: a watch entry with `withinBoundaries: false` (or no withinBoundaries and not discovered) is context only. You may close or sell an existing position in it, but a new entry is REJECTED (outside_universe).",
         ]
       : []),
     ...(!spec.universe && spec.capabilities.includes("universe_scan")

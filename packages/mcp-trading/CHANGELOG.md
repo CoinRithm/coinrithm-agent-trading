@@ -29,7 +29,8 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
   - `risk.pmMaxOpenPerEvent` (1..50): open bets per event (source + slug),
     counting held positions and opens accepted this cycle (`pm_event_cap`).
   - `risk.pmMinMinutesToClose` (0..10080): reject a market whose known close is
-    nearer than that to `observation.asOf` (`pm_closes_too_soon`). An unknown or
+    nearer than that to the later of `observation.asOf` and the validation
+    clock after the model call (`pm_closes_too_soon`). An unknown or
     unparseable close never blocks.
 
 - Keep repeated provider 404/410 availability failures out of the generic model

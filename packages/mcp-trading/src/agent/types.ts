@@ -139,12 +139,14 @@ export interface RiskConfig {
   pmMinEdgeGapPct?: number;
   // Optional HARD cap on open bets per prediction-market EVENT (source + slug),
   // counting held open positions plus opens already accepted this cycle.
-  // Neighbouring bands of one coin and close date are outcomes of one event,
-  // so this is the enforced form of "at most N bets per coin and close date".
+  // Bands listed as outcomes of ONE event are covered; separate events about
+  // the same coin and date are not (that broader cross-event rule has no
+  // structured coin/date field to enforce and stays prose).
   // Absent = no per-event cap (unchanged behaviour).
   pmMaxOpenPerEvent?: number;
   // Optional HARD cutoff (minutes): reject a pm_open whose market closes within
-  // this many minutes of observation.asOf. Only a KNOWN, valid endDate can trip
+  // this many minutes of the later of observation.asOf and the validation
+  // clock (after the model call). Only a KNOWN, valid endDate can trip
   // it; venues publish null or sentinel end dates, so an unknown close never
   // blocks (the market's own open-time guard still applies). Absent = no cutoff.
   pmMinMinutesToClose?: number;
@@ -377,6 +379,10 @@ export interface WatchEntry {
   // sweep, not the spec watchlist. Valid for THIS cycle only; the prompt labels
   // it so the model knows it is a discovered candidate, not a standing holding.
   discovered?: boolean;
+  // With a declared `universe`: true when the screener confirmed this
+  // watchlist coin is inside the boundaries this cycle, false when it is not,
+  // absent when unverified. Only true (or discovered) allows a new entry.
+  withinBoundaries?: boolean;
   // Canonical coin slug (the key the news graph uses). Carried so headlines can
   // be attributed to the coin without a second lookup.
   slug?: string;

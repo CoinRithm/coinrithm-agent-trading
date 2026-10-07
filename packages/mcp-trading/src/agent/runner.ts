@@ -1447,6 +1447,7 @@ async function runCycleCore(
       targetedPositionIds,
       targetedOrderIds,
       pmEventsOpenedThisCycle,
+      nowMs: Date.now(),
     };
     const v = validateAction(action, ctx);
     if (!v.valid) {
