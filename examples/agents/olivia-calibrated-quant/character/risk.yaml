@@ -8,7 +8,7 @@ requireStopLoss: true
 pmMinEntryProbabilityPct: 20 # chosen-outcome entry price in points, before fees
 # Her entry rules, enforced by the runner (rejected, not just discouraged):
 pmMinEdgeGapPct: 16 # forecast must beat the fee-inclusive cost by 16% of the room to 100
-pmMaxOpenPerEvent: 2 # bets on one event (same coin and close date) held at once
+pmMaxOpenPerEvent: 2 # open bets on one event (same market slug) held at once
 pmMinMinutesToClose: 10 # never bet the last 10 minutes; the price already knows
 # Indicators for these coins feed the volatility model that prices crypto markets.
 watchlist:

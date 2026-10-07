@@ -14,7 +14,7 @@ Evidence, read-only from production on 2026-10-07 (Data, temp/agentic-baseline-2
 - Numbers written in prose (edge rules, bets per event, last-minutes cutoffs) were never enforced in code; editing them changed nothing.
 
 Changes:
-- character/risk.yaml: `pmMinEdgeGapPct: 16`, `pmMaxOpenPerEvent: 1`, `pmMinMinutesToClose: 30`, now runner-enforced.
+- character/risk.yaml: `pmMinEdgeGapPct: 16`, `pmMaxOpenPerEvent: 1` (per event, same market slug), `pmMinMinutesToClose: 30`, now runner-enforced.
 
 ## 2026-09-24 - v2: fades target the mean
 
