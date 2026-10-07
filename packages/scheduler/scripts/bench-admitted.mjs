@@ -7,12 +7,13 @@
 //   node scripts/bench-admitted.mjs --corpus /path/to/corpus \
 //     --variant pnl=/path/to/leo-pnl --variant dd=/path/to/leo-dd \
 //     [--repeats 2] [--max-calls 40] [--min-interval-sec 90] \
-//     [--owner-user-id 11] [--out report.json]
+//     [--out report.json]
 //
 // - Every variant's brain is the scheduler's routed provider for a
 //   synthetic, never-persisted agent (runtime.ts benchRoutedProvider): the
 //   same NVIDIA key buckets, model cooldowns and usage debt as live agents,
-//   under the QA owner's own 25k TPM budget, pinned to the variant's model.
+//   under its own owner budget shared-owner:bench (25k TPM, concurrency 1;
+//   never a house, QA or customer tenant), pinned to the variant's model.
 // - benchGuard.ts caps provider calls for the whole run (<= 40), spaces
 //   decisions, and aborts on the first provider 429, any cooldown hold or 3
 //   owner-budget denials in a row; after an abort nothing reaches a provider.
@@ -52,7 +53,6 @@ async function main() {
   const repeats = Number(one("repeats") ?? 2);
   const maxCalls = Number(one("max-calls") ?? BENCH_MAX_CALLS);
   const minIntervalMs = Number(one("min-interval-sec") ?? 90) * 1000;
-  const ownerUserId = Number(one("owner-user-id") ?? 11);
   if (!Number.isInteger(repeats) || repeats < 1)
     throw new Error("--repeats must be a positive integer");
   if (!Number.isFinite(minIntervalMs) || minIntervalMs < 60_000)
@@ -106,7 +106,6 @@ async function main() {
       guard.wrap(
         benchRoutedProvider(pool, config, {
           modelName: spec.model?.name ?? "",
-          ownerUserId,
         }),
       );
     const startedAt = new Date().toISOString();
@@ -122,7 +121,7 @@ async function main() {
       schema: "coinrithm.bench.admitted-run.v1",
       startedAt,
       finishedAt: new Date().toISOString(),
-      ownerUserId,
+      ownerTenant: "shared-owner:bench",
       maxCalls,
       minIntervalMs,
       decisions,

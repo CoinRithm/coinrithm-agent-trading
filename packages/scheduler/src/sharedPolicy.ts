@@ -22,11 +22,13 @@ export function sharedOwnerLimit(
   config: Config,
   reserveTokens: number,
 ): ProviderCapacityLimit {
-  const tenant = agent.isHouse
-    ? "house"
-    : Number.isSafeInteger(agent.ownerUserId) && (agent.ownerUserId ?? 0) > 0
-      ? `user:${agent.ownerUserId}`
-      : `agent:${agent.id}`;
+  const tenant = agent.capacityTenant
+    ? agent.capacityTenant
+    : agent.isHouse
+      ? "house"
+      : Number.isSafeInteger(agent.ownerUserId) && (agent.ownerUserId ?? 0) > 0
+        ? `user:${agent.ownerUserId}`
+        : `agent:${agent.id}`;
   return {
     routeKey: `shared-owner:${tenant}`,
     provider: "shared_pool",

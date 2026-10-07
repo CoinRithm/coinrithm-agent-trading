@@ -329,10 +329,11 @@ export function usesCustomerByoSuperJsonContent(
 /**
  * The scheduler's routed provider for an operator bench run (C3 of the item-3
  * plan; run only via scripts/bench-admitted.mjs, never by the scheduler). A
- * synthetic, never-persisted agent row owned by `ownerUserId` and pinned to
- * `modelName` (no fallback model, so a model comparison is not mixed), so
- * every bench call passes the same NVIDIA key buckets, model cooldowns and
- * usage debt as live agents, under that owner's own budget. Its id is 0:
+ * synthetic, never-persisted agent row pinned to `modelName` (no fallback
+ * model, so a model comparison is not mixed), so every bench call passes
+ * the same NVIDIA key buckets, model cooldowns and usage debt as live
+ * agents, under its OWN owner budget `shared-owner:bench` (same 25k TPM and
+ * concurrency 1; never a house, QA or customer tenant). Its id is 0:
  * sharedOwnerLimit adds a waiter only for a real agent id, so a bench call
  * never holds an owner claim, and the post-wait eligibility re-check finds no
  * agent, so it never dispatches after an owner wait.
@@ -340,12 +341,10 @@ export function usesCustomerByoSuperJsonContent(
 export function benchRoutedProvider(
   pool: Pool,
   config: Config,
-  opts: { modelName: string; ownerUserId: number },
+  opts: { modelName: string },
 ): RoutedProvider<
   ProviderCapacityLease & { ownerLease?: ProviderCapacityLease }
 > {
-  if (!Number.isSafeInteger(opts.ownerUserId) || opts.ownerUserId <= 0)
-    throw new Error("bench ownerUserId must be a positive integer");
   if (!opts.modelName.trim()) throw new Error("bench modelName is required");
   const agent: AgentRow = {
     id: 0,
@@ -360,8 +359,9 @@ export function benchRoutedProvider(
     prose: "",
     coinrithmKeyEnc: "",
     brainKeyEnc: null,
-    ownerUserId: opts.ownerUserId,
+    ownerUserId: null,
     isHouse: false,
+    capacityTenant: "bench",
   };
   return routedProviderFor(pool, agent, config, []);
 }
