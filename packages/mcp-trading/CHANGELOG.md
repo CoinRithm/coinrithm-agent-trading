@@ -7,6 +7,21 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
 ## 0.7.16 (unpublished)
 
+- Preserve independently timed funding-by-venue context in watchlist and
+  discovered entries, including regular and compact prompts. Keep raw rates,
+  interval normalization and unknown source/next-funding times distinct from
+  settlement funding.
+- Bench reports retain up to two safe route attempts with response source,
+  failure class, actions-string diagnostic and admission categories. Legacy
+  missing evidence remains unknown; error text, latency, prompts and raw model
+  output are excluded. Record explicit truncation for nonstandard providers.
+- Carry open interest, positioning, sampled liquidations, macro proxies,
+  chain TVL, stablecoin supply and sampled order-book depth through the runner
+  with their separate freshness, coverage and provenance limits.
+- Keep news source URLs/categories and every related PM coin in context; add
+  the opt-in per-coin-horizon PM cap. Objective guidance stays within the
+  authored strategy and hard caps. Use the supported MCP SDK 1.31 dependency.
+
 - Bench: the PM baselines now preserve the recorded agent's PM board policy
   (for house agents: depth 30, churn removed), the original opportunity set.
   Before, they asked for the uncurated 12-row page a live mechanical agent

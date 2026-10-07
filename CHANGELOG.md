@@ -8,7 +8,7 @@ Each package has its own version; the API contract is versioned separately.
 [TypeScript history](packages/sdk/CHANGELOG.md) ·
 [Python release notes](packages/sdk-python/README.md)
 
-## MCP 0.7.16 (unpublished)
+## MCP 0.7.16, TypeScript 0.3.5, Python 1.8.5 (unpublished)
 
 The agent runner now rejects OpenAI-compatible and Anthropic output explicitly
 stopped at the completion-token limit, plus Anthropic context-window truncation,
@@ -18,8 +18,17 @@ Bounded actions-string diagnostics retain only fixed categories and never accept
 string-valued actions. See the [MCP changelog](packages/mcp-trading/CHANGELOG.md).
 Parser errors omit rejected model text, enum values and unknown field names
 before they reach cycle logs or fallback-attempt evidence.
-TypeScript 0.3.4, Python 1.8.4 and API contract 1.7.0 are unchanged. This source
-version does not establish npm or MCP Registry publication.
+The runner also includes configurable universe/signal/PM boundaries, objective
+guidance, independently timed market context and retained-input record/replay
+evaluation. Funding-by-venue context stays separate from funding settlement;
+sampled depth and liquidations do not claim complete venue coverage. Benchmark
+reports retain bounded provider-attempt provenance without raw model output.
+
+Both SDKs are regenerated from the current contract, including the new optional
+market-context and related-coin fields. The API contract version remains 1.7.0.
+These source versions do not establish npm/PyPI or MCP Registry publication;
+published versions remain MCP 0.7.15, TypeScript 0.3.4 and Python 1.8.4 until
+registry archives are verified.
 
 ## MCP 0.7.15, TypeScript 0.3.4, Python 1.8.4 (2026-10-02)
 

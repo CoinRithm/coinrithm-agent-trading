@@ -51,6 +51,14 @@ including valid-looking prefixes, and preserves their token usage. Bounded
 shape diagnostics still reject string-valued actions. These guards do not raise
 completion limits, repair model proposals or change customer strategies.
 
+This release also includes configurable universe and signal boundaries, PM
+policies, objective guidance, separately timed market context and the
+`record`/`bench`/`label` evaluation tools. Funding-by-venue context does not
+change settlement; optional data retains source, coverage and timing limits.
+Benchmarks preserve missing outcomes and bounded route diagnostics. They do not
+establish a profitable strategy or a superior model. See the changelog and
+[runner documentation](https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/docs/agent-runner.md).
+
 The preceding published version, 0.7.15, includes the following capabilities.
 
 It preserves observed-price evidence in public market summaries

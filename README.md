@@ -267,12 +267,15 @@ is versioned separately. Registry publication was verified on **2 October 2026**
 | Package                                                | Published registry version | Source version |
 | ------------------------------------------------------ | -------------------------- | -------------- |
 | `@coinrithm/mcp-trading` (MCP server and agent runner) | **0.7.15**                 | **0.7.16**     |
-| `@coinrithm/sdk` (TypeScript)                          | **0.3.4**                  | **0.3.4**      |
-| `coinrithm-sdk` (Python)                               | **1.8.4**                  | **1.8.4**      |
+| `@coinrithm/sdk` (TypeScript)                          | **0.3.4**                  | **0.3.5**      |
+| `coinrithm-sdk` (Python)                               | **1.8.4**                  | **1.8.5**      |
 
-Source version **0.7.16 is not yet published**. It adds incomplete-response
-rejection and bounded shape diagnostics; npm users remain on the verified
-0.7.15 release until a new registry delivery is confirmed.
+Source versions **0.7.16 / 0.3.5 / 1.8.5 are not yet published**. The pending
+release includes provider-response guards, strategy controls, timed market
+context, retained-input evaluation and SDKs generated from the current contract.
+Registry users remain on the preceding verified versions until delivery is
+confirmed. The hosted services, package archives and MCP Registry are separate
+release steps; source changes alone do not update any of them.
 
 All four published npm/PyPI archives match the reviewed release manifest byte
 for byte; npm integrity also matches. The archive build source
