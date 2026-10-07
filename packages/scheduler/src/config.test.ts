@@ -41,6 +41,21 @@ describe("customer Super JSON-content enrollment", () => {
       }).customerByoSuperJsonContentEnabled,
     ).toBe(false);
   });
+  it("turns the Super-fallback content transport on by default with an explicit rollback", () => {
+    expect(loadConfig(baseEnv()).superFallbackJsonContentEnabled).toBe(true);
+    expect(
+      loadConfig({
+        ...baseEnv(),
+        SCHEDULER_SUPER_FALLBACK_JSON_CONTENT_ENABLED: "false",
+      }).superFallbackJsonContentEnabled,
+    ).toBe(false);
+    expect(() =>
+      loadConfig({
+        ...baseEnv(),
+        SCHEDULER_SUPER_FALLBACK_JSON_CONTENT_ENABLED: "maybe",
+      }),
+    ).toThrow();
+  });
   it("reads exact numeric pairs independently of the house flag", () => {
     const config = loadConfig({
       ...baseEnv(),

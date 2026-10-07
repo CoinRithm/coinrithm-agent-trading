@@ -57,6 +57,11 @@ export interface Config {
   // trial alone never changes a BYO agent's transport.
   // Rollback: unset or SCHEDULER_CUSTOMER_SUPER_JSON_CONTENT_BYO_ENABLED=false.
   customerByoSuperJsonContentEnabled: boolean;
+  // Shared hosted router only: Nemotron Super reached as a FALLBACK (the
+  // agent's configured model is not Super) asks for JSON content. As the
+  // second and last attempt it cannot use the same-model content retry.
+  // Rollback: SCHEDULER_SUPER_FALLBACK_JSON_CONTENT_ENABLED=false.
+  superFallbackJsonContentEnabled: boolean;
   compactPromptTablesEnabled: boolean;
   sharedOwnerTpm: number;
   sharedMinModelIntervalSeconds: number;
@@ -251,6 +256,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       env,
       "SCHEDULER_HOUSE_SUPER_JSON_CONTENT_ENABLED",
       false,
+    ),
+    superFallbackJsonContentEnabled: boolEnv(
+      env,
+      "SCHEDULER_SUPER_FALLBACK_JSON_CONTENT_ENABLED",
+      true,
     ),
     houseSuperJsonContentUntilMs: utcInstantEnv(
       env,

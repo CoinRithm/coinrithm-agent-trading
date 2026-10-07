@@ -12,6 +12,7 @@ import {
   usesHouseSuperJsonContent,
   usesCustomerSuperJsonContent,
   usesCustomerByoSuperJsonContent,
+  usesSuperFallbackJsonContent,
 } from "./runtime.js";
 import { NEMOTRON_NANO, NEMOTRON_LIGHTNING, NEMOTRON_SUPER } from "./route.js";
 
@@ -990,6 +991,132 @@ describe("hosted provider lifecycle", () => {
     const releases = vi.mocked(capacity.releaseProviderCapacity).mock.calls;
     expect(releases.length).toBeGreaterThan(0);
     for (const call of releases) expect(call[2]).toBeUndefined();
+  });
+
+  const nanoWorkerLimit = {
+    ok: false as const,
+    status: 503,
+    error:
+      'provider HTTP 503: {"error":{"message":"ResourceExhausted: Worker local total request limit reached (16/16)"}}',
+  };
+
+  it("asks for JSON content only on the Super FALLBACK of a hosted Nano agent, same key", async () => {
+    const { agent, config } = fixture();
+    agent.isHouse = false;
+    agent.ownerUserId = 19;
+    decide
+      .mockResolvedValueOnce(nanoWorkerLimit)
+      .mockResolvedValueOnce({ ...good, responseSource: "content" });
+    await runAgentOnce(pool, agent, config);
+    const calls = vi.mocked(engine.providerForRoute).mock.calls;
+    expect(calls.map((call) => call[0].model)).toEqual([
+      NEMOTRON_NANO,
+      NEMOTRON_SUPER,
+    ]);
+    expect(calls[0]).toHaveLength(3);
+    expect(calls[1]![3]).toEqual({ nemotronJsonContent: true });
+    expect(calls[1]![1]).toBe(calls[0]![1]);
+    expect(calls[1]![0].keyRef).toBe(calls[0]![0].keyRef);
+    expect(result).toMatchObject({
+      ok: true,
+      route: { effectiveModel: NEMOTRON_SUPER },
+    });
+  });
+
+  it("keeps strict parsing and the two-call budget when the content fallback is malformed", async () => {
+    const { agent, config } = fixture();
+    decide.mockResolvedValueOnce(nanoWorkerLimit).mockResolvedValueOnce({
+      ok: true,
+      text: '{"decision":"act","actions":"[]"}',
+      responseSource: "content",
+    });
+    await runAgentOnce(pool, agent, config);
+    expect(decide).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({
+      ok: false,
+      route: {
+        attempts: [
+          { outcome: "failed", failureClass: "capacity" },
+          {
+            outcome: "failed",
+            failureClass: "malformed",
+            responseSource: "content",
+          },
+        ],
+      },
+    });
+  });
+
+  it("keeps the first-attempt transport of a Super-primary agent and the default fallback when switched off", async () => {
+    const primary = fixture();
+    primary.agent.modelName = NEMOTRON_SUPER;
+    await runAgentOnce(pool, primary.agent, primary.config);
+    expect(vi.mocked(engine.providerForRoute).mock.calls[0]).toHaveLength(3);
+
+    vi.mocked(engine.providerForRoute).mockClear();
+    const off = fixture();
+    off.config.superFallbackJsonContentEnabled = false;
+    decide.mockResolvedValueOnce(nanoWorkerLimit).mockResolvedValueOnce(good);
+    await runAgentOnce(pool, off.agent, off.config);
+    const calls = vi.mocked(engine.providerForRoute).mock.calls;
+    expect(calls[1]![0].model).toBe(NEMOTRON_SUPER);
+    expect(calls[1]).toHaveLength(3);
+  });
+
+  it("never changes a BYO agent, which bypasses the hosted router", async () => {
+    const { agent, config } = fixture();
+    agent.brainKeyEnc = encrypt("fixture-byo", key);
+    await runAgentOnce(pool, agent, config);
+    expect(engine.providerForRoute).not.toHaveBeenCalled();
+    expect(vi.mocked(engine.selectProvider).mock.calls[0]).toHaveLength(3);
+  });
+
+  it("limits the fallback transport to official NVIDIA Super for non-BYO, non-Super-primary agents", () => {
+    const { agent, config } = fixture();
+    const superRoute = {
+      provider: "nvidia" as const,
+      model: NEMOTRON_SUPER,
+      keyRef: "nvidia:shared:0",
+    };
+    expect(usesSuperFallbackJsonContent(agent, config, superRoute)).toBe(true);
+    expect(
+      usesSuperFallbackJsonContent(agent, config, {
+        ...superRoute,
+        baseUrl: "https://integrate.api.nvidia.com/v1",
+      }),
+    ).toBe(true);
+    expect(
+      usesSuperFallbackJsonContent(
+        { ...agent, modelName: NEMOTRON_SUPER },
+        config,
+        superRoute,
+      ),
+    ).toBe(false);
+    expect(
+      usesSuperFallbackJsonContent(
+        { ...agent, brainKeyEnc: encrypt("fixture-byo", key) },
+        config,
+        superRoute,
+      ),
+    ).toBe(false);
+    for (const model of [NEMOTRON_NANO, NEMOTRON_LIGHTNING]) {
+      expect(
+        usesSuperFallbackJsonContent(agent, config, { ...superRoute, model }),
+      ).toBe(false);
+    }
+    expect(
+      usesSuperFallbackJsonContent(agent, config, {
+        ...superRoute,
+        baseUrl: "https://nim.example.com/v1",
+      }),
+    ).toBe(false);
+    expect(
+      usesSuperFallbackJsonContent(
+        agent,
+        { ...config, superFallbackJsonContentEnabled: false },
+        superRoute,
+      ),
+    ).toBe(false);
   });
 
   it("defers owner quota exhaustion once without spending a fallback or a model call", async () => {
