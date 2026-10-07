@@ -783,8 +783,8 @@ export function validateAction(
     // Forecast consistency. By prompt contract forecastProbability is the
     // model's own probability (1-99) that the outcome IT IS BACKING wins, so
     // buying that outcome only makes sense when the forecast clears what the
-    // market charges for it. An ABSENT forecast still never blocks a bet (the
-    // prompt promises that); a PRESENT one that contradicts the trade does.
+    // market charges for it. A forecast is optional unless a configured edge
+    // rule requires one; a present forecast must satisfy the enforced rules.
     // The API's entryProbability is the RAW mid, and executionModel's effective
     // probability excludes fee. Total stake / net shares is the fee-inclusive
     // break-even cost. Do not guess units or fall back to a discovery mid.
@@ -860,7 +860,7 @@ export function validateAction(
       if (maxEdge !== undefined && edge > maxEdge + 1e-9) {
         return fail(
           "pm_edge_overconfident",
-          `forecast ${action.forecastProbability} vs entry ${entryPct.toFixed(1)} = ${edge.toFixed(1)}pt edge, over the ${maxEdge}pt cap (large claimed edges have lost the most)`,
+          `forecast ${action.forecastProbability} vs entry ${entryPct.toFixed(1)} = ${edge.toFixed(1)}pt edge, over the ${maxEdge}pt cap`,
         );
       }
       if (edgeGapPct !== undefined) {
