@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { sharedOwnerLimit } from "./sharedPolicy.js";
+import {
+  ownerWaiterTtlSeconds,
+  sharedOwnerLimit,
+  WAITER_GRACE_SECONDS,
+} from "./sharedPolicy.js";
+import { MAX_WAITER_TTL_SECONDS } from "./capacity.js";
 import { loadConfig } from "./config.js";
 import type { AgentRow } from "./db.js";
 
@@ -55,5 +60,38 @@ describe("shared owner token allocation", () => {
       sharedOwnerLimit({ id: 2, ownerUserId: null } as AgentRow, config, 1000)
         .routeKey,
     );
+  });
+});
+
+describe("owner bucket waiter", () => {
+  it("holds until just past the next due slot, the shared floor when slower", () => {
+    // House agents: 180 s configured, ~330 s on the shared floor (prod 07 Oct).
+    expect(ownerWaiterTtlSeconds(180, 330)).toBe(330 + WAITER_GRACE_SECONDS);
+    expect(ownerWaiterTtlSeconds(600, 330)).toBe(600 + WAITER_GRACE_SECONDS);
+    expect(ownerWaiterTtlSeconds(10, 0)).toBe(60 + WAITER_GRACE_SECONDS);
+    expect(ownerWaiterTtlSeconds(NaN, NaN)).toBe(60 + WAITER_GRACE_SECONDS);
+    // A 4 h cadence never holds the bucket past the hard bound.
+    expect(ownerWaiterTtlSeconds(14_400, 0)).toBe(MAX_WAITER_TTL_SECONDS);
+  });
+
+  it("names the requesting agent, never the owner", () => {
+    const limit = sharedOwnerLimit(
+      { id: 7, isHouse: true, cadenceSeconds: 180 } as AgentRow,
+      config,
+      24000,
+      420,
+    );
+    expect(limit.waiter).toEqual({ key: "agent:7", ttlSeconds: 420 });
+    expect(
+      sharedOwnerLimit(
+        { id: 8, isHouse: true, cadenceSeconds: 180 } as AgentRow,
+        config,
+        24000,
+      ).waiter,
+    ).toEqual({ key: "agent:8", ttlSeconds: 180 + WAITER_GRACE_SECONDS });
+    expect(
+      sharedOwnerLimit({ id: 0, cadenceSeconds: 180 } as AgentRow, config, 1)
+        .waiter,
+    ).toBeUndefined();
   });
 });

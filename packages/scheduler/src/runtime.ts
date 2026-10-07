@@ -36,6 +36,8 @@ import {
   recordPaidCallResult,
   finalizePaidCall,
   listPaidRecoveryCandidates,
+  activeSharedAgentCount,
+  sharedCadenceFloorSeconds,
 } from "./db.js";
 import {
   PAID_BRAIN_MAX_INPUT_BYTES,
@@ -53,7 +55,7 @@ import {
   type PaidCallResult,
 } from "./paidBrain.js";
 import type { Config } from "./config.js";
-import { sharedOwnerLimit } from "./sharedPolicy.js";
+import { ownerWaiterTtlSeconds, sharedOwnerLimit } from "./sharedPolicy.js";
 import {
   RoutedProvider,
   resolveRouteChain,
@@ -412,7 +414,15 @@ function routedProviderFor(
         if (config.sharedPoolPolicyEnabled) {
           const owner = await reserveProviderCapacity(
             pool,
-            sharedOwnerLimit(agent, config, limit.reserveTokens),
+            sharedOwnerLimit(
+              agent,
+              config,
+              limit.reserveTokens,
+              ownerWaiterTtlSeconds(
+                agent.cadenceSeconds,
+                sharedCadenceFloorSeconds(await activeSharedAgentCount(pool)),
+              ),
+            ),
           );
           if (!owner.ok)
             return {

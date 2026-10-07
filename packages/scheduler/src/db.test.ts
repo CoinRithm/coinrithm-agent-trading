@@ -26,8 +26,40 @@ import {
   SHARED_CADENCE_TARGET_RPM,
   EOL_MODEL_SUCCESSORS,
   type CycleRecord,
+  activeSharedAgentCount,
+  resetActiveSharedAgentCount,
 } from "./db.js";
 import { paidBrainModel, priceRowAt } from "./paidBrain.js";
+
+describe("activeSharedAgentCount (owner waiter TTL input)", () => {
+  afterEach(() => resetActiveSharedAgentCount());
+
+  it("reads once a minute and keeps the last value when a read fails", async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ n: 44 }] })
+      .mockRejectedValueOnce(new Error("db down"));
+    const pool = { query } as unknown as Pool;
+    expect(await activeSharedAgentCount(pool, 1_000)).toBe(44);
+    expect(await activeSharedAgentCount(pool, 30_000)).toBe(44);
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(await activeSharedAgentCount(pool, 62_000)).toBe(44);
+    expect(query).toHaveBeenCalledTimes(2);
+    expect(String(query.mock.calls[0]?.[0])).toContain("brain_key_enc IS NULL");
+  });
+
+  it("never blocks admission on a first failed read", async () => {
+    const pool = {
+      query: vi.fn().mockRejectedValue(new Error("db down")),
+    } as unknown as Pool;
+    expect(await activeSharedAgentCount(pool, 1_000)).toBe(0);
+    const empty = { query: vi.fn().mockResolvedValue({ rows: [] }) };
+    resetActiveSharedAgentCount();
+    expect(await activeSharedAgentCount(empty as unknown as Pool, 1_000)).toBe(
+      0,
+    );
+  });
+});
 
 describe.each(["recordCycle", "persistCycleResult"] as const)(
   "%s model diagnostic persistence boundary",

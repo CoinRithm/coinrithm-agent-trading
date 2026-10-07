@@ -15,6 +15,13 @@ export interface ProviderCapacityLimit {
   reserveTokens: number;
   /** Must exceed the provider timeout; crash recovery is automatic after TTL. */
   leaseTtlSeconds: number;
+  /**
+   * Owner buckets only (009_capacity_waiters.sql): who is asking. A requester
+   * denied for token budget becomes the bucket's single waiter for ttlSeconds;
+   * while it waits, other requesters may only spend tokens beyond its need, so
+   * the next refill reaches it instead of the same agent losing every cycle.
+   */
+  waiter?: { key: string; ttlSeconds: number };
 }
 
 export interface ProviderCapacityLease {
@@ -35,6 +42,9 @@ export type ProviderCapacityReservation =
       /** Locked-snapshot refill time; absent for concurrency/cooldown holds. */
       retryAfterMs?: number;
     };
+
+/** A waiter never holds an owner bucket longer than this, retries included. */
+export const MAX_WAITER_TTL_SECONDS = 900;
 
 function positiveInt(value: number, name: string): number {
   if (!Number.isFinite(value) || value < 1) {
@@ -80,6 +90,14 @@ export async function reserveProviderCapacity(
   if (!limit.routeKey.trim() || !limit.provider.trim() || !limit.model.trim()) {
     throw new Error("routeKey, provider and model are required");
   }
+  const waiterKey = raw.waiter?.key.trim() || null;
+  const waiterTtlSeconds =
+    waiterKey === null
+      ? null
+      : Math.min(
+          MAX_WAITER_TTL_SECONDS,
+          positiveInt(raw.waiter!.ttlSeconds, "waiter.ttlSeconds"),
+        );
 
   const client = await pool.connect();
   const leaseId = randomUUID();
@@ -142,6 +160,13 @@ export async function reserveProviderCapacity(
                 b.model_tokens + b.model_rate_per_min *
                   GREATEST(0, EXTRACT(EPOCH FROM (checked.at - b.last_refill_at))) / 60.0
                 ) AS available_tokens,
+                -- Tokens owed to ANOTHER live waiter; the waiter itself and
+                -- requests without a waiter key (provider keys) owe nothing.
+                CASE WHEN $4::text IS NOT NULL
+                          AND b.waiter_key IS NOT NULL
+                          AND b.waiter_key <> $4::text
+                          AND b.waiter_expires_at > checked.at
+                     THEN b.waiter_tokens::double precision ELSE 0 END AS owed_tokens,
                 b.blocked_until > checked.at AS cooling,
                 (SELECT count(*)
                  FROM agent_runtime.provider_capacity_leases l
@@ -152,7 +177,7 @@ export async function reserveProviderCapacity(
        ), decision AS MATERIALIZED (
          SELECT *, array_remove(ARRAY[
            CASE WHEN available_requests < 1 THEN 'request_budget' END,
-           CASE WHEN available_tokens < $2 THEN 'token_budget' END,
+           CASE WHEN available_tokens - owed_tokens < $2 THEN 'token_budget' END,
            CASE WHEN slots_full THEN 'concurrency' END,
            CASE WHEN cooling THEN 'shared_key_cooldown' END
          ], NULL) AS denial_reasons FROM budget
@@ -161,21 +186,54 @@ export async function reserveProviderCapacity(
             SET request_tokens = d.available_requests - 1,
                 model_tokens = d.available_tokens - $2,
                 last_refill_at = d.at,
-                updated_at = d.at
+                updated_at = d.at,
+                waiter_key = CASE WHEN b.waiter_key = $4::text OR b.waiter_expires_at <= d.at THEN NULL ELSE b.waiter_key END,
+                waiter_tokens = CASE WHEN b.waiter_key = $4::text OR b.waiter_expires_at <= d.at THEN NULL ELSE b.waiter_tokens END,
+                waiter_since = CASE WHEN b.waiter_key = $4::text OR b.waiter_expires_at <= d.at THEN NULL ELSE b.waiter_since END,
+                waiter_expires_at = CASE WHEN b.waiter_key = $4::text OR b.waiter_expires_at <= d.at THEN NULL ELSE b.waiter_expires_at END
            FROM decision d
           WHERE b.route_key = d.route_key AND cardinality(d.denial_reasons) = 0
+         RETURNING b.route_key
+       ), queued AS (
+         -- A token-budget denial makes this requester the waiter unless another
+         -- live waiter holds the bucket. Re-queuing keeps waiter_since, and the
+         -- hold can never pass waiter_since + the maximum TTL, so one stuck
+         -- requester cannot hold the bucket by retrying. Tokens, refill time
+         -- and leases are untouched, exactly as for any other denial.
+         UPDATE agent_runtime.provider_capacity_buckets b
+            SET waiter_key = $4::text,
+                waiter_tokens = $2,
+                waiter_since = CASE WHEN b.waiter_key = $4::text AND b.waiter_expires_at > d.at
+                                    THEN b.waiter_since ELSE d.at END,
+                waiter_expires_at = CASE WHEN b.waiter_key = $4::text AND b.waiter_expires_at > d.at
+                                         THEN LEAST(d.at + make_interval(secs => $5::int),
+                                                    b.waiter_since + make_interval(secs => $6::int))
+                                         ELSE d.at + make_interval(secs => $5::int) END,
+                updated_at = d.at
+           FROM decision d
+          WHERE b.route_key = d.route_key
+            AND $4::text IS NOT NULL
+            AND 'token_budget' = ANY(d.denial_reasons)
+            AND (b.waiter_key IS NULL OR b.waiter_expires_at <= d.at OR b.waiter_key = $4::text)
          RETURNING b.route_key
        )
        SELECT a.route_key, d.denial_reasons,
               CASE WHEN cardinality(d.denial_reasons) > 0
                          AND d.cooling IS NOT TRUE AND NOT d.slots_full
                    THEN CEIL((d.refill_delay_seconds + GREATEST(
-                     0, ($2 - d.available_tokens) / d.model_rate_per_min * 60.0,
+                     0, ($2 + d.owed_tokens - d.available_tokens) / d.model_rate_per_min * 60.0,
                      (1 - d.available_requests) / d.request_rate_per_min * 60.0
                    )) * 1000)::double precision + 1
                    ELSE NULL END AS retry_after_ms
          FROM decision d LEFT JOIN admitted a ON a.route_key = d.route_key`,
-      [limit.routeKey, limit.reserveTokens, tokenBurst ?? null],
+      [
+        limit.routeKey,
+        limit.reserveTokens,
+        tokenBurst ?? null,
+        waiterKey,
+        waiterTtlSeconds,
+        MAX_WAITER_TTL_SECONDS,
+      ],
     );
 
     const admission = reserved.rows[0];

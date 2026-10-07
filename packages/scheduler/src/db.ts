@@ -1275,6 +1275,33 @@ export const SHARED_CADENCE_TARGET_RPM = (() => {
   return Number.isFinite(raw) && raw > 0 ? raw : 8;
 })();
 
+// Active shared-pool agents, for the owner-bucket waiter TTL (sharedPolicy).
+// Read at most once a minute; a failed read keeps the last value (0 at boot,
+// which only shortens the TTL to the configured cadence) and never blocks
+// admission.
+let activeSharedCount: { atMs: number; n: number } | null = null;
+export async function activeSharedAgentCount(
+  pool: Pool,
+  nowMs = Date.now(),
+): Promise<number> {
+  if (activeSharedCount && nowMs - activeSharedCount.atMs < 60_000)
+    return activeSharedCount.n;
+  try {
+    const r = await pool.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM agent_runtime.agents
+        WHERE status = 'active' AND brain_key_enc IS NULL`,
+    );
+    activeSharedCount = { atMs: nowMs, n: Number(r.rows[0]?.n ?? 0) };
+  } catch {
+    activeSharedCount = { atMs: nowMs, n: activeSharedCount?.n ?? 0 };
+  }
+  return activeSharedCount.n;
+}
+/** Tests only: forget the cached count. */
+export function resetActiveSharedAgentCount(): void {
+  activeSharedCount = null;
+}
+
 /** Pure: the floor a shared-pool agent may not run faster than. */
 export function sharedCadenceFloorSeconds(activeSharedAgents: number): number {
   if (!(activeSharedAgents > 0)) return 0;

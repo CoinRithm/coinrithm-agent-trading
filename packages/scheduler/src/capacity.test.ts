@@ -6,6 +6,7 @@ import {
   isProviderRouteCoolingDown,
   releaseProviderCapacity,
   reserveProviderCapacity,
+  MAX_WAITER_TTL_SECONDS,
 } from "./capacity.js";
 
 function mockPool(
@@ -128,6 +129,49 @@ describe("shared provider capacity", () => {
       expect(release).toHaveBeenCalledOnce();
     },
   );
+  it("passes the owner waiter to the locked admission statement", async () => {
+    const db = mockPool();
+    await reserveProviderCapacity(db.pool, {
+      ...limit,
+      waiter: { key: " agent:7 ", ttlSeconds: 420 },
+    });
+    const call = db.query.mock.calls.find((c) =>
+      String(c[0]).includes("SELECT a.route_key, d.denial_reasons"),
+    )!;
+    expect(String(call[0])).toContain("queued AS");
+    expect(String(call[0])).toContain("owed_tokens");
+    expect(call[1]).toEqual([
+      limit.routeKey,
+      limit.reserveTokens,
+      null,
+      "agent:7",
+      420,
+      MAX_WAITER_TTL_SECONDS,
+    ]);
+  });
+
+  it("clamps the waiter hold and leaves keyless requests on the old rule", async () => {
+    const db = mockPool();
+    await reserveProviderCapacity(db.pool, {
+      ...limit,
+      waiter: { key: "agent:7", ttlSeconds: 14_400 },
+    });
+    await reserveProviderCapacity(db.pool, limit);
+    const params = db.query.mock.calls
+      .filter((c) =>
+        String(c[0]).includes("SELECT a.route_key, d.denial_reasons"),
+      )
+      .map((c) => c[1] as unknown[]);
+    expect(params[0]?.slice(3, 5)).toEqual(["agent:7", MAX_WAITER_TTL_SECONDS]);
+    expect(params[1]?.slice(3, 5)).toEqual([null, null]);
+    await expect(
+      reserveProviderCapacity(db.pool, {
+        ...limit,
+        waiter: { key: "agent:7", ttlSeconds: 0 },
+      }),
+    ).rejects.toThrow(/waiter.ttlSeconds/);
+  });
+
   it("atomically reserves RPM, TPM and concurrency without holding DB during the call", async () => {
     const db = mockPool();
     const reservation = await reserveProviderCapacity(db.pool, limit);
