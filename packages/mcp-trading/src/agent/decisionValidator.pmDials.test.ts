@@ -353,6 +353,15 @@ describe("risk.pmMaxOpenPerCoinHorizon", () => {
     expect(check(spec, o).valid).toBe(true);
   });
 
+  it("never drops a linked coin: a shared 25th coin still blocks", () => {
+    const spec = { pmMaxOpenPerCoinHorizon: 1 };
+    const many = Array.from({ length: 25 }, (_, i) => `coin-${i}`);
+    const wide = candidate({ coins: coinsField(many).coins });
+    const r = check(spec, withHeld([held({ coins: ["coin-24"] })], wide));
+    expect(r.code).toBe("pm_coin_horizon_cap");
+    expect(r.reason).toContain("coin-24");
+  });
+
   it("counts a multi-coin event under each of its coins", () => {
     const spec = { pmMaxOpenPerCoinHorizon: 1 };
     const both = candidate({ coins: ["bitcoin", "solana"] });
@@ -398,8 +407,12 @@ describe("risk.pmMaxOpenPerCoinHorizon", () => {
   });
 
   it("leaves the per-event cap unchanged and fails closed on a bad value", () => {
-    expect(check({ pmMaxOpenPerCoinHorizon: 0 }, withHeld([])).code).toBe(
-      "pm_coin_horizon_cap_invalid",
+    for (const bad of [0, 1.5, 51, "2"])
+      expect(
+        check({ pmMaxOpenPerCoinHorizon: bad as number }, withHeld([])).code,
+      ).toBe("pm_coin_horizon_cap_invalid");
+    expect(check({ pmMaxOpenPerCoinHorizon: 50 }, withHeld([])).valid).toBe(
+      true,
     );
     const perEvent = check(
       { pmMaxOpenPerEvent: 1, pmMaxOpenPerCoinHorizon: 5 },
@@ -426,7 +439,7 @@ describe("risk.pmMaxOpenPerCoinHorizon", () => {
     expect(coinsField([])).toEqual({});
     expect(
       coinsField(Array.from({ length: 25 }, (_, i) => `coin-${i}`)).coins,
-    ).toHaveLength(20);
+    ).toHaveLength(25);
   });
 });
 

@@ -702,11 +702,12 @@ export function validateAction(
       if (
         typeof coinHorizonCap !== "number" ||
         !Number.isInteger(coinHorizonCap) ||
-        coinHorizonCap < 1
+        coinHorizonCap < 1 ||
+        coinHorizonCap > 50
       ) {
         return fail(
           "pm_coin_horizon_cap_invalid",
-          `risk.pmMaxOpenPerCoinHorizon ${JSON.stringify(coinHorizonCap)} is not a whole number of at least 1`,
+          `risk.pmMaxOpenPerCoinHorizon ${JSON.stringify(coinHorizonCap)} is not a whole number from 1 to 50`,
         );
       }
       const refMs = pmReferenceMs(observation.asOf, ctx.nowMs);
