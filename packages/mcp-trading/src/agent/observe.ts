@@ -870,11 +870,14 @@ export function chainTvlOf(
   if (!chain || tvl == null || tvl < 0) return undefined;
   const publishedAt =
     c.publishedAt == null ? null : (shownTime(c.publishedAt, nowMs) ?? null);
+  const fetchedAt =
+    c.fetchedAt == null ? null : (shownTime(c.fetchedAt, nowMs) ?? null);
   const dayAt = c.dayAt == null ? null : (shownTime(c.dayAt, nowMs) ?? null);
   return {
     chain,
     tvlUsd: tvl,
     publishedAt,
+    fetchedAt,
     sourceObservedAt: null,
     stale: publishedAt == null || c.stale !== false,
     dayAt,

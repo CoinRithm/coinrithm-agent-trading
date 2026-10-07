@@ -437,6 +437,8 @@ export interface ChainTvlContext {
   tvlUsd: number;
   // Response publication (HTTP Last-Modified), NOT when the TVL was observed.
   publishedAt: string | null;
+  // When CoinRithm collected it (our clock), also NOT the observation time.
+  fetchedAt: string | null;
   // The provider gives no observation time for the current TVL.
   sourceObservedAt: null;
   stale: boolean;

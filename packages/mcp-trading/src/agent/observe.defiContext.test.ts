@@ -27,6 +27,7 @@ describe("chainTvlOf", () => {
       chain: "Ethereum",
       tvlUsd: 52951000000,
       publishedAt: "2026-10-07T05:02:21.000Z",
+      fetchedAt: "2026-10-07T05:17:41.000Z",
       sourceObservedAt: null,
       stale: false,
       dayAt: "2026-10-07T00:00:00.000Z",
@@ -50,6 +51,21 @@ describe("chainTvlOf", () => {
     expect(
       chainTvlOf(market({ chainTvl: block({ dayAt: null }) }), NOW),
     ).toMatchObject({ dayAt: null, change1dPct: null, change7dPct: null });
+  });
+
+  it("keeps our collection clock apart and never shows a future one", () => {
+    expect(
+      chainTvlOf(
+        market({ chainTvl: block({ fetchedAt: "2026-10-07T09:00:00.000Z" }) }),
+        NOW,
+      ),
+    ).toMatchObject({
+      fetchedAt: null,
+      publishedAt: "2026-10-07T05:02:21.000Z",
+    });
+    expect(
+      chainTvlOf(market({ chainTvl: block({ fetchedAt: null }) }), NOW),
+    ).toMatchObject({ fetchedAt: null, sourceObservedAt: null });
   });
 
   it("omits a missing or malformed block", () => {
