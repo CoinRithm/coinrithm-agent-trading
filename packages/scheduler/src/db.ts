@@ -1133,6 +1133,12 @@ export async function persistCycleResult(
     cycle: CycleRecord;
     disableReason?: string;
     providerHold?: { provider: string; model: string; error: string };
+    /**
+     * Owner-budget deferral with no model call (sharedPolicy
+     * ownerDeferralRetrySeconds): run again this many seconds from now, or at
+     * the next grid slot if that is sooner. Ignored unless 1-3600.
+     */
+    retryInSeconds?: number;
     /** The route that served (or failed) this cycle — configured model until
      * failover routing exists. Recorded as agent_cycles.effective_model. */
     model?: { provider: string; name: string };
@@ -1240,12 +1246,24 @@ export async function persistCycleResult(
       // Reschedule the NEXT cycle from COMPLETION: cadence after this run finished,
       // not from claim — so a slow model just delays the next cycle instead of
       // overlapping it (claimDueAgents set a RUN_LOCK_SECONDS lock; reset it here).
+      const retry =
+        Number.isInteger(args.retryInSeconds) &&
+        args.retryInSeconds! >= 1 &&
+        args.retryInSeconds! <= 3600
+          ? args.retryInSeconds!
+          : null;
       await client.query(
-        `UPDATE agent_runtime.agents
+        retry === null
+          ? `UPDATE agent_runtime.agents
             SET next_run_at = ${nextRunAtSql(schedulingFlags)},
                 updated_at = now()
+          WHERE id = $1 AND status = 'active'`
+          : `UPDATE agent_runtime.agents
+            SET next_run_at = LEAST(${nextRunAtSql(schedulingFlags)},
+                                    now() + make_interval(secs => $2::int)),
+                updated_at = now()
           WHERE id = $1 AND status = 'active'`,
-        [agentId],
+        retry === null ? [agentId] : [agentId, retry],
       );
     }
     await client.query("COMMIT");

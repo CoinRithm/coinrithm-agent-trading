@@ -7,6 +7,7 @@ import {
   releaseProviderCapacity,
   reserveProviderCapacity,
   MAX_WAITER_TTL_SECONDS,
+  WAITER_RETRY_SLACK_SECONDS,
 } from "./capacity.js";
 
 function mockPool(
@@ -146,7 +147,31 @@ describe("shared provider capacity", () => {
       null,
       "agent:7",
       420,
-      MAX_WAITER_TTL_SECONDS,
+      WAITER_RETRY_SLACK_SECONDS,
+    ]);
+    expect(String(call[0])).toContain("claim_live");
+  });
+
+  it("puts the waiter key on the lease so a consumed release ends the claim", async () => {
+    const db = mockPool();
+    const r = await reserveProviderCapacity(db.pool, {
+      ...limit,
+      waiter: { key: "agent:7", ttlSeconds: 420 },
+    });
+    expect(r).toMatchObject({ ok: true, lease: { waiterKey: "agent:7" } });
+    if (!r.ok) throw Error("expected admission");
+    await releaseProviderCapacity(db.pool, r.lease, 9_000);
+    await releaseProviderCapacity(db.pool, r.lease, 0);
+    await releaseProviderCapacity(db.pool, r.lease, 9_000, true);
+    const updates = db.query.mock.calls
+      .filter((c) => String(c[0]).includes("model_tokens = GREATEST"))
+      .map((c) => c[1] as unknown[]);
+    // Consumed: clears its own claim. Rejected before inference (0 tokens) or
+    // unused: keeps the claim, so a refusal never erases the turn.
+    expect(updates.map((p) => p.slice(4))).toEqual([
+      ["agent:7", true],
+      ["agent:7", false],
+      ["agent:7", false],
     ]);
   });
 
@@ -320,7 +345,7 @@ describe("shared provider capacity", () => {
     const update = db.query.mock.calls.find((c) =>
       String(c[0]).includes("model_tokens = GREATEST"),
     );
-    expect(update?.[1]).toEqual([limit.routeKey, 3_000, 0, 0]);
+    expect(update?.[1]).toEqual([limit.routeKey, 3_000, 0, 0, null, false]);
     expect(db.release).toHaveBeenCalledOnce();
   });
 

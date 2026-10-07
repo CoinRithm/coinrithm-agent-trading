@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  CONCURRENCY_RETRY_SECONDS,
+  MIN_DEFERRAL_RETRY_SECONDS,
+  OWNER_BUDGET_DEFERRED_ERROR,
+  ownerDeferralRetrySeconds,
   ownerWaiterTtlSeconds,
   sharedOwnerLimit,
   WAITER_GRACE_SECONDS,
@@ -60,6 +64,122 @@ describe("shared owner token allocation", () => {
       sharedOwnerLimit({ id: 2, ownerUserId: null } as AgentRow, config, 1000)
         .routeKey,
     );
+  });
+});
+
+describe("owner deferral retry (no model call)", () => {
+  const deferred = (reasons: string[], retryAfterMs?: number) => ({
+    outcome: "deferred",
+    error: OWNER_BUDGET_DEFERRED_ERROR,
+    admissionReasons: reasons,
+    ...(retryAfterMs === undefined ? {} : { retryAfterMs }),
+  });
+
+  it("retries after the refill hint instead of a full grid interval", () => {
+    // Mia at 06:48 UTC: owner token budget, refill hint 6,133 ms.
+    const cycle = {
+      llmCallMade: false,
+      routeAttempts: [deferred(["token_budget"], 6133)],
+    };
+    expect(ownerDeferralRetrySeconds(cycle, 330, 0)).toBe(7);
+    expect(ownerDeferralRetrySeconds(cycle, 330, 1)).toBe(12);
+    expect(
+      ownerDeferralRetrySeconds(
+        {
+          llmCallMade: false,
+          routeAttempts: [deferred(["token_budget"], 100)],
+        },
+        330,
+        0,
+      ),
+    ).toBe(MIN_DEFERRAL_RETRY_SECONDS);
+    // Never later than the effective interval.
+    expect(
+      ownerDeferralRetrySeconds(
+        {
+          llmCallMade: false,
+          routeAttempts: [deferred(["request_budget"], 900_000)],
+        },
+        330,
+        0,
+      ),
+    ).toBe(330);
+  });
+
+  it("backs off a busy single call slot without a hot loop", () => {
+    const busy = {
+      llmCallMade: false,
+      routeAttempts: [deferred(["concurrency"])],
+    };
+    expect(ownerDeferralRetrySeconds(busy, 330, 0)).toBe(
+      CONCURRENCY_RETRY_SECONDS,
+    );
+    expect(ownerDeferralRetrySeconds(busy, 330, 1)).toBe(
+      CONCURRENCY_RETRY_SECONDS + 10,
+    );
+    expect(
+      ownerDeferralRetrySeconds(
+        {
+          llmCallMade: false,
+          routeAttempts: [deferred(["token_budget", "concurrency"], 2000)],
+        },
+        330,
+        0,
+      ),
+    ).toBe(CONCURRENCY_RETRY_SECONDS);
+  });
+
+  it("keeps normal phase scheduling for everything else", () => {
+    const keep = (cycle: Parameters<typeof ownerDeferralRetrySeconds>[0]) =>
+      ownerDeferralRetrySeconds(cycle, 330, 0.5);
+    expect(
+      keep({
+        llmCallMade: true,
+        routeAttempts: [deferred(["token_budget"], 1)],
+      }),
+    ).toBeUndefined();
+    expect(keep({ llmCallMade: false })).toBeUndefined();
+    expect(keep({ llmCallMade: false, routeAttempts: [] })).toBeUndefined();
+    expect(
+      keep({
+        llmCallMade: false,
+        routeAttempts: [
+          {
+            outcome: "deferred",
+            error: "shared provider capacity unavailable",
+            admissionReasons: ["token_budget"],
+          },
+        ],
+      }),
+    ).toBeUndefined();
+    expect(
+      keep({
+        llmCallMade: false,
+        routeAttempts: [deferred(["shared_key_cooldown"])],
+      }),
+    ).toBeUndefined();
+    expect(
+      keep({ llmCallMade: false, routeAttempts: [deferred([])] }),
+    ).toBeUndefined();
+    expect(
+      keep({
+        llmCallMade: false,
+        routeAttempts: [
+          deferred(["token_budget"], 1000),
+          { outcome: "failed", error: "boom" },
+        ],
+      }),
+    ).toBeUndefined();
+    expect(
+      ownerDeferralRetrySeconds(
+        {
+          llmCallMade: false,
+          routeAttempts: [deferred(["token_budget"], NaN)],
+        },
+        NaN,
+        NaN,
+      ),
+    ).toBe(MIN_DEFERRAL_RETRY_SECONDS);
   });
 });
 

@@ -245,12 +245,15 @@ credit. Leases expire after a crashed worker, and restarts do not reset budgets.
 Owner budgets are shared fairly (`sql/009_capacity_waiters.sql`). The phase
 grid gives each agent the same offset every cadence, so without a turn rule the
 agent whose slot follows a large prompt can be deferred every cycle (house Mia,
-7 Oct 2026). The first agent denied for tokens becomes its owner bucket's single
-waiter; while it waits, the owner's other agents may only spend tokens beyond its
-need, so its next attempt finds the refill. Admission clears the claim. A claim
-lasts until just past the agent's next due slot and never more than 15 minutes,
-retries included, so a paused, disabled or deleted agent releases it on its own.
-Limits, concurrency and spend are unchanged; deferrals rotate instead of
+7 Oct 2026). A cycle deferred by its owner budget with no model call now retries after the
+refill (at least 5 s, never later than its grid slot; a busy call slot backs off
+20-30 s) instead of a whole interval later. The first agent denied for tokens
+becomes its owner bucket's single waiter: until that retry (its refill wait plus
+45 s, never more than 15 minutes, fixed at the first wait) the owner's other
+agents may only spend tokens beyond its need. The claim ends when the waiter's
+call consumes tokens, and stops counting at once if the agent is paused, deleted
+or switched to its own key. Limits, concurrency, spend, the 180 s model interval
+and phase scheduling after real calls are unchanged; deferrals rotate instead of
 starving one agent.
 
 The stored strategy and cycle cadence are unchanged. Protective thesis exits

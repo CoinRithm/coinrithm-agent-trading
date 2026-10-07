@@ -1342,24 +1342,35 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
   // Prod 2026-10-07: five house agents share one 25k TPM owner bucket (burst =
   // one request, one concurrent call). On the phase grid Olivia (~31k) drains
   // it and Mia (~24k) arrives ~45 s later every cadence, finds ~18.75k, and is
-  // deferred; Leo (~26k) arrives ~2 min later and always succeeds.
+  // deferred; Leo (~26k) arrives ~2 min later and always succeeds. Times below
+  // are simulated by moving last_refill_at; claims use the real clock.
   describe("owner bucket fairness", () => {
     const routeKey = "shared-owner:fairness";
+    const RATE = 25_000;
     const MIA = 24_000;
     const LEO = 26_000;
     const OLIVIA = 31_000;
-    const owner = (
-      key: string | null,
-      reserveTokens: number,
-      ttlSeconds = 420,
-    ) => ({
+    const agentId = async (handle: string) =>
+      String(
+        (
+          await pool.query(
+            `INSERT INTO agent_runtime.agents
+               (handle, display_name, status, cadence_seconds, model_provider,
+                model_name, spec, prose, coinrithm_key_enc)
+             VALUES ($1, $1, 'active', 180, 'nvidia', 'fixture', '{}', '', 'fixture')
+             RETURNING id`,
+            [handle],
+          )
+        ).rows[0].id,
+      );
+    const owner = (key: string | null, reserveTokens: number) => ({
       ...limit,
       routeKey,
-      tokensPerMinute: 25_000,
+      tokensPerMinute: RATE,
       tokenBurst: reserveTokens,
       reserveTokens,
       maxConcurrent: 1,
-      ...(key ? { waiter: { key, ttlSeconds } } : {}),
+      ...(key ? { waiter: { key, ttlSeconds: 420 } } : {}),
     });
     // The bucket `seconds` after a large prompt left it empty.
     const drainedAgo = async (seconds: number) => {
@@ -1367,9 +1378,9 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
         `INSERT INTO agent_runtime.provider_capacity_buckets
            (route_key, provider, request_tokens, model_tokens,
             request_rate_per_min, model_rate_per_min, max_concurrent)
-         VALUES ($1, 'fixture', 24, 0, 24, 25000, 1)
+         VALUES ($1, 'fixture', 24, 0, 24, $2, 1)
          ON CONFLICT (route_key) DO NOTHING`,
-        [routeKey],
+        [routeKey, RATE],
       );
       await pool.query(
         `UPDATE agent_runtime.provider_capacity_buckets
@@ -1379,6 +1390,7 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
         [routeKey, seconds],
       );
     };
+    // One model call that consumes its reserve (the turn is used).
     const attempt = async (
       key: string | null,
       reserve: number,
@@ -1388,7 +1400,7 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
       if (r.ok) await releaseProviderCapacity(on, r.lease, reserve);
       return r.ok;
     };
-    const waiter = async () =>
+    const claim = async () =>
       (
         await pool.query(
           `SELECT waiter_key, waiter_tokens, waiter_since, waiter_expires_at,
@@ -1398,7 +1410,7 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
         )
       ).rows[0];
 
-    it("reproduces the starvation without a waiter key: Mia loses every cycle", async () => {
+    it("reproduces the 2-agent starvation without the rule: Mia loses every cycle", async () => {
       let mia = 0;
       let leo = 0;
       for (let cycle = 0; cycle < 3; cycle += 1) {
@@ -1411,38 +1423,118 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
       expect(leo).toBe(3);
     });
 
-    it("gives the starved agent the next refill and then lets the others back in", async () => {
+    it("gives the starved agent its rescheduled retry, then lets the others back", async () => {
+      const mia = `agent:${await agentId("mia")}`;
+      const leo = `agent:${await agentId("leo")}`;
       await drainedAgo(45);
-      expect(await attempt("agent:mia", MIA)).toBe(false);
-      expect(await waiter()).toMatchObject({
-        waiter_key: "agent:mia",
-        waiter_tokens: MIA,
-      });
+      expect(await attempt(mia, MIA)).toBe(false);
+      const first = await claim();
+      expect(first).toMatchObject({ waiter_key: mia, waiter_tokens: MIA });
+      // The claim covers Mia's own refill wait (~12.6 s) plus slack, not a
+      // whole grid interval.
+      const heldSeconds =
+        (new Date(first.waiter_expires_at).getTime() -
+          new Date(first.waiter_since).getTime()) /
+        1000;
+      expect(heldSeconds).toBeGreaterThan(12);
+      expect(heldSeconds).toBeLessThan(12.6 + 45 + 2);
 
-      // Leo and the next Olivia may only spend tokens beyond Mia's need.
-      await drainedAgo(120);
-      expect(await attempt("agent:leo", LEO)).toBe(false);
-      await drainedAgo(330);
-      expect(await attempt("agent:olivia", OLIVIA)).toBe(false);
-      // Yielding never steals the waiter slot.
-      expect((await waiter()).waiter_key).toBe("agent:mia");
+      // Before her retry, Leo may only spend tokens beyond Mia's need.
+      await drainedAgo(50);
+      expect(await attempt(leo, LEO)).toBe(false);
+      expect((await claim()).waiter_key).toBe(mia);
 
-      // Mia's next slot finds her reserve and clears the claim.
-      await drainedAgo(375);
-      expect(await attempt("agent:mia", MIA)).toBe(true);
-      const after = await waiter();
+      // Mia's retry (~13 s after her deferral) finds her reserve.
+      await drainedAgo(58);
+      expect(await attempt(mia, MIA)).toBe(true);
+      const after = await claim();
       expect(after.waiter_key).toBeNull();
-      expect(after.waiter_expires_at).toBeNull();
       expect(Number(after.model_tokens)).toBeGreaterThanOrEqual(0);
 
-      // No waiter left: the next agent is admitted on its own budget.
       await drainedAgo(120);
-      expect(await attempt("agent:leo", LEO)).toBe(true);
+      expect(await attempt(leo, LEO)).toBe(true);
     });
 
-    it("lets an expired claim lapse so a paused or deleted agent never holds the bucket", async () => {
+    it("rotates turns across five agents instead of starving one", async () => {
+      const reserves = [OLIVIA, MIA, LEO, 28_000, 25_000];
+      const keys = await Promise.all(
+        reserves.map(async (_, i) => `agent:${await agentId(`rot-${i}`)}`),
+      );
+      const served = new Map(keys.map((k) => [k, 0]));
+      // Fifteen rounds of the grid order: each agent arrives 45 s after the
+      // previous drain; a deferred agent retries right after (its refill).
+      for (let round = 0; round < 15; round += 1) {
+        for (let i = 0; i < keys.length; i += 1) {
+          await drainedAgo(45);
+          if (await attempt(keys[i]!, reserves[i]!)) {
+            served.set(keys[i]!, served.get(keys[i]!)! + 1);
+            continue;
+          }
+          const c = await claim();
+          if (c.waiter_key === keys[i]) {
+            await drainedAgo(45 + 60);
+            if (await attempt(keys[i]!, reserves[i]!))
+              served.set(keys[i]!, served.get(keys[i]!)! + 1);
+          }
+        }
+      }
+      for (const key of keys) expect(served.get(key)).toBeGreaterThan(0);
+    });
+
+    it("measures throughput separately: tokens admitted are not lower with the rule", async () => {
+      const keys = [
+        `agent:${await agentId("tp-a")}`,
+        `agent:${await agentId("tp-b")}`,
+      ];
+      const reserves = [OLIVIA, MIA];
+      const run = async (withRule: boolean) => {
+        let admitted = 0;
+        for (let round = 0; round < 10; round += 1) {
+          for (let i = 0; i < 2; i += 1) {
+            await drainedAgo(i === 0 ? 75 : 45);
+            const key = withRule ? keys[i]! : null;
+            if (await attempt(key, reserves[i]!)) admitted += reserves[i]!;
+            else if (withRule && (await claim()).waiter_key === key) {
+              await drainedAgo(60);
+              if (await attempt(key, reserves[i]!)) admitted += reserves[i]!;
+            }
+          }
+        }
+        return admitted;
+      };
+      const without = await run(false);
+      await pool.query(
+        "UPDATE agent_runtime.provider_capacity_buckets SET waiter_key = NULL, waiter_tokens = NULL, waiter_since = NULL, waiter_expires_at = NULL WHERE route_key = $1",
+        [routeKey],
+      );
+      const withRule = await run(true);
+      expect(withRule).toBeGreaterThanOrEqual(without);
+    });
+
+    it("releases a paused, deleted or BYO-switched claimant at once, before expiry", async () => {
+      const leo = `agent:${await agentId("leo-e")}`;
+      const changes = [
+        "UPDATE agent_runtime.agents SET status = 'disabled' WHERE id = $1",
+        "UPDATE agent_runtime.agents SET brain_key_enc = 'byo' WHERE id = $1",
+        "DELETE FROM agent_runtime.agents WHERE id = $1",
+      ];
+      for (const [index, change] of changes.entries()) {
+        const id = await agentId(`gone-${index}`);
+        await drainedAgo(45);
+        expect(await attempt(`agent:${id}`, MIA)).toBe(false);
+        await pool.query(change, [id]);
+        await drainedAgo(120);
+        expect(await attempt(leo, LEO)).toBe(true);
+        expect((await claim()).waiter_key).toBeNull();
+      }
+    });
+
+    it("lets an expired claim lapse and a later starved agent take the slot", async () => {
+      const gone = `agent:${await agentId("expired")}`;
+      const olivia = `agent:${await agentId("olivia")}`;
+      const leo = `agent:${await agentId("leo-x")}`;
       await drainedAgo(45);
-      expect(await attempt("agent:gone", MIA)).toBe(false);
+      expect(await attempt(gone, MIA)).toBe(false);
       await pool.query(
         `UPDATE agent_runtime.provider_capacity_buckets
             SET waiter_expires_at = clock_timestamp() - interval '1 second'
@@ -1450,74 +1542,87 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
         [routeKey],
       );
       await drainedAgo(120);
-      expect(await attempt("agent:leo", LEO)).toBe(true);
-      expect((await waiter()).waiter_key).toBeNull();
-
-      // A later starved agent may take the lapsed slot.
+      expect(await attempt(leo, LEO)).toBe(true);
+      expect((await claim()).waiter_key).toBeNull();
       await drainedAgo(10);
-      expect(await attempt("agent:olivia", OLIVIA)).toBe(false);
-      expect((await waiter()).waiter_key).toBe("agent:olivia");
+      expect(await attempt(olivia, OLIVIA)).toBe(false);
+      expect((await claim()).waiter_key).toBe(olivia);
     });
 
-    it("never holds the bucket past waiter_since + 900 s, however often the waiter retries", async () => {
+    it("fixes the claim at the first wait: retries never extend it", async () => {
+      const mia = `agent:${await agentId("mia-f")}`;
       await drainedAgo(10);
-      expect(await attempt("agent:mia", MIA, pool)).toBe(false);
-      await pool.query(
-        `UPDATE agent_runtime.provider_capacity_buckets
-            SET waiter_since = clock_timestamp() - interval '890 seconds'
-          WHERE route_key = $1`,
-        [routeKey],
-      );
-      await drainedAgo(10);
-      expect(await attempt("agent:mia", MIA)).toBe(false);
-      const row = await waiter();
+      expect(await attempt(mia, MIA)).toBe(false);
+      const first = await claim();
+      await drainedAgo(5);
+      expect(await attempt(mia, 20_000)).toBe(false);
+      const again = await claim();
+      expect(again.waiter_since).toEqual(first.waiter_since);
+      expect(again.waiter_expires_at).toEqual(first.waiter_expires_at);
+      expect(again.waiter_tokens).toBe(20_000); // need follows the prompt
       const held =
-        (new Date(row.waiter_expires_at).getTime() -
-          new Date(row.waiter_since).getTime()) /
+        (new Date(again.waiter_expires_at).getTime() -
+          new Date(again.waiter_since).getTime()) /
         1000;
-      expect(held).toBeLessThanOrEqual(900);
+      expect(held).toBeLessThanOrEqual(420);
+    });
+
+    it("keeps the claim when the claimant's admission is released unused", async () => {
+      const mia = `agent:${await agentId("mia-u")}`;
+      const leo = `agent:${await agentId("leo-u")}`;
+      await drainedAgo(45);
+      expect(await attempt(mia, MIA)).toBe(false);
+      await drainedAgo(58);
+      const r = await reserveProviderCapacity(pool, owner(mia, MIA));
+      if (!r.ok) throw Error("expected admission");
+      // e.g. the provider key was busy: owner credit refunded, turn kept.
+      await releaseProviderCapacity(pool, r.lease, 0, true);
+      expect((await claim()).waiter_key).toBe(mia);
+      await drainedAgo(120);
+      expect(await attempt(leo, LEO)).toBe(false);
     });
 
     it("keeps the claim across a scheduler restart (a fresh pool)", async () => {
+      const mia = `agent:${await agentId("mia-r")}`;
+      const leo = `agent:${await agentId("leo-r")}`;
       await drainedAgo(45);
-      expect(await attempt("agent:mia", MIA)).toBe(false);
+      expect(await attempt(mia, MIA)).toBe(false);
       const restarted = new Pool({ connectionString: databaseUrl });
       try {
-        await drainedAgo(120);
-        expect(await attempt("agent:leo", LEO, restarted)).toBe(false);
-        await drainedAgo(375);
-        expect(await attempt("agent:mia", MIA, restarted)).toBe(true);
+        await drainedAgo(50);
+        expect(await attempt(leo, LEO, restarted)).toBe(false);
+        await drainedAgo(58);
+        expect(await attempt(mia, MIA, restarted)).toBe(true);
       } finally {
         await restarted.end();
       }
     });
 
-    it("admits only the waiter when two replicas race for one refill", async () => {
+    it("admits only the claimant when two replicas race for one refill", async () => {
+      const mia = `agent:${await agentId("mia-c")}`;
+      const leo = `agent:${await agentId("leo-c")}`;
       await drainedAgo(45);
-      expect(await attempt("agent:mia", MIA)).toBe(false);
-      await drainedAgo(375);
+      expect(await attempt(mia, MIA)).toBe(false);
+      await drainedAgo(58);
       const other = new Pool({ connectionString: databaseUrl });
       try {
-        const [leo, mia] = await Promise.all([
-          reserveProviderCapacity(other, owner("agent:leo", LEO)),
-          reserveProviderCapacity(pool, owner("agent:mia", MIA)),
+        const [l, m] = await Promise.all([
+          reserveProviderCapacity(other, owner(leo, LEO)),
+          reserveProviderCapacity(pool, owner(mia, MIA)),
         ]);
-        expect(mia.ok).toBe(true);
-        expect(leo).toMatchObject({ ok: false });
-        expect((leo as { reasons: string[] }).reasons).toContain(
-          "token_budget",
-        );
-        expect(Number((await waiter()).model_tokens)).toBeGreaterThanOrEqual(0);
+        expect(m.ok).toBe(true);
+        expect(l.ok).toBe(false);
+        expect(Number((await claim()).model_tokens)).toBeGreaterThanOrEqual(0);
       } finally {
         await other.end();
       }
     });
 
     it("leaves requests without a waiter key on the historical rule", async () => {
+      const mia = `agent:${await agentId("mia-k")}`;
       await drainedAgo(45);
-      expect(await attempt("agent:mia", MIA)).toBe(false);
+      expect(await attempt(mia, MIA)).toBe(false);
       await drainedAgo(120);
-      // A provider-key style request (no waiter) owes nothing to the claim.
       expect(await attempt(null, LEO)).toBe(true);
     });
   });

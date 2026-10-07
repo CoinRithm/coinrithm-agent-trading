@@ -956,6 +956,37 @@ describe("provider circuits — reliability slice 1 (never disable on provider f
   });
 });
 
+describe("owner-deferral retry scheduling", () => {
+  const persistWith = async (retryInSeconds?: number) => {
+    const query = vi.fn().mockResolvedValue({ rows: [], rowCount: 1 });
+    const client = { query, release: vi.fn() };
+    const pool = {
+      connect: vi.fn().mockResolvedValue(client),
+      query,
+    } as unknown as Pool;
+    await persistCycleResult(pool, 42, {
+      state: {} as never,
+      cycle: { decision: "skip" } as never,
+      retryInSeconds,
+    });
+    return query.mock.calls
+      .map((c) => [String(c[0]), c[1]] as [string, unknown[]])
+      .find(([sql]) => sql.includes("SET next_run_at"))!;
+  };
+
+  it("never schedules later than the grid slot, and only for a bounded retry", async () => {
+    const [sql, params] = await persistWith(7);
+    expect(sql).toContain("LEAST(");
+    expect(sql).toContain("now() + make_interval(secs => $2::int)");
+    expect(params).toEqual([42, 7]);
+    for (const invalid of [undefined, 0, -3, 3601, 2.5, NaN]) {
+      const [plain, p] = await persistWith(invalid);
+      expect(plain).not.toContain("LEAST(");
+      expect(p).toEqual([42]);
+    }
+  });
+});
+
 describe("phase grid scheduling", () => {
   afterEach(() => configureScheduling({ phaseGrid: true }));
 

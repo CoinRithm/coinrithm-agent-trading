@@ -55,7 +55,12 @@ import {
   type PaidCallResult,
 } from "./paidBrain.js";
 import type { Config } from "./config.js";
-import { ownerWaiterTtlSeconds, sharedOwnerLimit } from "./sharedPolicy.js";
+import {
+  OWNER_BUDGET_DEFERRED_ERROR,
+  ownerDeferralRetrySeconds,
+  ownerWaiterTtlSeconds,
+  sharedOwnerLimit,
+} from "./sharedPolicy.js";
 import {
   RoutedProvider,
   resolveRouteChain,
@@ -428,7 +433,7 @@ function routedProviderFor(
             return {
               ok: false,
               scope: "owner",
-              error: "shared pool owner budget unavailable",
+              error: OWNER_BUDGET_DEFERRED_ERROR,
               admissionReasons: owner.reasons,
               retryAfterMs: owner.retryAfterMs,
             };
@@ -1160,6 +1165,18 @@ export async function runAgentOnce(
       disableReason: result.disabled
         ? (result.disabledReason ?? "kill-switch")
         : undefined,
+      // An owner-budget deferral that made no model call retries after the
+      // refill instead of a full grid interval later (owner fairness, 009).
+      retryInSeconds: runAgent.brainKeyEnc
+        ? undefined
+        : ownerDeferralRetrySeconds(
+            result,
+            Math.max(
+              runAgent.cadenceSeconds,
+              sharedCadenceFloorSeconds(await activeSharedAgentCount(pool)),
+            ),
+            Math.random(),
+          ),
       // Reliability slice 1: permanent provider failures strike the fleet
       // circuit (never a disable); a successful call closes the route's
       // circuit. effective_model = configured model until routing exists.
