@@ -16,6 +16,7 @@ import {
   spotBuyCost,
 } from "./types.js";
 import { checkEntryPredicates } from "./entryPredicates.js";
+import { universeEntryBlock } from "./universe.js";
 
 export interface DecisionContext {
   /**
@@ -298,6 +299,9 @@ export function validateAction(
         "unresolved_symbol",
         `${action.symbol} did not resolve to a coin`,
       );
+    const outsideUniverse = universeEntryBlock(spec, entry);
+    if (outsideUniverse)
+      return fail("outside_universe", `${action.symbol} is ${outsideUniverse}`);
 
     // A futures_open on a symbol you ALREADY hold is treated as an ADD by the
     // server, which REJECTS any SL/TP on an add (sl_tp_not_supported_on_add) and
@@ -495,6 +499,11 @@ export function validateAction(
         "unresolved_symbol",
         `${action.symbol} did not resolve to a coin`,
       );
+    if (action.side === "buy") {
+      const outside = universeEntryBlock(spec, entry);
+      if (outside)
+        return fail("outside_universe", `${action.symbol} is ${outside}`);
+    }
     if (
       action.orderType === "limit" &&
       !(typeof action.limitPrice === "number" && action.limitPrice > 0)

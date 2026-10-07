@@ -1118,9 +1118,11 @@ export async function observe(
               priceUsd: asNumLoose(r.priceUsd),
               change24h: asNumLoose(r.change24h),
               volume24hUsd: asNumLoose(r.volume24hUsd),
-              sectors: asArr(r.sectors)
-                .map((x) => asStr(x))
-                .filter((x): x is string => !!x),
+              // Missing stays missing: the filter must not read an absent
+              // sector list as "no excluded sector".
+              sectors: Array.isArray(r.sectors)
+                ? r.sectors.map((x) => asStr(x)).filter((x): x is string => !!x)
+                : undefined,
             })),
           q,
         );
@@ -1197,6 +1199,49 @@ export async function observe(
         priceUsd,
       }));
     if (context.length > 0) universeMovers = context;
+
+    // Watchlist coins must also prove they are inside declared boundaries
+    // before a new entry (universeEntryBlock). One membership call with the
+    // same filters; a failed call leaves them unverified (no new entries),
+    // never silently eligible. Held positions stay closable either way.
+    if (spec.universe) {
+      const toCheck = watch.filter((w) => !w.discovered && w.coinId);
+      if (toCheck.length > 0) {
+        const q = {
+          ...universeQuery(spec.universe),
+          sort: "rank" as const,
+          limit: Math.min(toCheck.length, 50),
+        };
+        const mr = await client.agentUniverse(
+          universeQueryParams(
+            q,
+            toCheck.map((w) => w.coinId as string),
+          ),
+          trace,
+        );
+        if (mr.ok) {
+          const inside = new Set(
+            filterUniverseRows(
+              asArr(asObj(mr.data).rows)
+                .map(asObj)
+                .map((r) => ({
+                  symbol: (asStr(r.symbol) ?? "").toUpperCase(),
+                  coinId: asStr(r.ucid),
+                  marketCapRank: asNum(r.marketCapRank) ?? undefined,
+                  volume24hUsd: asNumLoose(r.volume24hUsd),
+                  sectors: Array.isArray(r.sectors)
+                    ? r.sectors
+                        .map((x) => asStr(x))
+                        .filter((x): x is string => !!x)
+                    : undefined,
+                })),
+              q,
+            ).map((r) => r.coinId),
+          );
+          for (const w of toCheck) w.withinBoundaries = inside.has(w.coinId!);
+        }
+      }
+    }
   }
 
   // Spot resting orders (for cancel + affordability) — only if spot is enabled.

@@ -379,6 +379,10 @@ export interface WatchEntry {
   // sweep, not the spec watchlist. Valid for THIS cycle only; the prompt labels
   // it so the model knows it is a discovered candidate, not a standing holding.
   discovered?: boolean;
+  // With a declared `universe`: true when the screener confirmed this
+  // watchlist coin is inside the boundaries this cycle, false when it is not,
+  // absent when unverified. Only true (or discovered) allows a new entry.
+  withinBoundaries?: boolean;
   // Canonical coin slug (the key the news graph uses). Carried so headlines can
   // be attributed to the coin without a second lookup.
   slug?: string;

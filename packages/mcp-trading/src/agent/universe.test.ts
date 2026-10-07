@@ -9,6 +9,7 @@ import {
   universeResolveTop,
 } from "./universe.js";
 import { observe } from "./observe.js";
+import { validateAction } from "./decisionValidator.js";
 import { parseSkill } from "./skill.js";
 import { validateSkill } from "./skillValidator.js";
 import { strictLint } from "./strictLint.js";
@@ -76,17 +77,32 @@ describe("filterUniverseRows (defence in depth)", () => {
       { symbol: "DOGE", marketCapRank: 9, sectors: ["meme"] },
       { symbol: "UNKNOWN" },
     ];
-    expect(filterUniverseRows(rows, q).map((r) => r.symbol)).toEqual([
-      "OK",
-      "UNKNOWN",
-    ]);
+    // UNKNOWN cannot prove its rank, so it is dropped (never widen).
+    expect(filterUniverseRows(rows, q).map((r) => r.symbol)).toEqual(["OK"]);
+  });
+  it.each([
+    ["no rank", { volume24hUsd: 5e6, sectors: [] }],
+    ["NaN rank", { marketCapRank: Number.NaN, volume24hUsd: 5e6, sectors: [] }],
+    ["no volume under a floor", { marketCapRank: 5, sectors: [] }],
+    [
+      "no sector list under a sector rule",
+      { marketCapRank: 5, volume24hUsd: 5e6 },
+    ],
+  ])("drops a row that cannot prove it is inside (%s)", (_l, row) => {
+    expect(filterUniverseRows([{ symbol: "X", ...row }], q)).toEqual([]);
+  });
+  it("without a volume floor or sector rule, rank alone is enough", () => {
+    const plain = universeQuery({ rank: { min: 1, max: 100 } });
+    expect(
+      filterUniverseRows([{ symbol: "A", marketCapRank: 50 }], plain),
+    ).toHaveLength(1);
   });
   it("an include list requires a row to show a matching sector", () => {
     const inc = universeQuery({ includeSectors: ["ai"] });
     const rows = [
-      { symbol: "A", sectors: ["ai", "eco-base"] },
-      { symbol: "B", sectors: ["defi"] },
-      { symbol: "C" },
+      { symbol: "A", marketCapRank: 10, sectors: ["ai", "eco-base"] },
+      { symbol: "B", marketCapRank: 11, sectors: ["defi"] },
+      { symbol: "C", marketCapRank: 12 },
     ];
     expect(filterUniverseRows(rows, inc).map((r) => r.symbol)).toEqual(["A"]);
   });
@@ -96,7 +112,10 @@ describe("filterUniverseRows (defence in depth)", () => {
       excludeStablecoins: true,
     });
     expect(
-      filterUniverseRows([{ symbol: "USDT", sectors: ["stablecoins"] }], both),
+      filterUniverseRows(
+        [{ symbol: "USDT", marketCapRank: 3, sectors: ["stablecoins"] }],
+        both,
+      ),
     ).toEqual([]);
   });
 });
@@ -284,5 +303,189 @@ describe("observe with declared boundaries", () => {
     expect(skip).toBeUndefined();
     expect(observation.watch.map((w) => w.symbol)).toEqual(["BTC"]);
     expect(observation.universeMovers).toBeUndefined();
+  });
+});
+
+describe("entry eligibility under declared boundaries", () => {
+  const base = parseSkill(renderFolderOfOne("fixture", "conservative")).spec;
+  const withUniverse: AgentSpec = {
+    ...base,
+    venues: ["futures", "spot"],
+    universe: { rank: { min: 1, max: 100 }, excludeStablecoins: true },
+  };
+  const observation = (entry: Record<string, unknown>) => ({
+    asOf: "2026-10-07T12:00:00.000Z",
+    scopes: ["trade:futures", "trade:spot"],
+    cashAvailableMusd: 10_000,
+    equityMusd: 50_000,
+    openPositions: [],
+    openOrders: [],
+    pmPositions: [],
+    pmResolutions: [],
+    pmMarkets: [],
+    watch: [
+      {
+        symbol: "USDC",
+        coinId: "3408",
+        freshness: { status: "fresh" as const },
+        ...entry,
+      },
+    ],
+    syncCursor: null,
+    newClosedTrades: [],
+    polledBeforeWrite: true,
+  });
+  const ctx = (spec: AgentSpec, entry: Record<string, unknown>) => ({
+    spec,
+    observation: observation(entry),
+    quote: {
+      eligible: true,
+      freshness: { status: "fresh" as const },
+      entryPrice: 1,
+      executionPrice: 1,
+    },
+    riskIncreasesThisCycle: 0,
+    riskIncreasesToday: 0,
+    openCount: 0,
+    cashAvailableMusd: 10_000,
+    openMarginMusd: 0,
+    realizedLossTodayMusd: 0,
+    targetedPositionIds: [],
+    targetedOrderIds: [],
+  });
+  const open = {
+    type: "futures_open" as const,
+    symbol: "USDC",
+    side: "long" as const,
+    leverage: 1,
+    marginMusd: 10,
+    stopLossPrice: 0.9,
+    confidence: 0.9,
+  };
+  const buy = {
+    type: "spot_order" as const,
+    symbol: "USDC",
+    side: "buy" as const,
+    orderType: "market" as const,
+    quantity: 1,
+    confidence: 0.9,
+  };
+
+  it.each([
+    [{ withinBoundaries: false }, "outside the declared market boundaries"],
+    [{}, "not verified inside the declared market boundaries"],
+  ])("blocks a new entry on a watchlist coin %j", (entry, reason) => {
+    for (const action of [open, buy]) {
+      const r = validateAction(action, ctx(withUniverse, entry) as never);
+      expect(r.code).toBe("outside_universe");
+      expect(r.reason).toContain(reason);
+    }
+  });
+
+  it("allows entries on discovered rows and confirmed watchlist coins", () => {
+    for (const entry of [{ discovered: true }, { withinBoundaries: true }]) {
+      const r = validateAction(open, ctx(withUniverse, entry) as never);
+      expect(r.code).not.toBe("outside_universe");
+    }
+  });
+
+  it("never blocks a sell, and adds no rule without a universe block", () => {
+    const sell = { ...buy, side: "sell" as const };
+    expect(
+      validateAction(
+        sell,
+        ctx(withUniverse, { withinBoundaries: false }) as never,
+      ).code,
+    ).not.toBe("outside_universe");
+    expect(
+      validateAction(open, ctx(base, { withinBoundaries: false }) as never)
+        .code,
+    ).not.toBe("outside_universe");
+  });
+});
+
+describe("observe verifies watchlist coins against the boundaries", () => {
+  const ok = (data: unknown) => ({ ok: true, status: 200, data });
+  const base = parseSkill(renderFolderOfOne("fixture", "conservative")).spec;
+  const spec: AgentSpec = {
+    ...base,
+    capabilities: [],
+    risk: { ...base.risk, watchlist: ["BTC", "USDC"] },
+    universe: { excludeStablecoins: true, resolveTop: 1 },
+  };
+  const coinIds: Record<string, string> = { BTC: "1", USDC: "3408" };
+  const client = (agentUniverse: unknown) =>
+    ({
+      me: async () =>
+        ok({ scopes: ["read", "trade:futures", "trade:pm", "trade:spot"] }),
+      portfolio: async () =>
+        ok({ equity: { totalUsd: 50000, availableUsd: 1000 } }),
+      wallet: async () => ok({ usdt: { available: 1000 } }),
+      futuresPositions: async () => ok({ positions: [] }),
+      trades: async () => ok({ trades: [] }),
+      resolve: async (q: string) => ok({ match: { coinId: coinIds[q] } }),
+      market: async () =>
+        ok({
+          price: { usd: 100 },
+          observation: { freshness: { status: "fresh" } },
+        }),
+      openOrders: async () => ok({ orders: [] }),
+      pmPositions: async () => ok({ positions: [] }),
+      discoverPmMarkets: async () => ok({ data: [] }),
+      agentUniverse,
+    }) as unknown as CoinRithmClient;
+
+  it("marks confirmed coins inside and missing ones outside, with one membership call", async () => {
+    const agentUniverse = vi.fn(
+      async (query: Record<string, string | number>) =>
+        ok({
+          rows: query.ucids
+            ? [
+                {
+                  ucid: "1",
+                  symbol: "BTC",
+                  marketCapRank: 1,
+                  volume24hUsd: 3e10,
+                  sectors: ["layer-1"],
+                },
+              ]
+            : [],
+        }),
+    );
+    const { observation } = await observe(
+      client(agentUniverse),
+      spec,
+      newState("fixture"),
+    );
+    const membership = agentUniverse.mock.calls.filter((c) => c[0].ucids);
+    expect(membership).toHaveLength(1);
+    expect(membership[0]?.[0]).toMatchObject({
+      ucids: "1,3408",
+      sort: "rank",
+      limit: 2,
+      excludeStablecoins: "true",
+    });
+    expect(
+      observation.watch.map((w) => [w.symbol, w.withinBoundaries]),
+    ).toEqual([
+      ["BTC", true],
+      ["USDC", false],
+    ]);
+  });
+
+  it("a failed membership call leaves coins unverified (no new entries)", async () => {
+    const agentUniverse = vi.fn(async () => ({
+      ok: false,
+      status: 503,
+      data: {},
+    }));
+    const { observation } = await observe(
+      client(agentUniverse),
+      spec,
+      newState("fixture"),
+    );
+    expect(
+      observation.watch.every((w) => w.withinBoundaries === undefined),
+    ).toBe(true);
   });
 });

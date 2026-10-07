@@ -291,6 +291,7 @@ export function buildSystemPrompt(
           `Each cycle the runner scans the market inside YOUR boundaries: ${describeUniverse(spec.universe)}. Watch entries with \`discovered: true\` are the top rows of that scan, resolved with the same price/sentiment (and indicators) data as your watchlist. observation.universeMovers lists further rows as symbol + 24h change only (context — you cannot trade those directly this cycle). Nothing outside these boundaries is shown to you or tradable.`,
           "- Treat a discovered candidate like any other symbol: analyze it for catalysts, exhaustion and reversal BEFORE acting. A big move is as often a top as a beginning — chasing candles blind is how discovery loses money.",
           "- All your normal risk rules apply unchanged: caps, stops, blocklist, confidence floor. Discovery widens what you can SEE, never what you may risk.",
+          "- Your boundaries also bind your watchlist: a watch entry with `withinBoundaries: false` (or no withinBoundaries and not discovered) is context only. You may close or sell an existing position in it, but a new entry is REJECTED (outside_universe).",
         ]
       : []),
     ...(!spec.universe && spec.capabilities.includes("universe_scan")

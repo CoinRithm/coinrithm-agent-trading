@@ -85,11 +85,14 @@ export function universeResolveTop(u: UniverseConfig): number {
   );
 }
 
-/** Wire form: csv sectors, string numbers; empty filters are omitted. */
+/** Wire form: csv sectors, string numbers; empty filters are omitted. With
+ * `ucids`, the same boundaries are applied to just those coins (membership). */
 export function universeQueryParams(
   q: UniverseQuery,
+  ucids?: readonly string[],
 ): Record<string, string | number> {
   return {
+    ...(ucids && ucids.length > 0 ? { ucids: ucids.join(",") } : {}),
     rankMin: q.rankMin,
     rankMax: q.rankMax,
     minVolume24hUsd: q.minVolume24hUsd,
@@ -120,11 +123,12 @@ export interface UniverseRow {
 }
 
 /**
- * Defence in depth on server rows: drop a row whose own fields contradict the
- * boundaries (rank outside the band, volume under the floor, an excluded
- * sector, a stablecoin when excluded, or missing an included sector). Unknown
- * fields are not evidence of a breach, except sectors when an include list is
- * set: a row that cannot show it belongs is left out.
+ * Defence in depth on server rows (never widen): a row is kept only when its
+ * own fields PROVE it is inside every enabled boundary. The rank band is
+ * always enabled, so a row without a rank is dropped; a volume floor needs a
+ * volume; any sector rule (stablecoins out, sectors out, sectors in) needs the
+ * row's sector list. Missing or malformed evidence drops the row (root review
+ * 2026-10-07: unverifiable is not inside).
  */
 export function filterUniverseRows(
   rows: UniverseRow[],
@@ -135,21 +139,47 @@ export function filterUniverseRows(
     ...(q.excludeStablecoins ? ["stablecoins"] : []),
   ]);
   const included = q.includeSectors.filter((s) => !excluded.has(s));
+  const sectorRules = excluded.size > 0 || q.includeSectors.length > 0;
   return rows.filter((r) => {
-    if (
-      r.marketCapRank !== undefined &&
-      (r.marketCapRank < q.rankMin || r.marketCapRank > q.rankMax)
-    )
-      return false;
-    if (r.volume24hUsd !== undefined && r.volume24hUsd < q.minVolume24hUsd)
-      return false;
-    const sectors = r.sectors ?? [];
-    if (sectors.some((s) => excluded.has(s))) return false;
-    if (q.includeSectors.length > 0) {
-      if (!sectors.some((s) => included.includes(s))) return false;
+    const rank = r.marketCapRank;
+    if (typeof rank !== "number" || !Number.isFinite(rank)) return false;
+    if (rank < q.rankMin || rank > q.rankMax) return false;
+    if (q.minVolume24hUsd > 0) {
+      const vol = r.volume24hUsd;
+      if (typeof vol !== "number" || !Number.isFinite(vol)) return false;
+      if (vol < q.minVolume24hUsd) return false;
+    }
+    if (sectorRules) {
+      if (!Array.isArray(r.sectors)) return false;
+      if (r.sectors.some((s) => excluded.has(s))) return false;
+      if (
+        q.includeSectors.length > 0 &&
+        !r.sectors.some((s) => included.includes(s))
+      )
+        return false;
     }
     return true;
   });
+}
+
+/**
+ * Entry eligibility under declared boundaries (root review 2026-10-07): with a
+ * `universe` block, a NEW position may only be opened on a coin proven inside
+ * the boundaries this cycle: a discovered row, or a watchlist coin the
+ * screener confirmed (`withinBoundaries: true`). Anything else (outside, or
+ * unverifiable because the check failed) stays visible as context and can
+ * still be closed or sold, but not entered. Returns the rejection reason, or
+ * null when the entry is allowed. No universe block = no extra rule.
+ */
+export function universeEntryBlock(
+  spec: { universe?: UniverseConfig },
+  entry: { discovered?: boolean; withinBoundaries?: boolean },
+): string | null {
+  if (!spec.universe) return null;
+  if (entry.discovered === true || entry.withinBoundaries === true) return null;
+  return entry.withinBoundaries === false
+    ? "outside the declared market boundaries"
+    : "not verified inside the declared market boundaries this cycle";
 }
 
 /** Validation issues for a raw `universe` block ([] when valid or absent). */
