@@ -22,6 +22,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { AgentSpec, DEFAULT_TRIGGER_POLICY } from "../types.js";
+import type { BenchmarkStrategy } from "../mechanical.js";
 import { sortDeep } from "../util.js";
 import { LabelFile, parseLabelFile } from "./labels.js";
 
@@ -130,9 +131,22 @@ export function recordingSpec(spec: AgentSpec): AgentSpec {
  * board), which is why recording runs it once too.
  */
 export function marketBaselineSpec(spec: AgentSpec): AgentSpec {
+  return mechanicalBaselineSpec(spec, "market-implied");
+}
+
+/**
+ * The same recorded spec with one of the mechanical benchmark strategies as
+ * its brain. base-rate and random pick the SAME market from the SAME
+ * observation as market-implied (mechanical.ts), so the recording pass made
+ * for market-implied already holds every read they need.
+ */
+export function mechanicalBaselineSpec(
+  spec: AgentSpec,
+  strategy: BenchmarkStrategy,
+): AgentSpec {
   return {
     ...recordingSpec(spec),
-    model: { provider: "mechanical", name: "market-implied" },
+    model: { provider: "mechanical", name: strategy },
   };
 }
 
