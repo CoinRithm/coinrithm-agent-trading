@@ -594,14 +594,23 @@ describe("hosted provider lifecycle", () => {
     });
   });
 
-  it.each([false, true])(
-    "keeps customer fallback Super default while preserving house scope: house=%s",
-    async (isHouse) => {
+  it.each([
+    // house, fallback switch -> JSON content on the Super fallback
+    [false, true, true],
+    [true, true, true],
+    // Switch off: customers keep the default fallback; the house trial
+    // gate still covers house agents on its own.
+    [false, false, false],
+    [true, false, true],
+  ])(
+    "selects the Super fallback transport by the fallback switch, preserving house scope: house=%s switch=%s",
+    async (isHouse, fallbackSwitch, expected) => {
       const { agent, config } = customerFixture();
       agent.modelName = NEMOTRON_NANO;
       agent.isHouse = isHouse;
       config.houseSuperJsonContentEnabled = true;
       config.houseSuperJsonContentUntilMs = FUTURE;
+      config.superFallbackJsonContentEnabled = fallbackSwitch;
       decide.mockResolvedValueOnce({
         ok: true,
         text: '{"decision":"act","actions":"[]"}',
@@ -614,7 +623,7 @@ describe("hosted provider lifecycle", () => {
       ]);
       expect(calls[0]![3]).toBeUndefined();
       expect(calls[1]![3]).toEqual(
-        isHouse ? { nemotronJsonContent: true } : undefined,
+        expected ? { nemotronJsonContent: true } : undefined,
       );
     },
   );
