@@ -9,6 +9,7 @@
 import type { FuturesEntryEligibility } from "./futuresEligibility.js";
 import { IndicatorSet } from "./indicators.js";
 import type { DecisionInputRecord } from "./decisionReceipt.js";
+import type { DecideRouteAttempt } from "./providers.js";
 
 export const SPEC_VERSION = "coinrithm.agent.v1";
 
@@ -1329,16 +1330,7 @@ export interface CycleResult {
   effectiveProvider?: string;
   effectiveModel?: string;
   routeReason?: string;
-  routeAttempts?: Array<{
-    provider: string;
-    model: string;
-    outcome: "success" | "failed" | "deferred";
-    failureClass?: "capacity" | "permanent" | "transient" | "malformed";
-    status?: number;
-    retryAfterMs?: number;
-    latencyMs: number;
-    error?: string;
-  }>;
+  routeAttempts?: DecideRouteAttempt[];
   decisionType?: "act" | "skip" | "gate_skip" | "model_error";
   writeAttempted?: number; // actions the model proposed
   writeAccepted?: number; // actions that passed validation (+ executed when live)

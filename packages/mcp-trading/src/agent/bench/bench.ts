@@ -180,6 +180,31 @@ function toRow(
     decisionType,
     modelFailed: result?.modelFailed === true,
     llmCallMade: result?.llmCallMade === true,
+    ...(result?.routeAttempts
+      ? {
+          routeAttempts: result.routeAttempts.slice(0, 2).map((attempt) => ({
+            provider: attempt.provider,
+            model: attempt.model,
+            outcome: attempt.outcome,
+            ...(attempt.failureClass
+              ? { failureClass: attempt.failureClass }
+              : {}),
+            ...(attempt.status !== undefined ? { status: attempt.status } : {}),
+            ...(attempt.responseSource
+              ? { responseSource: attempt.responseSource }
+              : {}),
+            ...(attempt.actionsStringDiagnostic
+              ? { actionsStringDiagnostic: attempt.actionsStringDiagnostic }
+              : {}),
+            ...(attempt.admissionReasons
+              ? { admissionReasons: [...attempt.admissionReasons] }
+              : {}),
+          })),
+          ...(result.routeAttempts.length > 2
+            ? { routeAttemptsTruncated: true as const }
+            : {}),
+        }
+      : {}),
     ...(result?.triggerCodes ? { triggerCodes: [...result.triggerCodes] } : {}),
     ...(result?.skipReason
       ? { skipReason: result.skipReason.slice(0, 200) }

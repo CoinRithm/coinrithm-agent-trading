@@ -371,7 +371,15 @@ What it does:
   variants: action-set overlap (Jaccard) and paired per-cassette differences
   with a seeded bootstrap 95% CI, for all cassettes and for a chronological
   70% tune / 30% holdout split. A `contentHash` makes the report reproducible:
-  the same corpus and the same decisions give the same hash.
+  the same corpus, decisions and retained route provenance give the same hash.
+  Routed providers retain up to two `routeAttempts` per cycle, including local
+  deferrals, with response source, failure class, actions-string diagnostic and
+  admission-reason categories. Error text, latency, prompts and model output
+  are excluded. A nonstandard provider exceeding two entries is marked
+  `routeAttemptsTruncated`. Missing provenance on legacy reports or providers
+  without routing metadata is unknown; it does not establish that recovery was
+  disabled. Admission categories do not identify whether the owner or key
+  budget refused a call, and a deadline can prevent an attempt being recorded.
 - A calibrated null check per variant (with 2 or more repeats): 200 seeded
   A/A comparisons built from the variant's own repeats report how often the
   95% CI test fires with no real difference. It should sit near 5%. One A/A

@@ -17,7 +17,11 @@ import {
 import type { Cassette } from "./cassette.js";
 import { parseSkill } from "../skill.js";
 import { renderFolderOfOne } from "../templates.js";
-import type { Provider } from "../providers.js";
+import type {
+  Provider,
+  DecideResult,
+  DecideRouteAttempt,
+} from "../providers.js";
 import type { AgentSpec } from "../types.js";
 
 // Fake CoinRithm API serving the REAL response shapes observe() reads (see
@@ -296,6 +300,132 @@ describe("recording", () => {
 });
 
 describe("runBench", () => {
+  it.each(["recovered", "content_failure", "recovery_deferred"] as const)(
+    "retains bounded safe route provenance for %s through runCycle",
+    async (mode) => {
+      const first: DecideRouteAttempt = {
+        provider: "nvidia",
+        model: "nvidia/nemotron-3-super-120b-a12b",
+        outcome: "failed",
+        failureClass: "malformed",
+        latencyMs: 123,
+        error: "PRIVATE_UPSTREAM_ERROR",
+        responseSource:
+          mode === "content_failure" ? "content_fallback" : "tool_call",
+        actionsStringDiagnostic: "json_array_empty_valid_decision",
+      };
+      const attempts: DecideRouteAttempt[] = [first];
+      if (mode !== "content_failure")
+        attempts.push({
+          provider: first.provider,
+          model: first.model,
+          outcome: mode === "recovered" ? "success" : "deferred",
+          latencyMs: 321,
+          ...(mode === "recovered"
+            ? { responseSource: "content" as const }
+            : {
+                error: "PRIVATE_BUDGET_DETAIL",
+                admissionReasons: ["token_budget"],
+              }),
+        });
+      const result: DecideResult = {
+        ...(mode === "recovered"
+          ? {
+              ok: true as const,
+              text: '{"decision":"skip","actions":[],"reason":"done"}',
+            }
+          : {
+              ok: false as const,
+              error: "actions: Expected array, received string",
+            }),
+        route: {
+          policyVersion: "fixture",
+          profile: "strong",
+          reason: "malformed_fallback",
+          attempts,
+        },
+      };
+      const report = (await runBench({
+        cassettes: [(await corpus())[0]],
+        repeats: 1,
+        baselines: false,
+        variants: [
+          {
+            name: "fixture",
+            spec: pmSpec(),
+            mergedProse: "PRIVATE_PROMPT",
+            provider: { label: "fixture", decide: async () => result },
+          },
+        ],
+      })) as Json;
+      const recorded = report.cycles[0].routeAttempts;
+      expect(recorded).toHaveLength(attempts.length);
+      expect(recorded[0]).toEqual({
+        provider: first.provider,
+        model: first.model,
+        outcome: "failed",
+        failureClass: "malformed",
+        responseSource: first.responseSource,
+        actionsStringDiagnostic: first.actionsStringDiagnostic,
+      });
+      if (attempts.length === 2)
+        expect(recorded[1].outcome).toBe(attempts[1].outcome);
+      if (mode === "recovery_deferred")
+        expect(recorded[1].admissionReasons).toEqual(["token_budget"]);
+      expect(JSON.stringify(report)).not.toMatch(/PRIVATE_|latencyMs/);
+      expect(report.cycles[0].modelFailed).toBe(mode !== "recovered");
+    },
+  );
+
+  it("bounds route evidence to two attempts and omits unavailable legacy provenance", async () => {
+    const attempt: DecideRouteAttempt = {
+      provider: "nvidia",
+      model: "fixture",
+      outcome: "success",
+      latencyMs: 1,
+    };
+    const report = (await runBench({
+      cassettes: [(await corpus())[0]],
+      repeats: 1,
+      baselines: false,
+      variants: [
+        {
+          name: "bounded",
+          spec: pmSpec(),
+          mergedProse: "",
+          provider: {
+            label: "fixture",
+            decide: async () => ({
+              ok: true,
+              text: '{"decision":"skip","actions":[]}',
+              route: {
+                policyVersion: "fixture",
+                profile: "configured",
+                reason: "configured",
+                attempts: [attempt, attempt, attempt],
+              },
+            }),
+          },
+        },
+        {
+          name: "legacy",
+          spec: pmSpec(),
+          mergedProse: "",
+          provider: SKIP_PROVIDER,
+        },
+      ],
+    })) as Json;
+    expect(
+      report.cycles.find((r: Json) => r.variant === "bounded").routeAttempts,
+    ).toHaveLength(2);
+    expect(
+      report.cycles.find((r: Json) => r.variant === "bounded")
+        .routeAttemptsTruncated,
+    ).toBe(true);
+    expect(
+      report.cycles.find((r: Json) => r.variant === "legacy"),
+    ).not.toHaveProperty("routeAttempts");
+  });
   it("A/B: a pure code dial changes the trade set deterministically across repeats", async () => {
     const cassettes = await corpus();
     const report = (await runBench({
