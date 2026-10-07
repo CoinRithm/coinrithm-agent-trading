@@ -292,3 +292,70 @@ describe("user_default apply", () => {
     expect(db.writes()).toEqual([]);
   });
 });
+
+describe("user_default: reviewed deploy choices survive", () => {
+  it("keeps preserveSpecPaths values from the live row (Quick Start Balanced)", async () => {
+    const row = userRow({
+      spec: {
+        ...userSpec,
+        risk: {
+          maxLeverage: 3,
+          perTradeMarginMusd: 750,
+          maxConcurrentPositions: 3,
+          watchlist: ["BTC", "ETH"],
+        },
+      },
+    });
+    const db = fakeDb([row]);
+    await runHouseRollout(
+      db.pool,
+      plan(row, {
+        preserveSpecPaths: [
+          "risk.maxLeverage",
+          "risk.perTradeMarginMusd",
+          "risk.maxConcurrentPositions",
+        ],
+      }),
+      APPLY,
+      deps(db),
+    );
+    const revision = db
+      .writes()
+      .find((w) =>
+        w.sql.includes("INSERT INTO agent_runtime.agent_revisions"),
+      )!;
+    const spec = JSON.parse(String(revision.params[2]));
+    expect(spec.risk).toMatchObject({
+      maxLeverage: 3,
+      perTradeMarginMusd: 750,
+      maxConcurrentPositions: 3,
+      // New template settings still arrive around the kept values.
+      pmMinEdgeGapPct: 16,
+    });
+    // The loaded bundle object itself is never mutated.
+    expect((template.spec.risk as Record<string, unknown>).maxLeverage).toBe(4);
+  });
+
+  it("rejects malformed paths and house entries carrying them", () => {
+    const base = plan(userRow()).entries[0]!;
+    expect(() =>
+      validatePlan({
+        version: "v",
+        entries: [{ ...base, preserveSpecPaths: ["risk..x"] }],
+      }),
+    ).toThrow(/dotted spec paths/);
+    expect(() =>
+      validatePlan({
+        version: "v",
+        entries: [
+          {
+            handle: "mia-trend-rider",
+            bundlePath: "examples/agents/mia-trend-rider",
+            expectedContentHash: "a".repeat(64),
+            preserveSpecPaths: ["risk.maxLeverage"],
+          },
+        ],
+      }),
+    ).toThrow(/preserveSpecPaths is for user_default/);
+  });
+});

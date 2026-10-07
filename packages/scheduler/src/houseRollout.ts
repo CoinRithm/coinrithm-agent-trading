@@ -109,6 +109,32 @@ export function contentHash(state: AgentConfigState): string {
  */
 export type RolloutKind = "house" | "user_default";
 
+const SPEC_PATH_RE = /^[A-Za-z][A-Za-z0-9]*(\.[A-Za-z][A-Za-z0-9]*){0,3}$/;
+
+const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
+/** Copy one dotted path from `from` into `into` (deleting it when absent),
+ * cloning each object on the way so the source bundle is never mutated. */
+export function carrySpecPath(
+  into: Record<string, unknown>,
+  from: Record<string, unknown>,
+  path: string,
+): void {
+  const keys = path.split(".");
+  let src: unknown = from;
+  for (const k of keys) src = isPlainObject(src) ? src[k] : undefined;
+  let dst = into;
+  for (const k of keys.slice(0, -1)) {
+    const next = isPlainObject(dst[k]) ? { ...dst[k] } : {};
+    dst[k] = next;
+    dst = next;
+  }
+  const last = keys[keys.length - 1]!;
+  if (src === undefined) delete dst[last];
+  else dst[last] = src;
+}
+
 /** Spec keys a deploy writes per user agent; a template update keeps them. */
 export const USER_DEPLOY_SPEC_KEYS = ["name", "venues", "forkedFrom"] as const;
 
@@ -117,6 +143,13 @@ export interface RolloutPlanEntry {
   kind?: RolloutKind;
   /** user_default only: the agent's owner, checked against the live row. */
   ownerUserId?: number;
+  /**
+   * user_default only: extra spec paths the user chose at deploy and the
+   * review proved (e.g. a Quick Start "Balanced" deploy's
+   * "risk.maxLeverage", "risk.perTradeMarginMusd"). Each live value is kept
+   * exactly; a path absent on the live row is removed from the new spec too.
+   */
+  preserveSpecPaths?: string[];
   /** Reviewed bundle folder (examples/agents/<handle> or a copy of it). */
   bundlePath: string;
   /** contentHash of the live row the review was made against. */
@@ -340,9 +373,23 @@ export function validatePlan(plan: RolloutPlan): void {
         throw new Error(`${entry.handle}: user_default needs ownerUserId`);
       if (entry.resume === true)
         throw new Error(`${entry.handle}: resume is house-only`);
+      if (entry.preserveSpecPaths !== undefined) {
+        if (
+          !Array.isArray(entry.preserveSpecPaths) ||
+          entry.preserveSpecPaths.length > 20 ||
+          !entry.preserveSpecPaths.every(
+            (p) => typeof p === "string" && SPEC_PATH_RE.test(p),
+          )
+        )
+          throw new Error(
+            `${entry.handle}: preserveSpecPaths must be up to 20 dotted spec paths like "risk.maxLeverage"`,
+          );
+      }
     } else {
       throw new Error(`${entry.handle}: unknown kind ${String(kind)}`);
     }
+    if (kind === "house" && entry.preserveSpecPaths !== undefined)
+      throw new Error(`${entry.handle}: preserveSpecPaths is for user_default`);
     if (seen.has(entry.handle))
       throw new Error(`${entry.handle}: listed twice`);
     seen.add(entry.handle);
@@ -504,6 +551,8 @@ async function evaluateEntry(
         if (Object.hasOwn(current.spec, key)) nextSpec[key] = current.spec[key];
         else delete nextSpec[key];
       }
+      for (const path of entry.preserveSpecPaths ?? [])
+        carrySpecPath(nextSpec, current.spec, path);
     }
     const hasLiveModel = Object.hasOwn(current.spec, "model");
     if (hasLiveModel) nextSpec.model = current.spec.model;
