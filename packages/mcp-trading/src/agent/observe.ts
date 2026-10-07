@@ -36,6 +36,8 @@ import {
   LiquidationContext,
   LiquidationWindow,
   MacroContext,
+  ChainTvlContext,
+  StablecoinSupplyContext,
   MacroQuote,
   DatedValue,
   WatchEntry,
@@ -849,6 +851,60 @@ export function liquidationsOf(
 
 // Macro proxies from the /market context (same block for every coin). Quotes
 // that are malformed or future-dated are dropped; omitted when none remain.
+const optPct = (v: unknown): number | null => {
+  const n = asNum(v);
+  return n == null ? null : n;
+};
+
+// Chain TVL from the same /market context (no extra call). Omitted when the
+// coin has no verified chain association or the block is malformed. publishedAt is
+// response provenance, never the TVL's observation time (unknown, null); a
+// future-dated time is never shown and an unknown one stays stale.
+export function chainTvlOf(
+  m: Record<string, unknown>,
+  nowMs = Date.now(),
+): ChainTvlContext | undefined {
+  const c = asObj(asObj(m.defi).chainTvl);
+  const chain = asStr(c.chain);
+  const tvl = asNum(c.tvlUsd);
+  if (!chain || tvl == null || tvl < 0) return undefined;
+  const publishedAt =
+    c.publishedAt == null ? null : (shownTime(c.publishedAt, nowMs) ?? null);
+  const fetchedAt =
+    c.fetchedAt == null ? null : (shownTime(c.fetchedAt, nowMs) ?? null);
+  const dayAt = c.dayAt == null ? null : (shownTime(c.dayAt, nowMs) ?? null);
+  return {
+    chain,
+    tvlUsd: tvl,
+    publishedAt,
+    fetchedAt,
+    sourceObservedAt: null,
+    // Unknown publication OR collection time is never fresh (root 56890).
+    stale: publishedAt == null || fetchedAt == null || c.stale !== false,
+    dayAt,
+    change1dPct: dayAt ? optPct(c.change1dPct) : null,
+    change7dPct: dayAt ? optPct(c.change7dPct) : null,
+  };
+}
+
+// Market-wide stablecoin supply from the /market context (same for every coin).
+export function stablecoinSupplyOf(
+  m: Record<string, unknown>,
+  nowMs = Date.now(),
+): StablecoinSupplyContext | undefined {
+  const s = asObj(asObj(m.defi).stablecoinSupply);
+  const total = asNum(s.totalUsd);
+  const dayAt = shownTime(s.dayAt, nowMs);
+  if (total == null || total < 0 || !dayAt) return undefined;
+  return {
+    totalUsd: total,
+    dayAt,
+    change1dPct: optPct(s.change1dPct),
+    change7dPct: optPct(s.change7dPct),
+    stale: s.stale !== false,
+  };
+}
+
 export function macroOf(
   m: Record<string, unknown>,
   nowMs = Date.now(),
@@ -1210,6 +1266,7 @@ export async function observe(
   // coin's /market context (it's market-wide, identical across coins).
   let marketMood: Observation["marketMood"];
   let macro: Observation["macro"];
+  let stablecoinSupply: Observation["stablecoinSupply"];
   const wantIndicators = spec.capabilities.includes("indicators");
   const wantNews = spec.capabilities.includes("news");
   for (const symbol of spec.risk.watchlist) {
@@ -1252,8 +1309,11 @@ export async function observe(
     if (positioning) entry.positioning = positioning;
     const liquidations = liquidationsOf(m);
     if (liquidations) entry.liquidations = liquidations;
+    const chainTvl = chainTvlOf(m);
+    if (chainTvl) entry.chainTvl = chainTvl;
     // Macro proxies are the same for every coin: keep the first usable block.
     if (!macro) macro = macroOf(m);
+    if (!stablecoinSupply) stablecoinSupply = stablecoinSupplyOf(m);
     // Capture the market-wide Fear & Greed regime once (same across coins).
     if (!marketMood) {
       const fg = asObj(m.fearGreed);
@@ -1390,7 +1450,10 @@ export async function observe(
       if (positioning) entry.positioning = positioning;
       const liquidations = liquidationsOf(m);
       if (liquidations) entry.liquidations = liquidations;
+      const chainTvl = chainTvlOf(m);
+      if (chainTvl) entry.chainTvl = chainTvl;
       if (!macro) macro = macroOf(m);
+      if (!stablecoinSupply) stablecoinSupply = stablecoinSupplyOf(m);
       if (wantIndicators)
         await enrichFromCandles(
           client,
@@ -1766,6 +1829,7 @@ export async function observe(
     setups: scanSetups(watch, openPositions, signalThresholdsOf(spec)),
     marketMood,
     ...(macro ? { macro } : {}),
+    ...(stablecoinSupply ? { stablecoinSupply } : {}),
     syncCursor,
     newClosedTrades,
     polledBeforeWrite,
