@@ -255,7 +255,7 @@ export function buildSystemPrompt(
       : []),
     ...(hasPm && typeof r.pmMaxEdgePoints === "number"
       ? [
-          `- PM OVERCONFIDENCE CAP: every pm_open MUST carry forecastProbability, and it may beat the fee-inclusive cost by at most ${r.pmMaxEdgePoints} points. Start from the market price and move only as far as specific evidence justifies: in our own record, the bigger the edge an agent claimed, the more it lost. Opens over the cap are REJECTED.`,
+          `- PM OVERCONFIDENCE CAP: every pm_open MUST carry forecastProbability, and it may beat the fee-inclusive cost by at most ${r.pmMaxEdgePoints} points. Base the forecast on current evidence. Do not alter a forecast to pass this cap: skip the trade if your evidence-based forecast falls outside the permitted range. Opens over the cap are REJECTED.`,
         ]
       : []),
     ...(hasPm && typeof r.pmMaxOpenPerEvent === "number"
