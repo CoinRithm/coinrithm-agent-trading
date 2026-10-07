@@ -5,22 +5,34 @@ MCP Registry are delivered separately. Current publication status is in the
 [README](../README.md#version-clarity); package changes are in the
 [changelog](../CHANGELOG.md).
 
-## Pending combined release - MCP 0.7.16, TypeScript 0.3.5, Python 1.8.5
+## Verified delivery - 7 October 2026
 
-This release includes the reviewed provider-response guards, strategy controls,
-market context and retained-input benchmark diagnostics, plus both SDKs generated
-from the current contract. The pending versions are MCP **0.7.16**, TypeScript
-**0.3.5** and Python **1.8.5**. The preceding published versions remain MCP 0.7.15,
-TypeScript 0.3.4 and Python 1.8.4 until registry delivery is verified.
+MCP **0.7.16**, TypeScript **0.3.5** and Python **1.8.5** are published to
+npm/PyPI. All four registry downloads match the selected manifest and checksums;
+npm integrity and clean installs also passed. Artifacts are retained in the
+shared workspace at `output/release-packages-20261007`.
 
-The earlier MCP-only preparation from release revision `56ceb2b4` predates the
-funding-context consumer and latest benchmark diagnostics. Preserve its receipt
-as history; prepare a new, complete four-archive set from the exact passing CI
-revision. Do not mix that older MCP archive into this combined release, or upload
-the already-published SDK versions again. Stage all archives, checksums, source
-revision and notes together in the GitHub draft. Keep the draft and MCP Registry
-unpublished until npm/PyPI delivery is confirmed. Hosted MCP and scheduler
-deployments remain separate from package publication.
+The two npm archives and Python wheel are exact artifacts from
+[CI 37689422037](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/37689422037),
+with all 26 jobs passing. Archive source `966ee6089d7f78a4ec40e527970a2a38ec89212c`,
+CI checkout `85391bb5581c59b9826924e24a5b24450abeb275` and release revision
+`ac555de90c2474f88103f9d9d892b84b2cfedfbf` share source tree
+`a946bdcbc9d2e4f0db7dab487d85c5387a999b49`. Python's source archive was built with
+poetry-core 2.5.0 and an LF Git export: all 475 package files and distribution
+metadata match the CI wheel. Twine, isolated source installation, archive path
+checks and secret scanning passed. The earlier Windows CRLF preparations and
+MCP-only draft from `56ceb2b4` are retained as history and were not uploaded.
+
+The [GitHub release](https://github.com/CoinRithm/coinrithm-agent-trading/releases/tag/mcp-trading-v0.7.16) is published. Official MCP Registry version
+**0.7.16** is active/latest after [workflow 37692247498](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/37692247498).
+Hosted MCP was separately deployed at `ac555de90` and verified with 41 tools,
+health, internal API access and public read-only envelopes. The scheduler's
+container, image and start time remained unchanged.
+
+This release includes provider-response guards, strategy controls, independently
+timed funding/market context, bounded benchmark attempt diagnostics, and both
+SDKs generated from API contract 1.7.0. Runnable examples now pin TypeScript
+0.3.5 and Python 1.8.5. Immutable registry versions must not be uploaded again.
 
 ## Previous verified delivery — 23 September 2026
 
@@ -99,7 +111,7 @@ not changed.
 
 The October 2 verified delivery replaces that preparation. The old receipt is
 retained as history; its archives were not the ones published. Runnable examples
-now pin the verified TypeScript 0.3.4 and Python 1.8.4 releases.
+were then pinned to the verified TypeScript 0.3.4 and Python 1.8.4 releases.
 
 ## Prepare a release from newer source
 
@@ -147,8 +159,8 @@ An npm `E404` can also occur while an accepted upload is still processing.
 Check the original upload result and allow propagation before retrying. If a
 target version already exists, verify its files instead of uploading again.
 
-As verified on 2 October 2026, the registry versions are MCP 0.7.15,
-TypeScript 0.3.4 and Python 1.8.4. The API reference follows the current contract;
+As verified on 7 October 2026, the registry versions are MCP 0.7.16,
+TypeScript 0.3.5 and Python 1.8.5. The API reference follows the current contract;
 its runnable examples are pinned to these published SDK versions.
 
 ## Upload the exact archives

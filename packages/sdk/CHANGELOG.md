@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.5 (release preparation; publication pending)
+## 0.3.5 (published 2026-10-07)
 
 - Types optional market-context `priceTiming`, `funding`, `derivatives`,
   `macro` and `defi` blocks, including open interest, positioning, captured

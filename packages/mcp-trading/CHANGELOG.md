@@ -5,7 +5,7 @@ ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (t
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
 versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
-## 0.7.16 (unpublished)
+## 0.7.16 (published 2026-10-07)
 
 - Preserve independently timed funding-by-venue context in watchlist and
   discovered entries, including regular and compact prompts. Keep raw rates,

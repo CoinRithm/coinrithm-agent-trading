@@ -11,9 +11,9 @@ OpenAPI contract that drives the hosted MCP at `mcp.coinrithm.com`.
 
 ## 1.8.5
 
-Release preparation; publication is pending. See the
-[release status](https://github.com/CoinRithm/coinrithm-agent-trading#version-clarity)
-for registry availability. The current package source is version 1.8.5.
+Published on PyPI and verified on 2026-10-07. The wheel and source archive
+match the reviewed release manifest; fresh installation checks passed. See the
+[release status](https://github.com/CoinRithm/coinrithm-agent-trading#version-clarity).
 
 - Adds typed optional market-context `price_timing`, `funding`, `derivatives`,
   `macro` and `defi`, including open interest, positioning, captured liquidations,
