@@ -418,6 +418,9 @@ export interface MacroQuote {
   symbol: string;
   label: string;
   kind: string;
+  // "hyperliquid-xyz" (perp proxy) or "deribit" (DVOL index); absent from
+  // servers before backend-v2 #144.
+  source?: string;
   price: number;
   change24hPct: number | null;
   asOf: string;
