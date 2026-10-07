@@ -15,6 +15,36 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
   the 1D range exactly. Both are validated fail-closed, strict-linted and
   `$ref`-able; the prompt names the agent's bar size and RSI levels.
 
+- Add an optional `universe` block (market boundaries): a market-cap rank
+  band, a minimum 24h volume, stablecoins in or out, curated sectors and chain
+  ecosystems in or out, and the sort that defines an opportunity. Each cycle
+  the runner asks `GET /api/agent/universe` for rows inside those boundaries,
+  resolves the top `resolveTop` (max 10) into full `discovered` watch entries
+  and passes the rest as context. Rows are re-checked client-side, so a server
+  can narrow the set but never widen it; the blocklist still wins and every
+  cap applies. A failed screener degrades to the watchlist only. The block
+  can live in its own file via `$ref`. Without it, `universe_scan` keeps the
+  previous top-gainers scan exactly. Needs backend-v2 with the screener.
+
+- Add three optional, runner-enforced prediction-market policy fields, so
+  numbers that strategies stated only in prose become executable. Absent keeps
+  the previous behaviour exactly; malformed values fail closed.
+  - `risk.pmMinEdgeGapPct` (0..100): the forecast must beat the fee-inclusive
+    cost by that share of the room left to 100 (16 means cost 50 needs 58). It
+    never lowers the global minimum edge, and with it set a `pm_open` without
+    `forecastProbability` is rejected (`pm_forecast_required`,
+    `pm_edge_below_gap_rule`). Mechanical benchmarks are exempt.
+  - `risk.pmMaxEdgePoints` (0..100): overconfidence guard; the forecast may
+    beat the fee-inclusive cost by at most that many points, and a forecast
+    becomes mandatory (`pm_edge_overconfident`). This is an optional action
+    constraint; its effect on future performance requires separate evaluation.
+  - `risk.pmMaxOpenPerEvent` (1..50): open bets per event (source + slug),
+    counting held positions and opens accepted this cycle (`pm_event_cap`).
+  - `risk.pmMinMinutesToClose` (0..10080): reject a market whose known close is
+    nearer than that to the later of `observation.asOf` and the validation
+    clock after the model call (`pm_closes_too_soon`). An unknown or
+    unparseable close never blocks.
+
 - Keep repeated provider 404/410 availability failures out of the generic model
   failure kill-switch. BYO and self-hosted agents retain their configured model
   and provider holds without entering a disable/revive loop. Transient failures

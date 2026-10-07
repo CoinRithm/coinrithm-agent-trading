@@ -62,6 +62,7 @@ const CONFIG_BLOCKS = [
   "capabilities",
   "signals",
   "data",
+  "universe",
 ];
 const JOURNAL_MAX_LINES = 200;
 const JOURNAL_MAX_BYTES = 8_000;

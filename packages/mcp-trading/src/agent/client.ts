@@ -352,6 +352,12 @@ export class CoinRithmClient {
       { query: { limit }, trace },
     );
   }
+  // Market-boundaries screener (GET /api/agent/universe, read scope): rows
+  // inside the agent's declared rank band / volume floor / sectors, sorted by
+  // the agent's notion of an opportunity. Shared 60 s server cache.
+  agentUniverse(query: Record<string, string | number>, trace?: AgentTrace) {
+    return this.request("GET", "/api/agent/universe", { query, trace });
+  }
   getPublicPmWhales(options?: { timeoutMs?: number; limit?: number }) {
     return this.publicRequest(
       "/api/prediction-markets/whales",

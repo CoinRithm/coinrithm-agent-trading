@@ -46,6 +46,7 @@ import {
   validateAction,
   isRiskIncreasingAction,
   DecisionContext,
+  pmEventKey,
 } from "./decisionValidator.js";
 import { resolvePmRef } from "./resolvePm.js";
 import { fetchQuote, executeAction } from "./act.js";
@@ -1217,6 +1218,7 @@ async function runCycleCore(
   const realizedLossTodayMusd = Math.max(0, -state.realizedPnlTodayMusd);
   const targetedPositionIds: number[] = [];
   const targetedOrderIds: number[] = [];
+  const pmEventsOpenedThisCycle: string[] = [];
   let anyAccepted = false;
   let anyExecuted = false;
   let anyExecFailed = false;
@@ -1446,6 +1448,8 @@ async function runCycleCore(
       realizedLossTodayMusd,
       targetedPositionIds,
       targetedOrderIds,
+      pmEventsOpenedThisCycle,
+      nowMs: Date.now(),
     };
     const v = validateAction(action, ctx);
     if (!v.valid) {
@@ -1481,6 +1485,9 @@ async function runCycleCore(
     }
     if (action.type === "spot_cancel") {
       targetedOrderIds.push(action.orderId);
+    }
+    if (action.type === "pm_open") {
+      pmEventsOpenedThisCycle.push(pmEventKey(action.source, action.slug));
     }
     if (!live) {
       planned.push({

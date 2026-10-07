@@ -40,6 +40,7 @@ const ALLOWED_KEYS: Record<string, string[] | null> = {
     "triggerPolicy",
     "signals",
     "data",
+    "universe",
   ],
   trigger: ["cadence", "timezone", "events"],
   signals: [
@@ -50,6 +51,16 @@ const ALLOWED_KEYS: Record<string, string[] | null> = {
     "minStrength",
   ],
   data: ["indicatorRange"],
+  universe: [
+    "rank",
+    "minVolume24hUsd",
+    "excludeStablecoins",
+    "includeSectors",
+    "excludeSectors",
+    "sort",
+    "resolveTop",
+    "scanLimit",
+  ],
   triggerPolicy: [
     "mode",
     "skipLlmWhenNoTrigger",
@@ -69,6 +80,10 @@ const ALLOWED_KEYS: Record<string, string[] | null> = {
     "direction",
     "entryPredicates",
     "pmMinEntryProbabilityPct",
+    "pmMinEdgeGapPct",
+    "pmMaxEdgePoints",
+    "pmMaxOpenPerEvent",
+    "pmMinMinutesToClose",
   ],
   sizing: null,
   capitalSizing: [
@@ -175,6 +190,7 @@ export function strictLint(raw: Record<string, unknown>): ResolveIssue[] {
     "objective",
     "signals",
     "data",
+    "universe",
   ]) {
     if (isObj(raw[block]))
       lintKeys(block, raw[block] as Record<string, unknown>, issues);
