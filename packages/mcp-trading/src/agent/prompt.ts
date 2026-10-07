@@ -247,6 +247,26 @@ export function buildSystemPrompt(
           `- PM ENTRY FLOOR: pm_open on an outcome whose market probability is below ${r.pmMinEntryProbabilityPct} points is REJECTED by the runner (the chosen outcome's own price; fees are not counted). Do not propose cheaper longshots; look for edge on outcomes priced at or above the floor.`,
         ]
       : []),
+    ...(hasPm && typeof r.pmMinEdgeGapPct === "number"
+      ? [
+          `- PM EDGE RULE: every pm_open MUST carry forecastProbability, and it must beat the fee-inclusive cost by ${r.pmMinEdgeGapPct}% of the room left to 100 (cost 50 needs ${(50 + (r.pmMinEdgeGapPct / 100) * 50).toFixed(1)}, cost 70 needs ${(70 + (r.pmMinEdgeGapPct / 100) * 30).toFixed(1)}). The runner REJECTS an open without a forecast or under this bar.`,
+        ]
+      : []),
+    ...(hasPm && typeof r.pmMaxEdgePoints === "number"
+      ? [
+          `- PM OVERCONFIDENCE CAP: every pm_open MUST carry forecastProbability, and it may beat the fee-inclusive cost by at most ${r.pmMaxEdgePoints} points. Start from the market price and move only as far as specific evidence justifies: in our own record, the bigger the edge an agent claimed, the more it lost. Opens over the cap are REJECTED.`,
+        ]
+      : []),
+    ...(hasPm && typeof r.pmMaxOpenPerEvent === "number"
+      ? [
+          `- PM PER-EVENT CAP: at most ${r.pmMaxOpenPerEvent} open bet(s) per event (same market slug, counting bets you already hold). Extra opens are REJECTED.`,
+        ]
+      : []),
+    ...(hasPm && typeof r.pmMinMinutesToClose === "number"
+      ? [
+          `- PM CLOSE CUTOFF: a market whose \`end\` is less than ${r.pmMinMinutesToClose} minutes away when the runner validates your action is REJECTED; the price already knows.`,
+        ]
+      : []),
     ...(includeForecast
       ? [
           "- FORECAST RULE (pm_open forecastProbability): the current market probability is already included in this request, so this is a market-aware estimate, not a blinded forecast. Form your own evidence-based probability that the outcome you are backing actually WINS, using the question, its resolution criteria, deadline, and available evidence. Put that number (1-99, whole or one decimal) in `forecastProbability`. This is graded against reality as your PUBLIC calibration record, so it must reflect your judgement: do NOT mechanically copy or round observation.pmMarkets `prob` to produce a forecast. It is FINE if your honest forecast happens to land on the market's number — but reaching that by echoing the price defeats the point. If you genuinely cannot form an evidence-based view, OMIT the field rather than parroting the market (an absent forecast is better than a fake one, and it never blocks the bet). A forecast you DO give is enforced: if it is not above what the outcome currently costs, the open is rejected, because buying something you price below the market is a losing trade by your own numbers.",

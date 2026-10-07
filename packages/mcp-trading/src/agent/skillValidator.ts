@@ -200,6 +200,38 @@ export function validateSkill(
           "risk.pmMinEntryProbabilityPct must be a number between 0 and 100 (points; omit for no floor)",
         );
     }
+    if (r.pmMinEdgeGapPct !== undefined) {
+      const g = r.pmMinEdgeGapPct;
+      if (typeof g !== "number" || !Number.isFinite(g) || g < 0 || g > 100)
+        add(
+          "skill_risk_pm_edge_gap",
+          "risk.pmMinEdgeGapPct must be a number between 0 and 100 (% of the gap to 100; omit for the global minimum edge only)",
+        );
+    }
+    if (r.pmMaxEdgePoints !== undefined) {
+      const m = r.pmMaxEdgePoints;
+      if (typeof m !== "number" || !Number.isFinite(m) || m < 0 || m > 100)
+        add(
+          "skill_risk_pm_max_edge",
+          "risk.pmMaxEdgePoints must be a number between 0 and 100 (points over cost; omit for no cap)",
+        );
+    }
+    if (r.pmMaxOpenPerEvent !== undefined) {
+      const n = r.pmMaxOpenPerEvent;
+      if (typeof n !== "number" || !Number.isInteger(n) || n < 1 || n > 50)
+        add(
+          "skill_risk_pm_per_event",
+          "risk.pmMaxOpenPerEvent must be a whole number between 1 and 50 (omit for no per-event cap)",
+        );
+    }
+    if (r.pmMinMinutesToClose !== undefined) {
+      const m = r.pmMinMinutesToClose;
+      if (typeof m !== "number" || !Number.isFinite(m) || m < 0 || m > 10_080)
+        add(
+          "skill_risk_pm_close_cutoff",
+          "risk.pmMinMinutesToClose must be a number of minutes between 0 and 10080 (omit for no cutoff)",
+        );
+    }
     // Fail-closed on the side restriction: a typo ("shorts_only") must never
     // silently mean "unrestricted" — that is exactly how a prose-only
     // constraint failed live on 2026-08-24.

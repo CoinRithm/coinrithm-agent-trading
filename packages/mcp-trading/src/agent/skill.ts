@@ -154,6 +154,31 @@ export function buildSpec(raw: Record<string, unknown>): AgentSpec {
               risk.pmMinEntryProbabilityPct as AgentSpec["risk"]["pmMinEntryProbabilityPct"],
           }
         : {}),
+      // The three PM policy dials follow the same as-written rule.
+      ...(risk.pmMinEdgeGapPct !== undefined
+        ? {
+            pmMinEdgeGapPct:
+              risk.pmMinEdgeGapPct as AgentSpec["risk"]["pmMinEdgeGapPct"],
+          }
+        : {}),
+      ...(risk.pmMaxEdgePoints !== undefined
+        ? {
+            pmMaxEdgePoints:
+              risk.pmMaxEdgePoints as AgentSpec["risk"]["pmMaxEdgePoints"],
+          }
+        : {}),
+      ...(risk.pmMaxOpenPerEvent !== undefined
+        ? {
+            pmMaxOpenPerEvent:
+              risk.pmMaxOpenPerEvent as AgentSpec["risk"]["pmMaxOpenPerEvent"],
+          }
+        : {}),
+      ...(risk.pmMinMinutesToClose !== undefined
+        ? {
+            pmMinMinutesToClose:
+              risk.pmMinMinutesToClose as AgentSpec["risk"]["pmMinMinutesToClose"],
+          }
+        : {}),
       maxLeverage: num(risk.maxLeverage, 1),
       perTradeMarginMusd: num(risk.perTradeMarginMusd, 0),
       maxConcurrentPositions: num(risk.maxConcurrentPositions, 0),

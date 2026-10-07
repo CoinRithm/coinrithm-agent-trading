@@ -41,6 +41,34 @@ export interface DecisionContext {
   realizedLossTodayMusd: number; // today's realized LOSS as a positive number
   targetedPositionIds: number[]; // futures positions already acted on this cycle
   targetedOrderIds: number[]; // spot orders already cancelled this cycle
+  // PM events ("source/slug") of pm_opens ACCEPTED earlier this cycle, one
+  // entry per accepted open, for risk.pmMaxOpenPerEvent. Optional so callers
+  // without the per-event policy need not track it.
+  pmEventsOpenedThisCycle?: string[];
+  // Validation clock (epoch ms), injected by the runner at validation time,
+  // AFTER the model call. Time-based rules use the later of this and
+  // observation.asOf, so a slow model call cannot open inside a cutoff the
+  // observation was still outside of. Absent = observation.asOf only.
+  nowMs?: number;
+}
+
+/**
+ * Edge (points) risk.pmMinEdgeGapPct requires at a fee-inclusive entry cost:
+ * pct% of the room left to 100. Cost at or above 100 leaves no room, so any
+ * positive gap rule makes the requirement unreachable rather than zero.
+ */
+export function requiredGapEdgePoints(
+  entryPct: number,
+  gapPct: number,
+): number {
+  const room = 100 - entryPct;
+  if (room <= 0) return gapPct > 0 ? Number.POSITIVE_INFINITY : 0;
+  return (gapPct / 100) * room;
+}
+
+/** Event key shared by pm_open actions, held positions and markets. */
+export function pmEventKey(source: string, slug: string): string {
+  return `${source.toLowerCase()}/${slug.toLowerCase()}`;
 }
 
 const SERVER_MAX_LEVERAGE = 20;
@@ -587,6 +615,66 @@ export function validateAction(
         `${action.source}/${action.slug} is not in the discovered PM markets`,
       );
     }
+    const perEventCap = spec.risk.pmMaxOpenPerEvent;
+    if (perEventCap !== undefined) {
+      if (
+        typeof perEventCap !== "number" ||
+        !Number.isInteger(perEventCap) ||
+        perEventCap < 1
+      ) {
+        return fail(
+          "pm_event_cap_invalid",
+          `risk.pmMaxOpenPerEvent ${JSON.stringify(perEventCap)} is not a whole number of at least 1`,
+        );
+      }
+      const key = pmEventKey(mkt.source, mkt.slug);
+      const held = observation.pmPositions.filter(
+        (p) =>
+          (p.status ?? "open") === "open" &&
+          p.source !== undefined &&
+          p.slug !== undefined &&
+          pmEventKey(p.source, p.slug) === key,
+      ).length;
+      const thisCycle = (ctx.pmEventsOpenedThisCycle ?? []).filter(
+        (k) => k === key,
+      ).length;
+      if (held + thisCycle >= perEventCap) {
+        return fail(
+          "pm_event_cap",
+          `${held + thisCycle} open bet(s) on ${key} >= per-event cap ${perEventCap}`,
+        );
+      }
+    }
+    const closeCutoff = spec.risk.pmMinMinutesToClose;
+    if (closeCutoff !== undefined) {
+      if (
+        typeof closeCutoff !== "number" ||
+        !Number.isFinite(closeCutoff) ||
+        closeCutoff < 0
+      ) {
+        return fail(
+          "pm_close_cutoff_invalid",
+          `risk.pmMinMinutesToClose ${JSON.stringify(closeCutoff)} is not a non-negative number`,
+        );
+      }
+      // Only a KNOWN close can trip the cutoff: venues publish null/sentinel
+      // end dates, and an unparseable one is unknown, never "closing now".
+      const endMs = mkt.endDate ? Date.parse(mkt.endDate) : NaN;
+      const refMs = Math.max(
+        ...[Date.parse(observation.asOf), ctx.nowMs ?? NaN].filter((t) =>
+          Number.isFinite(t),
+        ),
+      );
+      if (Number.isFinite(endMs) && Number.isFinite(refMs)) {
+        const minutesLeft = (endMs - refMs) / 60_000;
+        if (minutesLeft < closeCutoff) {
+          return fail(
+            "pm_closes_too_soon",
+            `market closes in ${minutesLeft.toFixed(1)} min, inside the ${closeCutoff} min cutoff`,
+          );
+        }
+      }
+    }
     if (action.stakeMusd < PM_MIN_STAKE_MUSD) {
       return fail(
         "pm_stake_below_min",
@@ -691,6 +779,48 @@ export function validateAction(
     // The API's entryProbability is the RAW mid, and executionModel's effective
     // probability excludes fee. Total stake / net shares is the fee-inclusive
     // break-even cost. Do not guess units or fall back to a discovery mid.
+    const maxEdge = spec.risk.pmMaxEdgePoints;
+    if (!ctx.mechanical && maxEdge !== undefined) {
+      if (
+        typeof maxEdge !== "number" ||
+        !Number.isFinite(maxEdge) ||
+        maxEdge < 0 ||
+        maxEdge > 100
+      ) {
+        return fail(
+          "pm_max_edge_invalid",
+          `risk.pmMaxEdgePoints ${JSON.stringify(maxEdge)} is not a number between 0 and 100`,
+        );
+      }
+      // An overconfidence cap cannot be checked against a missing number.
+      if (action.forecastProbability == null) {
+        return fail(
+          "pm_forecast_required",
+          `risk.pmMaxEdgePoints ${maxEdge} needs forecastProbability on every pm_open`,
+        );
+      }
+    }
+    const edgeGapPct = spec.risk.pmMinEdgeGapPct;
+    if (!ctx.mechanical && edgeGapPct !== undefined) {
+      if (
+        typeof edgeGapPct !== "number" ||
+        !Number.isFinite(edgeGapPct) ||
+        edgeGapPct < 0 ||
+        edgeGapPct > 100
+      ) {
+        return fail(
+          "pm_edge_gap_invalid",
+          `risk.pmMinEdgeGapPct ${JSON.stringify(edgeGapPct)} is not a number between 0 and 100`,
+        );
+      }
+      // An edge rule cannot be checked against a missing number.
+      if (action.forecastProbability == null) {
+        return fail(
+          "pm_forecast_required",
+          `risk.pmMinEdgeGapPct ${edgeGapPct} needs forecastProbability on every pm_open`,
+        );
+      }
+    }
     if (!ctx.mechanical && action.forecastProbability != null) {
       const stake = ctx.quote.stakeMusd;
       const shares = ctx.quote.sharesEstimate;
@@ -717,6 +847,21 @@ export function validateAction(
           "forecast_no_positive_edge",
           `forecast ${action.forecastProbability} vs entry ${entryPct.toFixed(1)} = ${edge.toFixed(1)}pt edge, under the ${PM_MIN_FORECAST_EDGE_POINTS}pt minimum`,
         );
+      }
+      if (maxEdge !== undefined && edge > maxEdge + 1e-9) {
+        return fail(
+          "pm_edge_overconfident",
+          `forecast ${action.forecastProbability} vs entry ${entryPct.toFixed(1)} = ${edge.toFixed(1)}pt edge, over the ${maxEdge}pt cap (large claimed edges have lost the most)`,
+        );
+      }
+      if (edgeGapPct !== undefined) {
+        const required = requiredGapEdgePoints(entryPct, edgeGapPct);
+        if (edge + 1e-9 < required) {
+          return fail(
+            "pm_edge_below_gap_rule",
+            `forecast ${action.forecastProbability} vs entry ${entryPct.toFixed(1)} = ${edge.toFixed(1)}pt edge, under the ${required.toFixed(1)}pt required by ${edgeGapPct}% of the gap to 100`,
+          );
+        }
       }
     }
     if (thesisContradictsOutcome(action.thesis?.summary, mkt.outcomeName)) {
