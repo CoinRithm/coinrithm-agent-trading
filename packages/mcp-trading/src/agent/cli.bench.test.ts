@@ -73,7 +73,11 @@ afterEach(() => {
 
 describe("record + bench CLI", () => {
   it("records cassettes at the requested pace, then benches two variants on them", async () => {
-    const sleepFn = vi.fn(async () => {});
+    let now = Date.parse("2026-10-07T10:00:00.000Z");
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+    const sleepFn = vi.fn(async (ms: number) => {
+      now += ms;
+    });
     const rec = await cmdRecord(folder, {
       out: corpusDir,
       cycles: 2,
@@ -85,10 +89,16 @@ describe("record + bench CLI", () => {
     expect(sleepFn).toHaveBeenCalledTimes(1);
     expect(sleepFn).toHaveBeenCalledWith(300_000);
     expect(rec.lines[0]).toContain("record DRY-RUN");
-    // Same reads twice: identical content gives the same id (one file).
+    // The same trades cursor does not erase a later observation window.
+    const recordings = readdirSync(corpusDir).filter((f) =>
+      f.endsWith(".json"),
+    );
+    expect(recordings).toHaveLength(2);
     expect(
-      readdirSync(corpusDir).filter((f) => f.endsWith(".json")),
-    ).toHaveLength(1);
+      recordings
+        .map((f) => JSON.parse(readFileSync(join(corpusDir, f), "utf8")).asOf)
+        .sort(),
+    ).toEqual(["2026-10-07T10:00:00.000Z", "2026-10-07T10:05:00.000Z"]);
 
     const out = join(directory, "report.json");
     const bench = await cmdBench({
