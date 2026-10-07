@@ -13,7 +13,15 @@
 //     cooldown hold (another caller's 429 already cooled the route), and on
 //     a streak of owner-budget denials;
 //   - once aborted, every later decision returns a deferred result without
-//     touching the provider.
+//     touching the provider;
+//   - the provider call runs on the REAL clock. The bench replays each
+//     cassette under its historical Date.now (withReplayClock); inside the
+//     provider path that clock would turn a real Retry-After into hours of
+//     SHARED route cooldown and stop successes clearing current backoff
+//     (root 57085). The guard restores the real Date.now, captured when the
+//     guard is created (before any replay), for exactly the inner decide()
+//     and puts the replay clock back afterwards; strategy evidence keeps the
+//     historical clock.
 //
 // It never retries, never raises a quota and never changes a live agent.
 
@@ -29,6 +37,9 @@ export interface BenchGuardOptions {
   maxOwnerDenialStreak: number;
   /** Worst-case provider calls one decision can make (router limit). */
   attemptsPerDecision?: number;
+  /** The real clock. Default: Date.now as it is when the guard is created,
+   *  which must be before any replay clock is installed. */
+  realNow?: () => number;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
 }
@@ -94,7 +105,8 @@ export function createBenchGuard(opts: BenchGuardOptions): {
     throw new Error(
       `maxCalls ${opts.maxCalls} cannot cover one decision (up to ${perDecision} provider calls)`,
     );
-  const now = opts.now ?? Date.now;
+  const realNow = opts.realNow ?? Date.now;
+  const now = opts.now ?? realNow;
   const sleep =
     opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const state: BenchGuardState = {
@@ -126,9 +138,18 @@ export function createBenchGuard(opts: BenchGuardOptions): {
     }
     lastDecisionAt = now();
     state.decisions += 1;
-    const result = (await inner.decide(input)) as DecideResult & {
-      route?: RouteMetadata;
-    };
+    // The provider path (Retry-After parsing, call timing, backoff clearing)
+    // must see the real clock; the replay clock is restored afterwards.
+    const replayNow = Date.now;
+    Date.now = realNow;
+    let result: DecideResult & { route?: RouteMetadata };
+    try {
+      result = (await inner.decide(input)) as DecideResult & {
+        route?: RouteMetadata;
+      };
+    } finally {
+      Date.now = replayNow;
+    }
     state.providerCalls += providerCallsOf(result.route);
     const abort = abortReasonOf(result.route);
     if (abort) state.aborted = abort;
