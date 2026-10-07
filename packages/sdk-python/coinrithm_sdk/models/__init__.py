@@ -223,7 +223,12 @@ from .market_defi_context import MarketDefiContext
 from .market_depth_context import MarketDepthContext
 from .market_depth_side import MarketDepthSide
 from .market_derivatives_context import MarketDerivativesContext
+from .market_funding_by_venue_context import MarketFundingByVenueContext
 from .market_funding_context import MarketFundingContext
+from .market_funding_venue_rate import MarketFundingVenueRate
+from .market_funding_venue_rate_freshness_basis import MarketFundingVenueRateFreshnessBasis
+from .market_funding_venue_rate_role import MarketFundingVenueRateRole
+from .market_funding_venue_rate_source import MarketFundingVenueRateSource
 from .market_liquidation_context import MarketLiquidationContext
 from .market_liquidation_window import MarketLiquidationWindow
 from .market_macro_context import MarketMacroContext
@@ -626,7 +631,12 @@ __all__ = (
     "MarketDepthContext",
     "MarketDepthSide",
     "MarketDerivativesContext",
+    "MarketFundingByVenueContext",
     "MarketFundingContext",
+    "MarketFundingVenueRate",
+    "MarketFundingVenueRateFreshnessBasis",
+    "MarketFundingVenueRateRole",
+    "MarketFundingVenueRateSource",
     "MarketLiquidationContext",
     "MarketLiquidationWindow",
     "MarketMacroContext",

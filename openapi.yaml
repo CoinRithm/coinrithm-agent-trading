@@ -5768,10 +5768,43 @@ components:
         asOf: { type: string, format: date-time, description: "CoinRithm collection time, not a provider observation timestamp." }
         ageSeconds: { type: integer, minimum: 0, description: "Rounded collection age, clamped at zero." }
         stale: { type: boolean, description: "True when collection age exceeds 1800 seconds (30 minutes)." }
+    MarketFundingVenueRate:
+      type: object
+      required: [role, venue, symbol, source, rateFraction, intervalHours, hourlyEquivalentFraction, nextFundingTime, fetchedAt, sourceAt, ageSeconds, stale, freshnessBasis]
+      properties:
+        role: { type: string, enum: [settlement_reference, context_only] }
+        venue: { type: string }
+        symbol: { type: string }
+        source: { type: string, enum: [paper_futures_reference, hyperliquid_predicted_fundings] }
+        rateFraction: { type: number, description: "Raw fraction per intervalHours, including valid zero/negative values; not percent." }
+        intervalHours: { type: [integer, "null"], minimum: 1, maximum: 24, description: "Null when unknown. Hyperliquid HlPerp context is hourly." }
+        hourlyEquivalentFraction: { type: [number, "null"], description: "rateFraction / intervalHours; simple normalization, not realized performance, APR or forecast return. Null when interval unknown." }
+        nextFundingTime: { type: [string, "null"], format: date-time, description: "Null for missing/rolled/unusable provider boundaries; never advanced synthetically." }
+        fetchedAt: { type: string, format: date-time, description: "CoinRithm collection time, not provider observation time." }
+        sourceAt: { type: "null", description: "Provider observation time and delivery delay are unknown." }
+        ageSeconds: { type: integer, minimum: 0, description: "Floor of collection age, clamped at zero." }
+        stale: { type: boolean, description: "Collection age exceeds 1800 seconds." }
+        freshnessBasis: { type: string, enum: [collection_time] }
+    MarketFundingByVenueContext:
+      type: object
+      description: "Independent venue collection clocks; available only with usable additional context within the bounded two-hour read. Does not change the top-level funding reference or futures entry gate. Not simultaneous prices or an arbitrage/return forecast."
+      required: [rates, sameTime, note]
+      properties:
+        rates:
+          type: array
+          minItems: 1
+          maxItems: 2
+          items: { $ref: "#/components/schemas/MarketFundingVenueRate" }
+        sameTime: { type: boolean, enum: [false] }
+        note: { type: string }
     MarketDerivativesContext:
       type: object
       description: Optional on older APIs. Members are additive and may be absent on older APIs; each can independently be null when unavailable or unusable.
       properties:
+        fundingByVenue:
+          anyOf:
+            - $ref: "#/components/schemas/MarketFundingByVenueContext"
+            - { type: "null" }
         openInterest:
           anyOf:
             - $ref: "#/components/schemas/MarketOpenInterestContext"

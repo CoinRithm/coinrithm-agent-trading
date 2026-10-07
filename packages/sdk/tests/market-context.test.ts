@@ -34,6 +34,10 @@ describe("market context SDK contract", () => {
     expectTypeOf(data?.priceTiming).toEqualTypeOf<
       components["schemas"]["SpotPriceTiming"] | undefined
     >();
+    expectTypeOf(
+      data?.derivatives?.fundingByVenue?.rates[0]?.hourlyEquivalentFraction,
+    ).toEqualTypeOf<number | null | undefined>();
+    expect(data?.derivatives?.fundingByVenue?.rates[0]?.rateFraction).toBe(0);
     expectTypeOf(data?.funding?.ratePct).toEqualTypeOf<number | undefined>();
     expectTypeOf(data?.derivatives?.openInterest?.change24hPct).toEqualTypeOf<
       number | null | undefined
@@ -79,6 +83,7 @@ describe("market context SDK contract", () => {
         positioning: null,
         liquidations: null,
         depth: null,
+        fundingByVenue: null,
       },
     };
     const partialDefi: MarketContext = {
@@ -86,6 +91,8 @@ describe("market context SDK contract", () => {
     };
     expect(oldPayload.funding).toBeUndefined();
     expect(earlyDerivatives.derivatives?.depth).toBeUndefined();
+    expect(earlyDerivatives.derivatives?.fundingByVenue).toBeUndefined();
+    expect(unavailable.derivatives?.fundingByVenue).toBeNull();
     expect(unavailable.derivatives?.depth).toBeNull();
     expect(partialDefi.defi?.chainTvl).toBeNull();
   });

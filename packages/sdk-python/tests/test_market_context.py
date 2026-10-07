@@ -61,6 +61,9 @@ def test_market_context_endpoint_preserves_typed_source_blocks():
     assert isinstance(result, GetMarketContextResponse200)
     assert_typed(result)
     assert normalized(result.to_dict()) == normalized(FIXTURE)
+    assert result.derivatives.funding_by_venue.rates[0].rate_fraction == 0
+    assert result.derivatives.funding_by_venue.rates[0].source_at is None
+    assert result.derivatives.funding_by_venue.same_time is False
     assert result.funding.rate_pct == -0.0056
     assert result.funding.annualized_pct == -6.13
     assert result.derivatives.liquidations.last1h.events == 0
@@ -77,6 +80,7 @@ def test_old_market_payload_keeps_new_fields_unset():
     assert result.funding is UNSET
     assert result.macro is UNSET
     assert result.defi is UNSET
+    assert result.derivatives.funding_by_venue is UNSET
     assert result.derivatives.depth is UNSET
     assert result.derivatives.positioning is UNSET
     assert result.derivatives.liquidations is UNSET
@@ -88,11 +92,22 @@ def test_unavailable_context_is_null_not_unset_or_zero():
         "funding": None,
         "macro": None,
         "defi": None,
-        "derivatives": {"openInterest": None, "positioning": None, "liquidations": None, "depth": None},
+        "derivatives": {"openInterest": None, "positioning": None, "liquidations": None, "depth": None, "fundingByVenue": None},
     }
     result = GetMarketContextResponse200.from_dict(payload)
     assert_typed(result)
     assert result.to_dict() == payload
+
+
+def test_funding_unknown_interval_stays_null():
+    payload = copy.deepcopy(FIXTURE)
+    row = payload["derivatives"]["fundingByVenue"]["rates"][0]
+    row.update(role="settlement_reference", venue="bybit", source="paper_futures_reference",
+               intervalHours=None, hourlyEquivalentFraction=None)
+    result = GetMarketContextResponse200.from_dict(payload)
+    assert_typed(result)
+    assert result.derivatives.funding_by_venue.rates[0].interval_hours is None
+    assert result.derivatives.funding_by_venue.rates[0].hourly_equivalent_fraction is None
 
 
 @pytest.mark.parametrize(

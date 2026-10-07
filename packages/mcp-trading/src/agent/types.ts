@@ -485,6 +485,27 @@ export interface DepthContext {
   stale: boolean;
 }
 
+// Independent collection clocks; fractional rates, never settlement changes.
+export interface FundingVenueRate {
+  role: "settlement_reference" | "context_only";
+  venue: string;
+  symbol: string;
+  source: "paper_futures_reference" | "hyperliquid_predicted_fundings";
+  rateFraction: number;
+  intervalHours: number | null;
+  hourlyEquivalentFraction: number | null;
+  nextFundingTime: string | null;
+  fetchedAt: string;
+  sourceAt: null;
+  ageSeconds: number;
+  stale: boolean;
+  freshnessBasis: "collection_time";
+}
+export interface FundingByVenueContext {
+  rates: FundingVenueRate[];
+  sameTime: false;
+}
+
 export interface WatchEntry {
   symbol: string;
   coinId: string | null; // resolved UCID; null if unresolvable
@@ -537,6 +558,7 @@ export interface WatchEntry {
   chainTvl?: ChainTvlContext;
   // One venue's observed order-book depth; omitted off the reviewed allowlist.
   depth?: DepthContext;
+  fundingByVenue?: FundingByVenueContext;
   // What the server entry gate's perpetual-reference rule says about a NEW
   // futures open on this coin (GET /api/agent/market futuresEntryEligibility,
   // backend-v2 #106). Absent = unknown (older API): never blocks by itself.
