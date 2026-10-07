@@ -359,8 +359,11 @@ export interface IndicatorContext {
 
 export interface OpenInterestContext {
   totalUsd: number;
+  venues: string[];
   change1hPct: number | null;
+  change1hVenues: string[];
   change24hPct: number | null;
+  change24hVenues: string[];
   asOf: string;
   stale: boolean;
 }

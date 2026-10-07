@@ -14,7 +14,9 @@ import type { CoinRithmClient } from "./client.js";
 const block = {
   totalUsd: 2_200_000_000,
   change1hPct: 1.25,
+  change1hVenues: ["bybit"],
   change24hPct: -3.4,
+  change24hVenues: ["bybit"],
   venues: [
     { venue: "bybit", symbol: "BTCUSDT", openInterestUsd: 1_200_000_000 },
   ],
@@ -24,11 +26,19 @@ const block = {
 };
 
 describe("openInterestOf", () => {
-  it("keeps the compact fields and drops the venue breakdown", () => {
-    expect(openInterestOf({ derivatives: { openInterest: block } })).toEqual({
+  it("keeps compact venue coverage for both the total and changes", () => {
+    expect(
+      openInterestOf(
+        { derivatives: { openInterest: block } },
+        Date.parse("2026-10-07T03:00:00Z"),
+      ),
+    ).toEqual({
       totalUsd: 2_200_000_000,
+      venues: ["bybit"],
       change1hPct: 1.25,
+      change1hVenues: ["bybit"],
       change24hPct: -3.4,
+      change24hVenues: ["bybit"],
       asOf: "2026-10-07T02:45:00.000Z",
       stale: false,
     });
@@ -47,11 +57,31 @@ describe("openInterestOf", () => {
   it.each([
     [{}],
     [{ derivatives: { openInterest: null } }],
-    [{ derivatives: { openInterest: { ...block, totalUsd: 0 } } }],
+    [{ derivatives: { openInterest: { ...block, totalUsd: -1 } } }],
     [{ derivatives: { openInterest: { ...block, asOf: undefined } } }],
+    [{ derivatives: { openInterest: { ...block, asOf: "invalid" } } }],
     [{ derivatives: { openInterest: { ...block, totalUsd: "lots" } } }],
   ])("omits a missing or malformed block %#", (m) => {
     expect(openInterestOf(m as Record<string, unknown>)).toBeUndefined();
+  });
+
+  it("preserves zero but does not invent coverage or freshness", () => {
+    const now = Date.parse("2026-10-07T03:00:00Z");
+    const read = (over: Record<string, unknown>) =>
+      openInterestOf(
+        { derivatives: { openInterest: { ...block, ...over } } },
+        now,
+      );
+    expect(read({ totalUsd: 0 })).toMatchObject({ totalUsd: 0 });
+    expect(read({ change1hVenues: undefined })).toMatchObject({
+      change1hPct: null,
+      change1hVenues: [],
+    });
+    expect(read({ stale: undefined })).toMatchObject({ stale: true });
+    expect(read({ asOf: "2026-10-07T01:00:00Z", stale: false })).toMatchObject({
+      stale: true,
+    });
+    expect(read({ asOf: "2026-10-07T03:02:00Z" })).toBeUndefined();
   });
 });
 
@@ -109,7 +139,7 @@ describe("observe carries open interest on watch entries", () => {
 
   it("the prompt tells coin-venue agents how to read it", () => {
     expect(buildSystemPrompt(spec, "body")).toContain(
-      "price up and open interest down means shorts are closing",
+      "OI with price alone cannot establish who opened, closed, or was liquidated",
     );
   });
 });

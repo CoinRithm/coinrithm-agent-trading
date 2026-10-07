@@ -701,25 +701,47 @@ function coinFundamentalsOf(
 }
 
 // Perpetual open interest from the same /market context (no extra call).
-// Kept compact: the per-venue breakdown stays server-side. A malformed or
-// absent block is omitted, never filled with zeros.
+// Keep venue coverage with each delta: it need not cover the whole total.
+// A malformed or absent block is omitted; a real zero reading is valid.
 export function openInterestOf(
   m: Record<string, unknown>,
+  nowMs = Date.now(),
 ): OpenInterestContext | undefined {
   const oi = asObj(asObj(m.derivatives).openInterest);
   const totalUsd = asNum(oi.totalUsd);
   const asOf = asStr(oi.asOf);
-  if (totalUsd == null || !(totalUsd > 0) || !asOf) return undefined;
+  const sourceMs = asOf ? Date.parse(asOf) : NaN;
+  if (
+    totalUsd == null ||
+    totalUsd < 0 ||
+    !asOf ||
+    !Number.isFinite(sourceMs) ||
+    sourceMs > nowMs + 60_000
+  )
+    return undefined;
+  const names = (v: unknown): string[] =>
+    Array.isArray(v)
+      ? [
+          ...new Set(
+            v.filter((x): x is string => typeof x === "string" && x.length > 0),
+          ),
+        ].sort()
+      : [];
+  const change1hVenues = names(oi.change1hVenues);
+  const change24hVenues = names(oi.change24hVenues);
   const pct = (v: unknown) => {
     const n = asNum(v);
     return n == null ? null : n;
   };
   return {
     totalUsd,
-    change1hPct: pct(oi.change1hPct),
-    change24hPct: pct(oi.change24hPct),
+    venues: names(asArr(oi.venues).map((v) => asObj(v).venue)),
+    change1hPct: change1hVenues.length ? pct(oi.change1hPct) : null,
+    change1hVenues,
+    change24hPct: change24hVenues.length ? pct(oi.change24hPct) : null,
+    change24hVenues,
     asOf,
-    stale: oi.stale === true,
+    stale: oi.stale !== false || nowMs - sourceMs > 45 * 60_000,
   };
 }
 
