@@ -190,6 +190,17 @@ model and an absent or exact canonical NVIDIA endpoint qualifies. The agent's ow
 key, model, strategy and same-model retry are unchanged: only the request asks
 for JSON content. The expiry is re-checked on every attempt, including the retry.
 
+`SCHEDULER_SUPER_FALLBACK_JSON_CONTENT_ENABLED` (default true) covers a
+different case: Nemotron Super reached as a fallback on the shared hosted router.
+When an agent's configured model is not Super, typically Nano after a worker-limit
+503 or a capacity defer, its Super route asks for JSON content. That attempt is
+the second and last one, so it cannot use the same-model content retry above.
+The model, shared key, strict parser, two-attempt limit, admission, usage
+accounting and deadline are unchanged, and a failed cycle still writes nothing.
+Super-primary agents keep their first-attempt transport, and BYO agents never
+reach the hosted router. Rollback is `false`, through the normal scheduler
+configuration/restart process.
+
 Expiry is checked per attempt after asynchronous capacity admission and before
 constructing the provider. At or after expiry, the original request transport
 is used without requiring a restart. A request already sent is not cancelled.

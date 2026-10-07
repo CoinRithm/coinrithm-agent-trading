@@ -162,6 +162,29 @@ function keyForRoute(
   throw new Error(`no credential configured for route ${route.provider}`);
 }
 
+// Shared hosted router only (BYO agents never reach routedProviderFor):
+// Nemotron Super reached as a FALLBACK asks for JSON content. When the agent's
+// configured model is not Super, a Super route in its chain can only be the
+// fallback after the primary (in practice Nano) failed or was deferred. As the
+// second and last attempt it cannot use the same-model content retry, and that
+// path was 91 of 110 model failures from 6 Oct 14:22Z to 7 Oct 00:29Z. The
+// model, key, parser, attempt budget and admission are unchanged.
+export function usesSuperFallbackJsonContent(
+  agent: AgentRow,
+  config: Config,
+  route: ModelRoute,
+): boolean {
+  return (
+    config.superFallbackJsonContentEnabled === true &&
+    !agent.brainKeyEnc &&
+    agent.modelName !== NEMOTRON_SUPER &&
+    route.provider === "nvidia" &&
+    route.model === NEMOTRON_SUPER &&
+    (route.baseUrl == null ||
+      route.baseUrl === "https://integrate.api.nvidia.com/v1")
+  );
+}
+
 // House-only, Super-only, time-boxed transport switch. Callers reach this
 // through the shared hosted router (never BYO). This includes Super reached as
 // a Nano fallback; other models keep their original transport. Evaluated for
@@ -296,6 +319,7 @@ function routedProviderFor(
       const routeKey = keyForRoute(route, nvidia, config);
       return options?.nemotronJsonContent === true ||
         usesHouseSuperJsonContent(agent, config, route) ||
+        usesSuperFallbackJsonContent(agent, config, route) ||
         usesCustomerSuperJsonContent(agent, config, route)
         ? providerForRoute(route, routeKey, fetch, {
             nemotronJsonContent: true,
