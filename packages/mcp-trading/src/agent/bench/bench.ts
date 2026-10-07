@@ -47,8 +47,8 @@ export const BASELINE_RANDOM = "baseline:random";
 /**
  * Mechanical PM baselines, one deterministic run per cassette each: the
  * market's own probability, an uninformative 50, and a seeded random
- * forecast (mechanical.ts). They need the market pass recording makes for
- * pm agents, so a futures/spot-only corpus has only baseline:skip.
+ * forecast (mechanical.ts). They need the recorded PM observation, so a
+ * futures/spot-only corpus has only baseline:skip.
  */
 export const MECHANICAL_BASELINES: ReadonlyArray<
   readonly [name: string, strategy: BenchmarkStrategy]
@@ -290,7 +290,7 @@ export function benchAssumptions(): Record<string, unknown> {
     clock:
       "Date.now = recording clock + real elapsed time, so data ages as recorded plus model latency",
     outcomeCutoff:
-      "asOf is the end of all recording reads, including baseline-only inputs; it is not the earlier trades sync cursor",
+      "asOf is the end of all recording reads; it is not the earlier trades sync cursor",
     pnlComparisons:
       "zero means a complete no-action cycle; cycles with missing inputs, runtime errors, or any unscored accepted action are excluded from paired PnL, with exclusion counts shown; all repeats of a cassette must qualify",
     inference:
@@ -343,10 +343,9 @@ export async function runBench(opts: RunBenchOptions): Promise<BenchReport> {
     }
     if (baselines) {
       rows.push(skipBaselineRow(cassette));
-      // Deterministic, so one run per cassette each. They read the house's
-      // curated PM board (the recorded opportunity set every variant saw,
-      // root 57171), never the uncurated board a live mechanical agent reads;
-      // still gated on the recording having made the baseline pass.
+      // Deterministic, so one run per cassette each. Use the recorded agent's
+      // board policy, not the replacement mechanical provider's policy.
+      // Originally mechanical recordings keep their uncurated board.
       if (cassette.marketBaselineRecorded)
         for (const [name, strategy] of MECHANICAL_BASELINES)
           rows.push(
@@ -358,7 +357,9 @@ export async function runBench(opts: RunBenchOptions): Promise<BenchReport> {
               "",
               SKIP_PROVIDER,
               labels,
-              { curatedPmBoard: true },
+              {
+                curatedPmBoard: cassette.spec.model?.provider !== "mechanical",
+              },
             ),
           );
     }

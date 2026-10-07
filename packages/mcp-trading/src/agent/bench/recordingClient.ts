@@ -20,6 +20,7 @@ import { Provider } from "../providers.js";
 import { runCycle } from "../runner.js";
 import { newState } from "../state.js";
 import { AgentSpec } from "../types.js";
+import { asObj } from "../extract.js";
 import {
   basePathOf,
   canonicalJson,
@@ -27,7 +28,6 @@ import {
   Cassette,
   CASSETTE_SCHEMA,
   cassetteId,
-  marketBaselineSpec,
   recordingSpec,
   RecordedResponse,
   sha256Hex,
@@ -173,10 +173,10 @@ export interface RecordCassetteOptions {
 
 /**
  * Record one cassette: run the real runCycle in DRY-RUN through a
- * RecordingClient with a brain that never calls a model, then (for an agent
- * with the pm venue) one more pass as the market-implied baseline so its
- * extra reads are in the same cassette. Each pass starts from a fresh run
- * state, exactly as every bench replay does, so request keys line up.
+ * RecordingClient with a brain that never calls a model, including the
+ * original PM board when the agent enables that venue.
+ * Baselines override the decision policy, not the recorded opportunity set,
+ * so no second pass or later market snapshot is needed.
  */
 export async function recordCassette(
   opts: RecordCassetteOptions,
@@ -198,22 +198,27 @@ export async function recordCassette(
     live: false,
     log: opts.log,
   });
-  client.recorder.freeze();
-
-  const marketBaselineRecorded = opts.spec.venues.includes("pm");
-  if (marketBaselineRecorded) {
-    clearPmCalibrationCache();
-    await runCycle({
-      client,
-      provider: SKIP_PROVIDER,
-      spec: marketBaselineSpec(opts.spec),
-      mergedProse: "",
-      state: newState(BENCH_RUN_ID),
-      live: false,
-    });
-  }
-
   const responses = client.recorder.responses();
+  const pmDiscovery = responses.filter(
+    (r) => r.path === "/api/agent/pm/discover",
+  );
+  // Keep the legacy field name, but never confuse "pm enabled" with a
+  // recorded PM observation. An empty successful board is valid; missing or
+  // failed reads and pre-observation exits are not baseline-ready.
+  const marketBaselineRecorded =
+    opts.spec.venues.includes("pm") &&
+    result.decisionInputRecord?.phase === "decision_input" &&
+    responses.some(
+      (r) =>
+        r.path === "/api/agent/positions/pm" &&
+        r.ok &&
+        Array.isArray(asObj(r.data).positions),
+    ) &&
+    pmDiscovery.length > 0 &&
+    pmDiscovery.every((r) => {
+      const body = asObj(r.data);
+      return r.ok && Array.isArray(body.data ?? body.markets ?? body.results);
+    });
   // A trades cursor predates subsequent reads. Scoring from it would allow
   // prices inside the input-collection window to count as future outcomes.
   const clockMs = Date.now();
