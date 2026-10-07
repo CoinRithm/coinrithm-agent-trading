@@ -135,8 +135,16 @@ export function carrySpecPath(
   else dst[last] = src;
 }
 
-/** Spec keys a deploy writes per user agent; a template update keeps them. */
-export const USER_DEPLOY_SPEC_KEYS = ["name", "venues", "forkedFrom"] as const;
+/** Spec keys a deploy writes per user agent; a template update keeps them.
+ * The live brain is carried whole: spec.model through the model-pin logic
+ * below and spec.paidBrain here, so a template refresh can never start, stop
+ * or reconfigure paid usage (root review of #114, Codex 56732). */
+export const USER_DEPLOY_SPEC_KEYS = [
+  "name",
+  "venues",
+  "forkedFrom",
+  "paidBrain",
+] as const;
 
 export interface RolloutPlanEntry {
   handle: string;

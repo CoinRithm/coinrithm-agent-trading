@@ -359,3 +359,48 @@ describe("user_default: reviewed deploy choices survive", () => {
     ).toThrow(/preserveSpecPaths is for user_default/);
   });
 });
+
+describe("user_default: the live brain is carried whole", () => {
+  it("keeps a live paidBrain exactly and never adds one from a template", async () => {
+    const paidBrain = {
+      modelId: "claude-sonnet-5-5",
+      monthlyCapUsd: 25,
+      onExhausted: "pause",
+      fallback: {
+        provider: "nvidia",
+        name: "nvidia/nemotron-3-super-120b-a12b",
+      },
+    };
+    const row = userRow({ spec: { ...userSpec, paidBrain } });
+    const db = fakeDb([row]);
+    await runHouseRollout(db.pool, plan(row), APPLY, {
+      loadBundle: () => ({
+        ...template,
+        spec: { ...template.spec, paidBrain: { modelId: "claude-opus-5-5" } },
+      }),
+      transaction: db.transaction,
+    });
+    const revision = db
+      .writes()
+      .find((w) =>
+        w.sql.includes("INSERT INTO agent_runtime.agent_revisions"),
+      )!;
+    expect(JSON.parse(String(revision.params[2])).paidBrain).toEqual(paidBrain);
+
+    const free = userRow();
+    const db2 = fakeDb([free]);
+    await runHouseRollout(db2.pool, plan(free), APPLY, {
+      loadBundle: () => ({
+        ...template,
+        spec: { ...template.spec, paidBrain: { modelId: "claude-opus-5-5" } },
+      }),
+      transaction: db2.transaction,
+    });
+    const rev2 = db2
+      .writes()
+      .find((w) =>
+        w.sql.includes("INSERT INTO agent_runtime.agent_revisions"),
+      )!;
+    expect(JSON.parse(String(rev2.params[2]))).not.toHaveProperty("paidBrain");
+  });
+});
