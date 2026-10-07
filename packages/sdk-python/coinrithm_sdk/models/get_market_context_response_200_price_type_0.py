@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 from collections.abc import Mapping
 from typing import Any, TypeVar, cast
 
@@ -20,6 +21,8 @@ class GetMarketContextResponse200PriceType0:
         change24h (float | None | Unset):
         change7d (float | None | Unset):
         market_cap_usd (float | None | Unset):
+        as_of (datetime.datetime | None | Unset): LivePrice row write time (an observation, not a trade); null without a
+            price row.
     """
 
     usd: float | Unset = UNSET
@@ -27,6 +30,7 @@ class GetMarketContextResponse200PriceType0:
     change24h: float | None | Unset = UNSET
     change7d: float | None | Unset = UNSET
     market_cap_usd: float | None | Unset = UNSET
+    as_of: datetime.datetime | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -56,6 +60,14 @@ class GetMarketContextResponse200PriceType0:
         else:
             market_cap_usd = self.market_cap_usd
 
+        as_of: None | str | Unset
+        if isinstance(self.as_of, Unset):
+            as_of = UNSET
+        elif isinstance(self.as_of, datetime.datetime):
+            as_of = self.as_of.isoformat()
+        else:
+            as_of = self.as_of
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update({})
@@ -69,6 +81,8 @@ class GetMarketContextResponse200PriceType0:
             field_dict["change7d"] = change7d
         if market_cap_usd is not UNSET:
             field_dict["marketCapUsd"] = market_cap_usd
+        if as_of is not UNSET:
+            field_dict["asOf"] = as_of
 
         return field_dict
 
@@ -113,12 +127,30 @@ class GetMarketContextResponse200PriceType0:
 
         market_cap_usd = _parse_market_cap_usd(d.pop("marketCapUsd", UNSET))
 
+        def _parse_as_of(data: object) -> datetime.datetime | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, str):
+                    raise TypeError()
+                as_of_type_0 = datetime.datetime.fromisoformat(data.replace("Z", "+00:00"))
+
+                return as_of_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(datetime.datetime | None | Unset, data)
+
+        as_of = _parse_as_of(d.pop("asOf", UNSET))
+
         get_market_context_response_200_price_type_0 = cls(
             usd=usd,
             change1h=change1h,
             change24h=change24h,
             change7d=change7d,
             market_cap_usd=market_cap_usd,
+            as_of=as_of,
         )
 
         get_market_context_response_200_price_type_0.additional_properties = d

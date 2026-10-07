@@ -46,6 +46,10 @@ export interface DecisionContext {
   // entry per accepted open, for risk.pmMaxOpenPerEvent. Optional so callers
   // without the per-event policy need not track it.
   pmEventsOpenedThisCycle?: string[];
+  // Coin horizons of pm_opens ACCEPTED earlier this cycle, one entry per
+  // accepted open with a known coin and plausible end, for
+  // risk.pmMaxOpenPerCoinHorizon. Optional like pmEventsOpenedThisCycle.
+  pmCoinHorizonsOpenedThisCycle?: PmCoinHorizon[];
   // Validation clock (epoch ms), injected by the runner at validation time,
   // AFTER the model call. Time-based rules use the later of this and
   // observation.asOf, so a slow model call cannot open inside a cutoff the
@@ -65,6 +69,45 @@ export function requiredGapEdgePoints(
   const room = 100 - entryPct;
   if (room <= 0) return gapPct > 0 ? Number.POSITIVE_INFINITY : 0;
   return (gapPct / 100) * room;
+}
+
+/** Ends within this of each other share a coin horizon (venue date splits). */
+export const PM_COIN_HORIZON_WINDOW_MS = 24 * 60 * 60 * 1000;
+/** An end beyond this is a venue sentinel, never a real horizon. */
+export const PM_PLAUSIBLE_END_MAX_MS = 5 * 365 * 24 * 60 * 60 * 1000;
+
+export interface PmCoinHorizon {
+  coins: string[];
+  endMs: number;
+}
+
+/** The later of observation.asOf and the validation clock, when known. */
+export function pmReferenceMs(asOf: string, nowMs?: number): number {
+  return Math.max(
+    ...[Date.parse(asOf), nowMs ?? NaN].filter((t) => Number.isFinite(t)),
+  );
+}
+
+/**
+ * The coin horizon of a market or held position, or null when it cannot be
+ * grouped: no linked coin, or an end that is missing, unparseable, not after
+ * the reference time, or more than 5 years after it (venue sentinels).
+ */
+export function pmCoinHorizonOf(
+  item: { coins?: string[]; endDate?: string },
+  refMs: number,
+): PmCoinHorizon | null {
+  const coins = item.coins ?? [];
+  if (coins.length === 0 || !item.endDate || !Number.isFinite(refMs))
+    return null;
+  const endMs = Date.parse(item.endDate);
+  if (
+    !Number.isFinite(endMs) ||
+    endMs <= refMs ||
+    endMs - refMs > PM_PLAUSIBLE_END_MAX_MS
+  )
+    return null;
+  return { coins, endMs };
 }
 
 /** Event key shared by pm_open actions, held positions and markets. */
@@ -652,6 +695,43 @@ export function validateAction(
           "pm_event_cap",
           `${held + thisCycle} open bet(s) on ${key} >= per-event cap ${perEventCap}`,
         );
+      }
+    }
+    const coinHorizonCap = spec.risk.pmMaxOpenPerCoinHorizon;
+    if (coinHorizonCap !== undefined) {
+      if (
+        typeof coinHorizonCap !== "number" ||
+        !Number.isInteger(coinHorizonCap) ||
+        coinHorizonCap < 1 ||
+        coinHorizonCap > 50
+      ) {
+        return fail(
+          "pm_coin_horizon_cap_invalid",
+          `risk.pmMaxOpenPerCoinHorizon ${JSON.stringify(coinHorizonCap)} is not a whole number from 1 to 50`,
+        );
+      }
+      const refMs = pmReferenceMs(observation.asOf, ctx.nowMs);
+      const candidate = pmCoinHorizonOf(mkt, refMs);
+      // Unknown coin or end: never grouped, never blocked.
+      if (candidate) {
+        const near = (endMs: number) =>
+          Math.abs(endMs - candidate.endMs) <= PM_COIN_HORIZON_WINDOW_MS;
+        for (const coin of candidate.coins) {
+          const held = observation.pmPositions.filter((p) => {
+            if ((p.status ?? "open") !== "open") return false;
+            const h = pmCoinHorizonOf(p, refMs);
+            return !!h && h.coins.includes(coin) && near(h.endMs);
+          }).length;
+          const thisCycle = (ctx.pmCoinHorizonsOpenedThisCycle ?? []).filter(
+            (h) => h.coins.includes(coin) && near(h.endMs),
+          ).length;
+          if (held + thisCycle >= coinHorizonCap) {
+            return fail(
+              "pm_coin_horizon_cap",
+              `${held + thisCycle} open bet(s) on ${coin} ending within 24 h of ${new Date(candidate.endMs).toISOString()} >= per-coin-horizon cap ${coinHorizonCap}`,
+            );
+          }
+        }
       }
     }
     const closeCutoff = spec.risk.pmMinMinutesToClose;

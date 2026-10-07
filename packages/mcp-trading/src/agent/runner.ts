@@ -47,6 +47,9 @@ import {
   isRiskIncreasingAction,
   DecisionContext,
   pmEventKey,
+  pmCoinHorizonOf,
+  pmReferenceMs,
+  type PmCoinHorizon,
 } from "./decisionValidator.js";
 import { resolvePmRef } from "./resolvePm.js";
 import { fetchQuote, executeAction } from "./act.js";
@@ -1222,6 +1225,7 @@ async function runCycleCore(
   const targetedPositionIds: number[] = [];
   const targetedOrderIds: number[] = [];
   const pmEventsOpenedThisCycle: string[] = [];
+  const pmCoinHorizonsOpenedThisCycle: PmCoinHorizon[] = [];
   let anyAccepted = false;
   let anyExecuted = false;
   let anyExecFailed = false;
@@ -1452,6 +1456,7 @@ async function runCycleCore(
       targetedPositionIds,
       targetedOrderIds,
       pmEventsOpenedThisCycle,
+      pmCoinHorizonsOpenedThisCycle,
       nowMs: Date.now(),
     };
     const v = validateAction(action, ctx);
@@ -1491,6 +1496,16 @@ async function runCycleCore(
     }
     if (action.type === "pm_open") {
       pmEventsOpenedThisCycle.push(pmEventKey(action.source, action.slug));
+      const opened = observation.pmMarkets.find(
+        (m) =>
+          m.source === action.source.toLowerCase() &&
+          m.slug === action.slug.toLowerCase() &&
+          m.outcomeExternalMarketId === action.outcomeExternalMarketId,
+      );
+      const horizon = opened
+        ? pmCoinHorizonOf(opened, pmReferenceMs(observation.asOf, ctx.nowMs))
+        : null;
+      if (horizon) pmCoinHorizonsOpenedThisCycle.push(horizon);
     }
     if (!live) {
       planned.push({

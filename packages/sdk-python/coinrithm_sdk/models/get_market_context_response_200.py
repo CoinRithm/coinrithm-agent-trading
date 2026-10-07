@@ -22,6 +22,11 @@ if TYPE_CHECKING:
     )
     from ..models.get_market_context_response_200_sentiment import GetMarketContextResponse200Sentiment
     from ..models.get_market_context_response_200_similar_coins_item import GetMarketContextResponse200SimilarCoinsItem
+    from ..models.market_defi_context import MarketDefiContext
+    from ..models.market_derivatives_context import MarketDerivativesContext
+    from ..models.market_funding_context import MarketFundingContext
+    from ..models.market_macro_context import MarketMacroContext
+    from ..models.spot_price_timing import SpotPriceTiming
 
 
 T = TypeVar("T", bound="GetMarketContextResponse200")
@@ -33,6 +38,16 @@ class GetMarketContextResponse200:
     Attributes:
         coin (GetMarketContextResponse200Coin | Unset):
         price (GetMarketContextResponse200PriceType0 | None | Unset):
+        price_timing (SpotPriceTiming | Unset): Source-vs-row timing of the spot price (optional: absent on older API
+            versions). Informational only: `freshness`, `eligible` and the write
+            path's mark guard still measure the row WRITE time and are unchanged.
+            `sourceObservedAt` is a venue snapshot/ticker time, NOT a last-trade
+            time and NOT a per-fill receipt.
+        funding (MarketFundingContext | None | Unset):
+        derivatives (MarketDerivativesContext | Unset): Optional on older APIs. Members are additive and may be absent
+            on older APIs; each can independently be null when unavailable or unusable.
+        macro (MarketMacroContext | None | Unset):
+        defi (MarketDefiContext | None | Unset):
         sentiment (GetMarketContextResponse200Sentiment | Unset):
         fear_greed (GetMarketContextResponse200FearGreedType0 | None | Unset):
         futures_entry_eligibility (GetMarketContextResponse200FuturesEntryEligibility | Unset): What the server entry
@@ -58,6 +73,11 @@ class GetMarketContextResponse200:
 
     coin: GetMarketContextResponse200Coin | Unset = UNSET
     price: GetMarketContextResponse200PriceType0 | None | Unset = UNSET
+    price_timing: SpotPriceTiming | Unset = UNSET
+    funding: MarketFundingContext | None | Unset = UNSET
+    derivatives: MarketDerivativesContext | Unset = UNSET
+    macro: MarketMacroContext | None | Unset = UNSET
+    defi: MarketDefiContext | None | Unset = UNSET
     sentiment: GetMarketContextResponse200Sentiment | Unset = UNSET
     fear_greed: GetMarketContextResponse200FearGreedType0 | None | Unset = UNSET
     futures_entry_eligibility: GetMarketContextResponse200FuturesEntryEligibility | Unset = UNSET
@@ -70,6 +90,9 @@ class GetMarketContextResponse200:
     def to_dict(self) -> dict[str, Any]:
         from ..models.get_market_context_response_200_fear_greed_type_0 import GetMarketContextResponse200FearGreedType0
         from ..models.get_market_context_response_200_price_type_0 import GetMarketContextResponse200PriceType0
+        from ..models.market_defi_context import MarketDefiContext
+        from ..models.market_funding_context import MarketFundingContext
+        from ..models.market_macro_context import MarketMacroContext
 
         coin: dict[str, Any] | Unset = UNSET
         if not isinstance(self.coin, Unset):
@@ -82,6 +105,38 @@ class GetMarketContextResponse200:
             price = self.price.to_dict()
         else:
             price = self.price
+
+        price_timing: dict[str, Any] | Unset = UNSET
+        if not isinstance(self.price_timing, Unset):
+            price_timing = self.price_timing.to_dict()
+
+        funding: dict[str, Any] | None | Unset
+        if isinstance(self.funding, Unset):
+            funding = UNSET
+        elif isinstance(self.funding, MarketFundingContext):
+            funding = self.funding.to_dict()
+        else:
+            funding = self.funding
+
+        derivatives: dict[str, Any] | Unset = UNSET
+        if not isinstance(self.derivatives, Unset):
+            derivatives = self.derivatives.to_dict()
+
+        macro: dict[str, Any] | None | Unset
+        if isinstance(self.macro, Unset):
+            macro = UNSET
+        elif isinstance(self.macro, MarketMacroContext):
+            macro = self.macro.to_dict()
+        else:
+            macro = self.macro
+
+        defi: dict[str, Any] | None | Unset
+        if isinstance(self.defi, Unset):
+            defi = UNSET
+        elif isinstance(self.defi, MarketDefiContext):
+            defi = self.defi.to_dict()
+        else:
+            defi = self.defi
 
         sentiment: dict[str, Any] | Unset = UNSET
         if not isinstance(self.sentiment, Unset):
@@ -128,6 +183,16 @@ class GetMarketContextResponse200:
             field_dict["coin"] = coin
         if price is not UNSET:
             field_dict["price"] = price
+        if price_timing is not UNSET:
+            field_dict["priceTiming"] = price_timing
+        if funding is not UNSET:
+            field_dict["funding"] = funding
+        if derivatives is not UNSET:
+            field_dict["derivatives"] = derivatives
+        if macro is not UNSET:
+            field_dict["macro"] = macro
+        if defi is not UNSET:
+            field_dict["defi"] = defi
         if sentiment is not UNSET:
             field_dict["sentiment"] = sentiment
         if fear_greed is not UNSET:
@@ -161,6 +226,11 @@ class GetMarketContextResponse200:
         from ..models.get_market_context_response_200_similar_coins_item import (
             GetMarketContextResponse200SimilarCoinsItem,
         )
+        from ..models.market_defi_context import MarketDefiContext
+        from ..models.market_derivatives_context import MarketDerivativesContext
+        from ..models.market_funding_context import MarketFundingContext
+        from ..models.market_macro_context import MarketMacroContext
+        from ..models.spot_price_timing import SpotPriceTiming
 
         d = dict(src_dict)
         _coin = d.pop("coin", UNSET)
@@ -186,6 +256,71 @@ class GetMarketContextResponse200:
             return cast(GetMarketContextResponse200PriceType0 | None | Unset, data)
 
         price = _parse_price(d.pop("price", UNSET))
+
+        _price_timing = d.pop("priceTiming", UNSET)
+        price_timing: SpotPriceTiming | Unset
+        if isinstance(_price_timing, Unset):
+            price_timing = UNSET
+        else:
+            price_timing = SpotPriceTiming.from_dict(_price_timing)
+
+        def _parse_funding(data: object) -> MarketFundingContext | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                funding_type_0 = MarketFundingContext.from_dict(data)
+
+                return funding_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(MarketFundingContext | None | Unset, data)
+
+        funding = _parse_funding(d.pop("funding", UNSET))
+
+        _derivatives = d.pop("derivatives", UNSET)
+        derivatives: MarketDerivativesContext | Unset
+        if isinstance(_derivatives, Unset):
+            derivatives = UNSET
+        else:
+            derivatives = MarketDerivativesContext.from_dict(_derivatives)
+
+        def _parse_macro(data: object) -> MarketMacroContext | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                macro_type_0 = MarketMacroContext.from_dict(data)
+
+                return macro_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(MarketMacroContext | None | Unset, data)
+
+        macro = _parse_macro(d.pop("macro", UNSET))
+
+        def _parse_defi(data: object) -> MarketDefiContext | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                defi_type_0 = MarketDefiContext.from_dict(data)
+
+                return defi_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(MarketDefiContext | None | Unset, data)
+
+        defi = _parse_defi(d.pop("defi", UNSET))
 
         _sentiment = d.pop("sentiment", UNSET)
         sentiment: GetMarketContextResponse200Sentiment | Unset
@@ -257,6 +392,11 @@ class GetMarketContextResponse200:
         get_market_context_response_200 = cls(
             coin=coin,
             price=price,
+            price_timing=price_timing,
+            funding=funding,
+            derivatives=derivatives,
+            macro=macro,
+            defi=defi,
             sentiment=sentiment,
             fear_greed=fear_greed,
             futures_entry_eligibility=futures_entry_eligibility,

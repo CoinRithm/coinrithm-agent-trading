@@ -173,6 +173,12 @@ export function buildSpec(raw: Record<string, unknown>): AgentSpec {
               risk.pmMaxOpenPerEvent as AgentSpec["risk"]["pmMaxOpenPerEvent"],
           }
         : {}),
+      ...(risk.pmMaxOpenPerCoinHorizon !== undefined
+        ? {
+            pmMaxOpenPerCoinHorizon:
+              risk.pmMaxOpenPerCoinHorizon as AgentSpec["risk"]["pmMaxOpenPerCoinHorizon"],
+          }
+        : {}),
       ...(risk.pmMinMinutesToClose !== undefined
         ? {
             pmMinMinutesToClose:

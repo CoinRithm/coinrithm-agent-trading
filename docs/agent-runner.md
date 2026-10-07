@@ -466,7 +466,9 @@ position (wallet provisioning and the rejection audit still run). Absent means
 no floor. Three more optional PM dials are enforced the same way (preflight
 only): `risk.pmMinEdgeGapPct` (forecast must beat the fee-inclusive cost by that
 % of the room left to 100, and a forecast becomes mandatory),
-`risk.pmMaxOpenPerEvent` (open bets per event, held plus this cycle) and
+`risk.pmMaxOpenPerEvent` (open bets per event, held plus this cycle),
+`risk.pmMaxOpenPerCoinHorizon` (open bets on one coin whose events end within
+24 h of each other, across events; unknown coin or end never blocks) and
 `risk.pmMinMinutesToClose` (skip markets whose known close is too near). The **hosted** scheduler (running this same agent spec for you,
 managed) is built and available — see `packages/scheduler/` and its README for
 the DB-driven, stateless, at-most-once-per-window runtime. This doc covers the

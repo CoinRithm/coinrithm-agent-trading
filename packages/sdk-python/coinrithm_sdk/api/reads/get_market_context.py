@@ -83,7 +83,11 @@ def sync_detailed(
 
      Price + 1h/24h/7d change + market cap, per-coin sentiment, the global
     Fear & Greed value, and up to 3 directly-related OPEN prediction markets
-    (leading outcome + probability). All from CoinRithm's own data; no
+    (leading outcome + probability). Optional context includes source price
+    timing, perpetual funding, open interest, positioning, captured
+    liquidations, observed order-book depth, macro derivative proxies and
+    DeFi. Each block has its own coverage and time basis; response `asOf`
+    does not make every input fresh. All from CoinRithm's stored data; no
     generated thesis. Requires scope `read`.
 
     Args:
@@ -117,7 +121,11 @@ def sync(
 
      Price + 1h/24h/7d change + market cap, per-coin sentiment, the global
     Fear & Greed value, and up to 3 directly-related OPEN prediction markets
-    (leading outcome + probability). All from CoinRithm's own data; no
+    (leading outcome + probability). Optional context includes source price
+    timing, perpetual funding, open interest, positioning, captured
+    liquidations, observed order-book depth, macro derivative proxies and
+    DeFi. Each block has its own coverage and time basis; response `asOf`
+    does not make every input fresh. All from CoinRithm's stored data; no
     generated thesis. Requires scope `read`.
 
     Args:
@@ -146,7 +154,11 @@ async def asyncio_detailed(
 
      Price + 1h/24h/7d change + market cap, per-coin sentiment, the global
     Fear & Greed value, and up to 3 directly-related OPEN prediction markets
-    (leading outcome + probability). All from CoinRithm's own data; no
+    (leading outcome + probability). Optional context includes source price
+    timing, perpetual funding, open interest, positioning, captured
+    liquidations, observed order-book depth, macro derivative proxies and
+    DeFi. Each block has its own coverage and time basis; response `asOf`
+    does not make every input fresh. All from CoinRithm's stored data; no
     generated thesis. Requires scope `read`.
 
     Args:
@@ -178,7 +190,11 @@ async def asyncio(
 
      Price + 1h/24h/7d change + market cap, per-coin sentiment, the global
     Fear & Greed value, and up to 3 directly-related OPEN prediction markets
-    (leading outcome + probability). All from CoinRithm's own data; no
+    (leading outcome + probability). Optional context includes source price
+    timing, perpetual funding, open interest, positioning, captured
+    liquidations, observed order-book depth, macro derivative proxies and
+    DeFi. Each block has its own coverage and time basis; response `asOf`
+    does not make every input fresh. All from CoinRithm's stored data; no
     generated thesis. Requires scope `read`.
 
     Args:
