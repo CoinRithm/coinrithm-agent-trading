@@ -61,6 +61,14 @@ class PmPosition:
             current_probability (float | None | Unset): list endpoint, open only; 0..100
             unrealized_mark (float | None | Unset):
             unrealized_pnl (float | None | Unset):
+            related_coins (list[str] | Unset): List endpoint, open positions only: slugs of the coins the event is
+                DIRECTLY about (admin-rejected links excluded), sorted; empty = no
+                linked coin. Omitted when it could not be read (treat as unknown).
+            event_end_date (datetime.datetime | None | Unset): List endpoint, open positions only: the venue's own event end
+                date,
+                passed through unchanged. Venues publish null or sentinel values,
+                so treat implausible dates as unknown. Omitted when it could not be
+                read.
     """
 
     id: int | Unset = UNSET
@@ -91,6 +99,8 @@ class PmPosition:
     current_probability: float | None | Unset = UNSET
     unrealized_mark: float | None | Unset = UNSET
     unrealized_pnl: float | None | Unset = UNSET
+    related_coins: list[str] | Unset = UNSET
+    event_end_date: datetime.datetime | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -217,6 +227,18 @@ class PmPosition:
         else:
             unrealized_pnl = self.unrealized_pnl
 
+        related_coins: list[str] | Unset = UNSET
+        if not isinstance(self.related_coins, Unset):
+            related_coins = self.related_coins
+
+        event_end_date: None | str | Unset
+        if isinstance(self.event_end_date, Unset):
+            event_end_date = UNSET
+        elif isinstance(self.event_end_date, datetime.datetime):
+            event_end_date = self.event_end_date.isoformat()
+        else:
+            event_end_date = self.event_end_date
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update({})
@@ -276,6 +298,10 @@ class PmPosition:
             field_dict["unrealizedMark"] = unrealized_mark
         if unrealized_pnl is not UNSET:
             field_dict["unrealizedPnl"] = unrealized_pnl
+        if related_coins is not UNSET:
+            field_dict["relatedCoins"] = related_coins
+        if event_end_date is not UNSET:
+            field_dict["eventEndDate"] = event_end_date
 
         return field_dict
 
@@ -480,6 +506,25 @@ class PmPosition:
 
         unrealized_pnl = _parse_unrealized_pnl(d.pop("unrealizedPnl", UNSET))
 
+        related_coins = cast(list[str], d.pop("relatedCoins", UNSET))
+
+        def _parse_event_end_date(data: object) -> datetime.datetime | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, str):
+                    raise TypeError()
+                event_end_date_type_0 = datetime.datetime.fromisoformat(data.replace("Z", "+00:00"))
+
+                return event_end_date_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(datetime.datetime | None | Unset, data)
+
+        event_end_date = _parse_event_end_date(d.pop("eventEndDate", UNSET))
+
         pm_position = cls(
             id=id,
             status=status,
@@ -509,6 +554,8 @@ class PmPosition:
             current_probability=current_probability,
             unrealized_mark=unrealized_mark,
             unrealized_pnl=unrealized_pnl,
+            related_coins=related_coins,
+            event_end_date=event_end_date,
         )
 
         pm_position.additional_properties = d
