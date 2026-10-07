@@ -7,6 +7,14 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
 ## 0.7.16 (unpublished)
 
+- Add optional per-agent `signals` thresholds (`rsiOversold`, `rsiOverbought`,
+  `strongMovePct`, `leanMovePct`, `minStrength`) and a `data.indicatorRange`
+  data diet (`1D` 5m bars, `1W` 15m, `1M` 1h, `3M` 4h). They change the setup
+  shortlist AND the gate that decides when the model is called, so personality
+  changes what an agent notices. Absent blocks keep the previous constants and
+  the 1D range exactly. Both are validated fail-closed, strict-linted and
+  `$ref`-able; the prompt names the agent's bar size and RSI levels.
+
 - Keep repeated provider 404/410 availability failures out of the generic model
   failure kill-switch. BYO and self-hosted agents retain their configured model
   and provider holds without entering a disable/revive loop. Transient failures

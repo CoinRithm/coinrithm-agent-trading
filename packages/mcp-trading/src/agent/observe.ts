@@ -2,6 +2,12 @@
 // before any write (polledBeforeWrite=true only after that succeeds). If a
 // required read fails, or no watchlist symbol resolves, the cycle SKIPS writes.
 
+import {
+  INDICATOR_RANGES,
+  indicatorRangeOf,
+  signalThresholdsOf,
+  type IndicatorRange,
+} from "./signals.js";
 import { futuresEntryEligibilityOf } from "./futuresEligibility.js";
 import { CoinRithmClient } from "./client.js";
 import {
@@ -466,10 +472,9 @@ export async function readPmCalibration(
   }
 }
 
-// The 1D endpoint nominally returns 288 five-minute bars. Timestamps and gaps
-// are checked separately; requesting this range does not establish freshness.
-const INDICATOR_RANGE = "1D";
-const INDICATOR_INTERVAL_SECONDS = 300;
+// The candle range is the agent's data diet (spec.data.indicatorRange, default
+// 1D = 288 five-minute bars; 1W = 15m, 1M = 1h, 3M = 4h). Timestamps and gaps
+// are checked separately; requesting a range does not establish freshness.
 
 // `universe_scan` bounds: how many top movers to pull, and how many of those
 // to fully resolve into tradable watch entries (each resolved row costs a
@@ -571,7 +576,10 @@ function candleTimestamp(value: unknown): number | undefined {
     : undefined;
 }
 
-function candleIntervals(times: Array<number | undefined>) {
+function candleIntervals(
+  times: Array<number | undefined>,
+  intervalSeconds: number,
+) {
   let timestampedBarCount = 0;
   let checkedIntervalCount = 0;
   let irregularIntervalCount = 0;
@@ -584,7 +592,7 @@ function candleIntervals(times: Array<number | undefined>) {
     if (previous === undefined) continue;
     const gap = current - previous;
     checkedIntervalCount++;
-    if (gap !== INDICATOR_INTERVAL_SECONDS) irregularIntervalCount++;
+    if (gap !== intervalSeconds) irregularIntervalCount++;
     maxGapSeconds = Math.max(maxGapSeconds ?? 0, gap);
   }
   const intervalStatus: IndicatorContext["intervalStatus"] =
@@ -610,14 +618,16 @@ function candleIntervals(times: Array<number | undefined>) {
 async function fetchCandleContext(
   client: CoinRithmClient,
   coinId: string,
+  range: IndicatorRange,
   trace?: AgentTrace,
 ): Promise<CandleContext> {
+  const intervalSeconds = INDICATOR_RANGES[range];
   // The try honors the documented tolerance for SYNCHRONOUS throws too (an
   // unexpected client error must degrade to price-only context, never kill
   // the cycle).
   let cr: Awaited<ReturnType<CoinRithmClient["candles"]>>;
   try {
-    cr = await client.candles(coinId, INDICATOR_RANGE, trace);
+    cr = await client.candles(coinId, range, trace);
   } catch {
     return { indicators: null };
   }
@@ -648,13 +658,13 @@ async function fetchCandleContext(
         : undefined;
   }
   const latestTime = times.at(-1);
-  const recent = candleIntervals(times.slice(-15));
+  const recent = candleIntervals(times.slice(-15), intervalSeconds);
   return {
     indicators: computeIndicators(candles),
     indicatorContext: {
-      range: INDICATOR_RANGE,
-      nominalIntervalSeconds: INDICATOR_INTERVAL_SECONDS,
-      ...candleIntervals(times),
+      range,
+      nominalIntervalSeconds: intervalSeconds,
+      ...candleIntervals(times, intervalSeconds),
       ...(latestTime === undefined
         ? {}
         : { asOf: new Date(latestTime * 1000).toISOString() }),
@@ -695,9 +705,10 @@ async function enrichFromCandles(
   client: CoinRithmClient,
   entry: WatchEntry,
   coinId: string,
+  range: IndicatorRange,
   trace?: AgentTrace,
 ): Promise<void> {
-  const cc = await fetchCandleContext(client, coinId, trace);
+  const cc = await fetchCandleContext(client, coinId, range, trace);
   if (cc.indicators) entry.indicators = cc.indicators;
   if (cc.indicatorContext) entry.indicatorContext = cc.indicatorContext;
   if (cc.volume24hUsd != null) {
@@ -1069,7 +1080,14 @@ export async function observe(
     // `indicators` capability: enrich the observation with computed TA so the
     // model reasons over structure (trend/momentum/volatility/breakout) instead
     // of price + %change alone. Backed by the candles endpoint's shared cache.
-    if (wantIndicators) await enrichFromCandles(client, entry, coinId, trace);
+    if (wantIndicators)
+      await enrichFromCandles(
+        client,
+        entry,
+        coinId,
+        indicatorRangeOf(spec),
+        trace,
+      );
     watch.push(entry);
   }
 
@@ -1146,7 +1164,13 @@ export async function observe(
         const fundamentals = coinFundamentalsOf(m);
         if (fundamentals) entry.fundamentals = fundamentals;
         if (wantIndicators)
-          await enrichFromCandles(client, entry, coinId, trace);
+          await enrichFromCandles(
+            client,
+            entry,
+            coinId,
+            indicatorRangeOf(spec),
+            trace,
+          );
         watch.push(entry);
       }
       const context = rows
@@ -1466,7 +1490,7 @@ export async function observe(
     // model acts on these instead of re-deciding "is there a setup?" from scratch.
     // openPositions are passed so setups on a held symbol are tagged "manage,
     // don't re-open".
-    setups: scanSetups(watch, openPositions),
+    setups: scanSetups(watch, openPositions, signalThresholdsOf(spec)),
     marketMood,
     syncCursor,
     newClosedTrades,

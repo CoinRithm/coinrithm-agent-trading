@@ -257,6 +257,10 @@ export interface AgentSpec {
   capabilities: Capability[];
   // Slice-2 gate policy (OKF intent). Omitted => DEFAULT_TRIGGER_POLICY.
   triggerPolicy?: TriggerPolicy;
+  // What counts as a signal for THIS agent (signals.ts); omitted = defaults.
+  signals?: Partial<import("./signals.js").SignalThresholds>;
+  // Data diet: the indicator candle range (signals.ts); omitted = 1D (5m bars).
+  data?: { indicatorRange?: import("./signals.js").IndicatorRange };
 }
 
 export interface ParsedSkill {
@@ -290,9 +294,9 @@ export interface Freshness {
 }
 
 export interface IndicatorContext {
-  range: "1D";
+  range: import("./signals.js").IndicatorRange;
   // Endpoint cadence, not a promise that all returned bars have this spacing.
-  nominalIntervalSeconds: 300;
+  nominalIntervalSeconds: number;
   // Counts refer only to OHLC bars accepted by the indicator calculation.
   barCount: number;
   timestampedBarCount: number;

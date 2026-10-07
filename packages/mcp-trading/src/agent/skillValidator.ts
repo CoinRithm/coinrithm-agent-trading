@@ -10,6 +10,7 @@ import {
   ALLOWED_CAPABILITIES,
 } from "./types.js";
 import { parseCadenceMs, scanForSecrets } from "./util.js";
+import { signalIssues } from "./signals.js";
 import { entryPredicateIssues } from "./entryPredicates.js";
 
 // Fail-closed skill validator. Unlike the per-decision gate (first-failure),
@@ -158,6 +159,10 @@ export function validateSkill(
         );
     }
   }
+
+  // Signal thresholds and data diet (optional).
+  for (const [code, reason] of signalIssues(raw.signals, raw.data))
+    add(code, reason);
 
   // Risk — always required
   if (!isObj(raw.risk)) {

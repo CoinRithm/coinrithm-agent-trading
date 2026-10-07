@@ -5,6 +5,7 @@
 // The model only PROPOSES — the runner re-checks every action against the caps,
 // so the prompt states the caps but never relies on the model to honor them.
 
+import { barLabel, indicatorRangeOf, signalThresholdsOf } from "./signals.js";
 import { AgentSpec, Observation, PmResolution, RunState } from "./types.js";
 import { pmQualityOf, pmDecisionSupportOf } from "./pmContext.js";
 import { usesCapitalSizing } from "./capitalSizing.js";
@@ -261,9 +262,9 @@ export function buildSystemPrompt(
     ...(spec.capabilities.includes("indicators")
       ? [
           "",
-          "## Signals — each watch entry may carry `indicators` (nominal five-minute candles)",
-          "- `indicatorContext` reports accepted candle counts, source `asOf` and intervalStatus (regular/irregular/unknown); compare its asOf with observation.asOf for age. /market freshness is separate. nominalIntervalSeconds=300 does not prove fresh, continuous candles. Missing timestamps are unknown; stale, future-dated or irregular candles do not establish a current five-minute signal. `recent15` describes only recent spacing; Wilder atr14 also retains earlier history, so recent regularity does not erase older gaps.",
-          "- rsi14: momentum (>70 overbought, <30 oversold); ema20 & ema50: trend; atr14: volatility (size stops off it); bollinger {upper,mid,lower}; recent20 {high,low}: breakout levels.",
+          `## Signals — each watch entry may carry \`indicators\` (nominal ${barLabel(indicatorRangeOf(spec))} candles)`,
+          "- `indicatorContext` reports accepted candle counts, source `asOf` and intervalStatus (regular/irregular/unknown); compare its asOf with observation.asOf for age. /market freshness is separate. nominalIntervalSeconds does not prove fresh, continuous candles. Missing timestamps are unknown; stale, future-dated or irregular candles do not establish a current signal. `recent15` describes only recent spacing; Wilder atr14 also retains earlier history, so recent regularity does not erase older gaps.",
+          `- rsi14: momentum (this agent flags overbought at ${signalThresholdsOf(spec).rsiOverbought} and oversold at ${signalThresholdsOf(spec).rsiOversold}); ema20 & ema50: trend; atr14: volatility (size stops off it); bollinger {upper,mid,lower}; recent20 {high,low}: breakout levels.`,
           "- boolean reads: aboveEma20, ema20AboveEma50 (uptrend when both true), brokeRecentHigh (breakout), brokeRecentLow (breakdown).",
           "- a null field = not enough data; ignore it. These INFORM your decision; they never widen a cap.",
         ]
