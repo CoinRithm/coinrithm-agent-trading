@@ -20,6 +20,14 @@
 // - Before the first call it refuses when the planned worst case
 //   (cassettes x variants x repeats) exceeds the cap, or when the route is
 //   already cooling down.
+// - Preflight also requires the key the bench uses (id 0 -> nvidia:shared:0,
+//   shared with every even-id live agent) to hold at least
+//   KEY_HEADROOM_MIN tokens right now, with no debt.
+// - Decision rule, fixed before any run: at most 20 decisions (40 calls /
+//   2 attempts) can show JSON validity, reject codes and whether the
+//   variants' decisions diverge beyond repeat noise. They never rank
+//   variants by P&L, edge or calibration; outward use says "N snapshots,
+//   behavioural only" (PAIRED-PROPOSAL section 6-7).
 // - The bench itself refuses every write and starts each cycle from a fresh
 //   state (coinrithm-agent bench). Secrets come from the scheduler env only;
 //   nothing is printed but counts.
@@ -34,6 +42,12 @@ import { createPool } from "../dist/db.js";
 import { benchRoutedProvider } from "../dist/runtime.js";
 import { BENCH_MAX_CALLS, createBenchGuard } from "../dist/benchGuard.js";
 import { MAX_ROUTE_ATTEMPTS } from "../dist/route.js";
+
+/** nvidia:shared:0 must hold at least this many tokens (half its 100k
+ *  bucket) before the first call, and no debt. */
+export const KEY_HEADROOM_MIN = 50_000;
+export const DECISION_RULE =
+  "behavioural only: JSON validity, reject codes and decision divergence beyond repeat noise; never a P&L, edge or calibration ranking";
 
 const argv = process.argv.slice(2);
 const one = (name) => {
@@ -92,6 +106,20 @@ async function main() {
         WHERE route_key LIKE 'nvidia:shared:%' AND blocked_until > clock_timestamp()`,
       [models],
     );
+    const key0 = await pool.query(
+      `SELECT model_tokens::float8 AS stored,
+              LEAST(model_rate_per_min::float8,
+                    model_tokens + model_rate_per_min *
+                      GREATEST(0, EXTRACT(EPOCH FROM clock_timestamp() - last_refill_at)) / 60.0
+              )::float8 AS available
+         FROM agent_runtime.provider_capacity_buckets
+        WHERE route_key = 'nvidia:shared:0'`,
+    );
+    const k = key0.rows[0];
+    if (!k || k.stored < 0 || k.available < KEY_HEADROOM_MIN)
+      throw new Error(
+        `nvidia:shared:0 headroom too low now (available ${Math.round(k?.available ?? 0)}, stored ${Math.round(k?.stored ?? 0)}; need >= ${KEY_HEADROOM_MIN} and no debt); not starting`,
+      );
     if (rows.some((r) => r.n > 0))
       throw new Error(
         `a variant model (${models.join(", ")}) or an NVIDIA key is cooling down now; not starting`,
@@ -121,6 +149,7 @@ async function main() {
       providerFor,
     });
     for (const line of result.lines) console.log(line);
+    console.log(`[bench-admitted] decision rule: ${DECISION_RULE}`);
     const receipt = {
       schema: "coinrithm.bench.admitted-run.v1",
       startedAt,
@@ -130,6 +159,7 @@ async function main() {
       minIntervalMs,
       decisions,
       upperBound,
+      decisionRule: DECISION_RULE,
       guard: guard.state,
       ok: result.ok,
     };
