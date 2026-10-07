@@ -1035,11 +1035,9 @@ describe("paid brain credit ledger helpers", () => {
   };
 
   it("reads the balance and this agent's month spend in one query", async () => {
-    const query = vi
-      .fn()
-      .mockResolvedValue({
-        rows: [{ balance: "947200", month_spend: "52800" }],
-      });
+    const query = vi.fn().mockResolvedValue({
+      rows: [{ balance: "947200", month_spend: "52800" }],
+    });
     const pool = { query } as unknown as Pool;
     const since = new Date(Date.UTC(2026, 9, 1));
     expect(await readCreditPosition(pool, 19, 42, since)).toEqual({
