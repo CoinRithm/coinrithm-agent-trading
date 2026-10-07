@@ -19,8 +19,8 @@ export interface ProviderCapacityLimit {
    * Owner buckets only (009_capacity_waiters.sql): who is asking. A requester
    * denied for token budget becomes the bucket's single waiter; while the
    * claim is live, the owner's other requesters may only spend tokens beyond
-   * its need, so its rescheduled retry finds the refill instead of the same
-   * agent losing every cycle. ttlSeconds is the upper bound of the claim.
+   * its need, so its bounded in-cycle re-admission finds the refill instead of
+   * the same agent losing every cycle. ttlSeconds bounds the claim.
    */
   waiter?: { key: string; ttlSeconds: number };
 }
@@ -48,8 +48,8 @@ export type ProviderCapacityReservation =
 
 /** A waiter never holds an owner bucket longer than this, retries included. */
 export const MAX_WAITER_TTL_SECONDS = 900;
-/** Claim slack past the waiter's own refill wait: its retry jitter and run. */
-export const WAITER_RETRY_SLACK_SECONDS = 45;
+/** Claim slack past the waiter's own refill wait (its in-cycle re-admission). */
+export const WAITER_RETRY_SLACK_SECONDS = 15;
 
 function positiveInt(value: number, name: string): number {
   if (!Number.isFinite(value) || value < 1) {
@@ -217,7 +217,7 @@ export async function reserveProviderCapacity(
        ), queued AS (
          -- A token-budget denial makes this requester the waiter unless another
          -- live claim holds the bucket. The claim covers the requester's own
-         -- refill wait plus slack (its rescheduled retry), never more than
+         -- refill wait plus slack (its in-cycle re-admission), never more than
          -- ttlSeconds, and is fixed at the first wait: the claimant's later
          -- denials refresh only its need, never its age or expiry. Tokens,
          -- refill time and leases are untouched, as for any other denial.
@@ -299,6 +299,24 @@ export async function reserveProviderCapacity(
   } finally {
     client.release();
   }
+}
+
+/**
+ * End an owner-bucket claim at once (a cycle that cannot wait for its refill,
+ * or that stopped waiting). Only the named claimant's own claim is removed.
+ */
+export async function releaseOwnerClaim(
+  pool: Pool,
+  routeKey: string,
+  waiterKey: string,
+): Promise<void> {
+  await pool.query(
+    `UPDATE agent_runtime.provider_capacity_buckets
+        SET waiter_key = NULL, waiter_tokens = NULL, waiter_since = NULL,
+            waiter_expires_at = NULL, updated_at = clock_timestamp()
+      WHERE route_key = $1 AND waiter_key = $2`,
+    [routeKey, waiterKey],
+  );
 }
 
 /**

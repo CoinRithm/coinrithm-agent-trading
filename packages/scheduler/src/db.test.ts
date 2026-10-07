@@ -26,40 +26,9 @@ import {
   SHARED_CADENCE_TARGET_RPM,
   EOL_MODEL_SUCCESSORS,
   type CycleRecord,
-  activeSharedAgentCount,
-  resetActiveSharedAgentCount,
+  agentStillSharedEligible,
 } from "./db.js";
 import { paidBrainModel, priceRowAt } from "./paidBrain.js";
-
-describe("activeSharedAgentCount (owner waiter TTL input)", () => {
-  afterEach(() => resetActiveSharedAgentCount());
-
-  it("reads once a minute and keeps the last value when a read fails", async () => {
-    const query = vi
-      .fn()
-      .mockResolvedValueOnce({ rows: [{ n: 44 }] })
-      .mockRejectedValueOnce(new Error("db down"));
-    const pool = { query } as unknown as Pool;
-    expect(await activeSharedAgentCount(pool, 1_000)).toBe(44);
-    expect(await activeSharedAgentCount(pool, 30_000)).toBe(44);
-    expect(query).toHaveBeenCalledTimes(1);
-    expect(await activeSharedAgentCount(pool, 62_000)).toBe(44);
-    expect(query).toHaveBeenCalledTimes(2);
-    expect(String(query.mock.calls[0]?.[0])).toContain("brain_key_enc IS NULL");
-  });
-
-  it("never blocks admission on a first failed read", async () => {
-    const pool = {
-      query: vi.fn().mockRejectedValue(new Error("db down")),
-    } as unknown as Pool;
-    expect(await activeSharedAgentCount(pool, 1_000)).toBe(0);
-    const empty = { query: vi.fn().mockResolvedValue({ rows: [] }) };
-    resetActiveSharedAgentCount();
-    expect(await activeSharedAgentCount(empty as unknown as Pool, 1_000)).toBe(
-      0,
-    );
-  });
-});
 
 describe.each(["recordCycle", "persistCycleResult"] as const)(
   "%s model diagnostic persistence boundary",
@@ -956,34 +925,30 @@ describe("provider circuits — reliability slice 1 (never disable on provider f
   });
 });
 
-describe("owner-deferral retry scheduling", () => {
-  const persistWith = async (retryInSeconds?: number) => {
-    const query = vi.fn().mockResolvedValue({ rows: [], rowCount: 1 });
-    const client = { query, release: vi.fn() };
-    const pool = {
-      connect: vi.fn().mockResolvedValue(client),
-      query,
-    } as unknown as Pool;
-    await persistCycleResult(pool, 42, {
-      state: {} as never,
-      cycle: { decision: "skip" } as never,
-      retryInSeconds,
-    });
-    return query.mock.calls
-      .map((c) => [String(c[0]), c[1]] as [string, unknown[]])
-      .find(([sql]) => sql.includes("SET next_run_at"))!;
-  };
+describe("agentStillSharedEligible (after an owner-refill wait)", () => {
+  it("dispatches only an active shared agent on its unchanged model", async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{}], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockRejectedValueOnce(new Error("db down"));
+    const pool = { query } as unknown as Pool;
+    expect(await agentStillSharedEligible(pool, 7, "m")).toBe(true);
+    expect(await agentStillSharedEligible(pool, 7, "m")).toBe(false);
+    // A failed read never lets a stale route dispatch.
+    expect(await agentStillSharedEligible(pool, 7, "m")).toBe(false);
+    const [sql, params] = query.mock.calls[0] as [string, unknown[]];
+    expect(sql).toContain("status = 'active'");
+    expect(sql).toContain("brain_key_enc IS NULL");
+    expect(sql).toContain("model_name = $2");
+    expect(params).toEqual([7, "m"]);
+  });
 
-  it("never schedules later than the grid slot, and only for a bounded retry", async () => {
-    const [sql, params] = await persistWith(7);
-    expect(sql).toContain("LEAST(");
-    expect(sql).toContain("now() + make_interval(secs => $2::int)");
-    expect(params).toEqual([42, 7]);
-    for (const invalid of [undefined, 0, -3, 3601, 2.5, NaN]) {
-      const [plain, p] = await persistWith(invalid);
-      expect(plain).not.toContain("LEAST(");
-      expect(p).toEqual([42]);
-    }
+  it("reads rows when the driver reports no rowCount", async () => {
+    const pool = {
+      query: vi.fn().mockResolvedValue({ rows: [{}] }),
+    } as unknown as Pool;
+    expect(await agentStillSharedEligible(pool, 1, "m")).toBe(true);
   });
 });
 

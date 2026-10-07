@@ -400,3 +400,94 @@ describe("shared Super malformed tool recovery", () => {
     expect(h.hooks.release).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("first-attempt owner refill wait (owner fairness, 009)", () => {
+  afterEach(() => vi.useRealTimers());
+  const ownerDenial = (retryAfterMs: number, reasons = ["token_budget"]) => ({
+    ok: false as const,
+    scope: "owner" as const,
+    admissionReasons: reasons as ("token_budget" | "request_budget")[],
+    retryAfterMs,
+  });
+
+  it("waits once for the owner refill, re-checks eligibility and re-admits", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const h = harness([good], [superRoute], () => Date.now());
+    h.hooks.stillEligible = vi.fn(async () => true);
+    h.hooks.abandonOwnerWait = vi.fn(async () => {});
+    vi.mocked(h.hooks.acquire)
+      .mockResolvedValueOnce(ownerDenial(6133))
+      .mockResolvedValueOnce({ ok: true, lease: "after-wait" });
+    const pending = h.provider.decide({ ...input, timeoutMs: 100000 });
+    await vi.advanceTimersByTimeAsync(6132);
+    expect(h.build).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    const result = await pending;
+    expect(result.ok).toBe(true);
+    expect(h.hooks.stillEligible).toHaveBeenCalledOnce();
+    expect(h.hooks.acquire).toHaveBeenCalledTimes(2);
+    expect(h.build).toHaveBeenCalledOnce();
+    expect(h.hooks.abandonOwnerWait).not.toHaveBeenCalled();
+    expect(result.route.attempts).toHaveLength(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("does not dispatch a paused or switched agent after waiting; ends its claim", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const h = harness([good], [superRoute], () => Date.now());
+    h.hooks.stillEligible = vi.fn(async () => false);
+    h.hooks.abandonOwnerWait = vi.fn(async () => {});
+    vi.mocked(h.hooks.acquire).mockResolvedValueOnce(ownerDenial(5000));
+    const pending = h.provider.decide({ ...input, timeoutMs: 100000 });
+    await vi.advanceTimersByTimeAsync(5000);
+    const result = await pending;
+    expect(result.ok).toBe(false);
+    expect(h.build).not.toHaveBeenCalled();
+    expect(h.hooks.acquire).toHaveBeenCalledOnce();
+    expect(h.hooks.abandonOwnerWait).toHaveBeenCalledWith(superRoute);
+    expect(result.route.attempts[0]).toMatchObject({ outcome: "deferred" });
+  });
+
+  it.each([
+    ["a refill hint over 60 s", ownerDenial(60_001), 300000],
+    ["too little time left for a response", ownerDenial(50_000), 70000],
+    ["a busy call slot", ownerDenial(1000, ["concurrency"]), 300000],
+  ])(
+    "ends the claim at once instead of waiting for %s",
+    async (_label, denial, timeoutMs) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(0);
+      const h = harness([good], [superRoute], () => Date.now());
+      h.hooks.abandonOwnerWait = vi.fn(async () => {});
+      vi.mocked(h.hooks.acquire).mockResolvedValueOnce(
+        denial as Awaited<ReturnType<RouteHooks<string>["acquire"]>>,
+      );
+      const result = await h.provider.decide({ ...input, timeoutMs });
+      expect(result.ok).toBe(false);
+      expect(h.hooks.acquire).toHaveBeenCalledOnce();
+      expect(h.hooks.abandonOwnerWait).toHaveBeenCalledOnce();
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
+
+  it("ends the claim when re-admission still fails, and survives a failing hook", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const h = harness([good], [superRoute], () => Date.now());
+    h.hooks.abandonOwnerWait = vi.fn(async () => {
+      throw new Error("db down");
+    });
+    vi.mocked(h.hooks.acquire)
+      .mockResolvedValueOnce(ownerDenial(2000))
+      .mockResolvedValueOnce(ownerDenial(2000));
+    const pending = h.provider.decide({ ...input, timeoutMs: 100000 });
+    await vi.advanceTimersByTimeAsync(2000);
+    const result = await pending;
+    expect(result.ok).toBe(false);
+    expect(h.hooks.acquire).toHaveBeenCalledTimes(2);
+    expect(h.hooks.abandonOwnerWait).toHaveBeenCalledOnce();
+    expect(h.build).not.toHaveBeenCalled();
+  });
+});

@@ -6,12 +6,12 @@
 -- calls from 04:25 UTC while holding an open position).
 --
 -- One waiter per bucket: the first requester denied for token budget is
--- recorded here, and the scheduler retries that agent after the refill instead
--- of a whole grid interval later. While the claim is live, other requesters of
--- the owner may only spend tokens beyond its need, so the retry finds it. The
--- claim covers the waiter's own refill wait plus slack (never more than 15
--- minutes), is fixed at the first wait, counts only while its agent is active
--- on the shared pool, and ends when the waiter's call consumes tokens.
+-- recorded here while its cycle waits in-cycle (<= 60 s) for the refill. While
+-- the claim is live, other requesters of the owner may only spend tokens beyond
+-- its need, so its re-admission finds it. The claim covers that bounded wait
+-- plus 15 s, is fixed at the first wait, counts only while its agent is active
+-- on the shared pool, ends when the waiter's call consumes tokens, and is
+-- released at once when the cycle cannot wait.
 -- Nullable columns only: no rewrite, existing rows mean "no waiter".
 ALTER TABLE agent_runtime.provider_capacity_buckets
   ADD COLUMN IF NOT EXISTS waiter_key        text,

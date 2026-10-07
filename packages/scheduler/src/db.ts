@@ -1133,12 +1133,6 @@ export async function persistCycleResult(
     cycle: CycleRecord;
     disableReason?: string;
     providerHold?: { provider: string; model: string; error: string };
-    /**
-     * Owner-budget deferral with no model call (sharedPolicy
-     * ownerDeferralRetrySeconds): run again this many seconds from now, or at
-     * the next grid slot if that is sooner. Ignored unless 1-3600.
-     */
-    retryInSeconds?: number;
     /** The route that served (or failed) this cycle — configured model until
      * failover routing exists. Recorded as agent_cycles.effective_model. */
     model?: { provider: string; name: string };
@@ -1246,24 +1240,12 @@ export async function persistCycleResult(
       // Reschedule the NEXT cycle from COMPLETION: cadence after this run finished,
       // not from claim — so a slow model just delays the next cycle instead of
       // overlapping it (claimDueAgents set a RUN_LOCK_SECONDS lock; reset it here).
-      const retry =
-        Number.isInteger(args.retryInSeconds) &&
-        args.retryInSeconds! >= 1 &&
-        args.retryInSeconds! <= 3600
-          ? args.retryInSeconds!
-          : null;
       await client.query(
-        retry === null
-          ? `UPDATE agent_runtime.agents
+        `UPDATE agent_runtime.agents
             SET next_run_at = ${nextRunAtSql(schedulingFlags)},
                 updated_at = now()
-          WHERE id = $1 AND status = 'active'`
-          : `UPDATE agent_runtime.agents
-            SET next_run_at = LEAST(${nextRunAtSql(schedulingFlags)},
-                                    now() + make_interval(secs => $2::int)),
-                updated_at = now()
           WHERE id = $1 AND status = 'active'`,
-        retry === null ? [agentId] : [agentId, retry],
+        [agentId],
       );
     }
     await client.query("COMMIT");
@@ -1293,31 +1275,28 @@ export const SHARED_CADENCE_TARGET_RPM = (() => {
   return Number.isFinite(raw) && raw > 0 ? raw : 8;
 })();
 
-// Active shared-pool agents, for the owner-bucket waiter TTL (sharedPolicy).
-// Read at most once a minute; a failed read keeps the last value (0 at boot,
-// which only shortens the TTL to the configured cadence) and never blocks
-// admission.
-let activeSharedCount: { atMs: number; n: number } | null = null;
-export async function activeSharedAgentCount(
+/**
+ * After an in-cycle owner-refill wait (route.ts), dispatch only if the agent is
+ * still active on the shared pool with the model its route was built from: a
+ * paused, deleted or BYO-switched agent must not keep its old route alive. A
+ * failed read answers false (the cycle defers; the claim is released).
+ */
+export async function agentStillSharedEligible(
   pool: Pool,
-  nowMs = Date.now(),
-): Promise<number> {
-  if (activeSharedCount && nowMs - activeSharedCount.atMs < 60_000)
-    return activeSharedCount.n;
+  agentId: number,
+  modelName: string,
+): Promise<boolean> {
   try {
-    const r = await pool.query<{ n: number }>(
-      `SELECT count(*)::int AS n FROM agent_runtime.agents
-        WHERE status = 'active' AND brain_key_enc IS NULL`,
+    const r = await pool.query(
+      `SELECT 1 FROM agent_runtime.agents
+        WHERE id = $1 AND status = 'active' AND brain_key_enc IS NULL
+          AND model_name = $2`,
+      [agentId, modelName],
     );
-    activeSharedCount = { atMs: nowMs, n: Number(r.rows[0]?.n ?? 0) };
+    return (r.rowCount ?? r.rows.length) > 0;
   } catch {
-    activeSharedCount = { atMs: nowMs, n: activeSharedCount?.n ?? 0 };
+    return false;
   }
-  return activeSharedCount.n;
-}
-/** Tests only: forget the cached count. */
-export function resetActiveSharedAgentCount(): void {
-  activeSharedCount = null;
 }
 
 /** Pure: the floor a shared-pool agent may not run faster than. */

@@ -7,6 +7,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   reserveProviderCapacity,
   releaseProviderCapacity,
+  releaseOwnerClaim,
   coolDownProviderCapacity,
   clearProviderCapacityBackoff,
   isProviderRouteCoolingDown,
@@ -1370,7 +1371,8 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
       tokenBurst: reserveTokens,
       reserveTokens,
       maxConcurrent: 1,
-      ...(key ? { waiter: { key, ttlSeconds: 420 } } : {}),
+      // OWNER_WAITER_TTL_SECONDS: the 60 s in-cycle wait + 15 s slack.
+      ...(key ? { waiter: { key, ttlSeconds: 75 } } : {}),
     });
     // The bucket `seconds` after a large prompt left it empty.
     const drainedAgo = async (seconds: number) => {
@@ -1430,21 +1432,21 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
       expect(await attempt(mia, MIA)).toBe(false);
       const first = await claim();
       expect(first).toMatchObject({ waiter_key: mia, waiter_tokens: MIA });
-      // The claim covers Mia's own refill wait (~12.6 s) plus slack, not a
-      // whole grid interval.
+      // The claim covers Mia's own refill wait (~12.6 s) plus 15 s slack for
+      // her in-cycle re-admission, not a whole grid interval.
       const heldSeconds =
         (new Date(first.waiter_expires_at).getTime() -
           new Date(first.waiter_since).getTime()) /
         1000;
       expect(heldSeconds).toBeGreaterThan(12);
-      expect(heldSeconds).toBeLessThan(12.6 + 45 + 2);
+      expect(heldSeconds).toBeLessThan(12.6 + 15 + 2);
 
       // Before her retry, Leo may only spend tokens beyond Mia's need.
       await drainedAgo(50);
       expect(await attempt(leo, LEO)).toBe(false);
       expect((await claim()).waiter_key).toBe(mia);
 
-      // Mia's retry (~13 s after her deferral) finds her reserve.
+      // Mia's in-cycle re-admission (~13 s later) finds her reserve.
       await drainedAgo(58);
       expect(await attempt(mia, MIA)).toBe(true);
       const after = await claim();
@@ -1564,7 +1566,21 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
         (new Date(again.waiter_expires_at).getTime() -
           new Date(again.waiter_since).getTime()) /
         1000;
-      expect(held).toBeLessThanOrEqual(420);
+      expect(held).toBeLessThanOrEqual(75);
+    });
+
+    it("ends a claim at once when its cycle cannot wait", async () => {
+      const mia = `agent:${await agentId("mia-a")}`;
+      const leo = `agent:${await agentId("leo-a")}`;
+      await drainedAgo(45);
+      expect(await attempt(mia, MIA)).toBe(false);
+      // Another agent's key never ends Mia's claim.
+      await releaseOwnerClaim(pool, routeKey, leo);
+      expect((await claim()).waiter_key).toBe(mia);
+      await releaseOwnerClaim(pool, routeKey, mia);
+      expect((await claim()).waiter_key).toBeNull();
+      await drainedAgo(120);
+      expect(await attempt(leo, LEO)).toBe(true);
     });
 
     it("keeps the claim when the claimant's admission is released unused", async () => {

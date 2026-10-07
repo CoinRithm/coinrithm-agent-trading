@@ -245,16 +245,17 @@ credit. Leases expire after a crashed worker, and restarts do not reset budgets.
 Owner budgets are shared fairly (`sql/009_capacity_waiters.sql`). The phase
 grid gives each agent the same offset every cadence, so without a turn rule the
 agent whose slot follows a large prompt can be deferred every cycle (house Mia,
-7 Oct 2026). A cycle deferred by its owner budget with no model call now retries after the
-refill (at least 5 s, never later than its grid slot; a busy call slot backs off
-20-30 s) instead of a whole interval later. The first agent denied for tokens
-becomes its owner bucket's single waiter: until that retry (its refill wait plus
-45 s, never more than 15 minutes, fixed at the first wait) the owner's other
-agents may only spend tokens beyond its need. The claim ends when the waiter's
-call consumes tokens, and stops counting at once if the agent is paused, deleted
-or switched to its own key. Limits, concurrency, spend, the 180 s model interval
-and phase scheduling after real calls are unchanged; deferrals rotate instead of
-starving one agent.
+7 Oct 2026). A first attempt denied by its owner token/request budget now waits in-cycle for
+the refill (at most 60 s, keeping 30 s for the response; never for a busy call
+slot, a cooldown or a provider error), re-checks that the agent is still active
+on the shared pool with the same model, and re-admits. While it waits it is its
+owner bucket's single claimant: the owner's other agents may only spend tokens
+beyond its need. The claim covers that bounded wait plus 15 s, is fixed at the
+first wait, ends when the claimant's call consumes tokens, stops counting at
+once for a paused, deleted or BYO-switched agent, and is released at once when
+the cycle cannot wait. Two provider calls per cycle, limits, concurrency, spend,
+the 180 s model interval and phase scheduling are unchanged; deferrals rotate
+instead of starving one agent.
 
 The stored strategy and cycle cadence are unchanged. Protective thesis exits
 still run each cycle before the model-call gate, including during a budget wait.

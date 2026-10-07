@@ -6,6 +6,7 @@ import {
   isProviderRouteCoolingDown,
   releaseProviderCapacity,
   reserveProviderCapacity,
+  releaseOwnerClaim,
   MAX_WAITER_TTL_SECONDS,
   WAITER_RETRY_SLACK_SECONDS,
 } from "./capacity.js";
@@ -195,6 +196,18 @@ describe("shared provider capacity", () => {
         waiter: { key: "agent:7", ttlSeconds: 0 },
       }),
     ).rejects.toThrow(/waiter.ttlSeconds/);
+  });
+
+  it("ends only the named claimant's owner claim", async () => {
+    const query = vi.fn(async () => ({ rows: [], rowCount: 1 }));
+    await releaseOwnerClaim(
+      { query } as unknown as Pool,
+      "shared-owner:house",
+      "agent:7",
+    );
+    const [sql, params] = query.mock.calls[0] as unknown as [string, unknown[]];
+    expect(sql).toContain("WHERE route_key = $1 AND waiter_key = $2");
+    expect(params).toEqual(["shared-owner:house", "agent:7"]);
   });
 
   it("atomically reserves RPM, TPM and concurrency without holding DB during the call", async () => {

@@ -36,8 +36,7 @@ import {
   recordPaidCallResult,
   finalizePaidCall,
   listPaidRecoveryCandidates,
-  activeSharedAgentCount,
-  sharedCadenceFloorSeconds,
+  agentStillSharedEligible,
 } from "./db.js";
 import {
   PAID_BRAIN_MAX_INPUT_BYTES,
@@ -57,8 +56,7 @@ import {
 import type { Config } from "./config.js";
 import {
   OWNER_BUDGET_DEFERRED_ERROR,
-  ownerDeferralRetrySeconds,
-  ownerWaiterTtlSeconds,
+  ownerWaiterKey,
   sharedOwnerLimit,
 } from "./sharedPolicy.js";
 import {
@@ -70,6 +68,7 @@ import {
 } from "./route.js";
 import {
   reserveProviderCapacity,
+  releaseOwnerClaim,
   releaseProviderCapacity,
   coolDownProviderCapacity,
   clearProviderCapacityBackoff,
@@ -419,15 +418,7 @@ function routedProviderFor(
         if (config.sharedPoolPolicyEnabled) {
           const owner = await reserveProviderCapacity(
             pool,
-            sharedOwnerLimit(
-              agent,
-              config,
-              limit.reserveTokens,
-              ownerWaiterTtlSeconds(
-                agent.cadenceSeconds,
-                sharedCadenceFloorSeconds(await activeSharedAgentCount(pool)),
-              ),
-            ),
+            sharedOwnerLimit(agent, config, limit.reserveTokens),
           );
           if (!owner.ok)
             return {
@@ -458,6 +449,19 @@ function routedProviderFor(
             );
           throw error;
         }
+      },
+      // Owner fairness (009): after an in-cycle refill wait, dispatch only if
+      // this agent is still active on the shared pool with the same model;
+      // a cycle that will not wait ends its owner-bucket claim at once.
+      stillEligible: async () =>
+        agentStillSharedEligible(pool, agent.id, agent.modelName),
+      abandonOwnerWait: async () => {
+        if (!config.capacityEnabled || !config.sharedPoolPolicyEnabled) return;
+        await releaseOwnerClaim(
+          pool,
+          sharedOwnerLimit(agent, config, 1).routeKey,
+          ownerWaiterKey(agent),
+        );
       },
       release: async (route, lease, result, unused) => {
         if (!lease) return;
@@ -1165,18 +1169,6 @@ export async function runAgentOnce(
       disableReason: result.disabled
         ? (result.disabledReason ?? "kill-switch")
         : undefined,
-      // An owner-budget deferral that made no model call retries after the
-      // refill instead of a full grid interval later (owner fairness, 009).
-      retryInSeconds: runAgent.brainKeyEnc
-        ? undefined
-        : ownerDeferralRetrySeconds(
-            result,
-            Math.max(
-              runAgent.cadenceSeconds,
-              sharedCadenceFloorSeconds(await activeSharedAgentCount(pool)),
-            ),
-            Math.random(),
-          ),
       // Reliability slice 1: permanent provider failures strike the fleet
       // circuit (never a disable); a successful call closes the route's
       // circuit. effective_model = configured model until routing exists.
