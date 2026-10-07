@@ -121,7 +121,6 @@ describe("cassette helpers", () => {
     const c = cassette();
     writeCassette(dir, c);
     writeFileSync(join(dir, "report.json"), JSON.stringify({ schema: "x" }));
-    writeFileSync(join(dir, "broken.json"), "{not json");
     writeFileSync(join(dir, "notes.txt"), "hello");
     mkdirSync(join(dir, "labels"));
     writeFileSync(
@@ -130,8 +129,19 @@ describe("cassette helpers", () => {
     );
     const corpus = readCorpus(dir);
     expect(corpus.cassettes.map((x) => x.id)).toEqual([c.id]);
-    expect(corpus.ignored).toEqual(["broken.json", "report.json"]);
+    expect(corpus.ignored).toEqual(["report.json"]);
     expect(corpus.labels[c.id].pm).toEqual({ "a/b/c": { settled: 1 } });
+  });
+
+  it("does not silently shrink the corpus when a recording is truncated", () => {
+    dir = mkdtempSync(join(tmpdir(), "cr-bench-corpus-"));
+    const c = cassette();
+    writeCassette(dir, c);
+    writeFileSync(join(dir, `${c.id}.json`), '{"schema":');
+    expect(() => readCorpus(dir!)).toThrow(/not valid JSON/);
+    expect(() =>
+      parseCassette(cassette({ asOf: "invalid" }), "bad.json"),
+    ).toThrow(/asOf/);
   });
 
   it("fails closed on a bad label file or duplicate ids", () => {

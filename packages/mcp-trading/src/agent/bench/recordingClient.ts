@@ -14,7 +14,6 @@
 // answers 599 bench_write_refused. Only GET ever reaches the network.
 
 import { ClientConfig, CoinRithmClient, DEFAULT_BASE_URL } from "../client.js";
-import { asObj, asStr } from "../extract.js";
 import { buildAgentDefinitionSnapshot } from "../definitionSnapshot.js";
 import { clearPmCalibrationCache } from "../observe.js";
 import { Provider } from "../providers.js";
@@ -110,7 +109,7 @@ export class ResponseRecorder {
 
   private async handle(input: FetchInput, init?: FetchInit): Promise<Response> {
     const req = canonicalRequest(
-      init?.method ?? "GET",
+      init?.method ?? (input instanceof Request ? input.method : "GET"),
       urlOf(input),
       this.basePath,
     );
@@ -199,7 +198,6 @@ export async function recordCassette(
     live: false,
     log: opts.log,
   });
-  const clockMs = Date.now();
   client.recorder.freeze();
 
   const marketBaselineRecorded = opts.spec.venues.includes("pm");
@@ -216,9 +214,11 @@ export async function recordCassette(
   }
 
   const responses = client.recorder.responses();
-  const trades = responses.find((r) => r.path === "/api/agent/trades" && r.ok);
+  // A trades cursor predates subsequent reads. Scoring from it would allow
+  // prices inside the input-collection window to count as future outcomes.
+  const clockMs = Date.now();
   const recordedAt = new Date(clockMs).toISOString();
-  const asOf = asStr(asObj(trades?.data).asOf) ?? recordedAt;
+  const asOf = recordedAt;
   return {
     schema: CASSETTE_SCHEMA,
     id: cassetteId(asOf, sha256Hex(canonicalJson(responses))),

@@ -263,9 +263,15 @@ function rowValues(row: CycleRow): Partial<Record<PairedMetric, number>> {
     rejectedActions: row.actions.length - accepted.length,
     actRate: row.decisionType === "act" ? 1 : 0,
     modelFailureRate: row.modelFailed || row.runtimeError ? 1 : 0,
-    // Not trading is a result too: a cycle with no labelled open made 0.
-    labelledPnlMusd: labelled.reduce((s, x) => s + x.pnlMusd, 0),
   };
+  // A genuine no-action cycle earns zero. Missing outcomes/inputs are unknown,
+  // not cash: zero-filling them biases comparisons toward unlabelled trades.
+  if (
+    !row.runtimeError &&
+    row.missingInputs.length === 0 &&
+    accepted.every((a) => a.score?.status === "labelled")
+  )
+    out.labelledPnlMusd = labelled.reduce((s, x) => s + x.pnlMusd, 0);
   const pmBrier = mean(briers);
   if (pmBrier !== null) out.pmBrier = pmBrier;
   const pmRet = mean(pm.map((s) => s.returnOnStake));
@@ -279,6 +285,9 @@ function summarize(rows: CycleRow[]): CassetteSummary {
   const perRepeat = rows.map(rowValues);
   const values: Partial<Record<PairedMetric, number>> = {};
   for (const m of PAIRED_METRICS) {
+    // Compare equal repeat sets, never just whichever repeats got labels.
+    if (m === "labelledPnlMusd" && perRepeat.some((r) => r[m] === undefined))
+      continue;
     const v = mean(
       perRepeat.map((r) => r[m]).filter((x): x is number => x !== undefined),
     );
@@ -349,6 +358,12 @@ function variantMetrics(
       .length,
     missingInputKeys: [...missingKeys].sort(),
     refusedWrites: rows.reduce((s, r) => s + r.refusedWrites.length, 0),
+    pnlComparableCycles: rows.filter(
+      (r) => rowValues(r).labelledPnlMusd !== undefined,
+    ).length,
+    pnlExcludedCycles: rows.filter(
+      (r) => rowValues(r).labelledPnlMusd === undefined,
+    ).length,
     labelled: {
       pmOpens: pm.length,
       pmBrierMean: mean(

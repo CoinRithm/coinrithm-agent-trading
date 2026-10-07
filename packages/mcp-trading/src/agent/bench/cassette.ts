@@ -47,7 +47,7 @@ export interface Cassette {
   recordedAt: string;
   /** Epoch ms the replay clock starts from (Date.now during replay). */
   clockMs: number;
-  /** The observation's asOf (the /trades sync cursor), else recordedAt. */
+  /** Cutoff after ALL recording reads, including baseline-only inputs. */
   asOf: string;
   /** definitionHash of the recorded spec + prose (see definitionSnapshot). */
   agentSpecHash: string;
@@ -163,7 +163,8 @@ export function parseCassette(value: unknown, source: string): Cassette {
   if (c.schema !== CASSETTE_SCHEMA) problems.push("schema");
   if (typeof c.id !== "string" || !/^[0-9A-Za-z-]{1,80}$/.test(c.id))
     problems.push("id");
-  if (typeof c.asOf !== "string") problems.push("asOf");
+  if (typeof c.asOf !== "string" || !Number.isFinite(Date.parse(c.asOf)))
+    problems.push("asOf");
   if (typeof c.clockMs !== "number" || !Number.isFinite(c.clockMs))
     problems.push("clockMs");
   if (!c.spec || typeof c.spec !== "object" || !Array.isArray(c.spec.venues))
@@ -213,8 +214,9 @@ export function readCorpus(dir: string): Corpus {
     try {
       parsed = JSON.parse(readFileSync(file, "utf8"));
     } catch {
-      ignored.push(name);
-      continue;
+      throw new Error(
+        `corpus file ${name} is not valid JSON; repair or explicitly remove it before comparing variants`,
+      );
     }
     if ((parsed as { schema?: unknown } | null)?.schema !== CASSETTE_SCHEMA) {
       ignored.push(name);

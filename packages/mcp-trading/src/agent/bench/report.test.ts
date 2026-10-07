@@ -1,12 +1,61 @@
 import { describe, expect, it } from "vitest";
 import {
   bootstrapMeanCi,
+  buildReport,
+  type CycleRow,
   calibrateNull,
   chronological,
   jaccard,
   mulberry32,
   roundDeep,
 } from "./report.js";
+
+describe("PnL coverage", () => {
+  it("excludes a whole cassette when one repeat lacks an outcome or recorded input", () => {
+    const row = (variant: string, repeat: number): CycleRow => ({
+      cassetteId: "c",
+      asOf: "2026-10-07T10:00:00Z",
+      variant,
+      repeat,
+      decision: "skip",
+      decisionType: "skip",
+      modelFailed: false,
+      llmCallMade: false,
+      actions: [],
+      missingInputs: [],
+      synthesizedQuotes: 0,
+      refusedWrites: [],
+    });
+    const complete = row("a", 0);
+    const incomplete = { ...row("a", 1), missingInputs: ["GET /market/1"] };
+    const report = buildReport({
+      cassettes: [{ id: "c", asOf: complete.asOf }],
+      rows: [complete, incomplete, row("b", 0), row("b", 1)],
+      variants: [
+        { name: "a", kind: "variant" },
+        { name: "b", kind: "variant" },
+      ],
+      repeats: 2,
+      seed: 1,
+      bootstrapResamples: 100,
+      fidelity: {},
+      assumptions: {},
+    }) as Record<string, any>;
+    expect(report.variants.a.all).toMatchObject({
+      pnlComparableCycles: 1,
+      pnlExcludedCycles: 1,
+    });
+    expect(report.variants.b.all).toMatchObject({
+      pnlComparableCycles: 2,
+      pnlExcludedCycles: 0,
+    });
+    expect(report.comparisons[0].all.metrics.labelledPnlMusd).toMatchObject({
+      n: 0,
+      meanA: null,
+      meanB: null,
+    });
+  });
+});
 
 // Standard normal draws from the seeded PRNG (Box-Muller), so the synthetic
 // fixture below is identical on every run and every machine.

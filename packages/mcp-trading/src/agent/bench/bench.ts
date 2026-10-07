@@ -240,7 +240,7 @@ export function benchAssumptions(): Record<string, unknown> {
       constant: "PM_SYNTHETIC_FEE_RATE_AT_MID",
       value: PM_SYNTHETIC_FEE_RATE_AT_MID,
       model:
-        "fee = rate x 4p(1-p) of the price paid (openapi Paper Execution Realism v1 shape: ~1.8% near 50%, ~0 at the extremes); ask spread and size slippage are not modelled, so PM cost is slightly optimistic",
+        "fee = rate x 4p(1-p) of the price paid (openapi Paper Execution Realism v1 shape: ~1.8% near 50%, ~0 at the extremes); ask spread and size slippage are not modelled, so PM cost is optimistic by an unmeasured amount",
     },
     futuresFee: {
       constant: "FUTURES_SYNTHETIC_FEE_BPS",
@@ -270,6 +270,12 @@ export function benchAssumptions(): Record<string, unknown> {
       "fresh run state per cycle: no journal, theses, debounce or daily counters carried between cassettes or repeats",
     clock:
       "Date.now = recording clock + real elapsed time, so data ages as recorded plus model latency",
+    outcomeCutoff:
+      "asOf is the end of all recording reads, including baseline-only inputs; it is not the earlier trades sync cursor",
+    pnlComparisons:
+      "zero means a complete no-action cycle; cycles with missing inputs, runtime errors, or any unscored accepted action are excluded from paired PnL, with exclusion counts shown; all repeats of a cassette must qualify",
+    inference:
+      "per-cassette bootstrap assumes independent observations; overlapping market windows can violate that assumption; repeated A/A calibration does not establish independence or future performance",
   };
 }
 

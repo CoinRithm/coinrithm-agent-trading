@@ -14,7 +14,7 @@
 //     price and about 0 at the extremes. That is modelled as
 //     PM_SYNTHETIC_FEE_RATE_AT_MID * 4p(1-p) of the price paid. The ask spread
 //     and the size-scaled slippage the paper engine adds are NOT modelled, so a
-//     synthesized PM cost is slightly optimistic (cheaper than a real quote).
+//     synthesized PM cost is optimistic by an unmeasured amount.
 //   - Futures and spot: a flat taker fee on notional. The paper engine discloses
 //     its own feeBps per quote, which a cassette cannot contain, so the bench
 //     uses the runner's own conservative pre-quote estimate

@@ -6,7 +6,11 @@ import {
   runBench,
   withReplayClock,
 } from "./bench.js";
-import { recordCassette, RecordingClient } from "./recordingClient.js";
+import {
+  recordCassette,
+  RecordingClient,
+  ResponseRecorder,
+} from "./recordingClient.js";
 import type { Cassette } from "./cassette.js";
 import { parseSkill } from "../skill.js";
 import { renderFolderOfOne } from "../templates.js";
@@ -24,7 +28,6 @@ const EVENT = {
   volume24h: 50000,
   outcomes: [{ externalMarketId: "0xabc123", name: "Yes", probability: 10 }],
 };
-const PM_KEY = "pm_open:polymarket/bitcoin-above-150k-by-december/0xabc123";
 
 function fakeApi(asOf: string) {
   const routes: Record<string, unknown> = {
@@ -109,14 +112,19 @@ async function corpus(): Promise<Cassette[]> {
   const out: Cassette[] = [];
   for (const asOf of ASOFS) {
     const api = fakeApi(asOf);
-    out.push(
-      await recordCassette({
-        spec: pmSpec(),
-        mergedProse: "strategy",
-        apiKey: "fixture-key",
-        fetchFn: api.fetchFn,
-      }),
-    );
+    const clock = vi.spyOn(Date, "now").mockReturnValue(Date.parse(asOf));
+    try {
+      out.push(
+        await recordCassette({
+          spec: pmSpec(),
+          mergedProse: "strategy",
+          apiKey: "fixture-key",
+          fetchFn: api.fetchFn,
+        }),
+      );
+    } finally {
+      clock.mockRestore();
+    }
   }
   return out;
 }
@@ -137,8 +145,9 @@ describe("recording", () => {
     // The market-implied pass asked for a quote: refused, never forwarded.
     expect(c.refusedRequests).toEqual(["POST /api/agent/pm/quote"]);
     expect(c.marketBaselineRecorded).toBe(true);
-    expect(c.asOf).toBe(ASOFS[0]);
-    expect(c.id).toMatch(/^2026-10-07T10-00-00-000Z-[0-9a-f]{12}$/);
+    expect(c.asOf).toBe(c.recordedAt);
+    expect(Date.parse(c.asOf)).toBe(c.clockMs);
+    expect(c.id).toMatch(/^[0-9TZ-]+-[0-9a-f]{12}$/);
     expect(c.agentSpecHash).toMatch(/^sha256:/);
     // The recording brain skips without any model call.
     expect(c.recordCycle).toEqual({
@@ -160,6 +169,43 @@ describe("recording", () => {
       ]),
     );
     expect(JSON.stringify(c)).not.toContain("fixture-key");
+  });
+
+  it("refuses a Request object's POST without forwarding it", async () => {
+    const inner = vi.fn(async () => new Response("{}"));
+    const recorder = new ResponseRecorder(inner as typeof fetch, "");
+    const response = await recorder.fetch(
+      new Request("https://api.example.test/api/agent/pm/open", {
+        method: "POST",
+        body: "{}",
+      }),
+    );
+    expect(response.status).toBe(599);
+    expect(inner).not.toHaveBeenCalled();
+    expect(recorder.refused).toEqual(["POST /api/agent/pm/open"]);
+  });
+
+  it("starts scoring after baseline-only reads, never at the earlier trades cursor", async () => {
+    let now = Date.parse(ASOFS[0]);
+    const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
+    const api = fakeApi(ASOFS[0]);
+    try {
+      const c = await recordCassette({
+        spec: pmSpec(),
+        mergedProse: "strategy",
+        apiKey: "fixture-key",
+        fetchFn: (async (input, init) => {
+          now += 1000;
+          return api.fetchFn(input, init);
+        }) as typeof fetch,
+      });
+      expect(c.marketBaselineRecorded).toBe(true);
+      expect(c.clockMs).toBe(now);
+      expect(c.asOf).toBe(new Date(now).toISOString());
+      expect(Date.parse(c.asOf)).toBeGreaterThan(Date.parse(ASOFS[0]));
+    } finally {
+      clock.mockRestore();
+    }
   });
 
   it("records a transport failure and keeps the first pass's answers", async () => {
@@ -235,8 +281,14 @@ describe("runBench", () => {
     expect(b.cyclesWithMissingInputs).toBe(0);
     expect(b.synthesizedQuotes).toBe(9);
     expect(b.labelled.unlabelledOpens).toBe(9);
+    expect(b.pnlExcludedCycles).toBe(9);
 
     const ab = report.comparisons.find((c: Json) => c.a === "a" && c.b === "b");
+    expect(ab.all.metrics.labelledPnlMusd).toMatchObject({
+      n: 0,
+      meanDiff: null,
+      ci95: null,
+    });
     expect(ab.all.actionOverlapJaccard).toBe(0);
     expect(ab.all.metrics.acceptedActions).toMatchObject({
       n: 3,

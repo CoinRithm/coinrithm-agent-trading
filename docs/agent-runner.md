@@ -345,7 +345,9 @@ What it does:
 - `record` runs the production `runCycle` in dry-run through a recording
   transport and saves every read response (keyed by method, path and sorted
   query) as `corpus/<asOf>-<hash>.json`. For an agent with the `pm` venue it
-  also records the reads of the market-implied baseline.
+  also records the reads of the market-implied baseline. `asOf` is the end
+  of all those reads, so outcome scoring cannot start before input collection
+  completes. A malformed corpus JSON file stops the run for explicit repair.
 - `bench` replays each cassette through the same `runCycle` for every variant,
   `--repeats` times, starting each cycle from a fresh run state. It also runs
   two baselines on every cassette: `baseline:skip` (never trades) and, for PM
@@ -367,15 +369,18 @@ What it does:
 { "BTC": [{ "t": 1791367500, "h": 1, "l": 1, "c": 1 }] } }` adds Brier
   (agent and market), return on stake, futures return on margin and labelled
   P&L. Without labels, opens are counted as unlabelled, never dropped. The
-  bench does not fetch labels.
+  bench does not fetch labels. Missing labels are not zero profit: paired
+  P&L excludes a cassette if either variant has any repeat with an unscored
+  accepted action, missing input, or runtime error. Comparable and excluded
+  cycle counts are reported; genuine complete no-action cycles count as zero.
 
 Honest limits (also written into every report's `assumptions`):
 
 - Quotes are synthesized, because a quote depends on the proposed action and
   cannot be recorded. PM quotes use the recorded discover probability plus the
   documented fee shape (`PM_SYNTHETIC_FEE_RATE_AT_MID`, about 1.8% at a 50%
-  price); spread and slippage are not modelled, so PM costs are slightly
-  optimistic. Futures and spot quotes use the recorded market price with a
+  price); spread and slippage are not modelled, so PM costs are optimistic
+  by an unmeasured amount. Futures and spot quotes use the recorded market price with a
   flat fee. Every synthesized quote is counted in the report.
 - The synthesized PM quote does not apply the server's entry floor; the
   runner's validator rejects the same action as `pm_entry_below_floor` where
@@ -388,6 +393,10 @@ Honest limits (also written into every report's `assumptions`):
   as a missing input. Record with the widest variant.
 - Model output is not deterministic. `--repeats` measures that noise; repeat
   consistency and the calibrated null show how much of a difference is noise.
+- The per-cassette bootstrap assumes independent observations. Overlapping
+  market windows can violate that assumption; the A/A check does not establish
+  independence or future performance. Return/Brier metrics condition on the
+  actions with labels and do not measure the whole strategy's profitability.
 - Each replayed cycle starts from a fresh state, so the bench shows how a
   variant decides on a first look at a recorded market, not deep into a run.
 - Futures outcomes are an OHLC walk model, not fills: entry at the
