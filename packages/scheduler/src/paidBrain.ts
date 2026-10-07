@@ -391,7 +391,30 @@ export type AdmissionReason =
   | "balance_short"
   | "cap_reached"
   | "model_disabled"
+  | "pricing_invalid"
   | "invalid_position";
+
+/** Default margin on provider cost, percent. */
+export const PAID_BRAIN_DEFAULT_MARGIN_PCT = 20;
+export const PAID_BRAIN_MAX_MARGIN_PCT = 200;
+
+/**
+ * PAID_BRAIN_MARGIN_PCT, parsed EXACTLY as backend-v2's paidBrainMarginPct
+ * (root review of #135: one rule in both services). Unset or blank = the
+ * default 20; a whole number 0..200 (surrounding spaces allowed) = that
+ * number; anything else (fractions, signs, exponents, words, over 200) =
+ * null, which disables paid brains rather than charging a guessed margin.
+ */
+export function parsePaidBrainMarginPct(
+  raw: string | undefined,
+): number | null {
+  if (raw === undefined || raw.trim() === "")
+    return PAID_BRAIN_DEFAULT_MARGIN_PCT;
+  const s = raw.trim();
+  if (!/^\d{1,3}$/.test(s)) return null;
+  const n = Number(s);
+  return n <= PAID_BRAIN_MAX_MARGIN_PCT ? n : null;
+}
 
 /** Admit one paid call only when the owner has no uncertain metering, the
  * balance covers the worst case and the agent's month spend (finalized

@@ -35,7 +35,7 @@
 CREATE TABLE IF NOT EXISTS agent_runtime.credit_ledger (
   id bigserial PRIMARY KEY,
   user_id bigint NOT NULL,
-  kind text NOT NULL CHECK (kind IN ('grant','topup','refund','release','reserve','debit','reversal')),
+  kind text NOT NULL CHECK (kind IN ('grant','topup','refund','release','reserve','debit','reversal','restore')),
   amount_micro_usd bigint NOT NULL,
   agent_id bigint NULL REFERENCES agent_runtime.agents(id) ON DELETE SET NULL,
   cycle_id bigint NULL,                      -- agent_cycles.id for debits
@@ -96,9 +96,33 @@ CREATE TABLE IF NOT EXISTS agent_runtime.credit_checkouts (
   status text NOT NULL CHECK (status IN ('created','completed')),
   paid_total_minor bigint NULL,              -- grand total in minor units from the completed webhook
   credited_micro bigint NULL,                -- what was credited (for proportional partial-refund reversals)
+  -- Net credits currently taken back by refunds/chargebacks (minus restored
+  -- chargeback reversals); adjust_seq keys each change of it in the ledger.
+  reversed_micro bigint NOT NULL DEFAULT 0 CHECK (reversed_micro >= 0),
+  adjust_seq integer NOT NULL DEFAULT 0 CHECK (adjust_seq >= 0),
   created_at timestamptz NOT NULL DEFAULT now(),
   completed_at timestamptz NULL
 );
+
+-- Provider adjustments (refunds, chargebacks, chargeback reversals) per
+-- checkout, kept with their latest provider state so a partial adjustment
+-- that arrives before its transaction's total is known stays PENDING (never
+-- treated as full), and every event re-derives the transaction's net
+-- reversal from all of its adjustments (cumulative cap, any order).
+-- Written by the backend only.
+CREATE TABLE IF NOT EXISTS agent_runtime.credit_adjustments (
+  adjustment_id text PRIMARY KEY,
+  transaction_id text NOT NULL REFERENCES agent_runtime.credit_checkouts(transaction_id),
+  action text NOT NULL CHECK (action IN ('refund','chargeback','chargeback_reverse')),
+  status text NOT NULL,
+  full_amount boolean NOT NULL,
+  total_minor bigint NULL CHECK (total_minor IS NULL OR total_minor >= 0),
+  currency text NOT NULL,
+  provider_updated_at timestamptz NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS credit_adjustments_transaction ON agent_runtime.credit_adjustments (transaction_id);
 
 -- Grants. The production owner has default DML grants to coinrithm_app in this
 -- schema (see sql/maintenance/runtime-role.sql), which would include UPDATE
@@ -108,9 +132,11 @@ CREATE TABLE IF NOT EXISTS agent_runtime.credit_checkouts (
 -- src/runtimeGrants.ts); repeating them here lets the new image pass readiness
 -- without a separate re-provisioning step.
 --   coinrithm_app:       ledger SELECT, INSERT (+ sequence USAGE); paid_calls
---                        SELECT; credit_checkouts SELECT, INSERT, UPDATE.
+--                        SELECT; credit_checkouts and credit_adjustments
+--                        SELECT, INSERT, UPDATE.
 --   coinrithm_scheduler: ledger SELECT, INSERT (+ sequence USAGE); paid_calls
---                        SELECT, INSERT, UPDATE; no credit_checkouts.
+--                        SELECT, INSERT, UPDATE; no credit_checkouts or
+--                        credit_adjustments.
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'coinrithm_app') THEN
@@ -121,6 +147,8 @@ BEGIN
     GRANT SELECT ON agent_runtime.paid_calls TO coinrithm_app;
     REVOKE DELETE, TRUNCATE ON agent_runtime.credit_checkouts FROM coinrithm_app;
     GRANT SELECT, INSERT, UPDATE ON agent_runtime.credit_checkouts TO coinrithm_app;
+    REVOKE DELETE, TRUNCATE ON agent_runtime.credit_adjustments FROM coinrithm_app;
+    GRANT SELECT, INSERT, UPDATE ON agent_runtime.credit_adjustments TO coinrithm_app;
   END IF;
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'coinrithm_scheduler') THEN
     REVOKE UPDATE, DELETE, TRUNCATE ON agent_runtime.credit_ledger FROM coinrithm_scheduler;
@@ -129,8 +157,10 @@ BEGIN
     REVOKE DELETE, TRUNCATE ON agent_runtime.paid_calls FROM coinrithm_scheduler;
     GRANT SELECT, INSERT, UPDATE ON agent_runtime.paid_calls TO coinrithm_scheduler;
     REVOKE ALL ON agent_runtime.credit_checkouts FROM coinrithm_scheduler;
+    REVOKE ALL ON agent_runtime.credit_adjustments FROM coinrithm_scheduler;
   END IF;
 END $$;
 REVOKE ALL ON agent_runtime.credit_ledger FROM PUBLIC;
 REVOKE ALL ON agent_runtime.paid_calls FROM PUBLIC;
 REVOKE ALL ON agent_runtime.credit_checkouts FROM PUBLIC;
+REVOKE ALL ON agent_runtime.credit_adjustments FROM PUBLIC;

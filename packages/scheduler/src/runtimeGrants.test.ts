@@ -80,8 +80,12 @@ describe("runtime grants: one list for provisioning and readiness", () => {
     }
     // The scheduler never touches checkouts.
     expect(roleSql).not.toContain("credit_checkouts");
+    expect(roleSql).not.toContain("credit_adjustments");
     expect(ledgerMigration).toContain(
       "REVOKE ALL ON agent_runtime.credit_checkouts FROM coinrithm_scheduler;",
+    );
+    expect(ledgerMigration).toContain(
+      "REVOKE ALL ON agent_runtime.credit_adjustments FROM coinrithm_scheduler;",
     );
   });
 
@@ -96,6 +100,8 @@ describe("runtime grants: one list for provisioning and readiness", () => {
       "REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON agent_runtime.paid_calls FROM coinrithm_app;",
       "GRANT SELECT, INSERT, UPDATE ON agent_runtime.credit_checkouts TO coinrithm_app;",
       "REVOKE DELETE, TRUNCATE ON agent_runtime.credit_checkouts FROM coinrithm_app;",
+      "GRANT SELECT, INSERT, UPDATE ON agent_runtime.credit_adjustments TO coinrithm_app;",
+      "REVOKE DELETE, TRUNCATE ON agent_runtime.credit_adjustments FROM coinrithm_app;",
     ]) {
       expect(ledgerMigration).toContain(line);
     }

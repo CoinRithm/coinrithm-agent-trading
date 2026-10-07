@@ -647,6 +647,9 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
       await expect(
         runtime.query("SELECT 1 FROM agent_runtime.credit_checkouts LIMIT 0"),
       ).rejects.toMatchObject({ code: "42501" });
+      await expect(
+        runtime.query("SELECT 1 FROM agent_runtime.credit_adjustments LIMIT 0"),
+      ).rejects.toMatchObject({ code: "42501" });
       // Signs are enforced by kind: reserve/debit/reversal < 0, others > 0.
       for (const [kind, amount] of [
         ["debit", 5],
@@ -654,6 +657,7 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
         ["reversal", 5],
         ["release", -5],
         ["topup", -5],
+        ["restore", -5],
       ] as const) {
         await expect(
           pool.query(

@@ -1,3 +1,4 @@
+import { parsePaidBrainMarginPct } from "./paidBrain.js";
 import { loadMasterKey } from "./crypto.js";
 
 export interface CustomerJsonContentIdentity {
@@ -97,7 +98,8 @@ export interface Config {
   // the provider cost of every paid call. The backend reads the SAME variable
   // with the SAME default for its displayed prices. Invalid or negative values
   // fall back to the default rather than to zero.
-  paidBrainMarginPct: number;
+  /** null = invalid PAID_BRAIN_MARGIN_PCT: every paid call is refused. */
+  paidBrainMarginPct: number | null;
   // PLATFORM keys for paid brains, scheduler env only. Never stored per agent,
   // never logged, never sent anywhere but the provider. Unset => an admitted
   // paid agent skips its cycle as recoverable infrastructure and is not debited.
@@ -333,7 +335,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     openAiMaxConcurrent: intEnv(env, "SCHEDULER_OPENAI_MAX_CONCURRENT", 2, 1),
     healthPort: healthPortRaw ? intEnv(env, "HEALTH_PORT", 8080, 1) : undefined,
     internalWriteToken: env.COINRITHM_INTERNAL_WRITE_TOKEN?.trim() || undefined,
-    paidBrainMarginPct: intEnv(env, "PAID_BRAIN_MARGIN_PCT", 20, 0),
+    paidBrainMarginPct: parsePaidBrainMarginPct(env.PAID_BRAIN_MARGIN_PCT),
     paidAnthropicApiKey: env.PAID_ANTHROPIC_API_KEY?.trim() || undefined,
     paidGeminiApiKey: env.PAID_GEMINI_API_KEY?.trim() || undefined,
   };

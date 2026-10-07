@@ -545,6 +545,7 @@ export const PAID_BRAIN_PAUSE_REASON = PAID_BRAIN_CREDIT_REASON;
 export function paidBrainRefusalReason(reason: AdmissionReason): string {
   if (reason === "metering_uncertain") return "paid brain metering uncertain";
   if (reason === "model_disabled") return "paid brain model unavailable";
+  if (reason === "pricing_invalid") return "paid brain pricing unavailable";
   return PAID_BRAIN_CREDIT_REASON;
 }
 
@@ -610,8 +611,9 @@ async function reservePaidBrain(
   const price = priceRowAt(brain.entry, nowMs);
   if (!brain.entry.enabled || !price)
     return { kind: "refused", reason: "model_disabled" };
+  const marginPct = config.paidBrainMarginPct;
+  if (marginPct === null) return { kind: "refused", reason: "pricing_invalid" };
   try {
-    const marginPct = config.paidBrainMarginPct;
     // A fresh key per attempt: the key is durable from the moment the
     // reservation commits (ledger row + paid_calls row), before any call.
     const reserveKey = reserveKeyFor(agent.id, randomUUID());

@@ -183,13 +183,30 @@ describe("paid brain config", () => {
         .paidBrainMarginPct,
     ).toBe(0);
   });
-  it.each(["-5", "NaN", "Infinity", "abc"])(
-    "falls back to the default margin for %s, never to zero",
+  it.each(["", "   "])(
+    "treats a blank margin %j as the default 20",
     (value) => {
       expect(
         loadConfig({ ...baseEnv(), PAID_BRAIN_MARGIN_PCT: value })
           .paidBrainMarginPct,
       ).toBe(20);
+    },
+  );
+  it.each([" 25 ", "200"])("accepts a whole margin %j", (value) => {
+    expect(
+      loadConfig({ ...baseEnv(), PAID_BRAIN_MARGIN_PCT: value })
+        .paidBrainMarginPct,
+    ).toBe(Number(value.trim()));
+  });
+  // Same rule as backend-v2 paidBrainMarginPct (root review of #135): an
+  // invalid margin disables paid calls instead of charging a guessed one.
+  it.each(["-5", "NaN", "Infinity", "abc", "12.5", "201", "1e1", "+5", "0x10"])(
+    "rejects the margin %s (null: paid calls refused)",
+    (value) => {
+      expect(
+        loadConfig({ ...baseEnv(), PAID_BRAIN_MARGIN_PCT: value })
+          .paidBrainMarginPct,
+      ).toBeNull();
     },
   );
   it.each(["", "   "])("treats a blank platform key %j as unset", (value) => {
