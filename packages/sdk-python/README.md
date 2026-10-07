@@ -9,10 +9,35 @@ OpenAPI contract that drives the hosted MCP at `mcp.coinrithm.com`.
   CoinRithm API key (`crk_live_…`), sent as a bearer token.
 - The API is paper-only: no real funds ever move.
 
+## 1.8.5
+
+Release preparation; publication is pending. See the
+[release status](https://github.com/CoinRithm/coinrithm-agent-trading#version-clarity)
+for registry availability. The current package source is version 1.8.5.
+
+- Adds typed optional market-context `price_timing`, `funding`, `derivatives`,
+  `macro` and `defi`, including open interest, positioning, captured liquidations,
+  observed depth, associated-chain TVL and stablecoin supply. Each block keeps
+  its own source/coverage/freshness. Depth is one venue's observed 20-level book;
+  macro quotes are derivative proxies, and chain association does not imply
+  the coin is its native token.
+- Adds `derivatives.funding_by_venue` with independently collected
+  settlement-reference and Hyperliquid context rates. `rate_fraction` is a raw
+  fraction per `interval_hours`; `hourly_equivalent_fraction` is simple division,
+  not APR or expected return. Unknown intervals/times remain `None`, `source_at`
+  is `None` and `same_time` is `False`. The existing funding reference and
+  futures-entry rules are unchanged.
+- Adds optional PM discovery/position `related_coins` and position
+  `event_end_date`. Missing links and implausible venue dates remain unknown;
+  shared links are not a correlation model.
+- Generated from API contract 1.7.0. Omitted optional fields retain `UNSET`,
+  explicit nulls remain `None`, and valid zero rates remain zero. Runtime
+  dependencies and Python 3.10+ support are unchanged from published 1.8.4.
+
 ## 1.8.4
 
 See the [release status](https://github.com/CoinRithm/coinrithm-agent-trading#version-clarity)
-for registry availability. The notes and examples below describe version 1.8.4.
+for registry availability. Version 1.8.4 was published and verified on 2026-10-02.
 
 - Prediction-market events gain optional `representative_outcome` (a full
   `PublicPmOutcome`, or `None`) and `representative_outcome_basis`

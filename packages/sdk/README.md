@@ -9,6 +9,27 @@ via [`openapi-typescript`](https://github.com/openapi-ts/openapi-typescript) +
 All trading on this surface is **paper only** (virtual mUSD). Nothing touches
 real money. Not financial advice.
 
+## 0.3.5
+
+Release preparation; publication is pending. This version adds optional typed
+market context for price timing, funding, open interest, positioning, captured
+liquidations, observed depth, macro derivative proxies and DeFi. Each source
+retains its own coverage, freshness and nullability; response time does not make
+all inputs fresh. Depth is one venue's observed 20-level book, and associated
+chain TVL is not the coin's market value.
+
+`derivatives.fundingByVenue` preserves independently collected settlement-reference
+and Hyperliquid context rates. `rateFraction` is a fraction per `intervalHours`;
+`hourlyEquivalentFraction` is simple normalization, not APR or expected return.
+Unknown intervals/times remain null, `sourceAt` is null and `sameTime` is false.
+The existing top-level funding reference and entry rules are unchanged.
+
+PM discovery/positions also gain optional `relatedCoins`, with `eventEndDate` on
+positions. Treat omitted metadata and implausible venue dates as unknown. These
+are additive API contract 1.7.0 types; the runtime wrapper is unchanged. See the
+[changelog](./CHANGELOG.md) and
+[release status](https://github.com/CoinRithm/coinrithm-agent-trading#version-clarity).
+
 ## 0.3.4
 
 - Adds optional `representativeOutcome` (a full `PublicPmOutcome`, or `null`)
@@ -54,7 +75,7 @@ npm install @coinrithm/sdk
 ```
 
 Published on npm as [`@coinrithm/sdk`](https://www.npmjs.com/package/@coinrithm/sdk).
-This package documents version **0.3.4**. See the
+This package documents version **0.3.5**. See the
 [release status](https://github.com/CoinRithm/coinrithm-agent-trading#version-clarity)
 for registry availability.
 Check `npm view @coinrithm/sdk version` for

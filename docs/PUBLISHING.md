@@ -5,15 +5,22 @@ MCP Registry are delivered separately. Current publication status is in the
 [README](../README.md#version-clarity); package changes are in the
 [changelog](../CHANGELOG.md).
 
-## Pending MCP-only release � 0.7.16
+## Pending combined release - MCP 0.7.16, TypeScript 0.3.5, Python 1.8.5
 
-This release packages the reviewed incomplete-response guard and bounded shape
-diagnostics. It changes only `@coinrithm/mcp-trading`; the published TypeScript
-0.3.4 and Python 1.8.4 packages remain unchanged and must not be uploaded again.
-Prepare and verify a new MCP archive/manifest from its exact passing CI revision,
-then stage that same archive in a GitHub draft. Keep the draft and MCP Registry
-unpublished until npm delivery is confirmed. Source version and hosted scheduler
-activation are separate from package publication.
+This release includes the reviewed provider-response guards, strategy controls,
+market context and retained-input benchmark diagnostics, plus both SDKs generated
+from the current contract. The pending versions are MCP **0.7.16**, TypeScript
+**0.3.5** and Python **1.8.5**. The preceding published versions remain MCP 0.7.15,
+TypeScript 0.3.4 and Python 1.8.4 until registry delivery is verified.
+
+The earlier MCP-only preparation from release revision `56ceb2b4` predates the
+funding-context consumer and latest benchmark diagnostics. Preserve its receipt
+as history; prepare a new, complete four-archive set from the exact passing CI
+revision. Do not mix that older MCP archive into this combined release, or upload
+the already-published SDK versions again. Stage all archives, checksums, source
+revision and notes together in the GitHub draft. Keep the draft and MCP Registry
+unpublished until npm/PyPI delivery is confirmed. Hosted MCP and scheduler
+deployments remain separate from package publication.
 
 ## Previous verified delivery — 23 September 2026
 
