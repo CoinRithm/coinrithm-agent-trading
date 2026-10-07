@@ -13,6 +13,15 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
   explains how to read it with price; it is context, never a trade rule. Older
   APIs without the block leave entries unchanged.
 
+- Add an agent test bench: `coinrithm-agent record` saves the read inputs of
+  dry-run cycles as cassettes (writes refused, no model call), and
+  `coinrithm-agent bench` replays them through the production runner for
+  several agent variants and repeats, next to skip and market-implied
+  baselines. The deterministic report gives reject codes, action overlap,
+  repeat consistency, seeded paired bootstrap CIs, a calibrated A/A null
+  rate, a chronological holdout and optional label scoring. Quotes are
+  synthesized and counted; see "Bench" in docs/agent-runner.md for the limits.
+
 - Add an optional `universe` block (market boundaries): a market-cap rank
   band, a minimum 24h volume, stablecoins in or out, curated sectors and chain
   ecosystems in or out, and the sort that defines an opportunity. Each cycle
