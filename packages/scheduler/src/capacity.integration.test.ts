@@ -11,7 +11,13 @@ import {
   coolDownProviderCapacity,
   clearProviderCapacityBackoff,
   isProviderRouteCoolingDown,
+  WAITER_RETRY_SLACK_SECONDS,
 } from "./capacity.js";
+import {
+  MAX_OWNER_REFILL_WAIT_MS,
+  MAX_CONCURRENT_OWNER_WAITS,
+} from "./route.js";
+import { OWNER_WAITER_TTL_SECONDS } from "./sharedPolicy.js";
 import {
   migrate,
   assertSchemaReady,
@@ -116,6 +122,149 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
     expect(Number(row.model_rate_per_min)).toBe(20000);
     expect(row.model_tokens).toBe(24000);
     expect((await reserveProviderCapacity(pool, owner)).ok).toBe(false);
+  });
+
+  describe("usage above the estimate (debt)", () => {
+    // Owner-style bucket: 20k/min, one 30k burst, refill frozen by beforeEach
+    // unless a test moves last_refill_at.
+    const debtor = {
+      ...limit,
+      routeKey: "shared-owner:debt",
+      tokensPerMinute: 20_000,
+      tokenBurst: 30_000,
+      reserveTokens: 30_000,
+      maxConcurrent: 1,
+    };
+    const bucket = async () =>
+      (
+        await pool.query(
+          "SELECT model_tokens FROM agent_runtime.provider_capacity_buckets WHERE route_key=$1",
+          [debtor.routeKey],
+        )
+      ).rows[0];
+    const fullAgo = async (seconds: number, tokens = 30_000) => {
+      await reserveProviderCapacity(pool, debtor);
+      await pool.query("DELETE FROM agent_runtime.provider_capacity_leases");
+      await pool.query(
+        `UPDATE agent_runtime.provider_capacity_buckets
+            SET request_tokens = 24, model_tokens = $2,
+                last_refill_at = clock_timestamp() - make_interval(secs => $3)
+          WHERE route_key = $1`,
+        [debtor.routeKey, tokens, seconds],
+      );
+    };
+
+    it("keeps the excess as debt and admits again only after refill repays it", async () => {
+      await fullAgo(0);
+      const r = await reserveProviderCapacity(pool, debtor);
+      if (!r.ok) throw Error("Expected admission");
+      // a44-oli shape: reserved ~30k, reported ~45k.
+      await releaseProviderCapacity(pool, r.lease, 45_000);
+      expect(Number((await bucket()).model_tokens)).toBe(-15_000);
+      const denied = await reserveProviderCapacity(pool, debtor);
+      expect(denied).toMatchObject({ ok: false, reasons: ["token_budget"] });
+      // (30k need + 15k debt) / 20k per minute = 135 s.
+      const hint = (denied as { retryAfterMs?: number }).retryAfterMs!;
+      expect(hint).toBeGreaterThan(134_000);
+      expect(hint).toBeLessThan(137_000);
+      await pool.query(
+        `UPDATE agent_runtime.provider_capacity_buckets
+            SET last_refill_at = clock_timestamp() - interval '100 seconds'
+          WHERE route_key = $1`,
+        [debtor.routeKey],
+      );
+      expect((await reserveProviderCapacity(pool, debtor)).ok).toBe(false);
+      await pool.query(
+        `UPDATE agent_runtime.provider_capacity_buckets
+            SET last_refill_at = clock_timestamp() - interval '136 seconds'
+          WHERE route_key = $1`,
+        [debtor.routeKey],
+      );
+      expect((await reserveProviderCapacity(pool, debtor)).ok).toBe(true);
+    });
+
+    it("bounds debt at one bucket capacity for an implausible usage report", async () => {
+      await fullAgo(0);
+      const r = await reserveProviderCapacity(pool, debtor);
+      if (!r.ok) throw Error("Expected admission");
+      await releaseProviderCapacity(pool, r.lease, 50_000_000);
+      expect(Number((await bucket()).model_tokens)).toBe(-30_000);
+    });
+
+    it("reconciles a lease once: a duplicate release adds no second debt", async () => {
+      await fullAgo(0);
+      const r = await reserveProviderCapacity(pool, debtor);
+      if (!r.ok) throw Error("Expected admission");
+      await releaseProviderCapacity(pool, r.lease, 40_000);
+      await releaseProviderCapacity(pool, r.lease, 40_000);
+      expect(Number((await bucket()).model_tokens)).toBe(-10_000);
+    });
+
+    it.each([
+      ["missing", undefined],
+      ["NaN", Number.NaN],
+      ["infinite", Number.POSITIVE_INFINITY],
+    ])(
+      "charges exactly the reserve when usage is %s",
+      async (_label, usage) => {
+        await fullAgo(0);
+        const r = await reserveProviderCapacity(pool, debtor);
+        if (!r.ok) throw Error("Expected admission");
+        await releaseProviderCapacity(pool, r.lease, usage);
+        expect(Number((await bucket()).model_tokens)).toBe(0);
+      },
+    );
+
+    it("still refunds a smaller call and an unused or refused one", async () => {
+      await fullAgo(0);
+      const used = await reserveProviderCapacity(pool, debtor);
+      if (!used.ok) throw Error("Expected admission");
+      await releaseProviderCapacity(pool, used.lease, 10_000);
+      expect(Number((await bucket()).model_tokens)).toBe(20_000);
+      await fullAgo(0);
+      const unused = await reserveProviderCapacity(pool, debtor);
+      if (!unused.ok) throw Error("Expected admission");
+      await releaseProviderCapacity(pool, unused.lease, 0, true);
+      expect(Number((await bucket()).model_tokens)).toBe(30_000);
+    });
+
+    it("serializes a debt release against a concurrent admission", async () => {
+      // 60k banked: one 30k call admitted, one more 30k still fits unless the
+      // first call's 25k excess lands first.
+      await fullAgo(0, 30_000);
+      const first = await reserveProviderCapacity(pool, debtor);
+      if (!first.ok) throw Error("Expected admission");
+      await pool.query(
+        `UPDATE agent_runtime.provider_capacity_buckets SET model_tokens = 30000
+          WHERE route_key = $1`,
+        [debtor.routeKey],
+      );
+      const other = new Pool({ connectionString: databaseUrl });
+      try {
+        const [, second] = await Promise.all([
+          releaseProviderCapacity(pool, first.lease, 55_000),
+          reserveProviderCapacity(other, { ...debtor, maxConcurrent: 2 }),
+        ]);
+        const tokens = Number((await bucket()).model_tokens);
+        if (second.ok) {
+          // Admission first (30k -> 0), then the 25k excess: -25k.
+          expect(tokens).toBe(-25_000);
+          await releaseProviderCapacity(pool, second.lease, 30_000);
+        } else {
+          // Debt first (30k -> 5k): the second call cannot fit.
+          expect(tokens).toBe(5_000);
+        }
+        expect(
+          (
+            await pool.query(
+              "SELECT count(*)::int AS n FROM agent_runtime.provider_capacity_leases",
+            )
+          ).rows[0].n,
+        ).toBe(0);
+      } finally {
+        await other.end();
+      }
+    });
   });
 
   it("shares one owner concurrency slot across replicas independently of provider keys", async () => {
@@ -1353,6 +1502,8 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
     const MIA = 24_000;
     const LEO = 26_000;
     const OLIVIA = 31_000;
+    // Needs ~124.8 s of refill from empty: beyond the 120 s in-cycle ceiling.
+    const BEYOND_CEILING = 52_000;
     const agentId = async (handle: string) =>
       String(
         (
@@ -1366,15 +1517,19 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
           )
         ).rows[0].id,
       );
-    const owner = (key: string | null, reserveTokens: number) => ({
+    const owner = (
+      key: string | null,
+      reserveTokens: number,
+      ttlSeconds = OWNER_WAITER_TTL_SECONDS,
+    ) => ({
       ...limit,
       routeKey,
       tokensPerMinute: RATE,
       tokenBurst: reserveTokens,
       reserveTokens,
       maxConcurrent: 1,
-      // OWNER_WAITER_TTL_SECONDS: the 60 s in-cycle wait + 15 s slack.
-      ...(key ? { waiter: { key, ttlSeconds: 75 } } : {}),
+      // OWNER_WAITER_TTL_SECONDS: the 120 s in-cycle wait + 15 s slack.
+      ...(key ? { waiter: { key, ttlSeconds } } : {}),
     });
     // The bucket `seconds` after a large prompt left it empty.
     const drainedAgo = async (seconds: number) => {
@@ -1462,7 +1617,8 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
     // Equal-horizon event schedule (Codex 56935): ONE bucket state carried
     // forward in time (consumed balance kept, claim times aged with it), the
     // same arrivals for both modes. "rule" = the route's behaviour: a first
-    // owner-budget denial with a refill hint <= 60 s re-admits at that hint,
+    // owner-budget denial with a refill hint within the in-cycle ceiling
+    // (MAX_OWNER_REFILL_WAIT_MS) re-admits at that hint,
     // otherwise the claim is released. "without" = no waiter keys, no wait.
     it("reports per-agent and total calls/tokens on one chronological schedule", async () => {
       const cadence = 330;
@@ -1543,7 +1699,7 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
             ) &&
             typeof hint === "number" &&
             hint > 0 &&
-            hint <= 60_000;
+            hint <= MAX_OWNER_REFILL_WAIT_MS;
           if (canWait)
             queue.push({
               at: ev.at + hint / 1000,
@@ -1580,6 +1736,129 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
       // cover is served; no throughput gain is claimed or asserted.
       for (const a of roster.filter((x) => x.reserve <= RATE))
         expect(withRule.per[a.name]!.calls).toBeGreaterThan(0);
+    });
+
+    // Live owner 86, 2026-10-07 08:04-08:43 UTC (root 57001): seven agents on
+    // one 25k TPM owner bucket at fixed phase-grid offsets. Reserve = the
+    // runtime's chars/4 + 1024 estimate, release = observed in+out usage (the
+    // estimate undercounts ~1.5x; the excess is carried as debt). a41's slot
+    // follows a44's ~49k call by ~25 s; under a 60 s ceiling her 71-89 s hints
+    // never wait. Same arrivals and elapsed time for both ceilings; claim TTL
+    // follows each ceiling (+15 s), and at most MAX_CONCURRENT_OWNER_WAITS wait.
+    it("serves the fixed loser of a seven-agent owner under the 120 s ceiling (owner 86)", async () => {
+      const cadence = 330.5;
+      const cycles = 12;
+      const roster = [
+        { name: "a43", phase: 0, reserve: 21_554, actual: 32_300 },
+        { name: "a48", phase: 39, reserve: 17_624, actual: 23_150 },
+        { name: "a45", phase: 90, reserve: 25_424, actual: 39_600 },
+        { name: "a42", phase: 151, reserve: 24_924, actual: 37_900 },
+        { name: "a44", phase: 225, reserve: 29_774, actual: 49_150 },
+        { name: "a41", phase: 250, reserve: 28_950, actual: 44_700 },
+        { name: "a49", phase: 274, reserve: 21_254, actual: 29_950 },
+      ];
+      const ids = new Map<string, string>();
+      for (const a of roster)
+        ids.set(a.name, await agentId(`owner86-${a.name}`));
+
+      const run = async (ceilingMs: number) => {
+        const ttl = ceilingMs / 1000 + WAITER_RETRY_SLACK_SECONDS;
+        await drainedAgo(0);
+        await pool.query(
+          `UPDATE agent_runtime.provider_capacity_buckets
+              SET waiter_key = NULL, waiter_tokens = NULL, waiter_since = NULL,
+                  waiter_expires_at = NULL, model_tokens = 0,
+                  last_refill_at = clock_timestamp()
+            WHERE route_key = $1`,
+          [routeKey],
+        );
+        let t = 0;
+        const advance = async (to: number) => {
+          const d = to - t;
+          if (d <= 0) return;
+          await pool.query(
+            `UPDATE agent_runtime.provider_capacity_buckets
+                SET last_refill_at = last_refill_at - make_interval(secs => $2),
+                    waiter_since = waiter_since - make_interval(secs => $2),
+                    waiter_expires_at = waiter_expires_at - make_interval(secs => $2)
+              WHERE route_key = $1`,
+            [routeKey, d],
+          );
+          t = to;
+        };
+        const calls: Record<string, number> = Object.fromEntries(
+          roster.map((a) => [a.name, 0]),
+        );
+        let reserved = 0;
+        let consumed = 0;
+        let waiting = 0;
+        type Ev = {
+          at: number;
+          agent: (typeof roster)[number];
+          readmit: boolean;
+        };
+        const queue: Ev[] = [];
+        for (let c = 0; c < cycles; c += 1)
+          for (const agent of roster)
+            queue.push({
+              at: c * cadence + agent.phase,
+              agent,
+              readmit: false,
+            });
+        while (queue.length > 0) {
+          queue.sort((x, y) => x.at - y.at);
+          const ev = queue.shift()!;
+          await advance(ev.at);
+          if (ev.readmit) waiting -= 1;
+          const key = `agent:${ids.get(ev.agent.name)}`;
+          const r = await reserveProviderCapacity(
+            pool,
+            owner(key, ev.agent.reserve, ttl),
+          );
+          if (r.ok) {
+            await releaseProviderCapacity(pool, r.lease, ev.agent.actual);
+            calls[ev.agent.name] += 1;
+            reserved += ev.agent.reserve;
+            consumed += ev.agent.actual;
+            continue;
+          }
+          const hint = r.retryAfterMs;
+          const canWait =
+            !ev.readmit &&
+            waiting < MAX_CONCURRENT_OWNER_WAITS &&
+            r.reasons.every(
+              (x) => x === "token_budget" || x === "request_budget",
+            ) &&
+            typeof hint === "number" &&
+            hint > 0 &&
+            hint <= ceilingMs;
+          if (canWait) {
+            waiting += 1;
+            queue.push({
+              at: ev.at + hint / 1000,
+              agent: ev.agent,
+              readmit: true,
+            });
+          } else await releaseOwnerClaim(pool, routeKey, key);
+        }
+        return { calls, reserved, consumed, horizon: t };
+      };
+
+      const before = await run(60_000);
+      const after = await run(MAX_OWNER_REFILL_WAIT_MS);
+      console.info("owner 86 schedule", JSON.stringify({ before, after }));
+      // Reported usage, not the estimate, stays within the owner's refill
+      // plus one burst of bounded debt (the old floor let ~1.5x through).
+      const budget = (h: number) => (RATE * h) / 60 + 29_774;
+      expect(before.consumed).toBeLessThanOrEqual(budget(before.horizon));
+      expect(after.consumed).toBeLessThanOrEqual(budget(after.horizon));
+      // 60 s: a41 is the fixed loser (live: 1 call in 6 cycles).
+      expect(before.calls.a41).toBe(Math.min(...Object.values(before.calls)));
+      expect(before.calls.a41).toBeLessThan(cycles / 4);
+      // 120 s: every agent is served and a41 more often. Shares stay unequal
+      // (the owner asks ~1.5x its cap); no throughput gain is claimed.
+      for (const a of roster) expect(after.calls[a.name]).toBeGreaterThan(0);
+      expect(after.calls.a41).toBeGreaterThan(before.calls.a41);
     });
 
     it("refuses dispatch after a wait when the route changed under the same model name", async () => {
@@ -1674,7 +1953,7 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
         (new Date(again.waiter_expires_at).getTime() -
           new Date(again.waiter_since).getTime()) /
         1000;
-      expect(held).toBeLessThanOrEqual(75);
+      expect(held).toBeLessThanOrEqual(OWNER_WAITER_TTL_SECONDS);
     });
 
     it("covers the worst in-cycle wait: Mia's 24k from an empty bucket", async () => {
@@ -1683,10 +1962,10 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
       await drainedAgo(0);
       const denied = await reserveProviderCapacity(pool, owner(mia, MIA));
       expect(denied.ok).toBe(false);
-      // ~57.6 s: inside the 60 s in-cycle ceiling; the claim outlasts it.
+      // ~57.6 s: inside the 120 s in-cycle ceiling; the claim outlasts it.
       const hint = (denied as { retryAfterMs?: number }).retryAfterMs!;
       expect(hint).toBeGreaterThan(57_000);
-      expect(hint).toBeLessThanOrEqual(60_000);
+      expect(hint).toBeLessThanOrEqual(MAX_OWNER_REFILL_WAIT_MS);
       const c = await claim();
       const held =
         (new Date(c.waiter_expires_at).getTime() -
@@ -1699,20 +1978,23 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
       expect(await attempt(mia, MIA)).toBe(true);
     });
 
-    it("cannot meet a reserve above the per-minute rate in-cycle; admits it once the bucket has refilled", async () => {
-      const olivia = `agent:${await agentId("olivia-big")}`;
+    it("cannot meet a reserve beyond the 120 s ceiling in-cycle; admits it once the bucket has refilled", async () => {
+      const big = `agent:${await agentId("olivia-big")}`;
       await drainedAgo(0);
-      const denied = await reserveProviderCapacity(pool, owner(olivia, OLIVIA));
-      // 31k at 25k/min needs ~74.4 s: over the 60 s ceiling, so the route does
-      // not wait and releases the claim (route/runtime tests).
+      const denied = await reserveProviderCapacity(
+        pool,
+        owner(big, BEYOND_CEILING),
+      );
+      // 52k at 25k/min needs ~124.8 s: over the 120 s ceiling, so the route
+      // does not wait and releases the claim (route/runtime tests).
       expect(
         (denied as { retryAfterMs?: number }).retryAfterMs!,
-      ).toBeGreaterThan(60_000);
-      await releaseOwnerClaim(pool, routeKey, olivia);
+      ).toBeGreaterThan(MAX_OWNER_REFILL_WAIT_MS);
+      await releaseOwnerClaim(pool, routeKey, big);
       expect((await claim()).waiter_key).toBeNull();
       // Its later cycle is admitted once the bucket holds its reserve.
-      await drainedAgo(75);
-      expect(await attempt(olivia, OLIVIA)).toBe(true);
+      await drainedAgo(125);
+      expect(await attempt(big, BEYOND_CEILING)).toBe(true);
     });
 
     it("ends a claim at once when its cycle cannot wait", async () => {

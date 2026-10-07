@@ -115,7 +115,7 @@ The runner's `estimatedCostUsd` uses the effective provider's rate and is not a
 billing total for a mixed-provider chain. Paid backup remains separately gated.
 
 If this recovery's owner admission lacks only refillable token/request credit,
-it can wait once for the locked-snapshot refill hint (at most 60 seconds), with
+it can wait once for the locked-snapshot refill hint (at most 120 seconds), with
 no leases held and at least 30 seconds left for a response. It then rechecks
 availability, deadline and fresh admission. Concurrency/cooldown holds, missing
 or invalid hints, a second denial or insufficient time keep the original
@@ -240,13 +240,17 @@ budget. The budget spans provider keys and fallback models; adding agents or
 changing keys cannot multiply it. Tenant-aware queue ordering still applies.
 An unusually large prompt may accumulate one request's worth of credit without
 raising the refill rate. Local provider admission failure refunds unused owner
-credit. Leases expire after a crashed worker, and restarts do not reset budgets.
+credit. Reported usage above the estimate is carried as debt (bounded by one
+bucket capacity) and refilled before later admissions, so the configured
+budgets bind actual tokens, not the chars/4 estimate (7 Oct 2026: shared calls
+used 1.5x their reserve). Leases expire after a crashed worker, and restarts
+do not reset budgets.
 
 Owner budgets are shared fairly (`sql/009_capacity_waiters.sql`). The phase
 grid gives each agent the same offset every cadence, so without a turn rule the
 agent whose slot follows a large prompt can be deferred every cycle (house Mia,
 7 Oct 2026). A first attempt denied by its owner token/request budget now waits in-cycle for
-the refill (at most 60 s, keeping 30 s for the response; never for a busy call
+the refill (at most 120 s, keeping 30 s for the response; never for a busy call
 slot, a cooldown or a provider error), re-checks that the agent is still active
 on the shared pool with the same model, and re-admits. While it waits it is its
 owner bucket's single claimant: the owner's other agents may only spend tokens

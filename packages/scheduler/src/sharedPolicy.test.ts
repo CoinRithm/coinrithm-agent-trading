@@ -64,8 +64,8 @@ describe("shared owner token allocation", () => {
 });
 
 describe("owner bucket waiter", () => {
-  it("bounds the claim by the 60 s in-cycle refill wait plus slack", () => {
-    expect(OWNER_WAITER_TTL_SECONDS).toBe(60 + WAITER_RETRY_SLACK_SECONDS);
+  it("bounds the claim by the 120 s in-cycle refill wait plus slack", () => {
+    expect(OWNER_WAITER_TTL_SECONDS).toBe(120 + WAITER_RETRY_SLACK_SECONDS);
   });
 
   it("names the requesting agent, never the owner", () => {

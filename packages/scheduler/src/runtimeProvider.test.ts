@@ -390,11 +390,11 @@ describe("hosted provider lifecycle", () => {
     const { agent, config } = fixture();
     agent.ownerUserId = 19;
     config.sharedPoolPolicyEnabled = true;
-    // A refill hint beyond the 60 s in-cycle ceiling: no wait, claim released.
+    // A refill hint beyond the 120 s in-cycle ceiling: no wait, claim released.
     vi.mocked(capacity.reserveProviderCapacity).mockResolvedValue({
       ok: false,
       reasons: ["token_budget"],
-      retryAfterMs: 120_000,
+      retryAfterMs: 120_001,
     });
     await runAgentOnce(pool, agent, config);
     expect(decide).not.toHaveBeenCalled();

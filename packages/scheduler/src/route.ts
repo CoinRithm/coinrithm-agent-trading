@@ -107,12 +107,18 @@ export interface RouteHooks<Lease = unknown> {
 }
 
 const MAX_ROUTE_ATTEMPTS = 2;
-/** Longest in-cycle wait for an owner-bucket refill (sharedPolicy TTL). */
-export const MAX_OWNER_REFILL_WAIT_MS = 60_000;
+/**
+ * Longest in-cycle wait for an owner-bucket refill (sharedPolicy TTL). 120 s
+ * (root 57001): at 60 s, a41-mon-olivia, whose grid slot follows a sibling's
+ * ~49k call by ~25 s in a seven-agent owner, got 71-89 s refill hints and
+ * never waited (1 call in 6 cycles, 7 Oct 2026). The 300 s deadline still
+ * keeps the 30 s response margin after a full wait.
+ */
+export const MAX_OWNER_REFILL_WAIT_MS = 120_000;
 const MAX_RECOVERY_REFILL_WAIT_MS = MAX_OWNER_REFILL_WAIT_MS;
 /**
  * First-attempt owner-refill waits in flight per scheduler process. A waiting
- * cycle holds a scheduler slot (6 by default) for up to 60 s, so at most this
+ * cycle holds a scheduler slot (6 by default) for up to 120 s, so at most this
  * many may wait at once; beyond it a cycle defers and releases its claim, and
  * other owners' agents keep their slots.
  */

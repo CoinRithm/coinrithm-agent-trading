@@ -11,7 +11,7 @@ export const OWNER_BUDGET_DEFERRED_ERROR =
   "shared pool owner budget unavailable";
 /**
  * An owner-bucket claim never outlives the bounded in-cycle refill wait it
- * protects (route.ts): the 60 s wait ceiling plus slack. A cycle that cannot
+ * protects (route.ts): the 120 s wait ceiling plus slack. A cycle that cannot
  * wait releases its claim at once (RouteHooks.abandonOwnerWait).
  */
 export const OWNER_WAITER_TTL_SECONDS =

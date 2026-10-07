@@ -403,8 +403,14 @@ export async function isProviderRouteCoolingDown(
 
 /**
  * Release concurrency immediately and reconcile the estimate against provider
- * usage. A smaller actual call refunds tokens; an underestimate debits the
- * difference without ever making the bucket negative.
+ * usage. A smaller actual call refunds tokens; an underestimate is kept as
+ * debt (the bucket may go negative) that refill repays before any later
+ * admission, so reported usage, not the chars/4 estimate, meets the
+ * configured rate. Live 2026-10-07: shared calls used 1.50x their reserve
+ * and the old floor at 0 forgave the excess. Debt is bounded by one bucket
+ * capacity, so one implausible usage report cannot lock a route out for
+ * longer than a full refill plus its own need. Missing or invalid usage
+ * charges exactly the reserve; a lease reconciles once (DELETE ... RETURNING).
  */
 export async function releaseProviderCapacity(
   pool: Pool,
@@ -431,7 +437,7 @@ export async function releaseProviderCapacity(
       await client.query(
         `UPDATE agent_runtime.provider_capacity_buckets
             SET model_tokens = GREATEST(
-                  0,
+                  -GREATEST(model_rate_per_min::double precision, $3::double precision),
                   LEAST(GREATEST(model_rate_per_min::double precision, $3::double precision), model_tokens + $2)
                 ),
                 request_tokens = LEAST(request_rate_per_min, request_tokens + $4),
