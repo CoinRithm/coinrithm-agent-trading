@@ -1278,9 +1278,18 @@ describe("observe", () => {
             {
               title: "BTC ETF inflows hit record",
               source: "Coindesk",
+              url: "https://www.coindesk.com/markets/2026/10/06/etf-inflows",
+              category: "markets",
               sentiment: "bullish",
               importance: 9,
               ageMinutes: 30,
+              coins: ["bitcoin"],
+            },
+            {
+              title: "Unsafe link is dropped, the item is kept",
+              source: "Elsewhere",
+              url: "javascript:alert(1)",
+              importance: 5,
               coins: ["bitcoin"],
             },
           ],
@@ -1292,13 +1301,17 @@ describe("observe", () => {
     expect(typeof (calledWith as { coins?: string } | null)?.coins).toBe(
       "string",
     );
-    expect(observation.news?.length).toBe(1);
+    expect(observation.news?.length).toBe(2);
     expect(observation.news?.[0]).toMatchObject({
       title: "BTC ETF inflows hit record",
+      source: "Coindesk",
+      url: "https://www.coindesk.com/markets/2026/10/06/etf-inflows",
+      category: "markets",
       sentiment: "bullish",
       importance: 9,
       ageHours: 0.5,
     });
+    expect(observation.news?.[1].url).toBeUndefined();
   });
 
   it("news coverage includes universe_scan-DISCOVERED symbols, not just the static watchlist (pump-catalyst investigation)", async () => {

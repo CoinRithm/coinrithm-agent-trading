@@ -962,6 +962,21 @@ async function enrichFromCandles(
 }
 
 const HEADLINES_PER_COIN = 3;
+const NEWS_URL_MAX_CHARS = 300;
+
+// A source link is kept only when it is a plain http(s) URL of bounded length;
+// anything else (javascript:, data:, oversized) is dropped, never rewritten.
+function newsUrl(raw: string | null | undefined): string | undefined {
+  if (!raw || raw.length > NEWS_URL_MAX_CHARS) return undefined;
+  try {
+    const url = new URL(raw);
+    return url.protocol === "https:" || url.protocol === "http:"
+      ? url.toString()
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
 const HEADLINE_TITLE_CHARS = 110;
 const escapeRegExp = (s: string): string =>
   s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -1786,6 +1801,8 @@ export async function observe(
             asNum(it.ageMinutes),
           ),
           publishedAt: asStr(it.publishedAt) ?? undefined,
+          url: newsUrl(asStr(it.url)),
+          category: asStr(it.category)?.slice(0, 40) ?? undefined,
           coins: asArr(it.coins)
             .map((c) => asStr(c))
             .filter((c): c is string => !!c),

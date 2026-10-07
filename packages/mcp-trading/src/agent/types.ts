@@ -779,6 +779,10 @@ export interface NewsItem {
   ageHours?: number;
   publishedAt?: string; // ISO
   coins?: string[]; // related coin slugs
+  // Provenance the API already returns: the source article (http/https only)
+  // and the news judge's category (markets, regulation, security, ...).
+  url?: string;
+  category?: string;
 }
 
 export type WhaleContextStatus = "available" | "partial" | "unavailable";
