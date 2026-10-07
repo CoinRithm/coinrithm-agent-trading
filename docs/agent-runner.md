@@ -244,6 +244,9 @@ code path branches on them. Freshness, quote and balance checks still apply;
 `inspect` warn when these fields or `websearch` are explicitly declared.
 `inspect --json` exposes the same `warnings` array. Existing bundles remain
 loadable. Only `abstention.minConfidence` is an active abstention setting.
+`trigger.timezone` is informational as well: `maxTradesPerDay` and
+`maxDailyLossMusd` count per UTC day and reset at 00:00 UTC, so `validate` and
+`inspect` warn when a timezone other than UTC is declared.
 `triggerPolicy:` in `agent.md` IS load-bearing: it tunes the event-driven gate
 (`mode`, `skipLlmWhenNoTrigger`, `alwaysManageOpenPositions`,
 `maxLlmCallsPerHour`, `debounceMinutes`, `pmEvalCooldownMinutes`).
