@@ -7,6 +7,20 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
 ## 0.7.16 (unpublished)
 
+- Add three optional, runner-enforced prediction-market policy fields, so
+  numbers that strategies stated only in prose become executable. Absent keeps
+  the previous behaviour exactly; malformed values fail closed.
+  - `risk.pmMinEdgeGapPct` (0..100): the forecast must beat the fee-inclusive
+    cost by that share of the room left to 100 (16 means cost 50 needs 58). It
+    never lowers the global minimum edge, and with it set a `pm_open` without
+    `forecastProbability` is rejected (`pm_forecast_required`,
+    `pm_edge_below_gap_rule`). Mechanical benchmarks are exempt.
+  - `risk.pmMaxOpenPerEvent` (1..50): open bets per event (source + slug),
+    counting held positions and opens accepted this cycle (`pm_event_cap`).
+  - `risk.pmMinMinutesToClose` (0..10080): reject a market whose known close is
+    nearer than that to `observation.asOf` (`pm_closes_too_soon`). An unknown or
+    unparseable close never blocks.
+
 - Keep repeated provider 404/410 availability failures out of the generic model
   failure kill-switch. BYO and self-hosted agents retain their configured model
   and provider holds without entering a disable/revive loop. Transient failures

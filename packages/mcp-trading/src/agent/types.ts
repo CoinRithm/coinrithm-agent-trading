@@ -128,6 +128,26 @@ export interface RiskConfig {
   // cost above 20. Absent = no floor (unchanged behaviour). Born from the
   // house prose rule "no PM outcome under 20" that prose alone never enforced.
   pmMinEntryProbabilityPct?: number;
+  // Optional HARD forecast-edge rule (2026-10-07), as a share of the room left
+  // to 100: a pm_open needs forecastProbability >= cost + pct% x (100 - cost),
+  // where cost is the fee-inclusive entry (stake / net shares, points). At 16
+  // that is price 50 -> 58, 70 -> 75, 85 -> 88. It never lowers the global
+  // minimum edge, and with this set a pm_open WITHOUT a forecast is rejected
+  // (an edge rule cannot be checked against a missing number). Born from house
+  // prose ("beat the price by 16% of the gap") that no code enforced. Absent =
+  // the global minimum edge only (unchanged behaviour).
+  pmMinEdgeGapPct?: number;
+  // Optional HARD cap on open bets per prediction-market EVENT (source + slug),
+  // counting held open positions plus opens already accepted this cycle.
+  // Neighbouring bands of one coin and close date are outcomes of one event,
+  // so this is the enforced form of "at most N bets per coin and close date".
+  // Absent = no per-event cap (unchanged behaviour).
+  pmMaxOpenPerEvent?: number;
+  // Optional HARD cutoff (minutes): reject a pm_open whose market closes within
+  // this many minutes of observation.asOf. Only a KNOWN, valid endDate can trip
+  // it; venues publish null or sentinel end dates, so an unknown close never
+  // blocks (the market's own open-time guard still applies). Absent = no cutoff.
+  pmMinMinutesToClose?: number;
 }
 
 export interface LimitsConfig {
