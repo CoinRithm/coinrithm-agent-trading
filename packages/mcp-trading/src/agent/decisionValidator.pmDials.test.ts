@@ -172,6 +172,61 @@ describe("risk.pmMinEdgeGapPct", () => {
   });
 });
 
+describe("risk.pmMaxEdgePoints (overconfidence guard)", () => {
+  it("absent: a 60-point claimed edge passes as before", () => {
+    expect(
+      validateAction(
+        open({ forecastProbability: 75 }),
+        ctx(pmSpec(), { quote: quoteAtCost(15) }),
+      ).valid,
+    ).toBe(true);
+  });
+
+  it("rejects a claimed edge over the cap and accepts at it", () => {
+    const spec = pmSpec({ pmMaxEdgePoints: 20 });
+    const r = validateAction(
+      open({ forecastProbability: 75 }),
+      ctx(spec, { quote: quoteAtCost(15) }),
+    );
+    expect(r.code).toBe("pm_edge_overconfident");
+    expect(r.reason).toContain("over the 20pt cap");
+    expect(
+      validateAction(
+        open({ forecastProbability: 70 }),
+        ctx(spec, { quote: quoteAtCost(50) }),
+      ).valid,
+    ).toBe(true);
+  });
+
+  it("combines with the gap rule into a band", () => {
+    // cost 50: gap 16% needs >= 8, cap 20 allows <= 20.
+    const spec = pmSpec({ pmMinEdgeGapPct: 16, pmMaxEdgePoints: 20 });
+    expect(
+      validateAction(open({ forecastProbability: 57 }), ctx(spec)).code,
+    ).toBe("pm_edge_below_gap_rule");
+    expect(
+      validateAction(open({ forecastProbability: 60 }), ctx(spec)).valid,
+    ).toBe(true);
+    expect(
+      validateAction(open({ forecastProbability: 71 }), ctx(spec)).code,
+    ).toBe("pm_edge_overconfident");
+  });
+
+  it("requires a forecast, exempts benchmarks, fails closed on junk", () => {
+    const spec = pmSpec({ pmMaxEdgePoints: 20 });
+    expect(validateAction(open(), ctx(spec)).code).toBe("pm_forecast_required");
+    expect(validateAction(open(), ctx(spec, { mechanical: true })).valid).toBe(
+      true,
+    );
+    expect(
+      validateAction(
+        open({ forecastProbability: 60 }),
+        ctx(pmSpec({ pmMaxEdgePoints: -1 })),
+      ).code,
+    ).toBe("pm_max_edge_invalid");
+  });
+});
+
 describe("risk.pmMaxOpenPerEvent", () => {
   let heldId = 0;
   const held = (outcome: string, slug = "btc-above-oct-8") => ({
@@ -334,6 +389,7 @@ describe("skill validation of the PM dials", () => {
 
   it("rejects out-of-range values", () => {
     expect(codes({ pmMinEdgeGapPct: 101 })).toContain("skill_risk_pm_edge_gap");
+    expect(codes({ pmMaxEdgePoints: 150 })).toContain("skill_risk_pm_max_edge");
     expect(codes({ pmMaxOpenPerEvent: 0 })).toContain(
       "skill_risk_pm_per_event",
     );

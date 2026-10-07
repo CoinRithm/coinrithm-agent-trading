@@ -212,6 +212,14 @@ export function validateSkill(
           "risk.pmMinEdgeGapPct must be a number between 0 and 100 (% of the gap to 100; omit for the global minimum edge only)",
         );
     }
+    if (r.pmMaxEdgePoints !== undefined) {
+      const m = r.pmMaxEdgePoints;
+      if (typeof m !== "number" || !Number.isFinite(m) || m < 0 || m > 100)
+        add(
+          "skill_risk_pm_max_edge",
+          "risk.pmMaxEdgePoints must be a number between 0 and 100 (points over cost; omit for no cap)",
+        );
+    }
     if (r.pmMaxOpenPerEvent !== undefined) {
       const n = r.pmMaxOpenPerEvent;
       if (typeof n !== "number" || !Number.isInteger(n) || n < 1 || n > 50)
