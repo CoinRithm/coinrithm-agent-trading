@@ -144,3 +144,57 @@ describe("bench guard", () => {
     expect(abortReasonOf(undefined)).toBeNull();
   });
 });
+
+describe("bench guard clocks (root 57085)", () => {
+  it("runs the provider call on the real clock and restores the replay clock", async () => {
+    const REAL = 1_791_400_000_000;
+    const HISTORICAL = 1_791_359_520_689; // a cassette asOf, hours earlier
+    const original = Date.now;
+    const seen: number[] = [];
+    const guard = createBenchGuard({
+      maxCalls: 40,
+      minIntervalMs: 0,
+      maxOwnerDenialStreak: 3,
+      realNow: () => REAL,
+    });
+    const provider = guard.wrap({
+      label: "router",
+      decide: async () => {
+        seen.push(Date.now());
+        return ok;
+      },
+    } as never);
+    // What withReplayClock does around a replayed cycle.
+    Date.now = () => HISTORICAL;
+    try {
+      await provider.decide(input);
+      expect(seen).toEqual([REAL]);
+      expect(Date.now()).toBe(HISTORICAL);
+    } finally {
+      Date.now = original;
+    }
+  });
+
+  it("restores the replay clock even when the provider throws", async () => {
+    const original = Date.now;
+    const guard = createBenchGuard({
+      maxCalls: 40,
+      minIntervalMs: 0,
+      maxOwnerDenialStreak: 3,
+      realNow: () => 2,
+    });
+    const provider = guard.wrap({
+      label: "router",
+      decide: async () => {
+        throw new Error("transport");
+      },
+    } as never);
+    Date.now = () => 1;
+    try {
+      await expect(provider.decide(input)).rejects.toThrow("transport");
+      expect(Date.now()).toBe(1);
+    } finally {
+      Date.now = original;
+    }
+  });
+});

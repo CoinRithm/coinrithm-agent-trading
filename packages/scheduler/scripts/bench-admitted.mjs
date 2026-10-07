@@ -97,10 +97,14 @@ async function main() {
         `a variant model (${models.join(", ")}) or an NVIDIA key is cooling down now; not starting`,
       );
 
+    // Captured here, before cmdBench installs any replay clock: provider
+    // calls (Retry-After, call timing, backoff clearing) run on this clock.
+    const realNow = Date.now;
     const guard = createBenchGuard({
       maxCalls,
       minIntervalMs,
       maxOwnerDenialStreak: 3,
+      realNow,
     });
     const providerFor = (spec) =>
       guard.wrap(
