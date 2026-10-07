@@ -679,7 +679,16 @@ export async function cmdLabel(
       notes.push(
         `pm ${pm.labelled} new settled outcome(s) from ${pm.events} event(s)${pm.failed ? `, ${pm.failed} read(s) failed` : ""}`,
       );
-      if (pm.labelled > 0 || (file && Object.keys(pm.pm).length > 0))
+      const hasPm = Object.keys(pm.pm).length > 0;
+      if (opts.overwrite) {
+        // --overwrite REPLACES the PM part, even with nothing: a label that
+        // was settled before but is void/unresolved now must not survive.
+        const base = file ?? corpus.labels[r.id];
+        if (base || hasPm) {
+          const { pm: _replaced, ...rest } = base ?? {};
+          file = hasPm ? { ...rest, pm: pm.pm } : rest;
+        }
+      } else if (pm.labelled > 0 || (file && hasPm))
         file = { ...(file ?? corpus.labels[r.id] ?? {}), pm: pm.pm };
     }
     lines.push(`${r.id}: ${notes.join("; ")}`);

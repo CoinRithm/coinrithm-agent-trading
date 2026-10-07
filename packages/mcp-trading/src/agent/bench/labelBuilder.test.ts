@@ -433,3 +433,96 @@ describe("cmdLabel with PM verdicts", () => {
     expect(written).toEqual({ pm: { "kalshi/kxbtc-a/A-YES": { settled: 1 } } });
   });
 });
+
+describe("cmdLabel --overwrite replaces PM labels", () => {
+  const prior = process.env.COINRITHM_API_KEY;
+  afterEach(() => {
+    if (prior === undefined) delete process.env.COINRITHM_API_KEY;
+    else process.env.COINRITHM_API_KEY = prior;
+  });
+
+  // A previously settled outcome whose event is now void (eligible false).
+  const VOID = { settlementEligible: false, limboVerdict: "void" };
+  const setup = (withMarket: boolean) => {
+    process.env.COINRITHM_API_KEY = "fixture-key";
+    const dir = mkdtempSync(join(tmpdir(), "label-ow-"));
+    const id = "2026-10-07T07-52-00-689Z-e9eaa6887d61";
+    const responses: unknown[] = [
+      {
+        key: "GET /api/agent/pm/discover?limit=30&q=Bitcoin",
+        method: "GET",
+        path: "/api/agent/pm/discover",
+        query: {},
+        status: 200,
+        ok: true,
+        data: { data: [{ source: "kalshi", slug: "kxbtc-a", outcomes: [] }] },
+      },
+    ];
+    if (withMarket) responses.push(marketRead("1", "BTC"));
+    writeFileSync(
+      join(dir, `${id}.json`),
+      JSON.stringify({
+        schema: "coinrithm.bench.cassette.v1",
+        id,
+        asOf: ASOF,
+        clockMs: Date.parse(ASOF),
+        agentSpecHash: "sha256:fixture",
+        marketBaselineRecorded: true,
+        recordCycle: { decision: "skip" },
+        refusedRequests: [],
+        spec: { venues: ["pm", "futures"] },
+        recordedAt: ASOF,
+        responses,
+      }),
+    );
+    mkdirSync(join(dir, "labels"), { recursive: true });
+    writeFileSync(
+      join(dir, "labels", `${id}.json`),
+      JSON.stringify({ pm: { "kalshi/kxbtc-a/A-YES": { settled: 1 } } }),
+    );
+    const fetchFn = (async (input: unknown) => {
+      const url = new URL(String(input));
+      const body = url.pathname.startsWith("/api/prediction-markets/")
+        ? eventBody(VOID, [outcome("A-YES", "won")])
+        : candles(ASOF_SEC, 300, 300);
+      return new Response(JSON.stringify(body), { status: 200 });
+    }) as unknown as typeof fetch;
+    const read = () =>
+      parseLabelFile(
+        JSON.parse(readFileSync(join(dir, "labels", `${id}.json`), "utf8")),
+        "written",
+      );
+    return { dir, fetchFn, read };
+  };
+
+  it("keeps the old settled label without --overwrite (documented)", async () => {
+    const { dir, fetchFn, read } = setup(false);
+    await cmdLabel({ corpus: dir, fetchFn, nowMs: Date.parse(ASOF) + HOUR });
+    expect(read().pm).toEqual({ "kalshi/kxbtc-a/A-YES": { settled: 1 } });
+  });
+
+  it("clears a previously won label that is now void, prices not yet due", async () => {
+    const { dir, fetchFn, read } = setup(false);
+    await cmdLabel({
+      corpus: dir,
+      fetchFn,
+      overwrite: true,
+      nowMs: Date.parse(ASOF) + HOUR,
+    });
+    expect(read().pm).toBeUndefined();
+  });
+
+  it("clears it on the price-built path too", async () => {
+    const { dir, fetchFn, read } = setup(true);
+    await cmdLabel({
+      corpus: dir,
+      fetchFn,
+      overwrite: true,
+      horizonHours: 4,
+      nowMs: Date.parse(ASOF) + 5 * HOUR,
+    });
+    const written = read();
+    expect(written.pm).toBeUndefined();
+    expect(Object.keys(written.prices ?? {})).toEqual(["BTC"]);
+  });
+});
