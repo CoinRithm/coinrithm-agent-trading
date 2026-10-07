@@ -291,6 +291,8 @@ describe("hosted provider lifecycle", () => {
     vi.spyOn(db, "isProviderRouteAvailable").mockResolvedValue(true);
     vi.spyOn(db, "clearProviderCircuit").mockResolvedValue(undefined);
     vi.spyOn(db, "recordProviderStrike").mockResolvedValue(undefined);
+    vi.spyOn(db, "agentStillSharedEligible").mockResolvedValue(true);
+    vi.spyOn(capacity, "releaseOwnerClaim").mockResolvedValue(undefined);
     vi.spyOn(capacity, "isProviderRouteCoolingDown").mockResolvedValue(false);
     vi.spyOn(capacity, "reserveProviderCapacity").mockResolvedValue({
       ok: true,
@@ -382,6 +384,37 @@ describe("hosted provider lifecycle", () => {
     expect(capacity.reserveProviderCapacity).toHaveBeenCalledTimes(5);
     expect(capacity.releaseProviderCapacity).toHaveBeenCalledTimes(4);
     expect(decide).toHaveBeenCalledTimes(2);
+  });
+
+  it("ends this agent's owner claim when its first owner denial cannot wait", async () => {
+    const { agent, config } = fixture();
+    agent.ownerUserId = 19;
+    config.sharedPoolPolicyEnabled = true;
+    // A refill hint beyond the 60 s in-cycle ceiling: no wait, claim released.
+    vi.mocked(capacity.reserveProviderCapacity).mockResolvedValue({
+      ok: false,
+      reasons: ["token_budget"],
+      retryAfterMs: 120_000,
+    });
+    await runAgentOnce(pool, agent, config);
+    expect(decide).not.toHaveBeenCalled();
+    expect(db.agentStillSharedEligible).not.toHaveBeenCalled();
+    expect(capacity.releaseOwnerClaim).toHaveBeenCalledWith(
+      pool,
+      "shared-owner:user:19",
+      "agent:42",
+    );
+  });
+
+  it("does not touch owner claims when the shared-pool policy is off", async () => {
+    const { agent, config } = fixture();
+    config.sharedPoolPolicyEnabled = false;
+    vi.mocked(capacity.reserveProviderCapacity).mockResolvedValue({
+      ok: false,
+      reasons: ["token_budget"],
+    });
+    await runAgentOnce(pool, agent, config);
+    expect(capacity.releaseOwnerClaim).not.toHaveBeenCalled();
   });
 
   it("refunds unused provider and owner reservations when admission exhausts the deadline", async () => {

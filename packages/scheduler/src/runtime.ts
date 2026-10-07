@@ -36,6 +36,7 @@ import {
   recordPaidCallResult,
   finalizePaidCall,
   listPaidRecoveryCandidates,
+  agentStillSharedEligible,
 } from "./db.js";
 import {
   PAID_BRAIN_MAX_INPUT_BYTES,
@@ -53,7 +54,11 @@ import {
   type PaidCallResult,
 } from "./paidBrain.js";
 import type { Config } from "./config.js";
-import { sharedOwnerLimit } from "./sharedPolicy.js";
+import {
+  OWNER_BUDGET_DEFERRED_ERROR,
+  ownerWaiterKey,
+  sharedOwnerLimit,
+} from "./sharedPolicy.js";
 import {
   RoutedProvider,
   resolveRouteChain,
@@ -63,6 +68,7 @@ import {
 } from "./route.js";
 import {
   reserveProviderCapacity,
+  releaseOwnerClaim,
   releaseProviderCapacity,
   coolDownProviderCapacity,
   clearProviderCapacityBackoff,
@@ -325,6 +331,9 @@ function routedProviderFor(
   agent: AgentRow,
   config: Config,
   log: string[],
+  // The row as loaded for this cycle: the route snapshot an owner-refill
+  // wait must still match before dispatch (agentStillSharedEligible).
+  loaded: AgentRow = agent,
 ): RoutedProvider<
   ProviderCapacityLease & { ownerLease?: ProviderCapacityLease }
 > {
@@ -418,7 +427,7 @@ function routedProviderFor(
             return {
               ok: false,
               scope: "owner",
-              error: "shared pool owner budget unavailable",
+              error: OWNER_BUDGET_DEFERRED_ERROR,
               admissionReasons: owner.reasons,
               retryAfterMs: owner.retryAfterMs,
             };
@@ -443,6 +452,18 @@ function routedProviderFor(
             );
           throw error;
         }
+      },
+      // Owner fairness (009): after an in-cycle refill wait, dispatch only if
+      // this agent is still active on the shared pool with the same model;
+      // a cycle that will not wait ends its owner-bucket claim at once.
+      stillEligible: async () => agentStillSharedEligible(pool, loaded),
+      abandonOwnerWait: async () => {
+        if (!config.capacityEnabled || !config.sharedPoolPolicyEnabled) return;
+        await releaseOwnerClaim(
+          pool,
+          sharedOwnerLimit(agent, config, 1).routeKey,
+          ownerWaiterKey(agent),
+        );
       },
       release: async (route, lease, result, unused) => {
         if (!lease) return;
@@ -1039,7 +1060,7 @@ export async function runAgentOnce(
     const provider =
       metered ??
       (shouldUseHostedRouter(runAgent, config)
-        ? routedProviderFor(pool, runAgent, config, log)
+        ? routedProviderFor(pool, runAgent, config, log, agent)
         : usesCustomerByoSuperJsonContent(runAgent, config)
           ? selectProvider(spec, providerEnvFor(runAgent, config), modelFetch, {
               nemotronJsonContent: () =>

@@ -7,6 +7,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   reserveProviderCapacity,
   releaseProviderCapacity,
+  releaseOwnerClaim,
   coolDownProviderCapacity,
   clearProviderCapacityBackoff,
   isProviderRouteCoolingDown,
@@ -30,6 +31,8 @@ import {
   finalizePaidCall,
   migrateHouseAgentsOffGroq,
   migrateAgentsOffEolModels,
+  agentStillSharedEligible,
+  type AgentRow,
 } from "./db.js";
 import { paidBrainModel, priceRowAt, reserveKeyFor } from "./paidBrain.js";
 
@@ -1338,4 +1341,451 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
       }
     },
   );
+  // ── Owner-bucket fairness (009_capacity_waiters.sql) ──────────────────────
+  // Prod 2026-10-07: five house agents share one 25k TPM owner bucket (burst =
+  // one request, one concurrent call). On the phase grid Olivia (~31k) drains
+  // it and Mia (~24k) arrives ~45 s later every cadence, finds ~18.75k, and is
+  // deferred; Leo (~26k) arrives ~2 min later and always succeeds. Times below
+  // are simulated by moving last_refill_at; claims use the real clock.
+  describe("owner bucket fairness", () => {
+    const routeKey = "shared-owner:fairness";
+    const RATE = 25_000;
+    const MIA = 24_000;
+    const LEO = 26_000;
+    const OLIVIA = 31_000;
+    const agentId = async (handle: string) =>
+      String(
+        (
+          await pool.query(
+            `INSERT INTO agent_runtime.agents
+               (handle, display_name, status, cadence_seconds, model_provider,
+                model_name, spec, prose, coinrithm_key_enc)
+             VALUES ($1, $1, 'active', 180, 'nvidia', 'fixture', '{}', '', 'fixture')
+             RETURNING id`,
+            [handle],
+          )
+        ).rows[0].id,
+      );
+    const owner = (key: string | null, reserveTokens: number) => ({
+      ...limit,
+      routeKey,
+      tokensPerMinute: RATE,
+      tokenBurst: reserveTokens,
+      reserveTokens,
+      maxConcurrent: 1,
+      // OWNER_WAITER_TTL_SECONDS: the 60 s in-cycle wait + 15 s slack.
+      ...(key ? { waiter: { key, ttlSeconds: 75 } } : {}),
+    });
+    // The bucket `seconds` after a large prompt left it empty.
+    const drainedAgo = async (seconds: number) => {
+      await pool.query(
+        `INSERT INTO agent_runtime.provider_capacity_buckets
+           (route_key, provider, request_tokens, model_tokens,
+            request_rate_per_min, model_rate_per_min, max_concurrent)
+         VALUES ($1, 'fixture', 24, 0, 24, $2, 1)
+         ON CONFLICT (route_key) DO NOTHING`,
+        [routeKey, RATE],
+      );
+      await pool.query(
+        `UPDATE agent_runtime.provider_capacity_buckets
+            SET request_tokens = 24, model_tokens = 0,
+                last_refill_at = clock_timestamp() - make_interval(secs => $2)
+          WHERE route_key = $1`,
+        [routeKey, seconds],
+      );
+    };
+    // One model call that consumes its reserve (the turn is used).
+    const attempt = async (
+      key: string | null,
+      reserve: number,
+      on: Pool = pool,
+    ): Promise<boolean> => {
+      const r = await reserveProviderCapacity(on, owner(key, reserve));
+      if (r.ok) await releaseProviderCapacity(on, r.lease, reserve);
+      return r.ok;
+    };
+    const claim = async () =>
+      (
+        await pool.query(
+          `SELECT waiter_key, waiter_tokens, waiter_since, waiter_expires_at,
+                  model_tokens
+             FROM agent_runtime.provider_capacity_buckets WHERE route_key = $1`,
+          [routeKey],
+        )
+      ).rows[0];
+
+    it("reproduces the 2-agent starvation without the rule: Mia loses every cycle", async () => {
+      let mia = 0;
+      let leo = 0;
+      for (let cycle = 0; cycle < 3; cycle += 1) {
+        await drainedAgo(45);
+        if (await attempt(null, MIA)) mia += 1;
+        await drainedAgo(120);
+        if (await attempt(null, LEO)) leo += 1;
+      }
+      expect(mia).toBe(0);
+      expect(leo).toBe(3);
+    });
+
+    it("gives the starved agent its rescheduled retry, then lets the others back", async () => {
+      const mia = `agent:${await agentId("mia")}`;
+      const leo = `agent:${await agentId("leo")}`;
+      await drainedAgo(45);
+      expect(await attempt(mia, MIA)).toBe(false);
+      const first = await claim();
+      expect(first).toMatchObject({ waiter_key: mia, waiter_tokens: MIA });
+      // The claim covers Mia's own refill wait (~12.6 s) plus 15 s slack for
+      // her in-cycle re-admission, not a whole grid interval.
+      const heldSeconds =
+        (new Date(first.waiter_expires_at).getTime() -
+          new Date(first.waiter_since).getTime()) /
+        1000;
+      expect(heldSeconds).toBeGreaterThan(12);
+      expect(heldSeconds).toBeLessThan(12.6 + 15 + 2);
+
+      // Before her retry, Leo may only spend tokens beyond Mia's need.
+      await drainedAgo(50);
+      expect(await attempt(leo, LEO)).toBe(false);
+      expect((await claim()).waiter_key).toBe(mia);
+
+      // Mia's in-cycle re-admission (~13 s later) finds her reserve.
+      await drainedAgo(58);
+      expect(await attempt(mia, MIA)).toBe(true);
+      const after = await claim();
+      expect(after.waiter_key).toBeNull();
+      expect(Number(after.model_tokens)).toBeGreaterThanOrEqual(0);
+
+      await drainedAgo(120);
+      expect(await attempt(leo, LEO)).toBe(true);
+    });
+
+    // Equal-horizon event schedule (Codex 56935): ONE bucket state carried
+    // forward in time (consumed balance kept, claim times aged with it), the
+    // same arrivals for both modes. "rule" = the route's behaviour: a first
+    // owner-budget denial with a refill hint <= 60 s re-admits at that hint,
+    // otherwise the claim is released. "without" = no waiter keys, no wait.
+    it("reports per-agent and total calls/tokens on one chronological schedule", async () => {
+      const cadence = 330;
+      const cycles = 12;
+      const roster = [
+        { name: "olivia", reserve: 31_000, phase: 0 },
+        { name: "mia", reserve: 24_000, phase: 45 },
+        { name: "leo", reserve: 26_000, phase: 120 },
+        { name: "sam", reserve: 22_000, phase: 200 },
+        { name: "carl", reserve: 27_000, phase: 260 },
+      ];
+      const ids = new Map<string, string>();
+      for (const a of roster) ids.set(a.name, await agentId(`sim-${a.name}`));
+
+      const run = async (withRule: boolean) => {
+        await drainedAgo(0);
+        await pool.query(
+          `UPDATE agent_runtime.provider_capacity_buckets
+              SET waiter_key = NULL, waiter_tokens = NULL, waiter_since = NULL,
+                  waiter_expires_at = NULL, last_refill_at = clock_timestamp()
+            WHERE route_key = $1`,
+          [routeKey],
+        );
+        let t = 0;
+        // Advance simulated time: refill accrues from last_refill_at, and a
+        // live claim ages by the same amount.
+        const advance = async (to: number) => {
+          const d = to - t;
+          if (d <= 0) return;
+          await pool.query(
+            `UPDATE agent_runtime.provider_capacity_buckets
+                SET last_refill_at = last_refill_at - make_interval(secs => $2),
+                    waiter_since = waiter_since - make_interval(secs => $2),
+                    waiter_expires_at = waiter_expires_at - make_interval(secs => $2)
+              WHERE route_key = $1`,
+            [routeKey, d],
+          );
+          t = to;
+        };
+        const stats = new Map(
+          roster.map((a) => [a.name, { calls: 0, tokens: 0 }]),
+        );
+        type Ev = {
+          at: number;
+          agent: (typeof roster)[number];
+          readmit: boolean;
+        };
+        const queue: Ev[] = [];
+        for (let c = 0; c < cycles; c += 1)
+          for (const agent of roster)
+            queue.push({
+              at: c * cadence + agent.phase,
+              agent,
+              readmit: false,
+            });
+        while (queue.length > 0) {
+          queue.sort((x, y) => x.at - y.at);
+          const ev = queue.shift()!;
+          await advance(ev.at);
+          const key = withRule ? `agent:${ids.get(ev.agent.name)}` : null;
+          const r = await reserveProviderCapacity(
+            pool,
+            owner(key, ev.agent.reserve),
+          );
+          if (r.ok) {
+            await releaseProviderCapacity(pool, r.lease, ev.agent.reserve);
+            const st = stats.get(ev.agent.name)!;
+            st.calls += 1;
+            st.tokens += ev.agent.reserve;
+            continue;
+          }
+          if (!withRule) continue;
+          const hint = r.retryAfterMs;
+          const canWait =
+            !ev.readmit &&
+            r.reasons.every(
+              (x) => x === "token_budget" || x === "request_budget",
+            ) &&
+            typeof hint === "number" &&
+            hint > 0 &&
+            hint <= 60_000;
+          if (canWait)
+            queue.push({
+              at: ev.at + hint / 1000,
+              agent: ev.agent,
+              readmit: true,
+            });
+          else await releaseOwnerClaim(pool, routeKey, key!);
+        }
+        const per = Object.fromEntries(stats);
+        const total = Array.from(stats.values()).reduce(
+          (sum, s) => ({
+            calls: sum.calls + s.calls,
+            tokens: sum.tokens + s.tokens,
+          }),
+          { calls: 0, tokens: 0 },
+        );
+        return { per, total, horizon: t };
+      };
+
+      const without = await run(false);
+      const withRule = await run(true);
+      // Evidence for review: per-agent and total, both modes, same horizon.
+      console.info(
+        "owner fairness schedule",
+        JSON.stringify({ without, withRule }),
+      );
+      const budget = (h: number) => (RATE * h) / 60 + 31_000;
+      // Neither mode admits more than the bucket can refill (+ one burst).
+      expect(without.total.tokens).toBeLessThanOrEqual(budget(without.horizon));
+      expect(withRule.total.tokens).toBeLessThanOrEqual(
+        budget(withRule.horizon),
+      );
+      // With the rule, every agent whose reserve one minute of refill can
+      // cover is served; no throughput gain is claimed or asserted.
+      for (const a of roster.filter((x) => x.reserve <= RATE))
+        expect(withRule.per[a.name]!.calls).toBeGreaterThan(0);
+    });
+
+    it("refuses dispatch after a wait when the route changed under the same model name", async () => {
+      const id = Number(await agentId("route-snapshot"));
+      const loaded = {
+        id,
+        modelProvider: "nvidia",
+        modelName: "fixture",
+        modelBaseUrl: null,
+        spec: {},
+      } as unknown as AgentRow;
+      expect(await agentStillSharedEligible(pool, loaded)).toBe(true);
+      for (const [change, undo] of [
+        [
+          "UPDATE agent_runtime.agents SET model_provider = 'openai-compatible' WHERE id = $1",
+          "UPDATE agent_runtime.agents SET model_provider = 'nvidia' WHERE id = $1",
+        ],
+        [
+          "UPDATE agent_runtime.agents SET model_base_url = 'https://example.invalid/v1' WHERE id = $1",
+          "UPDATE agent_runtime.agents SET model_base_url = NULL WHERE id = $1",
+        ],
+        [
+          `UPDATE agent_runtime.agents SET spec = '{"pinnedModel": true}'::jsonb WHERE id = $1`,
+          "UPDATE agent_runtime.agents SET spec = '{}'::jsonb WHERE id = $1",
+        ],
+        [
+          `UPDATE agent_runtime.agents SET spec = '{"paidBrain": {"id": "x"}}'::jsonb WHERE id = $1`,
+          "UPDATE agent_runtime.agents SET spec = '{}'::jsonb WHERE id = $1",
+        ],
+        [
+          "UPDATE agent_runtime.agents SET status = 'disabled' WHERE id = $1",
+          "UPDATE agent_runtime.agents SET status = 'active' WHERE id = $1",
+        ],
+      ]) {
+        await pool.query(change!, [id]);
+        expect(await agentStillSharedEligible(pool, loaded)).toBe(false);
+        await pool.query(undo!, [id]);
+        expect(await agentStillSharedEligible(pool, loaded)).toBe(true);
+      }
+    });
+
+    it("releases a paused, deleted or BYO-switched claimant at once, before expiry", async () => {
+      const leo = `agent:${await agentId("leo-e")}`;
+      const changes = [
+        "UPDATE agent_runtime.agents SET status = 'disabled' WHERE id = $1",
+        "UPDATE agent_runtime.agents SET brain_key_enc = 'byo' WHERE id = $1",
+        "DELETE FROM agent_runtime.agents WHERE id = $1",
+      ];
+      for (const [index, change] of changes.entries()) {
+        const id = await agentId(`gone-${index}`);
+        await drainedAgo(45);
+        expect(await attempt(`agent:${id}`, MIA)).toBe(false);
+        await pool.query(change, [id]);
+        await drainedAgo(120);
+        expect(await attempt(leo, LEO)).toBe(true);
+        expect((await claim()).waiter_key).toBeNull();
+      }
+    });
+
+    it("lets an expired claim lapse and a later starved agent take the slot", async () => {
+      const gone = `agent:${await agentId("expired")}`;
+      const olivia = `agent:${await agentId("olivia")}`;
+      const leo = `agent:${await agentId("leo-x")}`;
+      await drainedAgo(45);
+      expect(await attempt(gone, MIA)).toBe(false);
+      await pool.query(
+        `UPDATE agent_runtime.provider_capacity_buckets
+            SET waiter_expires_at = clock_timestamp() - interval '1 second'
+          WHERE route_key = $1`,
+        [routeKey],
+      );
+      await drainedAgo(120);
+      expect(await attempt(leo, LEO)).toBe(true);
+      expect((await claim()).waiter_key).toBeNull();
+      await drainedAgo(10);
+      expect(await attempt(olivia, OLIVIA)).toBe(false);
+      expect((await claim()).waiter_key).toBe(olivia);
+    });
+
+    it("fixes the claim at the first wait: retries never extend it", async () => {
+      const mia = `agent:${await agentId("mia-f")}`;
+      await drainedAgo(10);
+      expect(await attempt(mia, MIA)).toBe(false);
+      const first = await claim();
+      await drainedAgo(5);
+      expect(await attempt(mia, 20_000)).toBe(false);
+      const again = await claim();
+      expect(again.waiter_since).toEqual(first.waiter_since);
+      expect(again.waiter_expires_at).toEqual(first.waiter_expires_at);
+      expect(again.waiter_tokens).toBe(20_000); // need follows the prompt
+      const held =
+        (new Date(again.waiter_expires_at).getTime() -
+          new Date(again.waiter_since).getTime()) /
+        1000;
+      expect(held).toBeLessThanOrEqual(75);
+    });
+
+    it("covers the worst in-cycle wait: Mia's 24k from an empty bucket", async () => {
+      const mia = `agent:${await agentId("mia-w")}`;
+      const leo = `agent:${await agentId("leo-w")}`;
+      await drainedAgo(0);
+      const denied = await reserveProviderCapacity(pool, owner(mia, MIA));
+      expect(denied.ok).toBe(false);
+      // ~57.6 s: inside the 60 s in-cycle ceiling; the claim outlasts it.
+      const hint = (denied as { retryAfterMs?: number }).retryAfterMs!;
+      expect(hint).toBeGreaterThan(57_000);
+      expect(hint).toBeLessThanOrEqual(60_000);
+      const c = await claim();
+      const held =
+        (new Date(c.waiter_expires_at).getTime() -
+          new Date(c.waiter_since).getTime()) /
+        1000;
+      expect(held).toBeGreaterThan(hint / 1000);
+      await drainedAgo(30);
+      expect(await attempt(leo, LEO)).toBe(false);
+      await drainedAgo(58);
+      expect(await attempt(mia, MIA)).toBe(true);
+    });
+
+    it("cannot meet a reserve above the per-minute rate in-cycle; admits it once the bucket has refilled", async () => {
+      const olivia = `agent:${await agentId("olivia-big")}`;
+      await drainedAgo(0);
+      const denied = await reserveProviderCapacity(pool, owner(olivia, OLIVIA));
+      // 31k at 25k/min needs ~74.4 s: over the 60 s ceiling, so the route does
+      // not wait and releases the claim (route/runtime tests).
+      expect(
+        (denied as { retryAfterMs?: number }).retryAfterMs!,
+      ).toBeGreaterThan(60_000);
+      await releaseOwnerClaim(pool, routeKey, olivia);
+      expect((await claim()).waiter_key).toBeNull();
+      // Its later cycle is admitted once the bucket holds its reserve.
+      await drainedAgo(75);
+      expect(await attempt(olivia, OLIVIA)).toBe(true);
+    });
+
+    it("ends a claim at once when its cycle cannot wait", async () => {
+      const mia = `agent:${await agentId("mia-a")}`;
+      const leo = `agent:${await agentId("leo-a")}`;
+      await drainedAgo(45);
+      expect(await attempt(mia, MIA)).toBe(false);
+      // Another agent's key never ends Mia's claim.
+      await releaseOwnerClaim(pool, routeKey, leo);
+      expect((await claim()).waiter_key).toBe(mia);
+      await releaseOwnerClaim(pool, routeKey, mia);
+      expect((await claim()).waiter_key).toBeNull();
+      await drainedAgo(120);
+      expect(await attempt(leo, LEO)).toBe(true);
+    });
+
+    it("keeps the claim when the claimant's admission is released unused", async () => {
+      const mia = `agent:${await agentId("mia-u")}`;
+      const leo = `agent:${await agentId("leo-u")}`;
+      await drainedAgo(45);
+      expect(await attempt(mia, MIA)).toBe(false);
+      await drainedAgo(58);
+      const r = await reserveProviderCapacity(pool, owner(mia, MIA));
+      if (!r.ok) throw Error("expected admission");
+      // e.g. the provider key was busy: owner credit refunded, turn kept.
+      await releaseProviderCapacity(pool, r.lease, 0, true);
+      expect((await claim()).waiter_key).toBe(mia);
+      await drainedAgo(120);
+      expect(await attempt(leo, LEO)).toBe(false);
+    });
+
+    it("keeps the claim across a scheduler restart (a fresh pool)", async () => {
+      const mia = `agent:${await agentId("mia-r")}`;
+      const leo = `agent:${await agentId("leo-r")}`;
+      await drainedAgo(45);
+      expect(await attempt(mia, MIA)).toBe(false);
+      const restarted = new Pool({ connectionString: databaseUrl });
+      try {
+        await drainedAgo(50);
+        expect(await attempt(leo, LEO, restarted)).toBe(false);
+        await drainedAgo(58);
+        expect(await attempt(mia, MIA, restarted)).toBe(true);
+      } finally {
+        await restarted.end();
+      }
+    });
+
+    it("admits only the claimant when two replicas race for one refill", async () => {
+      const mia = `agent:${await agentId("mia-c")}`;
+      const leo = `agent:${await agentId("leo-c")}`;
+      await drainedAgo(45);
+      expect(await attempt(mia, MIA)).toBe(false);
+      await drainedAgo(58);
+      const other = new Pool({ connectionString: databaseUrl });
+      try {
+        const [l, m] = await Promise.all([
+          reserveProviderCapacity(other, owner(leo, LEO)),
+          reserveProviderCapacity(pool, owner(mia, MIA)),
+        ]);
+        expect(m.ok).toBe(true);
+        expect(l.ok).toBe(false);
+        expect(Number((await claim()).model_tokens)).toBeGreaterThanOrEqual(0);
+      } finally {
+        await other.end();
+      }
+    });
+
+    it("leaves requests without a waiter key on the historical rule", async () => {
+      const mia = `agent:${await agentId("mia-k")}`;
+      await drainedAgo(45);
+      expect(await attempt(mia, MIA)).toBe(false);
+      await drainedAgo(120);
+      expect(await attempt(null, LEO)).toBe(true);
+    });
+  });
 });

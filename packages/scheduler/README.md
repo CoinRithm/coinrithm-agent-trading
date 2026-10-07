@@ -242,6 +242,21 @@ An unusually large prompt may accumulate one request's worth of credit without
 raising the refill rate. Local provider admission failure refunds unused owner
 credit. Leases expire after a crashed worker, and restarts do not reset budgets.
 
+Owner budgets are shared fairly (`sql/009_capacity_waiters.sql`). The phase
+grid gives each agent the same offset every cadence, so without a turn rule the
+agent whose slot follows a large prompt can be deferred every cycle (house Mia,
+7 Oct 2026). A first attempt denied by its owner token/request budget now waits in-cycle for
+the refill (at most 60 s, keeping 30 s for the response; never for a busy call
+slot, a cooldown or a provider error), re-checks that the agent is still active
+on the shared pool with the same model, and re-admits. While it waits it is its
+owner bucket's single claimant: the owner's other agents may only spend tokens
+beyond its need. The claim covers that bounded wait plus 15 s, is fixed at the
+first wait, ends when the claimant's call consumes tokens, stops counting at
+once for a paused, deleted or BYO-switched agent, and is released at once when
+the cycle cannot wait. Two provider calls per cycle, limits, concurrency, spend,
+the 180 s model interval and phase scheduling are unchanged; deferrals rotate
+instead of starving one agent.
+
 The stored strategy and cycle cadence are unchanged. Protective thesis exits
 still run each cycle before the model-call gate, including during a budget wait.
 The terminal reports `shared pool model interval` or `shared pool owner budget
@@ -253,7 +268,8 @@ Override the limits with `SCHEDULER_SHARED_OWNER_TPM` and
 `SCHEDULER_SHARED_MIN_MODEL_INTERVAL_SECONDS`. The policy defaults off for an
 explicit rollout; set `SCHEDULER_SHARED_POOL_POLICY_ENABLED=false` to roll it
 back without changing customer records or disabling provider-wide admission.
-No new migration is required: existing durable capacity tables are reused.
+The fairness rule needs migration `009_capacity_waiters.sql` (four nullable
+columns on the existing bucket table, covered by the existing grants).
 
 `SCHEDULER_COMPACT_PROMPT_TABLES_ENABLED=true` enables a separate house-agent
 canary for shorter prompts. Large lists with identical fields become tables with

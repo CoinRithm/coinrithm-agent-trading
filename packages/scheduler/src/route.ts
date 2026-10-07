@@ -100,10 +100,34 @@ export interface RouteHooks<Lease = unknown> {
     attempt: RouteAttempt,
     callStartedAt?: number,
   ): Promise<void>;
+  /** After an owner-refill wait: may this agent still dispatch on route? */
+  stillEligible?(route: ModelRoute): Promise<boolean>;
+  /** This cycle will not (or no longer) wait: end its owner-bucket claim. */
+  abandonOwnerWait?(route: ModelRoute): Promise<void>;
 }
 
 const MAX_ROUTE_ATTEMPTS = 2;
-const MAX_RECOVERY_REFILL_WAIT_MS = 60_000;
+/** Longest in-cycle wait for an owner-bucket refill (sharedPolicy TTL). */
+export const MAX_OWNER_REFILL_WAIT_MS = 60_000;
+const MAX_RECOVERY_REFILL_WAIT_MS = MAX_OWNER_REFILL_WAIT_MS;
+/**
+ * First-attempt owner-refill waits in flight per scheduler process. A waiting
+ * cycle holds a scheduler slot (6 by default) for up to 60 s, so at most this
+ * many may wait at once; beyond it a cycle defers and releases its claim, and
+ * other owners' agents keep their slots.
+ */
+export const MAX_CONCURRENT_OWNER_WAITS = 2;
+let ownerWaitsInFlight = 0;
+/**
+ * A first attempt whose agent was paused, deleted or re-routed during its
+ * owner-refill wait: recorded as this, not as owner-budget starvation.
+ */
+export const ROUTE_CHANGED_ERROR =
+  "route_changed: agent paused, removed or re-routed during owner refill wait";
+/** Tests and diagnostics: first-attempt owner waits currently sleeping. */
+export function ownerWaitsInFlightNow(): number {
+  return ownerWaitsInFlight;
+}
 const MIN_RECOVERY_RESPONSE_MS = 30_000;
 
 function cleanError(value: string | undefined): string | undefined {
@@ -262,6 +286,14 @@ export class RoutedProvider<Lease = unknown> implements Provider {
     this.label = `router/${profile}/${ROUTE_POLICY_VERSION}`;
   }
 
+  private async abandonOwnerWait(route: ModelRoute): Promise<void> {
+    try {
+      await this.hooks.abandonOwnerWait?.(route);
+    } catch {
+      // The claim still expires on its own (<= 75 s); never fail the cycle.
+    }
+  }
+
   private clean(value: string | undefined): string | undefined {
     return cleanError(
       value === undefined
@@ -338,8 +370,18 @@ export class RoutedProvider<Lease = unknown> implements Provider {
       let acquired = await this.hooks.acquire(route, routeInput);
       let waitedForOwner = false;
       const refillWaitMs = !acquired.ok ? acquired.retryAfterMs : undefined;
+      // A first attempt denied by the owner budget may wait in-cycle for the
+      // refill too (owner fairness, 009): otherwise its next try is a whole
+      // grid interval later at the same offset, which is how one agent lost
+      // every cycle. Same bounds as the malformed retry: owner token/request
+      // budget only, <= 60 s, >= 30 s left for the response, re-admission.
+      const firstAttempt = attempts.length === 0;
+      let routeChanged = false;
+      const fairnessWait =
+        firstAttempt && options?.nemotronJsonContent !== true;
       if (
-        options?.nemotronJsonContent === true &&
+        (options?.nemotronJsonContent === true || firstAttempt) &&
+        (!fairnessWait || ownerWaitsInFlight < MAX_CONCURRENT_OWNER_WAITS) &&
         !acquired.ok &&
         acquired.scope === "owner" &&
         acquired.admissionReasons?.length &&
@@ -352,18 +394,39 @@ export class RoutedProvider<Lease = unknown> implements Provider {
         refillWaitMs <= MAX_RECOVERY_REFILL_WAIT_MS &&
         this.now() + refillWaitMs + MIN_RECOVERY_RESPONSE_MS <= deadline
       ) {
-        // Only the specific malformed-output retry may wait for owner refill.
-        // No lease is held: the first request was released, and denied owner
-        // admission creates none. The hint comes from the locked SQL snapshot;
-        // another agent can consume its credit, so re-admission is mandatory.
+        // No lease is held: a first denial creates none, and a malformed first
+        // request was released. The hint comes from the locked SQL snapshot;
+        // another agent can consume its credit, so re-admission is mandatory,
+        // and so is re-checking that this agent may still use this route.
         waitedForOwner = true;
-        await new Promise<void>((resolve) => setTimeout(resolve, refillWaitMs));
-        if (this.now() + MIN_RECOVERY_RESPONSE_MS > deadline) break;
-        if (!(await this.hooks.availability(route)).eligible) break;
-        if (this.now() + MIN_RECOVERY_RESPONSE_MS > deadline) break;
-        acquired = await this.hooks.acquire(route, routeInput);
+        if (fairnessWait) ownerWaitsInFlight += 1;
+        try {
+          await new Promise<void>((resolve) =>
+            setTimeout(resolve, refillWaitMs),
+          );
+        } finally {
+          if (fairnessWait) ownerWaitsInFlight -= 1;
+        }
+        const routeUsable =
+          this.now() + MIN_RECOVERY_RESPONSE_MS <= deadline &&
+          (await this.hooks.availability(route)).eligible &&
+          this.now() + MIN_RECOVERY_RESPONSE_MS <= deadline;
+        const canDispatch =
+          routeUsable &&
+          (!this.hooks.stillEligible ||
+            (await this.hooks.stillEligible(route)));
+        // Paused, deleted or re-routed while waiting: not owner starvation.
+        routeChanged = routeUsable && !canDispatch;
+        if (canDispatch) acquired = await this.hooks.acquire(route, routeInput);
+        else if (!firstAttempt) {
+          await this.abandonOwnerWait(route);
+          break;
+        }
       }
       if (!acquired.ok) {
+        // This cycle will not wait again: release its claim now rather than
+        // hold the owner's bucket until the claim expires.
+        await this.abandonOwnerWait(route);
         const attempt: RouteAttempt = {
           provider: route.provider,
           model: route.model,
@@ -371,8 +434,12 @@ export class RoutedProvider<Lease = unknown> implements Provider {
           failureClass: "capacity",
           retryAfterMs: acquired.retryAfterMs,
           latencyMs: 0,
-          error: this.clean(acquired.error ?? "provider capacity unavailable"),
-          admissionReasons: acquired.admissionReasons,
+          error: routeChanged
+            ? ROUTE_CHANGED_ERROR
+            : this.clean(acquired.error ?? "provider capacity unavailable"),
+          admissionReasons: routeChanged
+            ? undefined
+            : acquired.admissionReasons,
         };
         attempts.push(attempt);
         if (acquired.scope === "route") blockedRoutes.add(routeKey(route));
@@ -400,6 +467,8 @@ export class RoutedProvider<Lease = unknown> implements Provider {
           { ok: false, error: "model route deadline exhausted" },
           true,
         );
+        // The unused release keeps a claim; this cycle has ended, so end it.
+        await this.abandonOwnerWait(route);
         break;
       }
       lastAttemptedRoute = route;
