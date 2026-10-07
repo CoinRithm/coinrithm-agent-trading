@@ -143,7 +143,9 @@ export interface RouteHooks<Lease = unknown> {
   onOwnerWait?(event: OwnerWaitEvent): void;
 }
 
-const MAX_ROUTE_ATTEMPTS = 2;
+/** Attempts per decision, a same-model malformed-output recovery included.
+ *  The bench guard reserves this many provider calls per decision. */
+export const MAX_ROUTE_ATTEMPTS = 2;
 /**
  * Longest in-cycle wait for an owner-bucket refill (sharedPolicy TTL). 120 s
  * (root 57001): at 60 s, a41-mon-olivia, whose grid slot follows a sibling's

@@ -4,7 +4,10 @@
 // agents); this wrapper adds the run-level safety rules on top:
 //
 //   - a hard cap on provider calls for the whole run (attempts that reached a
-//     provider, not local deferrals);
+//     provider, not local deferrals), enforced BEFORE each decision: a
+//     decision may make up to MAX_ROUTE_ATTEMPTS provider calls (a
+//     malformed-output recovery retries the same model), so it starts only
+//     when that worst case still fits under the cap;
 //   - a minimum interval between decisions, so one run never bursts;
 //   - abort on the first provider capacity failure (429), on any local
 //     cooldown hold (another caller's 429 already cooled the route), and on
@@ -16,7 +19,7 @@
 
 import type { DecideInput, DecideResult } from "@coinrithm/mcp-trading/engine";
 import { OWNER_BUDGET_DEFERRED_ERROR } from "./sharedPolicy.js";
-import type { RouteMetadata } from "./route.js";
+import { MAX_ROUTE_ATTEMPTS, type RouteMetadata } from "./route.js";
 
 export const BENCH_MAX_CALLS = 40;
 
@@ -24,6 +27,8 @@ export interface BenchGuardOptions {
   maxCalls: number;
   minIntervalMs: number;
   maxOwnerDenialStreak: number;
+  /** Worst-case provider calls one decision can make (router limit). */
+  attemptsPerDecision?: number;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
 }
@@ -82,6 +87,13 @@ export function createBenchGuard(opts: BenchGuardOptions): {
     opts.maxCalls > BENCH_MAX_CALLS
   )
     throw new Error(`maxCalls must be an integer from 1 to ${BENCH_MAX_CALLS}`);
+  const perDecision = opts.attemptsPerDecision ?? MAX_ROUTE_ATTEMPTS;
+  if (!Number.isInteger(perDecision) || perDecision < 1)
+    throw new Error("attemptsPerDecision must be a positive integer");
+  if (opts.maxCalls < perDecision)
+    throw new Error(
+      `maxCalls ${opts.maxCalls} cannot cover one decision (up to ${perDecision} provider calls)`,
+    );
   const now = opts.now ?? Date.now;
   const sleep =
     opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
@@ -101,8 +113,11 @@ export function createBenchGuard(opts: BenchGuardOptions): {
     input: DecideInput,
   ): Promise<DecideResult> => {
     if (state.aborted) return deferred(state.aborted);
-    if (state.providerCalls >= opts.maxCalls) {
-      state.aborted = `call cap ${opts.maxCalls} reached`;
+    // Reserve the worst case BEFORE the decision: the router may retry the
+    // same model once inside one decide(), so checking afterwards could let
+    // a single decision overshoot the cap.
+    if (state.providerCalls + perDecision > opts.maxCalls) {
+      state.aborted = `call cap ${opts.maxCalls} reached (${state.providerCalls} used, a decision may need ${perDecision})`;
       return deferred(state.aborted);
     }
     if (lastDecisionAt !== null) {
