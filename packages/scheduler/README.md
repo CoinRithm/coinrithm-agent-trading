@@ -82,10 +82,11 @@ Operational must-knows:
   without BYO credentials need an eligible shared route. Router mode can use
   configured fallback providers; missing capacity is not proof of provider health.
 - **Startup checks the schema; it never runs DDL.** The runtime connects as
-  `coinrithm_scheduler`, with DML on its seven runtime tables and read access
+  `coinrithm_scheduler`, with DML on its seven runtime tables, append-only
+  access (SELECT, INSERT) to the paid-brain credit ledger, read access
   to migration receipts and the three API-key identity fields used by the
   existing startup repair. Startup refuses missing/changed migration receipts,
-  superuser authority, role membership, schema creation or ledger writes.
+  superuser authority, role membership, schema creation or migration-receipt writes.
   Run migrations explicitly with a separate privileged connection before
   deploying a schema change (see below). Shared capacity remains necessary
   for multiple replicas.
@@ -277,6 +278,54 @@ it cannot clear a failure newer than that request. Five quiet minutes also reset
 the failure sequence. This is bounded retry policy, not a guarantee that NVIDIA
 recovers within seconds. Set `SCHEDULER_ADAPTIVE_COOLDOWN_ENABLED=false` to
 restore the previous 60-second default; explicit `Retry-After` still applies.
+
+## Paid brains
+
+An agent can opt into a paid model (contract v1, 2026-10-07). It is metered per
+call from the provider's reported usage plus a margin, against prepaid credits
+in `agent_runtime.credit_ledger`. Free agents, BYO keys and the free brain are
+unchanged and never touch the ledger.
+
+| Var                      | Notes                                                                         |
+| ------------------------ | ----------------------------------------------------------------------------- |
+| `PAID_ANTHROPIC_API_KEY` | platform key for the Claude paid brains; scheduler env only, never logged     |
+| `PAID_GEMINI_API_KEY`    | platform key for the Gemini paid brains; scheduler env only, never logged     |
+| `PAID_BRAIN_MARGIN_PCT`  | whole percent on top of provider cost; default 20 (the backend uses the same) |
+
+**Schema.** `sql/008_paid_brain_credits.sql` creates the append-only ledger
+(integer micro-USD, unique idempotency key, a debit is always negative). The
+runtime role gets `SELECT, INSERT` on it and `USAGE` on its id sequence, never
+`UPDATE`/`DELETE`/`TRUNCATE`; `coinrithm_app` gets the same, granted only if the
+role exists. Run the operator migration, then re-run `runtime-role.sql`.
+
+**Behaviour per cycle** (`src/runtime.ts`, pricing in `src/paidBrain.ts`):
+
+- An agent is paid only when `spec.paidBrain` is valid AND its row is on that
+  model with no BYO key and a billable owner; anything else runs as before and
+  logs `paid_brain_spec_invalid`. The platform key is never used for it.
+- Admission, before the provider is built: the owner's balance must exceed the
+  worst case of one call (64k input and 4,096 output tokens at catalogue price
+  plus margin), and the agent's month spend (since 00:00 UTC on the 1st) plus
+  that worst case must stay within its monthly cap.
+- Admitted: one direct call to the paid model with the platform key, never
+  through the shared NVIDIA router, with no retry and no fallback to another
+  model. A missing platform key skips the cycle as recoverable infrastructure
+  (`paid_brain_platform_key_missing`) and is never debited.
+- Not admitted: `onExhausted: "free"` (default) runs the cycle on
+  `spec.paidBrain.fallback` exactly like a shared-pool agent
+  (`paid_brain_exhausted`); `"pause"` pauses the agent with reason
+  `paid brain credit exhausted` and makes no call. If the ledger cannot be read,
+  free agents fall back and pause agents skip that cycle.
+- After the cycle row commits, one `debit:<cycle_id>` row is inserted
+  (`ON CONFLICT DO NOTHING`), only for a call the provider answered.
+  Deferred, rate-limited, failed or never-made calls are not charged. When the
+  provider reports no usage, the runner's chars/4 estimate is charged and the
+  row's note says `usage estimated`. A ledger error logs
+  `paid_brain_debit_failed` and never fails the trading cycle.
+
+**Not part of this.** Top-ups and payment collection. Until the owner connects a
+payment provider, credits come only from root grants through the backend's
+internal grant endpoint (`kind = 'grant'`).
 
 ## Schema deployment and runtime role
 
