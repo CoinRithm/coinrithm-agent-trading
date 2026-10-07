@@ -510,6 +510,44 @@ export function buildUserPrompt(
           : []),
     );
   }
+  // Futures entry rules the runner enforces, stated with THIS agent's numbers.
+  // The weekly house report (2026-09-30..10-07) found the two largest refusal
+  // classes were opens below the fee-inclusive reward:risk floor
+  // (capital_quote_reward_risk_too_low) and SL/TP on an add
+  // (add_cannot_carry_sltp). Wording only: the validators are unchanged.
+  if (hasFutures && !futuresOpenWithheld) {
+    const held = Array.from(
+      new Set(
+        obs.openPositions
+          .filter(
+            (p) =>
+              p.venue === "futures" &&
+              (p.status ?? "open") === "open" &&
+              typeof p.symbol === "string" &&
+              p.symbol.length > 0,
+          )
+          .map((p) => (p.symbol as string).toUpperCase()),
+      ),
+    );
+    const minRewardRisk = opts.capitalSizing?.minRewardRisk;
+    if (
+      typeof minRewardRisk === "number" &&
+      Number.isFinite(minRewardRisk) &&
+      minRewardRisk >= 1
+    ) {
+      lines.push(
+        `REWARD:RISK FLOOR ${minRewardRisk} (your capitalSizing.minRewardRisk, enforced with fees; an open below it is rejected as capital_quote_reward_risk_too_low): the take-profit's distance from entry, minus the entry and exit fees, must be at least ${minRewardRisk}x the stop's distance from entry plus those fees. A target exactly ${minRewardRisk}x the stop distance FAILS once fees are counted, so leave room. If the setup cannot offer such a target, do not open it.`,
+      );
+    }
+    if (held.length > 0) {
+      const list = held.join(", ");
+      lines.push(
+        opts.capitalSizing
+          ? `You already hold futures on ${list}. Under your capital policy you cannot ADD to them: every futures_open needs its own stopLossPrice and takeProfitPrice for sizing, and the server refuses SL/TP on an add (add_cannot_carry_sltp). Propose NO futures_open on ${list}; manage them with futures_set_sltp or futures_close on their positionId.`
+          : `You already hold futures on ${list}. A futures_open on any of them is an ADD and must carry NO stopLossPrice or takeProfitPrice (the whole open is rejected as add_cannot_carry_sltp); adjust protection with futures_set_sltp on the positionId instead.`,
+      );
+    }
+  }
   // Flat-state steer: when the agent holds NOTHING, weaker models (Llama 3.1 8B)
   // still emit futures_close / futures_set_sltp / spot_cancel with a hallucinated
   // positionId/orderId — which fails the whole cycle's strict parse (one bad id

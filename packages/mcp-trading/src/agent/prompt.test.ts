@@ -1,4 +1,7 @@
 import { describe, it, expect } from "vitest";
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   buildDailyRiskBudget,
   buildFuturesCapacity,
@@ -6,7 +9,7 @@ import {
   buildUserPrompt,
   formatPmResolutions,
 } from "./prompt.js";
-import { parseSkill } from "./skill.js";
+import { loadAgent, parseSkill } from "./skill.js";
 import { renderFolderOfOne } from "./templates.js";
 import { Observation, PmResolution } from "./types.js";
 import { newState } from "./state.js";
@@ -27,6 +30,115 @@ const baseObs = (over: Partial<Observation> = {}): Observation => ({
   newClosedTrades: [],
   polledBeforeWrite: true,
   ...over,
+});
+
+describe("futures entry rules stated with the agent's own numbers", () => {
+  const policy = (minRewardRisk: number) => ({
+    version: "equity_fraction_v1" as const,
+    futuresRiskPct: 0.5,
+    pmMaxLossPct: 1,
+    perTicketCapitalPct: 10,
+    totalCapitalPct: 40,
+    cashReservePct: 20,
+    minRewardRisk,
+  });
+  const held = (
+    symbol: string,
+    venue: "futures" | "spot" = "futures",
+    status = "open",
+  ) => ({ venue, id: 7, symbol, status, side: "long" });
+
+  it("states the exact fee-inclusive reward:risk floor for a new position", () => {
+    const text = buildUserPrompt(baseObs(), undefined, {
+      venues: ["futures"],
+      capitalSizing: policy(2),
+    });
+    expect(text).toContain("REWARD:RISK FLOOR 2 ");
+    expect(text).toContain("capital_quote_reward_risk_too_low");
+    expect(text).toContain("A target exactly 2x the stop distance FAILS");
+    // Nothing held: no add rule.
+    expect(text).not.toContain("You already hold futures on");
+  });
+
+  it("forbids adds under a capital policy (sizing needs SL/TP, an add cannot carry them)", () => {
+    const text = buildUserPrompt(
+      baseObs({
+        openPositions: [
+          held("btc"),
+          held("BTC"),
+          held("ETH"),
+          held("SOL", "spot"),
+          held("XRP", "futures", "closed"),
+        ] as Observation["openPositions"],
+      }),
+      undefined,
+      { venues: ["futures"], capitalSizing: policy(1) },
+    );
+    expect(text).toContain(
+      "You already hold futures on BTC, ETH. Under your capital policy you cannot ADD",
+    );
+    expect(text).toContain("Propose NO futures_open on BTC, ETH");
+    expect(text).not.toMatch(/hold futures on [^.]*(SOL|XRP)/);
+  });
+
+  it("without a capital policy an add is allowed but must carry no SL/TP, and no floor is stated", () => {
+    const text = buildUserPrompt(
+      baseObs({ openPositions: [held("BTC")] as Observation["openPositions"] }),
+      undefined,
+      { venues: ["futures"] },
+    );
+    expect(text).toContain(
+      "A futures_open on any of them is an ADD and must carry NO stopLossPrice or takeProfitPrice",
+    );
+    expect(text).not.toContain("REWARD:RISK FLOOR");
+  });
+
+  it("says nothing when futures opens are withheld or futures is not a venue", () => {
+    const obs = baseObs({
+      openPositions: [held("BTC")] as Observation["openPositions"],
+    });
+    for (const text of [
+      buildUserPrompt(obs, undefined, {
+        venues: ["futures"],
+        capitalSizing: policy(2),
+        excludeActionTypes: ["futures_open"],
+      }),
+      buildUserPrompt(obs, undefined, {
+        venues: ["pm"],
+        capitalSizing: policy(2),
+      }),
+    ]) {
+      expect(text).not.toContain("REWARD:RISK FLOOR");
+      expect(text).not.toContain("You already hold futures on");
+    }
+  });
+
+  it("uses each house template's own floor (and none for a PM-only template)", () => {
+    const root = fileURLToPath(
+      new URL("../../../../examples/agents/", import.meta.url),
+    );
+    const seen: Record<string, number | null> = {};
+    for (const entry of readdirSync(root, { withFileTypes: true })) {
+      if (!entry.isDirectory() || entry.name.startsWith("_")) continue;
+      const agent = loadAgent(join(root, entry.name));
+      if (!agent.spec.capitalSizing) continue;
+      const text = buildUserPrompt(baseObs(), undefined, {
+        venues: agent.spec.venues,
+        capitalSizing: agent.spec.capitalSizing,
+      });
+      const m = text.match(/REWARD:RISK FLOOR (\S+) /);
+      seen[entry.name] = m ? Number(m[1]) : null;
+      if (agent.spec.venues.includes("futures"))
+        expect(seen[entry.name]).toBe(agent.spec.capitalSizing.minRewardRisk);
+      else expect(seen[entry.name]).toBeNull();
+    }
+    expect(seen).toMatchObject({
+      "contrarian-carl": 1,
+      "leo-breakout-hunter": 2,
+      "mia-trend-rider": 2,
+      "sam-risk-managed-swinger": 2,
+    });
+  });
 });
 
 describe("opt-in capital sizing prompt context", () => {
