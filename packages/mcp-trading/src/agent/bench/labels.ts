@@ -304,7 +304,10 @@ function scoreFutures(
     )
       return gap("bars_end_before_horizon");
     const last = bars[bars.length - 1];
-    exit = { kind: "horizon", price: last.c, t: last.t };
+    // Priced at the final full bar's CLOSE, so funding settled inside that
+    // bar counts. Stop/target exits keep the bar OPEN as their time: inside
+    // one bar the trigger time is unknown (the stated same-bar ambiguity).
+    exit = { kind: "horizon", price: last.c, t: last.t + barSeconds };
   }
   const exitT = exit.t;
   const fundingEvents = seriesFor(labels.funding, action.symbol);
