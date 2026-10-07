@@ -269,6 +269,30 @@ describe("risk.pmMinMinutesToClose", () => {
     ).toBe(true);
   });
 
+  it("re-checks at validation time: a slow model call cannot open inside the cutoff", () => {
+    const spec = pmSpec({ pmMinMinutesToClose: 10 });
+    // 12 minutes left at observation time, but the model answered 4 minutes later.
+    const late = Date.parse(ASOF) + 4 * 60_000;
+    expect(
+      validateAction(open(), ctx(spec, { observation: closingIn(12) })).valid,
+    ).toBe(true);
+    const r = validateAction(
+      open(),
+      ctx(spec, { observation: closingIn(12), nowMs: late }),
+    );
+    expect(r.code).toBe("pm_closes_too_soon");
+    // A clock earlier than asOf never relaxes the rule.
+    expect(
+      validateAction(
+        open(),
+        ctx(spec, {
+          observation: closingIn(9),
+          nowMs: Date.parse(ASOF) - 60 * 60_000,
+        }),
+      ).code,
+    ).toBe("pm_closes_too_soon");
+  });
+
   it("an unknown or unparseable close never blocks", () => {
     const spec = pmSpec({ pmMinMinutesToClose: 10 });
     for (const endDate of [undefined, "", "not-a-date"]) {

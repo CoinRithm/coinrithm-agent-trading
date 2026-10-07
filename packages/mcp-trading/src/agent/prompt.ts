@@ -254,12 +254,12 @@ export function buildSystemPrompt(
       : []),
     ...(hasPm && typeof r.pmMaxOpenPerEvent === "number"
       ? [
-          `- PM PER-EVENT CAP: at most ${r.pmMaxOpenPerEvent} open bet(s) per event (same market slug, counting bets you already hold). Neighbouring bands of one coin and close date are one event. Extra opens are REJECTED.`,
+          `- PM PER-EVENT CAP: at most ${r.pmMaxOpenPerEvent} open bet(s) per event (same market slug, counting bets you already hold). Extra opens are REJECTED.`,
         ]
       : []),
     ...(hasPm && typeof r.pmMinMinutesToClose === "number"
       ? [
-          `- PM CLOSE CUTOFF: a market whose \`end\` is less than ${r.pmMinMinutesToClose} minutes after observation.asOf is REJECTED; the price already knows.`,
+          `- PM CLOSE CUTOFF: a market whose \`end\` is less than ${r.pmMinMinutesToClose} minutes away when the runner validates your action is REJECTED; the price already knows.`,
         ]
       : []),
     ...(includeForecast
