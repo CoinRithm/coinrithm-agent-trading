@@ -435,8 +435,8 @@ describe("runBench", () => {
   });
 
   it("records gate trigger codes, so a periodic PM wake is not read as a setup", async () => {
-    // Every bench cycle starts from a fresh state, so with PM markets present
-    // the periodic PM wake fires on every cassette whatever the signal dials.
+    // Every bench cycle starts from a fresh state, so a cassette with PM
+    // markets and no setup or open position wakes on PM_PERIODIC.
     const eventDriven = (pmEvalCooldownMinutes: number): AgentSpec => ({
       ...pmSpec(),
       triggerPolicy: {

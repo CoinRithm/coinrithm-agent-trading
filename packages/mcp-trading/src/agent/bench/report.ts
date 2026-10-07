@@ -59,9 +59,9 @@ export interface CycleRow {
   llmCallMade: boolean;
   /**
    * Gate trigger codes for the cycle. Tells a real setup (PRICE_BREAKOUT,
-   * MOMENTUM_TREND, ...) apart from the periodic PM wake (PM_PERIODIC), which
-   * fires on every cassette with PM markets because each cycle starts from a
-   * fresh state.
+   * MOMENTUM_TREND, ...) apart from the periodic PM wake (PM_PERIODIC). Each
+   * cycle starts from a fresh state, so a cassette with PM markets and no
+   * setup or open position CAN wake periodically.
    */
   triggerCodes?: string[];
   skipReason?: string;
@@ -316,6 +316,8 @@ function variantMetrics(
     model_error: 0,
     runtime_error: 0,
   };
+  // Trigger code occurrences across rows (a row can carry several codes), not
+  // model calls: llmCallMade/decisionMix count those.
   const triggerMix: Record<string, number> = {};
   const rejectCodes: Record<string, number> = {};
   let proposed = 0;
