@@ -26,6 +26,12 @@ import {
   NewsItem,
   CoinFundamentals,
   OpenInterestContext,
+  PositioningContext,
+  LiquidationContext,
+  LiquidationWindow,
+  MacroContext,
+  MacroQuote,
+  DatedValue,
   WatchEntry,
   IndicatorContext,
   AgentTrace,
@@ -745,6 +751,122 @@ export function openInterestOf(
   };
 }
 
+// A provider time we can show: parseable and not more than 60 s ahead.
+const shownTime = (v: unknown, nowMs: number): string | undefined => {
+  const s = asStr(v);
+  if (!s) return undefined;
+  const ms = Date.parse(s);
+  return Number.isFinite(ms) && ms <= nowMs + 60_000 ? s : undefined;
+};
+
+// A dated metric from the API's {value, asOf, stale}; omitted when malformed,
+// negative or dated in the future. A real zero is valid.
+const datedValueOf = (v: unknown, nowMs: number): DatedValue | undefined => {
+  const o = asObj(v);
+  const value = asNum(o.value);
+  const asOf = shownTime(o.asOf, nowMs);
+  if (value == null || value < 0 || !asOf) return undefined;
+  return { value, asOf, stale: o.stale !== false };
+};
+
+// Binance positioning ratios from the same /market context (no extra call).
+// Each metric keeps its own provider time; malformed metrics are dropped and
+// the block is omitted when none is usable.
+export function positioningOf(
+  m: Record<string, unknown>,
+  nowMs = Date.now(),
+): PositioningContext | undefined {
+  const p = asObj(asObj(m.derivatives).positioning);
+  const venue = asStr(p.venue);
+  const symbol = asStr(p.symbol);
+  if (!venue || !symbol) return undefined;
+  const out: PositioningContext = { venue, symbol };
+  const a = datedValueOf(p.longShortAccountRatio, nowMs);
+  const l = datedValueOf(p.longAccountPct, nowMs);
+  const t = datedValueOf(p.topTraderPositionRatio, nowMs);
+  const k = datedValueOf(p.takerBuySellRatio, nowMs);
+  if (a) out.longShortAccountRatio = a;
+  if (l && l.value <= 100) out.longAccountPct = l;
+  if (t) out.topTraderPositionRatio = t;
+  if (k) out.takerBuySellRatio = k;
+  return Object.keys(out).length > 2 ? out : undefined;
+}
+
+const liquidationWindowOf = (v: unknown): LiquidationWindow | undefined => {
+  const w = asObj(v);
+  const longU = asNum(w.longLiquidatedUsdt);
+  const shortU = asNum(w.shortLiquidatedUsdt);
+  const events = asNum(w.events);
+  const captured = asNum(w.capturedPct);
+  if (
+    longU == null ||
+    shortU == null ||
+    events == null ||
+    captured == null ||
+    longU < 0 ||
+    shortU < 0 ||
+    events < 0 ||
+    captured < 0 ||
+    captured > 100
+  )
+    return undefined;
+  return {
+    longLiquidatedUsdt: longU,
+    shortLiquidatedUsdt: shortU,
+    events,
+    capturedPct: captured,
+  };
+};
+
+// OKX liquidations from the same /market context. Both windows must be well
+// formed; capturedPct travels with every sum (our uptime, not completeness).
+export function liquidationsOf(
+  m: Record<string, unknown>,
+  nowMs = Date.now(),
+): LiquidationContext | undefined {
+  const q = asObj(asObj(m.derivatives).liquidations);
+  const venue = asStr(q.venue);
+  const instId = asStr(q.instId);
+  const last1h = liquidationWindowOf(q.last1h);
+  const last24h = liquidationWindowOf(q.last24h);
+  if (!venue || !instId || !last1h || !last24h) return undefined;
+  const lastEventAt =
+    q.lastEventAt == null ? null : (shownTime(q.lastEventAt, nowMs) ?? null);
+  return { venue, instId, last1h, last24h, lastEventAt };
+}
+
+// Macro proxies from the /market context (same block for every coin). Quotes
+// that are malformed or future-dated are dropped; omitted when none remain.
+export function macroOf(
+  m: Record<string, unknown>,
+  nowMs = Date.now(),
+): MacroContext | undefined {
+  const mc = asObj(m.macro);
+  const note = asStr(mc.note);
+  const quotes: MacroQuote[] = [];
+  for (const raw of asArr(mc.quotes)) {
+    const q = asObj(raw);
+    const symbol = asStr(q.symbol);
+    const label = asStr(q.label);
+    const kind = asStr(q.kind);
+    const price = asNum(q.price);
+    const asOf = shownTime(q.asOf, nowMs);
+    if (!symbol || !label || !kind || price == null || price <= 0 || !asOf)
+      continue;
+    const change = asNum(q.change24hPct);
+    quotes.push({
+      symbol,
+      label,
+      kind,
+      price,
+      change24hPct: change == null ? null : change,
+      asOf,
+      stale: q.stale !== false,
+    });
+  }
+  return note && quotes.length > 0 ? { note, quotes } : undefined;
+}
+
 // Enrich a watch entry with what the candles fetch yields (indicators + 24h
 // volume) when the `indicators` capability is on. One call, both fields.
 async function enrichFromCandles(
@@ -1074,6 +1196,7 @@ export async function observe(
   // Bounded RAG: the market-wide Fear & Greed regime, captured once from the first
   // coin's /market context (it's market-wide, identical across coins).
   let marketMood: Observation["marketMood"];
+  let macro: Observation["macro"];
   const wantIndicators = spec.capabilities.includes("indicators");
   const wantNews = spec.capabilities.includes("news");
   for (const symbol of spec.risk.watchlist) {
@@ -1112,6 +1235,12 @@ export async function observe(
     if (fundamentals) entry.fundamentals = fundamentals;
     const openInterest = openInterestOf(m);
     if (openInterest) entry.openInterest = openInterest;
+    const positioning = positioningOf(m);
+    if (positioning) entry.positioning = positioning;
+    const liquidations = liquidationsOf(m);
+    if (liquidations) entry.liquidations = liquidations;
+    // Macro proxies are the same for every coin: keep the first usable block.
+    if (!macro) macro = macroOf(m);
     // Capture the market-wide Fear & Greed regime once (same across coins).
     if (!marketMood) {
       const fg = asObj(m.fearGreed);
@@ -1237,6 +1366,11 @@ export async function observe(
       if (fundamentals) entry.fundamentals = fundamentals;
       const openInterest = openInterestOf(m);
       if (openInterest) entry.openInterest = openInterest;
+      const positioning = positioningOf(m);
+      if (positioning) entry.positioning = positioning;
+      const liquidations = liquidationsOf(m);
+      if (liquidations) entry.liquidations = liquidations;
+      if (!macro) macro = macroOf(m);
       if (wantIndicators) await enrichFromCandles(client, entry, coinId, trace);
       watch.push(entry);
     }
@@ -1604,6 +1738,7 @@ export async function observe(
     // don't re-open".
     setups: scanSetups(watch, openPositions),
     marketMood,
+    ...(macro ? { macro } : {}),
     syncCursor,
     newClosedTrades,
     polledBeforeWrite,

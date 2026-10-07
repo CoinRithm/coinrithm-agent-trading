@@ -368,6 +368,62 @@ export interface OpenInterestContext {
   stale: boolean;
 }
 
+// A dated value: each positioning metric keeps its own provider time.
+export interface DatedValue {
+  value: number;
+  asOf: string;
+  stale: boolean;
+}
+
+// Binance positioning ratios (GET /api/agent/market derivatives.positioning,
+// backend-v2 #136): account and top-trader long/short ratios, long share and
+// taker buy/sell ratio, each with its own provider period time. Present only
+// for the top coins by open interest.
+export interface PositioningContext {
+  venue: string;
+  symbol: string;
+  longShortAccountRatio?: DatedValue;
+  longAccountPct?: DatedValue;
+  topTraderPositionRatio?: DatedValue;
+  takerBuySellRatio?: DatedValue;
+}
+
+export interface LiquidationWindow {
+  longLiquidatedUsdt: number;
+  shortLiquidatedUsdt: number;
+  events: number;
+  capturedPct: number;
+}
+
+// OKX swap liquidations (derivatives.liquidations, backend-v2 #139):
+// 1h / 24h sums with capturedPct = our capture uptime for the window (not
+// exchange completeness).
+export interface LiquidationContext {
+  venue: string;
+  instId: string;
+  last1h: LiquidationWindow;
+  last24h: LiquidationWindow;
+  lastEventAt: string | null;
+}
+
+// Macro proxies (GET /api/agent/market macro, backend-v2 #137): Hyperliquid
+// xyz perps that track indices, commodities, FX and rates. Same for every
+// coin, so carried once per observation.
+export interface MacroQuote {
+  symbol: string;
+  label: string;
+  kind: string;
+  price: number;
+  change24hPct: number | null;
+  asOf: string;
+  stale: boolean;
+}
+
+export interface MacroContext {
+  note: string;
+  quotes: MacroQuote[];
+}
+
 export interface WatchEntry {
   symbol: string;
   coinId: string | null; // resolved UCID; null if unresolvable
@@ -412,6 +468,10 @@ export interface WatchEntry {
   // 24h change over venues present at both times. Omitted when the API has
   // no reading; `stale` marks a reading older than three 15-minute buckets.
   openInterest?: OpenInterestContext;
+  // Binance positioning ratios; omitted outside the top coins by OI.
+  positioning?: PositioningContext;
+  // OKX liquidations with capture coverage; omitted when none captured.
+  liquidations?: LiquidationContext;
   // What the server entry gate's perpetual-reference rule says about a NEW
   // futures open on this coin (GET /api/agent/market futuresEntryEligibility,
   // backend-v2 #106). Absent = unknown (older API): never blocks by itself.
@@ -785,6 +845,8 @@ export interface Observation {
   // Market-wide mood (the Fear & Greed index) — a one-line regime read fetched once
   // from the /market context. Risk-on/off colour for every decision this cycle.
   marketMood?: { fearGreed: number; label: string; fetchedAt?: string };
+  // Macro proxies (indices, commodities, FX, rates), once per observation.
+  macro?: MacroContext;
   syncCursor: string | null; // advanced from /trades
   newClosedTrades: Array<Record<string, unknown>>; // fired stops/liqs/settlements
   polledBeforeWrite: boolean; // whether this cycle synced /trades first
