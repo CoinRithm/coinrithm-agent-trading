@@ -1215,7 +1215,7 @@ function emptyObservation(state: RunState, scopes: string[] = []): Observation {
 export interface ObserveOptions {
   /** Read the curated PM board (depth 30, churn removed, calibration read)
    *  even for a mechanical spec, so a bench baseline sees the recorded
-   *  house opportunity set (root 57171). Default: non-mechanical only. */
+   *  agent opportunity set. Default: non-mechanical only. */
   curatedPmBoard?: boolean;
 }
 

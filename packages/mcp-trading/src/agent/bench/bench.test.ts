@@ -470,8 +470,8 @@ describe("runBench", () => {
   });
 
   it("baselines read the house's curated board, so a cassette without the uncurated page still scores", async () => {
-    // Live Mia cassettes recorded only the curated limit=30 board (root
-    // 57171). The baselines must use exactly that opportunity set.
+    // A house cassette may contain only the curated limit=30 board.
+    // The baselines must use exactly that opportunity set.
     const cassettes = (await corpus()).map((c) => ({
       ...c,
       responses: c.responses.filter(

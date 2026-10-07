@@ -88,8 +88,8 @@ export class ResponseRecorder {
   }
 
   /**
-   * Keep every key recorded so far. A later pass (the baseline's) then only
-   * ADDS keys it needs, so all passes replay one consistent snapshot.
+   * Keep every key recorded so far. Later reads can add new keys, but cannot
+   * replace these stored responses. Transport reads still run normally.
    */
   freeze(): void {
     for (const key of this.entries.keys()) this.frozen.add(key);
