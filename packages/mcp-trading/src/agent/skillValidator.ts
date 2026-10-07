@@ -11,6 +11,7 @@ import {
 } from "./types.js";
 import { universeIssues } from "./universe.js";
 import { parseCadenceMs, scanForSecrets } from "./util.js";
+import { signalIssues } from "./signals.js";
 import { entryPredicateIssues } from "./entryPredicates.js";
 
 // Fail-closed skill validator. Unlike the per-decision gate (first-failure),
@@ -160,6 +161,9 @@ export function validateSkill(
     }
   }
 
+  // Signal thresholds and data diet (optional).
+  for (const [code, reason] of signalIssues(raw.signals, raw.data))
+    add(code, reason);
   // Market boundaries (optional).
   for (const [code, reason] of universeIssues(raw.universe)) add(code, reason);
 

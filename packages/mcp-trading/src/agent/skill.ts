@@ -251,6 +251,12 @@ export function buildSpec(raw: Record<string, unknown>): AgentSpec {
     capabilities: strArr(raw.capabilities).filter((c): c is Capability =>
       (ALLOWED_CAPABILITIES as readonly string[]).includes(c),
     ),
+    // Signal thresholds and data diet: carried AS WRITTEN so skillValidator
+    // fails closed on a malformed block instead of a typo meaning "defaults".
+    ...(raw.signals !== undefined
+      ? { signals: raw.signals as AgentSpec["signals"] }
+      : {}),
+    ...(raw.data !== undefined ? { data: raw.data as AgentSpec["data"] } : {}),
     // Market boundaries: carried AS WRITTEN (an object) so skillValidator can
     // fail closed on a malformed block instead of a typo meaning "no limits".
     ...(raw.universe !== undefined

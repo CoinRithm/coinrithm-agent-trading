@@ -284,6 +284,10 @@ export interface AgentSpec {
   capabilities: Capability[];
   // Slice-2 gate policy (OKF intent). Omitted => DEFAULT_TRIGGER_POLICY.
   triggerPolicy?: TriggerPolicy;
+  // What counts as a signal for THIS agent (signals.ts); omitted = defaults.
+  signals?: Partial<import("./signals.js").SignalThresholds>;
+  // Data diet: the indicator candle range (signals.ts); omitted = 1D (5m bars).
+  data?: { indicatorRange?: import("./signals.js").IndicatorRange };
   // Market boundaries the agent scans inside each cycle (universe.ts).
   // Omitted => watchlist only, or today's top-gainers scan with universe_scan.
   universe?: UniverseConfig;
@@ -338,9 +342,9 @@ export interface Freshness {
 }
 
 export interface IndicatorContext {
-  range: "1D";
+  range: import("./signals.js").IndicatorRange;
   // Endpoint cadence, not a promise that all returned bars have this spacing.
-  nominalIntervalSeconds: 300;
+  nominalIntervalSeconds: number;
   // Counts refer only to OHLC bars accepted by the indicator calculation.
   barCount: number;
   timestampedBarCount: number;
@@ -392,12 +396,13 @@ export interface LiquidationWindow {
   longLiquidatedUsdt: number;
   shortLiquidatedUsdt: number;
   events: number;
+  // LOWER BOUND of our capture uptime for the window, 0-100 (backend-v2 #139).
   capturedPct: number;
 }
 
 // OKX swap liquidations (derivatives.liquidations, backend-v2 #139):
-// 1h / 24h sums with capturedPct = our capture uptime for the window (not
-// exchange completeness).
+// 1h / 24h sums with capturedPct = a LOWER BOUND of our capture uptime for
+// the window (not exchange completeness).
 export interface LiquidationContext {
   venue: string;
   instId: string;

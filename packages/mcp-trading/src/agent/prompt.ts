@@ -5,6 +5,7 @@
 // The model only PROPOSES — the runner re-checks every action against the caps,
 // so the prompt states the caps but never relies on the model to honor them.
 
+import { barLabel, indicatorRangeOf, signalThresholdsOf } from "./signals.js";
 import { describeUniverse, scansUniverse } from "./universe.js";
 import { AgentSpec, Observation, PmResolution, RunState } from "./types.js";
 import { pmQualityOf, pmDecisionSupportOf } from "./pmContext.js";
@@ -279,16 +280,16 @@ export function buildSystemPrompt(
           "- Open interest (watch[].openInterest) is single-side perpetual exposure in USD across the named venues, not the entire market. Each contract has both a long and a short: OI with price alone cannot establish who opened, closed, or was liquidated. USD OI can also move as price changes without contract counts changing. Treat long/short-covering interpretations as hypotheses requiring other evidence, never as a standalone trade signal. Read each change WITH its change1hVenues/change24hVenues: only matching venue-contracts contribute, and that set may differ from the total's venues. Null changes are unknown; a reported zero total is valid. Ignore stale or missing readings and check asOf against the current observation clock.",
           "- Positioning (watch[].positioning, Binance, top coins by open interest only) counts ACCOUNTS (longShortAccountRatio, longAccountPct) or top-trader POSITIONS (topTraderPositionRatio); takerBuySellRatio is taker buy over sell volume for the last CLOSED 15-minute period. Each value has its own asOf. They describe who is positioned, not where price goes: a crowded side is a hypothesis, never a standalone signal. Ignore stale values.",
           "- Macro (observation.macro): Hyperliquid xyz perpetuals that track the S&P 500, Nasdaq-100, Nikkei, KOSPI, gold, silver, oil, gas, copper, EUR/USD, GBP/USD, USD/JPY and TLT around the clock: PROXIES, not exchange quotes, each with its own asOf. Use them as risk-on/risk-off context only; a stale quote is unknown.",
-          "- Liquidations (watch[].liquidations, OKX USDT swaps only): long/short liquidated USDT notional over the last 1h / 24h, read WITH capturedPct, which is OUR capture uptime for the window, not exchange completeness. Low capturedPct means unknown, never 'no liquidations'. Other venues are not included.",
+          "- Liquidations (watch[].liquidations, OKX USDT swaps only): long/short liquidated USDT notional over the last 1h / 24h, read WITH capturedPct, which is a LOWER BOUND of OUR capture uptime for the window (at least that share was captured), not exchange completeness. Low capturedPct means unknown, never 'no liquidations'. Other venues are not included.",
           "- Community sentiment is a dated sample: read sentimentBullishPct WITH sentimentTotalVotes and sentimentDayUtc. A tiny or old cohort is weak evidence, not current market consensus. sentimentUpdatedAt is the cohort's write time. Missing counts/dates are unknown; price freshness does not date sentiment. marketMood.fetchedAt is Fear & Greed collection time, not its provider observation time. Compare each clock with observation.asOf; never invent currentness from a missing date.",
         ]
       : []),
     ...(spec.capabilities.includes("indicators")
       ? [
           "",
-          "## Signals — each watch entry may carry `indicators` (nominal five-minute candles)",
-          "- `indicatorContext` reports accepted candle counts, source `asOf` and intervalStatus (regular/irregular/unknown); compare its asOf with observation.asOf for age. /market freshness is separate. nominalIntervalSeconds=300 does not prove fresh, continuous candles. Missing timestamps are unknown; stale, future-dated or irregular candles do not establish a current five-minute signal. `recent15` describes only recent spacing; Wilder atr14 also retains earlier history, so recent regularity does not erase older gaps.",
-          "- rsi14: momentum (>70 overbought, <30 oversold); ema20 & ema50: trend; atr14: volatility (size stops off it); bollinger {upper,mid,lower}; recent20 {high,low}: breakout levels.",
+          `## Signals — each watch entry may carry \`indicators\` (nominal ${barLabel(indicatorRangeOf(spec))} candles)`,
+          "- `indicatorContext` reports accepted candle counts, source `asOf` and intervalStatus (regular/irregular/unknown); compare its asOf with observation.asOf for age. /market freshness is separate. nominalIntervalSeconds does not prove fresh, continuous candles. Missing timestamps are unknown; stale, future-dated or irregular candles do not establish a current signal. `recent15` describes only recent spacing; Wilder atr14 also retains earlier history, so recent regularity does not erase older gaps.",
+          `- rsi14: momentum (this agent flags overbought at ${signalThresholdsOf(spec).rsiOverbought} and oversold at ${signalThresholdsOf(spec).rsiOversold}); ema20 & ema50: trend; atr14: volatility (size stops off it); bollinger {upper,mid,lower}; recent20 {high,low}: breakout levels.`,
           "- boolean reads: aboveEma20, ema20AboveEma50 (uptrend when both true), brokeRecentHigh (breakout), brokeRecentLow (breakdown).",
           "- a null field = not enough data; ignore it. These INFORM your decision; they never widen a cap.",
         ]

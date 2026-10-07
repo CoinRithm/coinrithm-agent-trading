@@ -109,6 +109,23 @@ describe("liquidationsOf", () => {
     ).toBeUndefined();
   });
 
+  it("requires a whole event count", () => {
+    for (const events of [2.5, Number.NaN, "2"]) {
+      expect(
+        liquidationsOf(
+          market({
+            venue: "okx",
+            instId: "SAND-USDT-SWAP",
+            last1h: window({ events }),
+            last24h: window(),
+            lastEventAt: null,
+          }),
+          NOW,
+        ),
+      ).toBeUndefined();
+    }
+  });
+
   it("never shows a future lastEventAt", () => {
     expect(
       liquidationsOf(

@@ -38,9 +38,19 @@ const ALLOWED_KEYS: Record<string, string[] | null> = {
     // it) but was missing here, so any bundle actually SETTING it got an
     // unknown_key lint — the knob existed and was unreachable (audit rank 10).
     "triggerPolicy",
+    "signals",
+    "data",
     "universe",
   ],
   trigger: ["cadence", "timezone", "events"],
+  signals: [
+    "rsiOversold",
+    "rsiOverbought",
+    "strongMovePct",
+    "leanMovePct",
+    "minStrength",
+  ],
+  data: ["indicatorRange"],
   universe: [
     "rank",
     "minVolume24hUsd",
@@ -178,6 +188,8 @@ export function strictLint(raw: Record<string, unknown>): ResolveIssue[] {
     "sync",
     "killSwitch",
     "objective",
+    "signals",
+    "data",
     "universe",
   ]) {
     if (isObj(raw[block]))
