@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
-  RUNTIME_APPEND_TABLES,
   RUNTIME_COLUMN_READS,
+  RUNTIME_LIMITED_GRANTS,
   RUNTIME_DML_TABLES,
   RUNTIME_READ_TABLES,
   RUNTIME_SEQUENCE_USAGE,
@@ -47,23 +47,29 @@ describe("runtime grants: one list for provisioning and readiness", () => {
     }
   });
 
-  it("keeps the credit ledger append-only for the scheduler, in the role file and the migration", () => {
-    for (const table of RUNTIME_APPEND_TABLES) {
+  it("grants the paid-brain tables exactly their limited privileges, in the role file and the migration", () => {
+    const forbidden = ["UPDATE", "DELETE", "TRUNCATE"];
+    for (const { table, privileges } of RUNTIME_LIMITED_GRANTS) {
+      const grant = `GRANT ${privileges.join(", ")} ON ${table} TO coinrithm_scheduler;`;
+      const revoked = forbidden.filter((p) => !privileges.includes(p));
+      expect(roleSql).toContain(grant);
       expect(roleSql).toContain(
-        `GRANT SELECT, INSERT ON ${table} TO coinrithm_scheduler;`,
+        `REVOKE ${revoked.join(", ")} ON ${table} FROM PUBLIC, coinrithm_scheduler;`,
       );
-      expect(roleSql).toContain(
-        `REVOKE UPDATE, DELETE, TRUNCATE ON ${table} FROM PUBLIC, coinrithm_scheduler;`,
-      );
+      expect(ledgerMigration).toContain(grant);
       expect(ledgerMigration).toContain(
-        `GRANT SELECT, INSERT ON ${table} TO coinrithm_scheduler;`,
+        `REVOKE ${revoked.join(", ")} ON ${table} FROM coinrithm_scheduler;`,
       );
-      expect(ledgerMigration).toContain(
-        `REVOKE UPDATE, DELETE, TRUNCATE ON ${table} FROM coinrithm_scheduler;`,
-      );
-      // Not on the DML list: nothing may grant the runtime UPDATE/DELETE.
+      // Not on the DML list: nothing may grant the runtime DELETE.
       expect(RUNTIME_DML_TABLES as readonly string[]).not.toContain(table);
+      expect(privileges).not.toContain("DELETE");
     }
+    // The money ledger itself is append-only.
+    expect(
+      RUNTIME_LIMITED_GRANTS.find(
+        (grant) => grant.table === "agent_runtime.credit_ledger",
+      )?.privileges,
+    ).toEqual(["SELECT", "INSERT"]);
     for (const sequence of RUNTIME_SEQUENCE_USAGE) {
       expect(roleSql).toContain(
         `GRANT USAGE ON SEQUENCE ${sequence} TO coinrithm_scheduler;`,
@@ -72,20 +78,38 @@ describe("runtime grants: one list for provisioning and readiness", () => {
         `GRANT USAGE ON SEQUENCE ${sequence} TO coinrithm_scheduler;`,
       );
     }
+    // The scheduler never touches checkouts.
+    expect(roleSql).not.toContain("credit_checkouts");
+    expect(ledgerMigration).toContain(
+      "REVOKE ALL ON agent_runtime.credit_checkouts FROM coinrithm_scheduler;",
+    );
   });
 
-  it("grants the API role only reads and inserts on the ledger, and only if it exists", () => {
+  it("grants the API role ledger inserts, paid_calls reads and checkout writes, only if it exists", () => {
     expect(ledgerMigration).toContain(
       "IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'coinrithm_app')",
     );
-    expect(ledgerMigration).toContain(
+    for (const line of [
       "GRANT SELECT, INSERT ON agent_runtime.credit_ledger TO coinrithm_app;",
-    );
-    expect(ledgerMigration).toContain(
       "REVOKE UPDATE, DELETE, TRUNCATE ON agent_runtime.credit_ledger FROM coinrithm_app;",
-    );
+      "GRANT SELECT ON agent_runtime.paid_calls TO coinrithm_app;",
+      "REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON agent_runtime.paid_calls FROM coinrithm_app;",
+      "GRANT SELECT, INSERT, UPDATE ON agent_runtime.credit_checkouts TO coinrithm_app;",
+      "REVOKE DELETE, TRUNCATE ON agent_runtime.credit_checkouts FROM coinrithm_app;",
+    ]) {
+      expect(ledgerMigration).toContain(line);
+    }
     expect(ledgerMigration).not.toMatch(
       /GRANT[^;]*(UPDATE|DELETE|TRUNCATE)[^;]*credit_ledger/,
+    );
+  });
+
+  it("keeps the ledger sign rule of contract v2 in the CHECK", () => {
+    expect(ledgerMigration).toContain(
+      "kind IN ('grant','topup','refund','release','reserve','debit','reversal')",
+    );
+    expect(ledgerMigration).toMatch(
+      /WHEN kind IN \('reserve','debit','reversal'\)\s+THEN amount_micro_usd < 0\s+ELSE amount_micro_usd > 0 END/,
     );
   });
 
@@ -94,7 +118,10 @@ describe("runtime grants: one list for provisioning and readiness", () => {
     expect(checks.every((check) => !check.privilege.includes(","))).toBe(true);
     expect(checks).toHaveLength(
       RUNTIME_DML_TABLES.length * 4 +
-        RUNTIME_APPEND_TABLES.length * 2 +
+        RUNTIME_LIMITED_GRANTS.reduce(
+          (sum, grant) => sum + grant.privileges.length,
+          0,
+        ) +
         RUNTIME_SEQUENCE_USAGE.length +
         1 +
         3,
@@ -123,6 +150,16 @@ describe("runtime grants: one list for provisioning and readiness", () => {
       table: "agent_runtime.credit_ledger",
       column: null,
       privilege: "UPDATE",
+    });
+    expect(checks).toContainEqual({
+      table: "agent_runtime.paid_calls",
+      column: null,
+      privilege: "UPDATE",
+    });
+    expect(checks).not.toContainEqual({
+      table: "agent_runtime.paid_calls",
+      column: null,
+      privilege: "DELETE",
     });
     expect(checks).not.toContainEqual({
       table: "agent_runtime.credit_ledger",
