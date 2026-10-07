@@ -7,6 +7,10 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
 ## 0.7.16 (unpublished)
 
+- Bench: two more PM baselines, `baseline:base-rate` (uninformative 50%) and
+  `baseline:random` (seeded 20-80%), next to `baseline:skip` and
+  `baseline:market`. They replay the same recorded market pass, so existing
+  corpora need no re-recording; futures/spot-only corpora still get skip only.
 - Add optional per-agent `signals` thresholds (`rsiOversold`, `rsiOverbought`,
   `strongMovePct`, `leanMovePct`, `minStrength`) and a `data.indicatorRange`
   data diet (`1D` 5m bars, `1W` 15m, `1M` 1h, `3M` 4h). They change the setup

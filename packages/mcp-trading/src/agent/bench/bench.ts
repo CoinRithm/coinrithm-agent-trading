@@ -21,7 +21,8 @@ import { Provider } from "../providers.js";
 import { runCycle } from "../runner.js";
 import { newState } from "../state.js";
 import { AgentSpec, CycleResult, ProposedAction } from "../types.js";
-import { Cassette, marketBaselineSpec } from "./cassette.js";
+import { Cassette, mechanicalBaselineSpec } from "./cassette.js";
+import type { BenchmarkStrategy } from "../mechanical.js";
 import {
   FUTURES_SYNTHETIC_FEE_BPS,
   PM_SYNTHETIC_FEE_RATE_AT_MID,
@@ -41,6 +42,21 @@ import {
 
 export const BASELINE_SKIP = "baseline:skip";
 export const BASELINE_MARKET = "baseline:market";
+export const BASELINE_BASE_RATE = "baseline:base-rate";
+export const BASELINE_RANDOM = "baseline:random";
+/**
+ * Mechanical PM baselines, one deterministic run per cassette each: the
+ * market's own probability, an uninformative 50, and a seeded random
+ * forecast (mechanical.ts). They need the market pass recording makes for
+ * pm agents, so a futures/spot-only corpus has only baseline:skip.
+ */
+export const MECHANICAL_BASELINES: ReadonlyArray<
+  readonly [name: string, strategy: BenchmarkStrategy]
+> = [
+  [BASELINE_MARKET, "market-implied"],
+  [BASELINE_BASE_RATE, "base-rate"],
+  [BASELINE_RANDOM, "random"],
+];
 export const DEFAULT_REPEATS = 3;
 export const MAX_REPEATS = 50;
 export const DEFAULT_SEED = 20261007;
@@ -325,20 +341,21 @@ export async function runBench(opts: RunBenchOptions): Promise<BenchReport> {
     }
     if (baselines) {
       rows.push(skipBaselineRow(cassette));
-      // Deterministic, so one run per cassette. It needs the mechanical pass
-      // recording made for pm agents; without it the baseline is not run.
+      // Deterministic, so one run per cassette each. They need the mechanical
+      // pass recording made for pm agents; without it they are not run.
       if (cassette.marketBaselineRecorded)
-        rows.push(
-          await replayCycle(
-            cassette,
-            BASELINE_MARKET,
-            0,
-            marketBaselineSpec(cassette.spec),
-            "",
-            SKIP_PROVIDER,
-            labels,
-          ),
-        );
+        for (const [name, strategy] of MECHANICAL_BASELINES)
+          rows.push(
+            await replayCycle(
+              cassette,
+              name,
+              0,
+              mechanicalBaselineSpec(cassette.spec, strategy),
+              "",
+              SKIP_PROVIDER,
+              labels,
+            ),
+          );
     }
   }
 
@@ -351,7 +368,8 @@ export async function runBench(opts: RunBenchOptions): Promise<BenchReport> {
   if (baselines) {
     variants.push({ name: BASELINE_SKIP, kind: "baseline" });
     if (cassettes.some((c) => c.marketBaselineRecorded))
-      variants.push({ name: BASELINE_MARKET, kind: "baseline" });
+      for (const [name] of MECHANICAL_BASELINES)
+        variants.push({ name, kind: "baseline" });
   }
   const specHashes = [...new Set(cassettes.map((c) => c.agentSpecHash))].sort();
   return buildReport({

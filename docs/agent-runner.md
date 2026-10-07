@@ -353,8 +353,11 @@ What it does:
   completes. A malformed corpus JSON file stops the run for explicit repair.
 - `bench` replays each cassette through the same `runCycle` for every variant,
   `--repeats` times, starting each cycle from a fresh run state. It also runs
-  two baselines on every cassette: `baseline:skip` (never trades) and, for PM
-  agents, `baseline:market` (the mechanical market-implied strategy).
+  baselines on every cassette: `baseline:skip` (never trades) and, for PM
+  agents, three mechanical PM strategies on the same recorded market pass:
+  `baseline:market` (the market's own probability), `baseline:base-rate` (an
+  uninformative 50%) and `baseline:random` (a seeded 20-80% forecast). A
+  futures/spot-only agent gets `baseline:skip` only.
 - The report (`coinrithm.bench.report.v1`) gives, per variant: decision mix,
   model failures and crashes, accepted and rejected actions with reject codes,
   repeat consistency, missing inputs and synthesized quotes. Per pair of
