@@ -3,9 +3,8 @@
 // hosted scheduler calls a BYO "openai-compatible" base URL the user chose, so
 // it gets the same guard as the backend's key probe. Self-host runners do NOT
 // use this (a local model on localhost is a legitimate self-host setup).
-// a BYO "openai-compatible" base URL is a URL the user
-// chose, so the server must never be steered at loopback, private, link-local
-// or cloud-metadata addresses, through any DNS answer or any redirect.
+// It must never be steered at loopback, private, link-local or cloud-metadata
+// addresses, through any DNS answer or any redirect.
 //
 // Design (no new dependency):
 // - HTTPS only, default or explicit port, no credentials in the URL.
@@ -91,13 +90,16 @@ function isPublicV6(ip: string): boolean {
   if (g[0] === 0x64 && g[1] === 0xff9b && g.slice(2, 6).every((x) => x === 0))
     return isPublicV4(embeddedV4());
   const first = g[0]!;
-  if ((first & 0xfe00) === 0xfc00) return false; // fc00::/7 unique local
-  if ((first & 0xffc0) === 0xfe80) return false; // fe80::/10 link-local
-  if ((first & 0xff00) === 0xff00) return false; // ff00::/8 multicast
+  // Allowlist, not blocklist: only 2000::/3 is global unicast. Everything
+  // else (unique local fc00::/7, link-local fe80::/10, deprecated site-local
+  // fec0::/10, multicast, local-use NAT64 64:ff9b:1::/48, discard 100::/64)
+  // is refused without having to enumerate it.
+  if ((first & 0xe000) !== 0x2000) return false;
+  // Non-global ranges inside 2000::/3.
+  if (first === 0x2001 && g[1]! < 0x0200) return false; // 2001::/23 IETF special (Teredo, ORCHID, benchmarking)
   if (first === 0x2001 && g[1] === 0x0db8) return false; // documentation
-  if (first === 0x2001 && g[1] === 0x0000) return false; // Teredo
   if (first === 0x2002) return false; // 6to4 (embeds arbitrary v4)
-  if (first === 0x0100 && g.slice(1, 4).every((x) => x === 0)) return false; // discard
+  if (first === 0x3fff && g[1]! < 0x1000) return false; // 3fff::/20 documentation
   return true;
 }
 
@@ -190,12 +192,22 @@ export function checkPublicHttpsUrl(raw: string): URL {
   return u;
 }
 
+/** Upper bound on a response body read from a user-chosen endpoint. */
+export const MAX_PUBLIC_RESPONSE_BYTES = 2 * 1024 * 1024;
+
+// Statuses the Response constructor refuses a body for.
+const NULL_BODY_STATUSES = new Set([101, 103, 204, 205, 304]);
+
 /**
  * fetch-compatible request to a PUBLIC https endpoint only. Every DNS answer
- * is checked at connect time; redirects are returned, never followed.
+ * is checked at connect time; redirects are returned, never followed; the
+ * body is capped and the request destroyed on overflow; nothing a chosen
+ * endpoint answers can throw outside the returned promise.
  */
 export function createPublicFetch(
   resolver: Resolver = systemResolver,
+  requestImpl: typeof httpsRequest = httpsRequest,
+  maxBytes: number = MAX_PUBLIC_RESPONSE_BYTES,
 ): typeof fetch {
   const lookup = publicOnlyLookup(resolver);
   return (async (input: string | URL | Request, init: RequestInit = {}) => {
@@ -215,7 +227,13 @@ export function createPublicFetch(
         ? init.body
         : String(init.body);
     return await new Promise<Response>((resolve, reject) => {
-      const req = httpsRequest(
+      let settled = false;
+      const fail = (err: unknown) => {
+        if (settled) return;
+        settled = true;
+        reject(err);
+      };
+      const req = requestImpl(
         url,
         {
           method: init.method ?? "GET",
@@ -225,25 +243,42 @@ export function createPublicFetch(
         },
         (res) => {
           const chunks: Buffer[] = [];
-          res.on("data", (c: Buffer) => chunks.push(c));
-          res.on("end", () => {
-            const status = res.statusCode ?? 0;
-            const outHeaders = new Headers();
-            for (const [k, v] of Object.entries(res.headers))
-              if (typeof v === "string") outHeaders.set(k, v);
-            // A 1xx/204/304 cannot carry a body in the Response constructor.
-            const nullBody = status === 204 || status === 304 || status < 200;
-            resolve(
-              new Response(nullBody ? null : Buffer.concat(chunks), {
-                status: status >= 200 && status <= 599 ? status : 502,
-                headers: outHeaders,
-              }),
-            );
+          let size = 0;
+          res.on("data", (c: Buffer) => {
+            if (settled) return;
+            size += c.length;
+            if (size > maxBytes) {
+              const err = new EgressBlockedError(
+                `response exceeds ${maxBytes} bytes`,
+              );
+              fail(err);
+              req.destroy(err);
+              return;
+            }
+            chunks.push(c);
           });
-          res.on("error", reject);
+          res.on("end", () => {
+            if (settled) return;
+            try {
+              const raw = res.statusCode ?? 0;
+              const status = raw >= 200 && raw <= 599 ? raw : 502;
+              const outHeaders = new Headers();
+              for (const [k, v] of Object.entries(res.headers))
+                if (typeof v === "string") outHeaders.set(k, v);
+              const response = new Response(
+                NULL_BODY_STATUSES.has(status) ? null : Buffer.concat(chunks),
+                { status, headers: outHeaders },
+              );
+              settled = true;
+              resolve(response);
+            } catch (err) {
+              fail(err);
+            }
+          });
+          res.on("error", fail);
         },
       );
-      req.on("error", reject);
+      req.on("error", fail);
       if (body) req.write(body);
       req.end();
     });

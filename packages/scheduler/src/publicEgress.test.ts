@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { EventEmitter } from "node:events";
 import {
   createPublicFetch,
   EgressBlockedError,
@@ -25,6 +26,10 @@ describe("isPublicAddress (mirror of backend-v2)", () => {
     "fe80::1",
     "::ffff:127.0.0.1",
     "64:ff9b::a9fe:a9fe",
+    "64:ff9b:1::a9fe:a9fe", // local-use NAT64
+    "fec0::1", // deprecated site-local
+    "2001:2::1", // benchmarking
+    "3fff::1", // documentation
   ])("blocks %s", (ip) => expect(isPublicAddress(ip)).toBe(false));
 });
 
@@ -84,5 +89,81 @@ describe("modelFetchFor", () => {
         brainKeyEnc: null,
       }),
     ).toBe(fetch);
+  });
+});
+
+// Socket stub standing in for https.request (mirror of the backend-v2 tests).
+function stubRequest(
+  status: number,
+  chunks: string[],
+  headers: Record<string, string> = {},
+) {
+  const seen: { destroyed?: unknown; lookup?: unknown } = {};
+  const impl = vi.fn(
+    (
+      _url: unknown,
+      opts: { lookup?: unknown },
+      cb: (res: EventEmitter) => void,
+    ) => {
+      seen.lookup = opts.lookup;
+      return Object.assign(new EventEmitter(), {
+        write: () => true,
+        destroy: (e?: unknown) => {
+          seen.destroyed = e ?? true;
+        },
+        end: () => {
+          const res = Object.assign(new EventEmitter(), {
+            statusCode: status,
+            headers,
+          });
+          cb(res);
+          setImmediate(() => {
+            for (const c of chunks) res.emit("data", Buffer.from(c));
+            res.emit("end");
+          });
+        },
+      });
+    },
+  );
+  return { impl, seen };
+}
+const publicResolver = (
+  _h: string,
+  cb: (e: null, a: Array<{ address: string; family: number }>) => void,
+) => cb(null, [{ address: "104.18.32.7", family: 4 }]);
+const URL_OK = "https://api.example.com/v1/chat/completions";
+
+describe("createPublicFetch response handling (socket stub)", () => {
+  it("returns the answer with the connect-time lookup attached", async () => {
+    const { impl, seen } = stubRequest(200, ['{"ok":', "true}"]);
+    const f = createPublicFetch(publicResolver as never, impl as never);
+    const res = await f(URL_OK, { method: "POST", body: "{}" });
+    expect(await res.json()).toEqual({ ok: true });
+    expect(typeof seen.lookup).toBe("function");
+  });
+
+  it.each([204, 205, 304])(
+    "answers %s without a body instead of throwing",
+    async (status) => {
+      const { impl } = stubRequest(status, ["ignored"]);
+      const f = createPublicFetch(publicResolver as never, impl as never);
+      expect((await f(URL_OK)).status).toBe(status);
+    },
+  );
+
+  it("rejects and destroys the request past the body cap", async () => {
+    const { impl, seen } = stubRequest(200, ["12345678", "90123"]);
+    const f = createPublicFetch(publicResolver as never, impl as never, 10);
+    await expect(f(URL_OK)).rejects.toThrow(/exceeds 10 bytes/);
+    expect(seen.destroyed).toBeInstanceOf(EgressBlockedError);
+  });
+
+  it("returns a redirect as-is and never follows it", async () => {
+    const { impl } = stubRequest(302, [], {
+      location: "https://169.254.169.254/",
+    });
+    const f = createPublicFetch(publicResolver as never, impl as never);
+    expect((await f(URL_OK)).status).toBe(302);
+    expect(impl).toHaveBeenCalledTimes(1);
   });
 });
