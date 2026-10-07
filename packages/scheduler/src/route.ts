@@ -118,6 +118,12 @@ const MAX_RECOVERY_REFILL_WAIT_MS = MAX_OWNER_REFILL_WAIT_MS;
  */
 export const MAX_CONCURRENT_OWNER_WAITS = 2;
 let ownerWaitsInFlight = 0;
+/**
+ * A first attempt whose agent was paused, deleted or re-routed during its
+ * owner-refill wait: recorded as this, not as owner-budget starvation.
+ */
+export const ROUTE_CHANGED_ERROR =
+  "route_changed: agent paused, removed or re-routed during owner refill wait";
 /** Tests and diagnostics: first-attempt owner waits currently sleeping. */
 export function ownerWaitsInFlightNow(): number {
   return ownerWaitsInFlight;
@@ -370,6 +376,7 @@ export class RoutedProvider<Lease = unknown> implements Provider {
       // every cycle. Same bounds as the malformed retry: owner token/request
       // budget only, <= 60 s, >= 30 s left for the response, re-admission.
       const firstAttempt = attempts.length === 0;
+      let routeChanged = false;
       const fairnessWait =
         firstAttempt && options?.nemotronJsonContent !== true;
       if (
@@ -400,12 +407,16 @@ export class RoutedProvider<Lease = unknown> implements Provider {
         } finally {
           if (fairnessWait) ownerWaitsInFlight -= 1;
         }
-        const canDispatch =
+        const routeUsable =
           this.now() + MIN_RECOVERY_RESPONSE_MS <= deadline &&
           (await this.hooks.availability(route)).eligible &&
-          this.now() + MIN_RECOVERY_RESPONSE_MS <= deadline &&
+          this.now() + MIN_RECOVERY_RESPONSE_MS <= deadline;
+        const canDispatch =
+          routeUsable &&
           (!this.hooks.stillEligible ||
             (await this.hooks.stillEligible(route)));
+        // Paused, deleted or re-routed while waiting: not owner starvation.
+        routeChanged = routeUsable && !canDispatch;
         if (canDispatch) acquired = await this.hooks.acquire(route, routeInput);
         else if (!firstAttempt) {
           await this.abandonOwnerWait(route);
@@ -423,8 +434,12 @@ export class RoutedProvider<Lease = unknown> implements Provider {
           failureClass: "capacity",
           retryAfterMs: acquired.retryAfterMs,
           latencyMs: 0,
-          error: this.clean(acquired.error ?? "provider capacity unavailable"),
-          admissionReasons: acquired.admissionReasons,
+          error: routeChanged
+            ? ROUTE_CHANGED_ERROR
+            : this.clean(acquired.error ?? "provider capacity unavailable"),
+          admissionReasons: routeChanged
+            ? undefined
+            : acquired.admissionReasons,
         };
         attempts.push(attempt);
         if (acquired.scope === "route") blockedRoutes.add(routeKey(route));

@@ -8,6 +8,7 @@ import {
   NEMOTRON_SUPER,
   NEMOTRON_NANO,
   ownerWaitsInFlightNow,
+  ROUTE_CHANGED_ERROR,
   RoutedProvider,
   type ModelRoute,
   type RouteHooks,
@@ -449,7 +450,12 @@ describe("first-attempt owner refill wait (owner fairness, 009)", () => {
     expect(h.build).not.toHaveBeenCalled();
     expect(h.hooks.acquire).toHaveBeenCalledOnce();
     expect(h.hooks.abandonOwnerWait).toHaveBeenCalledWith(superRoute);
-    expect(result.route.attempts[0]).toMatchObject({ outcome: "deferred" });
+    // Logged as a route change, not as owner-budget starvation (Data 56939).
+    expect(result.route.attempts[0]).toMatchObject({
+      outcome: "deferred",
+      error: ROUTE_CHANGED_ERROR,
+    });
+    expect(result.route.attempts[0]!.admissionReasons).toBeUndefined();
   });
 
   it.each([
