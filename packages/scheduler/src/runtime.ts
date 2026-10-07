@@ -581,6 +581,9 @@ const PAID_BRAIN_ALERT_EVENTS = new Set([
   "paid_brain_admission_failed",
   "paid_brain_spec_invalid",
   "paid_brain_pause_failed",
+  // A prompt over the paid input bound is never sent: the agent loses its
+  // paid cycle, so root should see it.
+  "paid_brain_input_over_bound",
 ]);
 function logPaidBrain(event: string, fields: Record<string, unknown>): void {
   const line = `[scheduler] ${event} ${JSON.stringify(fields)}`;
@@ -672,7 +675,7 @@ export function fallbackAgentFor(agent: AgentRow, brain: PaidBrain): AgentRow {
 // The paid provider. It refuses to call the model unless 'dispatched' was
 // committed first, sends the hard output cap, and records the provider's
 // answer (classified by classifyPaidCall) before the runner sees it.
-class PaidCallProvider implements Provider {
+export class PaidCallProvider implements Provider {
   readonly label: string;
   readonly results: PaidCallResult[] = [];
   constructor(

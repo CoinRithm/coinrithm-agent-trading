@@ -139,7 +139,9 @@ describe("provider configuration and response contracts", () => {
       });
     },
   );
-  it("joins Anthropic text blocks and treats omitted usage counters as zero", async () => {
+  // Root review of #118: omitted usage counters are UNKNOWN, never zero (a
+  // billed call must not meter as free).
+  it("joins Anthropic text blocks and reports omitted usage counters as unknown", async () => {
     const fetchFn = vi
       .fn<typeof fetch>()
       .mockResolvedValue(Response.json({ content: [{}, { text }], usage: {} }));
@@ -152,7 +154,6 @@ describe("provider configuration and response contracts", () => {
       ok: true,
       text,
       responseSource: "content",
-      usage: { promptTokens: 0, completionTokens: 0 },
     });
     expect(JSON.parse(String(fetchFn.mock.calls[0]![1]!.body))).toMatchObject({
       max_tokens: 77,

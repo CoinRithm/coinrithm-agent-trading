@@ -112,7 +112,7 @@ describe("runtime grants: one list for provisioning and readiness", () => {
 
   it("keeps the ledger sign rule of contract v2 in the CHECK", () => {
     expect(ledgerMigration).toContain(
-      "kind IN ('grant','topup','refund','release','reserve','debit','reversal')",
+      "kind IN ('grant','topup','refund','release','reserve','debit','reversal','restore')",
     );
     expect(ledgerMigration).toMatch(
       /WHEN kind IN \('reserve','debit','reversal'\)\s+THEN amount_micro_usd < 0\s+ELSE amount_micro_usd > 0 END/,

@@ -9,6 +9,7 @@ import { loadConfig } from "./config.js";
 import { encrypt } from "./crypto.js";
 import {
   PAID_BRAIN_PAUSE_REASON,
+  PaidCallProvider,
   fallbackAgentFor,
   paidBrainFor,
   paidBrainRefusalReason,
@@ -217,20 +218,29 @@ describe("paid brain runtime wiring (contract v2)", () => {
     ).toBe(true);
   });
 
-  it("never sends a prompt over the paid input bound (no truncation) and releases", async () => {
-    const { agent, config } = paidFixture();
-    agent.prose = "x".repeat(170_000);
-    vi.mocked(db.finalizePaidCall).mockResolvedValue("released");
-    await runAgentOnce(pool, agent, config);
-    expect(db.markPaidCallDispatched).not.toHaveBeenCalled();
-    expect(decide).not.toHaveBeenCalled();
-    expect(db.finalizePaidCall).toHaveBeenCalledWith(pool, reservedKey(), {
-      mode: "cycle_end",
-      cycleId: 4242,
+  it("never sends a prompt over the paid input bound (no truncation): not dispatched, not called", async () => {
+    const inner = { label: "anthropic/fixture", decide: vi.fn() };
+    const provider = new PaidCallProvider(
+      inner as never,
+      pool,
+      42,
+      "reserve:42:over-bound",
+    );
+    const res = await provider.decide({
+      system: "s",
+      user: "x".repeat(160_001),
     });
+    expect(res).toMatchObject({ ok: false, deferred: true });
+    expect(provider.results).toEqual([{ status: "not_called" }]);
+    expect(db.markPaidCallDispatched).not.toHaveBeenCalled();
+    expect(inner.decide).not.toHaveBeenCalled();
     expect(
       errorLines().some((line) => line.includes("paid_brain_input_over_bound")),
     ).toBe(true);
+    // Exactly at the bound is still sent (dispatch is attempted).
+    vi.mocked(db.markPaidCallDispatched).mockResolvedValue(false);
+    await provider.decide({ system: "", user: "x".repeat(160_000) });
+    expect(db.markPaidCallDispatched).toHaveBeenCalledOnce();
   });
 
   it.each([
