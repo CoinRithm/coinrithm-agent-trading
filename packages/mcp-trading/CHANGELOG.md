@@ -7,6 +7,14 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
 ## 0.7.16 (unpublished)
 
+- Bench: the PM baselines now preserve the recorded agent's PM board policy
+  (for house agents: depth 30, churn removed), the original opportunity set.
+  Before, they asked for the uncurated 12-row page a live mechanical agent
+  reads, and a cassette recorded without it (house Mia) reported the market
+  as missing. Originally mechanical recordings keep their uncurated board;
+  live mechanical agents are unchanged. New recordings need only the original
+  pass and mark PM baseline readiness after successful PM reads, rather than
+  assuming that an enabled PM venue guarantees recorded evidence.
 - Bench: two more PM baselines, `baseline:base-rate` (uninformative 50%) and
   `baseline:random` (seeded 20-80%), next to `baseline:skip` and
   `baseline:market`. They replay the same recorded market pass, so existing

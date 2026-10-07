@@ -34,7 +34,7 @@ import { baseSymbol, scanSetups } from "./setups.js";
 import { futuresEntryPreflight } from "./futuresEligibility.js";
 import { reconcileObservation } from "./reconcileObservation.js";
 import { createOpportunityReporter } from "./opportunityReporter.js";
-import { enrichWhaleContext, observe } from "./observe.js";
+import { enrichWhaleContext, observe, type ObserveOptions } from "./observe.js";
 import {
   buildDailyRiskBudget,
   buildFuturesCapacity,
@@ -97,6 +97,9 @@ export interface RunnerDeps {
   minModelIntervalSeconds?: number;
   /** Opt-in hosted canary; changes presentation only, preserving all values. */
   compactPromptTables?: boolean;
+  /** Bench replay only (bench.ts): observation overrides. Live runs never
+   *  set it. */
+  observeOptions?: ObserveOptions;
 }
 
 // Independent-forecast kill-switch. Default ON: the fleet elicits + submits its
@@ -604,7 +607,13 @@ async function runCycleCore(
   });
 
   // OBSERVE
-  const obs = await observe(client, spec, state, baseTrace);
+  const obs = await observe(
+    client,
+    spec,
+    state,
+    baseTrace,
+    deps.observeOptions,
+  );
   const observation = obs.observation;
   const nowMs = Date.now();
   // Slice 2: attach to each open position the thesis it was opened on (from

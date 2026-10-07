@@ -1211,11 +1211,20 @@ function emptyObservation(state: RunState, scopes: string[] = []): Observation {
   };
 }
 
+/** Bench-only observation overrides; live callers pass none. */
+export interface ObserveOptions {
+  /** Read the curated PM board (depth 30, churn removed, calibration read)
+   *  even for a mechanical spec, so a bench baseline sees the recorded
+   *  agent opportunity set. Default: non-mechanical only. */
+  curatedPmBoard?: boolean;
+}
+
 export async function observe(
   client: CoinRithmClient,
   spec: AgentSpec,
   state: RunState,
   trace?: AgentTrace,
+  options: ObserveOptions = {},
 ): Promise<ObserveOutput> {
   const meR = await client.me(trace);
   if (!meR.ok)
@@ -1625,7 +1634,8 @@ export async function observe(
   if (wantPm) {
     // Curated board for every non-mechanical agent: churn rows removed and a
     // deeper page so the filter does not empty it (see PM_CALIBRATION_CHURN_RE).
-    const curatedPmBoard = spec.model?.provider !== "mechanical";
+    const curatedPmBoard =
+      options.curatedPmBoard ?? spec.model?.provider !== "mechanical";
     const primaryDiscoveryLimit = curatedPmBoard ? 30 : 12;
     // Bias PM discovery toward CRYPTO markets the agent has a price view on, the
     // only PM markets where a price agent's view is even relevant (probed

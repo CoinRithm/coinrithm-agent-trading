@@ -348,17 +348,23 @@ What it does:
 
 - `record` runs the production `runCycle` in dry-run through a recording
   transport and saves every read response (keyed by method, path and sorted
-  query) as `corpus/<asOf>-<hash>.json`. For an agent with the `pm` venue it
-  also records the reads of the market-implied baseline. `asOf` is the end
-  of all those reads, so outcome scoring cannot start before input collection
+  query) as `corpus/<asOf>-<hash>.json`. The original PM observation also
+  supplies the mechanical baselines; no separate market pass is needed.
+  PM baseline readiness requires successful recorded PM positions/discovery
+  reads, including a valid empty board. `asOf` is the end of all reads, so
+  outcome scoring cannot start before input collection
   completes. A malformed corpus JSON file stops the run for explicit repair.
 - `bench` replays each cassette through the same `runCycle` for every variant,
   `--repeats` times, starting each cycle from a fresh run state. It also runs
   baselines on every cassette: `baseline:skip` (never trades) and, for PM
-  agents, three mechanical PM strategies on the same recorded market pass:
+  agents with recorded PM evidence, three mechanical PM strategies on the
+  original recorded board (house agents' curated board; an originally
+  mechanical agent's uncurated board):
   `baseline:market` (the market's own probability), `baseline:base-rate` (an
   uninformative 50%) and `baseline:random` (a seeded 20-80% forecast). A
-  futures/spot-only agent gets `baseline:skip` only.
+  futures/spot-only agent gets `baseline:skip` only. Legacy readiness markers
+  do not guarantee coverage: missing original-board reads remain reported
+  as missing, never filled from a different query or counted as complete skips.
 - The report (`coinrithm.bench.report.v1`) gives, per variant: decision mix,
   model failures and crashes, accepted and rejected actions with reject codes,
   repeat consistency, missing inputs and synthesized quotes. Per pair of

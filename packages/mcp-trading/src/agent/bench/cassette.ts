@@ -53,7 +53,9 @@ export interface Cassette {
   /** definitionHash of the recorded spec + prose (see definitionSnapshot). */
   agentSpecHash: string;
   spec: AgentSpec;
-  /** True when the market-implied baseline's extra reads were recorded too. */
+  /** PM observation available for baselines. Legacy recordings used this
+   *  only to mark an attempted extra mechanical pass; replay still reports
+   *  missing inputs instead of treating the marker as a coverage guarantee. */
   marketBaselineRecorded: boolean;
   recordCycle: { decision: string; decisionType?: string; skipReason?: string };
   /** Non-GET requests the recorder refused to forward (never sent). */
@@ -127,8 +129,8 @@ export function recordingSpec(spec: AgentSpec): AgentSpec {
 /**
  * The market-implied baseline: the recorded agent's spec and caps with the
  * deterministic mechanical "market-implied" strategy as its brain (mechanical
- * .ts). Its observe() reads differ slightly from an LLM agent's (uncurated PM
- * board), which is why recording runs it once too.
+ * .ts). runBench separately preserves the recorded agent's observation
+ * policy, so replacing the provider never changes the PM opportunity set.
  */
 export function marketBaselineSpec(spec: AgentSpec): AgentSpec {
   return mechanicalBaselineSpec(spec, "market-implied");
@@ -137,8 +139,8 @@ export function marketBaselineSpec(spec: AgentSpec): AgentSpec {
 /**
  * The same recorded spec with one of the mechanical benchmark strategies as
  * its brain. base-rate and random pick the SAME market from the SAME
- * observation as market-implied (mechanical.ts), so the recording pass made
- * for market-implied already holds every read they need.
+ * observation as market-implied (mechanical.ts); all use the original
+ * recording's PM board and never fetch a separate baseline universe.
  */
 export function mechanicalBaselineSpec(
   spec: AgentSpec,

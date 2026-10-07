@@ -145,8 +145,9 @@ describe("recording", () => {
     });
     // Only GETs ever reached the transport.
     expect(api.seen.every((s) => s.startsWith("GET "))).toBe(true);
-    // The market-implied pass asked for a quote: refused, never forwarded.
-    expect(c.refusedRequests).toEqual(["POST /api/agent/pm/quote"]);
+    // The original SKIP pass is sufficient; no extra mechanical pass asks
+    // for a quote or replaces the house's opportunity set.
+    expect(c.refusedRequests).toEqual([]);
     expect(c.marketBaselineRecorded).toBe(true);
     expect(c.asOf).toBe(c.recordedAt);
     expect(Date.parse(c.asOf)).toBe(c.clockMs);
@@ -166,13 +167,66 @@ describe("recording", () => {
         "GET /api/agent/trades?limit=1&venue=futures",
         "GET /api/agent/resolve?q=BTC",
         "GET /api/agent/pm/discover?limit=30&q=Bitcoin",
-        // The uncurated board only the mechanical baseline reads.
-        "GET /api/agent/pm/discover?limit=12&q=Bitcoin",
         "GET /api/agent/performance",
       ]),
     );
+    expect(keys).not.toContain("GET /api/agent/pm/discover?limit=12&q=Bitcoin");
+    expect(api.seen.filter((s) => s === "GET /api/agent/me")).toHaveLength(1);
     expect(JSON.stringify(c)).not.toContain("fixture-key");
   });
+
+  it.each([
+    "/api/agent/me",
+    "/api/agent/positions/pm",
+    "/api/agent/pm/discover",
+  ])("does not mark missing or failed PM evidence ready: %s", async (path) => {
+    const api = fakeApi(ASOFS[0]);
+    const c = await recordCassette({
+      spec: pmSpec(),
+      mergedProse: "strategy",
+      apiKey: "fixture-key",
+      fetchFn: (async (input, init) =>
+        new URL(String(input)).pathname === path
+          ? new Response('{"error":"unavailable"}', { status: 404 })
+          : api.fetchFn(input, init)) as typeof fetch,
+    });
+    expect(c.marketBaselineRecorded).toBe(false);
+    expect(c.responses.find((r) => r.path === path)?.ok).toBe(false);
+  });
+
+  it("marks a successfully recorded empty PM board ready", async () => {
+    const api = fakeApi(ASOFS[0]);
+    const c = await recordCassette({
+      spec: pmSpec(),
+      mergedProse: "strategy",
+      apiKey: "fixture-key",
+      fetchFn: (async (input, init) =>
+        new URL(String(input)).pathname === "/api/agent/pm/discover"
+          ? new Response('{"data":[]}', { status: 200 })
+          : api.fetchFn(input, init)) as typeof fetch,
+    });
+    expect(c.marketBaselineRecorded).toBe(true);
+    expect(
+      c.responses.find((r) => r.path === "/api/agent/pm/discover")?.data,
+    ).toEqual({ data: [] });
+  });
+
+  it.each(["/api/agent/positions/pm", "/api/agent/pm/discover"])(
+    "does not mistake a malformed successful response for PM evidence: %s",
+    async (path) => {
+      const api = fakeApi(ASOFS[0]);
+      const c = await recordCassette({
+        spec: pmSpec(),
+        mergedProse: "strategy",
+        apiKey: "fixture-key",
+        fetchFn: (async (input, init) =>
+          new URL(String(input)).pathname === path
+            ? new Response("{}", { status: 200 })
+            : api.fetchFn(input, init)) as typeof fetch,
+      });
+      expect(c.marketBaselineRecorded).toBe(false);
+    },
+  );
 
   it("refuses a Request object's POST without forwarding it", async () => {
     const inner = vi.fn(async () => new Response("{}"));
@@ -188,7 +242,7 @@ describe("recording", () => {
     expect(recorder.refused).toEqual(["POST /api/agent/pm/open"]);
   });
 
-  it("starts scoring after baseline-only reads, never at the earlier trades cursor", async () => {
+  it("starts scoring after all recording reads, never at the earlier trades cursor", async () => {
     let now = Date.parse(ASOFS[0]);
     const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
     const api = fakeApi(ASOFS[0]);
@@ -413,6 +467,158 @@ describe("runBench", () => {
     );
     expect(vsSkip.all.metrics.labelledPnlMusd.meanDiff).toBe(-10);
     expect(report.variants.b.nullCalibration).toBeNull();
+  });
+
+  it("baselines read the house's curated board, so a cassette without the uncurated page still scores", async () => {
+    // A house cassette may contain only the curated limit=30 board.
+    // The baselines must use exactly that opportunity set.
+    const cassettes = (await corpus()).map((c) => ({
+      ...c,
+      responses: c.responses.filter(
+        (r) => r.key !== "GET /api/agent/pm/discover?limit=12&q=Bitcoin",
+      ),
+    }));
+    expect(
+      cassettes.every((c) =>
+        c.responses.some(
+          (r) => r.key === "GET /api/agent/pm/discover?limit=30&q=Bitcoin",
+        ),
+      ),
+    ).toBe(true);
+    const labels = Object.fromEntries(
+      cassettes.map((c) => [
+        c.id,
+        {
+          pm: {
+            "polymarket/bitcoin-above-150k-by-december/0xabc123": {
+              settled: 0 as const,
+            },
+          },
+        },
+      ]),
+    );
+    const report = (await runBench({
+      cassettes,
+      labels,
+      repeats: 1,
+      variants: [
+        { name: "b", spec: pmSpec(5), mergedProse: "s", provider: proposePm() },
+      ],
+    })) as Json;
+    const market = report.variants[BASELINE_MARKET].all.labelled;
+    expect(market.pmOpens).toBe(3);
+    expect(market.pmBrierMean).toBeCloseTo(0.01, 9);
+    expect(report.fidelity.cyclesWithMissingInputs).toBe(0);
+    for (const name of [BASELINE_MARKET, BASELINE_BASE_RATE, BASELINE_RANDOM])
+      expect(
+        report.cycles.filter((r: Json) => r.variant === name),
+      ).toHaveLength(3);
+  });
+
+  it("ignores a conflicting legacy uncurated page when the recorded agent was curated", async () => {
+    const cassettes = (await corpus()).slice(0, 1);
+    const c = cassettes[0];
+    const curated = c.responses.find(
+      (r) => r.key === "GET /api/agent/pm/discover?limit=30&q=Bitcoin",
+    )!;
+    c.responses.push({
+      ...curated,
+      key: "GET /api/agent/pm/discover?limit=12&q=Bitcoin",
+      query: { ...curated.query, limit: "12" },
+      data: {
+        data: [{ ...EVENT, slug: "wrong-uncurated-board", volume24h: 1e9 }],
+      },
+    });
+    const report = (await runBench({
+      cassettes,
+      repeats: 1,
+      variants: [
+        {
+          name: "house",
+          spec: c.spec,
+          mergedProse: "s",
+          provider: SKIP_PROVIDER,
+        },
+      ],
+    })) as Json;
+    for (const name of [BASELINE_MARKET, BASELINE_BASE_RATE, BASELINE_RANDOM]) {
+      const row = report.cycles.find((r: Json) => r.variant === name);
+      expect(row.missingInputs).toEqual([]);
+      expect(row.actions).toHaveLength(1);
+      expect(row.actions[0].key).toContain(EVENT.slug);
+      expect(row.actions[0].key).not.toContain("wrong-uncurated-board");
+    }
+  });
+
+  it("preserves the uncurated board for originally mechanical recordings", async () => {
+    const api = fakeApi(ASOFS[0]);
+    const spec = {
+      ...pmSpec(),
+      model: { provider: "mechanical" as const, name: "market-implied" },
+    };
+    const c = await recordCassette({
+      spec,
+      mergedProse: "",
+      apiKey: "fixture-key",
+      fetchFn: api.fetchFn,
+    });
+    expect(c.marketBaselineRecorded).toBe(true);
+    expect(
+      c.responses.some(
+        (r) => r.query.limit === "30" && r.path === "/api/agent/pm/discover",
+      ),
+    ).toBe(false);
+    expect(
+      c.responses.some(
+        (r) => r.query.limit === "12" && r.path === "/api/agent/pm/discover",
+      ),
+    ).toBe(true);
+    const report = (await runBench({
+      cassettes: [c],
+      repeats: 1,
+      variants: [
+        { name: "original", spec, mergedProse: "", provider: SKIP_PROVIDER },
+      ],
+    })) as Json;
+    expect(report.fidelity.cyclesWithMissingInputs).toBe(0);
+    for (const name of [BASELINE_MARKET, BASELINE_BASE_RATE, BASELINE_RANDOM])
+      expect(
+        report.cycles.find((r: Json) => r.variant === name).actions[0].key,
+      ).toContain(EVENT.slug);
+  });
+
+  it("keeps missing original-board reads visible despite a legacy ready marker and another board", async () => {
+    const c = (await corpus())[0];
+    const curated = c.responses.find(
+      (r) => r.key === "GET /api/agent/pm/discover?limit=30&q=Bitcoin",
+    )!;
+    c.responses = c.responses.filter((r) => r !== curated);
+    c.responses.push({
+      ...curated,
+      key: "GET /api/agent/pm/discover?limit=12&q=Bitcoin",
+      query: { ...curated.query, limit: "12" },
+    });
+    expect(c.marketBaselineRecorded).toBe(true);
+    const report = (await runBench({
+      cassettes: [c],
+      repeats: 1,
+      variants: [
+        {
+          name: "house",
+          spec: c.spec,
+          mergedProse: "s",
+          provider: SKIP_PROVIDER,
+        },
+      ],
+    })) as Json;
+    for (const name of [BASELINE_MARKET, BASELINE_BASE_RATE, BASELINE_RANDOM]) {
+      const row = report.cycles.find((r: Json) => r.variant === name);
+      expect(row.missingInputs).toContain(
+        "GET /api/agent/pm/discover?limit=30&q=Bitcoin",
+      );
+      expect(report.variants[name].all.cyclesWithMissingInputs).toBe(1);
+      expect(report.variants[name].all.pnlComparableCycles).toBe(0);
+    }
   });
 
   it("reports missing inputs instead of filling them, and keeps crashes as results", async () => {
