@@ -84,4 +84,23 @@ describe("owner bucket waiter", () => {
         .waiter,
     ).toBeUndefined();
   });
+
+  it("gives the operator bench its own owner budget and never a claim", () => {
+    const bench = sharedOwnerLimit(
+      {
+        id: 0,
+        ownerUserId: 11,
+        isHouse: true,
+        capacityTenant: "bench",
+      } as AgentRow,
+      config,
+      24000,
+    );
+    expect(bench.routeKey).toBe("shared-owner:bench");
+    expect(bench.waiter).toBeUndefined();
+    expect(bench).toMatchObject({
+      tokensPerMinute: config.sharedOwnerTpm,
+      maxConcurrent: 1,
+    });
+  });
 });

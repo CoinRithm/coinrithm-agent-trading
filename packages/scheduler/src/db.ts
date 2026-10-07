@@ -31,6 +31,9 @@ export interface AgentRow {
   brainKeyEnc: string | null;
   ownerUserId?: number | null;
   isHouse?: boolean;
+  /** Owner-budget tenant override. Never loaded from the database: only
+   *  the operator bench (runtime.ts benchRoutedProvider) sets "bench". */
+  capacityTenant?: "bench";
 }
 
 export interface CycleRecord {
