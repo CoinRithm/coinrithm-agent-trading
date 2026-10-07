@@ -38,8 +38,19 @@ const ALLOWED_KEYS: Record<string, string[] | null> = {
     // it) but was missing here, so any bundle actually SETTING it got an
     // unknown_key lint — the knob existed and was unreachable (audit rank 10).
     "triggerPolicy",
+    "universe",
   ],
   trigger: ["cadence", "timezone", "events"],
+  universe: [
+    "rank",
+    "minVolume24hUsd",
+    "excludeStablecoins",
+    "includeSectors",
+    "excludeSectors",
+    "sort",
+    "resolveTop",
+    "scanLimit",
+  ],
   triggerPolicy: [
     "mode",
     "skipLlmWhenNoTrigger",
@@ -167,6 +178,7 @@ export function strictLint(raw: Record<string, unknown>): ResolveIssue[] {
     "sync",
     "killSwitch",
     "objective",
+    "universe",
   ]) {
     if (isObj(raw[block]))
       lintKeys(block, raw[block] as Record<string, unknown>, issues);

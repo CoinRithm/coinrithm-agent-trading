@@ -139,10 +139,8 @@ export interface RiskConfig {
   pmMinEdgeGapPct?: number;
   // Optional HARD overconfidence guard (2026-10-07): reject a pm_open whose
   // forecast exceeds the fee-inclusive cost by MORE than this many points,
-  // and require a forecast while it is set. Evidence (3,428 settled agent
-  // bets, temp/agentic-bench-20261007/FINDINGS-PM-DIALS.md): the bigger the
-  // edge an agent claimed, the worse it did; house bets claiming 40+ points
-  // won 12% while forecasting 69%, ROI -78%. Absent = no cap.
+  // and require a forecast while it is set. This constrains allowed actions;
+  // it does not establish forecast calibration or profitability. Absent = no cap.
   pmMaxEdgePoints?: number;
   // Optional HARD cap on open bets per prediction-market EVENT (source + slug),
   // counting held open positions plus opens already accepted this cycle.
@@ -286,6 +284,27 @@ export interface AgentSpec {
   capabilities: Capability[];
   // Slice-2 gate policy (OKF intent). Omitted => DEFAULT_TRIGGER_POLICY.
   triggerPolicy?: TriggerPolicy;
+  // Market boundaries the agent scans inside each cycle (universe.ts).
+  // Omitted => watchlist only, or today's top-gainers scan with universe_scan.
+  universe?: UniverseConfig;
+}
+
+/** Declared market boundaries; see universe.ts for semantics and defaults. */
+export interface UniverseConfig {
+  rank?: { min?: number; max?: number };
+  minVolume24hUsd?: number;
+  excludeStablecoins?: boolean;
+  includeSectors?: string[];
+  excludeSectors?: string[];
+  sort?:
+    | "gainers_24h"
+    | "losers_24h"
+    | "abs_change_24h"
+    | "abs_change_1h"
+    | "volume_24h"
+    | "rank";
+  resolveTop?: number;
+  scanLimit?: number;
 }
 
 export interface ParsedSkill {
@@ -365,6 +384,10 @@ export interface WatchEntry {
   // sweep, not the spec watchlist. Valid for THIS cycle only; the prompt labels
   // it so the model knows it is a discovered candidate, not a standing holding.
   discovered?: boolean;
+  // With a declared `universe`: true when the screener confirmed this
+  // watchlist coin is inside the boundaries this cycle, false when it is not,
+  // absent when unverified. Only true (or discovered) allows a new entry.
+  withinBoundaries?: boolean;
   // Canonical coin slug (the key the news graph uses). Carried so headlines can
   // be attributed to the coin without a second lookup.
   slug?: string;

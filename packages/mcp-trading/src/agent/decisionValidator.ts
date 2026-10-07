@@ -16,6 +16,7 @@ import {
   spotBuyCost,
 } from "./types.js";
 import { checkEntryPredicates } from "./entryPredicates.js";
+import { universeEntryBlock } from "./universe.js";
 
 export interface DecisionContext {
   /**
@@ -298,6 +299,9 @@ export function validateAction(
         "unresolved_symbol",
         `${action.symbol} did not resolve to a coin`,
       );
+    const outsideUniverse = universeEntryBlock(spec, entry);
+    if (outsideUniverse)
+      return fail("outside_universe", `${action.symbol} is ${outsideUniverse}`);
 
     // A futures_open on a symbol you ALREADY hold is treated as an ADD by the
     // server, which REJECTS any SL/TP on an add (sl_tp_not_supported_on_add) and
@@ -495,6 +499,11 @@ export function validateAction(
         "unresolved_symbol",
         `${action.symbol} did not resolve to a coin`,
       );
+    if (action.side === "buy") {
+      const outside = universeEntryBlock(spec, entry);
+      if (outside)
+        return fail("outside_universe", `${action.symbol} is ${outside}`);
+    }
     if (
       action.orderType === "limit" &&
       !(typeof action.limitPrice === "number" && action.limitPrice > 0)
@@ -774,8 +783,8 @@ export function validateAction(
     // Forecast consistency. By prompt contract forecastProbability is the
     // model's own probability (1-99) that the outcome IT IS BACKING wins, so
     // buying that outcome only makes sense when the forecast clears what the
-    // market charges for it. An ABSENT forecast still never blocks a bet (the
-    // prompt promises that); a PRESENT one that contradicts the trade does.
+    // market charges for it. A forecast is optional unless a configured edge
+    // rule requires one; a present forecast must satisfy the enforced rules.
     // The API's entryProbability is the RAW mid, and executionModel's effective
     // probability excludes fee. Total stake / net shares is the fee-inclusive
     // break-even cost. Do not guess units or fall back to a discovery mid.
@@ -851,7 +860,7 @@ export function validateAction(
       if (maxEdge !== undefined && edge > maxEdge + 1e-9) {
         return fail(
           "pm_edge_overconfident",
-          `forecast ${action.forecastProbability} vs entry ${entryPct.toFixed(1)} = ${edge.toFixed(1)}pt edge, over the ${maxEdge}pt cap (large claimed edges have lost the most)`,
+          `forecast ${action.forecastProbability} vs entry ${entryPct.toFixed(1)} = ${edge.toFixed(1)}pt edge, over the ${maxEdge}pt cap`,
         );
       }
       if (edgeGapPct !== undefined) {

@@ -9,6 +9,7 @@ import {
   OBJECTIVE_PRIMARIES,
   ALLOWED_CAPABILITIES,
 } from "./types.js";
+import { universeIssues } from "./universe.js";
 import { parseCadenceMs, scanForSecrets } from "./util.js";
 import { entryPredicateIssues } from "./entryPredicates.js";
 
@@ -158,6 +159,9 @@ export function validateSkill(
         );
     }
   }
+
+  // Market boundaries (optional).
+  for (const [code, reason] of universeIssues(raw.universe)) add(code, reason);
 
   // Risk — always required
   if (!isObj(raw.risk)) {
