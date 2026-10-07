@@ -4,8 +4,10 @@ import {
   type ProviderRouteOptions,
 } from "@coinrithm/mcp-trading/engine";
 import {
+  MAX_CONCURRENT_OWNER_WAITS,
   NEMOTRON_SUPER,
   NEMOTRON_NANO,
+  ownerWaitsInFlightNow,
   RoutedProvider,
   type ModelRoute,
   type RouteHooks,
@@ -489,5 +491,44 @@ describe("first-attempt owner refill wait (owner fairness, 009)", () => {
     expect(h.hooks.acquire).toHaveBeenCalledTimes(2);
     expect(h.hooks.abandonOwnerWait).toHaveBeenCalledOnce();
     expect(h.build).not.toHaveBeenCalled();
+  });
+
+  it("admits Mia's worst case: a 24k reserve from an empty bucket (~57.6 s)", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const h = harness([good], [superRoute], () => Date.now());
+    vi.mocked(h.hooks.acquire)
+      .mockResolvedValueOnce(ownerDenial(57_600))
+      .mockResolvedValueOnce({ ok: true, lease: "after-wait" });
+    // A 90 s cycle deadline still leaves the 30 s response margin.
+    const pending = h.provider.decide({ ...input, timeoutMs: 90_000 });
+    await vi.advanceTimersByTimeAsync(57_600);
+    expect((await pending).ok).toBe(true);
+    expect(h.hooks.acquire).toHaveBeenCalledTimes(2);
+  });
+
+  it("caps concurrent first-attempt waits so waiting owners cannot hold every slot", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const waiting = Array.from({ length: MAX_CONCURRENT_OWNER_WAITS }, () => {
+      const h = harness([good], [superRoute], () => Date.now());
+      vi.mocked(h.hooks.acquire)
+        .mockResolvedValueOnce(ownerDenial(10_000))
+        .mockResolvedValueOnce({ ok: true, lease: "after-wait" });
+      return h.provider.decide({ ...input, timeoutMs: 100000 });
+    });
+    await vi.advanceTimersByTimeAsync(1);
+    expect(ownerWaitsInFlightNow()).toBe(MAX_CONCURRENT_OWNER_WAITS);
+    const extra = harness([good], [superRoute], () => Date.now());
+    extra.hooks.abandonOwnerWait = vi.fn(async () => {});
+    vi.mocked(extra.hooks.acquire).mockResolvedValueOnce(ownerDenial(10_000));
+    // Over the cap: no wait, defer now, claim released.
+    expect(
+      (await extra.provider.decide({ ...input, timeoutMs: 100000 })).ok,
+    ).toBe(false);
+    expect(extra.hooks.abandonOwnerWait).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(10_000);
+    for (const r of await Promise.all(waiting)) expect(r.ok).toBe(true);
+    expect(ownerWaitsInFlightNow()).toBe(0);
   });
 });

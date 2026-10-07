@@ -1569,6 +1569,44 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
       expect(held).toBeLessThanOrEqual(75);
     });
 
+    it("covers the worst in-cycle wait: Mia's 24k from an empty bucket", async () => {
+      const mia = `agent:${await agentId("mia-w")}`;
+      const leo = `agent:${await agentId("leo-w")}`;
+      await drainedAgo(0);
+      const denied = await reserveProviderCapacity(pool, owner(mia, MIA));
+      expect(denied.ok).toBe(false);
+      // ~57.6 s: inside the 60 s in-cycle ceiling; the claim outlasts it.
+      const hint = (denied as { retryAfterMs?: number }).retryAfterMs!;
+      expect(hint).toBeGreaterThan(57_000);
+      expect(hint).toBeLessThanOrEqual(60_000);
+      const c = await claim();
+      const held =
+        (new Date(c.waiter_expires_at).getTime() -
+          new Date(c.waiter_since).getTime()) /
+        1000;
+      expect(held).toBeGreaterThan(hint / 1000);
+      await drainedAgo(30);
+      expect(await attempt(leo, LEO)).toBe(false);
+      await drainedAgo(58);
+      expect(await attempt(mia, MIA)).toBe(true);
+    });
+
+    it("cannot meet a reserve above the per-minute rate in-cycle; admits it once the bucket has refilled", async () => {
+      const olivia = `agent:${await agentId("olivia-big")}`;
+      await drainedAgo(0);
+      const denied = await reserveProviderCapacity(pool, owner(olivia, OLIVIA));
+      // 31k at 25k/min needs ~74.4 s: over the 60 s ceiling, so the route does
+      // not wait and releases the claim (route/runtime tests).
+      expect(
+        (denied as { retryAfterMs?: number }).retryAfterMs!,
+      ).toBeGreaterThan(60_000);
+      await releaseOwnerClaim(pool, routeKey, olivia);
+      expect((await claim()).waiter_key).toBeNull();
+      // Its later cycle is admitted once the bucket holds its reserve.
+      await drainedAgo(75);
+      expect(await attempt(olivia, OLIVIA)).toBe(true);
+    });
+
     it("ends a claim at once when its cycle cannot wait", async () => {
       const mia = `agent:${await agentId("mia-a")}`;
       const leo = `agent:${await agentId("leo-a")}`;
