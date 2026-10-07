@@ -3939,8 +3939,48 @@ export interface components {
             /** @description True when collection age exceeds 1800 seconds (30 minutes). */
             stale: boolean;
         };
+        MarketFundingVenueRate: {
+            /** @enum {string} */
+            role: "settlement_reference" | "context_only";
+            venue: string;
+            symbol: string;
+            /** @enum {string} */
+            source: "paper_futures_reference" | "hyperliquid_predicted_fundings";
+            /** @description Raw fraction per intervalHours, including valid zero/negative values; not percent. */
+            rateFraction: number;
+            /** @description Null when unknown. Hyperliquid HlPerp context is hourly. */
+            intervalHours: number | null;
+            /** @description rateFraction / intervalHours; simple normalization, not realized performance, APR or forecast return. Null when interval unknown. */
+            hourlyEquivalentFraction: number | null;
+            /**
+             * Format: date-time
+             * @description Null for missing/rolled/unusable provider boundaries; never advanced synthetically.
+             */
+            nextFundingTime: string | null;
+            /**
+             * Format: date-time
+             * @description CoinRithm collection time, not provider observation time.
+             */
+            fetchedAt: string;
+            /** @description Provider observation time and delivery delay are unknown. */
+            sourceAt: null;
+            /** @description Floor of collection age, clamped at zero. */
+            ageSeconds: number;
+            /** @description Collection age exceeds 1800 seconds. */
+            stale: boolean;
+            /** @enum {string} */
+            freshnessBasis: "collection_time";
+        };
+        /** @description Independent venue collection clocks; available only with usable additional context within the bounded two-hour read. Does not change the top-level funding reference or futures entry gate. Not simultaneous prices or an arbitrage/return forecast. */
+        MarketFundingByVenueContext: {
+            rates: components["schemas"]["MarketFundingVenueRate"][];
+            /** @enum {boolean} */
+            sameTime: false;
+            note: string;
+        };
         /** @description Optional on older APIs. Members are additive and may be absent on older APIs; each can independently be null when unavailable or unusable. */
         MarketDerivativesContext: {
+            fundingByVenue?: components["schemas"]["MarketFundingByVenueContext"] | null;
             openInterest?: components["schemas"]["MarketOpenInterestContext"] | null;
             positioning?: components["schemas"]["MarketPositioningContext"] | null;
             liquidations?: components["schemas"]["MarketLiquidationContext"] | null;

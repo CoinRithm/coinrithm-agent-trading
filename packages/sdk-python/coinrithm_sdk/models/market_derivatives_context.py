@@ -10,6 +10,7 @@ from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
     from ..models.market_depth_context import MarketDepthContext
+    from ..models.market_funding_by_venue_context import MarketFundingByVenueContext
     from ..models.market_liquidation_context import MarketLiquidationContext
     from ..models.market_open_interest_context import MarketOpenInterestContext
     from ..models.market_positioning_context import MarketPositioningContext
@@ -24,12 +25,14 @@ class MarketDerivativesContext:
     unavailable or unusable.
 
         Attributes:
+            funding_by_venue (MarketFundingByVenueContext | None | Unset):
             open_interest (MarketOpenInterestContext | None | Unset):
             positioning (MarketPositioningContext | None | Unset):
             liquidations (MarketLiquidationContext | None | Unset):
             depth (MarketDepthContext | None | Unset):
     """
 
+    funding_by_venue: MarketFundingByVenueContext | None | Unset = UNSET
     open_interest: MarketOpenInterestContext | None | Unset = UNSET
     positioning: MarketPositioningContext | None | Unset = UNSET
     liquidations: MarketLiquidationContext | None | Unset = UNSET
@@ -38,9 +41,18 @@ class MarketDerivativesContext:
 
     def to_dict(self) -> dict[str, Any]:
         from ..models.market_depth_context import MarketDepthContext
+        from ..models.market_funding_by_venue_context import MarketFundingByVenueContext
         from ..models.market_liquidation_context import MarketLiquidationContext
         from ..models.market_open_interest_context import MarketOpenInterestContext
         from ..models.market_positioning_context import MarketPositioningContext
+
+        funding_by_venue: dict[str, Any] | None | Unset
+        if isinstance(self.funding_by_venue, Unset):
+            funding_by_venue = UNSET
+        elif isinstance(self.funding_by_venue, MarketFundingByVenueContext):
+            funding_by_venue = self.funding_by_venue.to_dict()
+        else:
+            funding_by_venue = self.funding_by_venue
 
         open_interest: dict[str, Any] | None | Unset
         if isinstance(self.open_interest, Unset):
@@ -77,6 +89,8 @@ class MarketDerivativesContext:
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update({})
+        if funding_by_venue is not UNSET:
+            field_dict["fundingByVenue"] = funding_by_venue
         if open_interest is not UNSET:
             field_dict["openInterest"] = open_interest
         if positioning is not UNSET:
@@ -91,11 +105,29 @@ class MarketDerivativesContext:
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.market_depth_context import MarketDepthContext
+        from ..models.market_funding_by_venue_context import MarketFundingByVenueContext
         from ..models.market_liquidation_context import MarketLiquidationContext
         from ..models.market_open_interest_context import MarketOpenInterestContext
         from ..models.market_positioning_context import MarketPositioningContext
 
         d = dict(src_dict)
+
+        def _parse_funding_by_venue(data: object) -> MarketFundingByVenueContext | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                funding_by_venue_type_0 = MarketFundingByVenueContext.from_dict(data)
+
+                return funding_by_venue_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(MarketFundingByVenueContext | None | Unset, data)
+
+        funding_by_venue = _parse_funding_by_venue(d.pop("fundingByVenue", UNSET))
 
         def _parse_open_interest(data: object) -> MarketOpenInterestContext | None | Unset:
             if data is None:
@@ -166,6 +198,7 @@ class MarketDerivativesContext:
         depth = _parse_depth(d.pop("depth", UNSET))
 
         market_derivatives_context = cls(
+            funding_by_venue=funding_by_venue,
             open_interest=open_interest,
             positioning=positioning,
             liquidations=liquidations,

@@ -30,7 +30,10 @@
     "openInterest": {
       "totalUsd": 5025468044,
       "change1hPct": 0.3,
-      "change1hVenues": ["bybit", "okx"],
+      "change1hVenues": [
+        "bybit",
+        "okx"
+      ],
       "change24hPct": null,
       "change24hVenues": [],
       "venues": [
@@ -112,6 +115,27 @@
       "ageSeconds": 54,
       "stale": false,
       "note": "Hyperliquid order book only (one venue's visible resting orders, at most 20 price levels per side), not total market liquidity and not an executable fill. usd is the resting USD in the visible levels, which reach reachPct percent from the mid; complete=false means liquidity beyond reachPct was not returned and remains unknown, not zero."
+    },
+    "fundingByVenue": {
+      "rates": [
+        {
+          "role": "context_only",
+          "venue": "hyperliquid",
+          "symbol": "BTC",
+          "source": "hyperliquid_predicted_fundings",
+          "rateFraction": 0,
+          "intervalHours": 1,
+          "hourlyEquivalentFraction": 0,
+          "nextFundingTime": null,
+          "fetchedAt": "2026-10-07T19:00:09.693Z",
+          "sourceAt": null,
+          "ageSeconds": 590,
+          "stale": false,
+          "freshnessBasis": "collection_time"
+        }
+      ],
+      "sameTime": false,
+      "note": "Independent collection times; simple normalization, not forecast returns."
     }
   },
   "macro": {

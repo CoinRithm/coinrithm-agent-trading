@@ -39,6 +39,8 @@ import {
   ChainTvlContext,
   StablecoinSupplyContext,
   DepthContext,
+  FundingByVenueContext,
+  FundingVenueRate,
   DepthSideContext,
   MacroQuote,
   DatedValue,
@@ -893,6 +895,102 @@ export function coinsField(value: unknown): { coins?: string[] } {
   return coins.length ? { coins } : {};
 }
 
+export function fundingByVenueOf(
+  m: Record<string, unknown>,
+  nowMs = Date.now(),
+): FundingByVenueContext | undefined {
+  const block = asObj(asObj(m.derivatives).fundingByVenue);
+  if (
+    block.sameTime !== false ||
+    !Array.isArray(block.rates) ||
+    block.rates.length > 2
+  )
+    return undefined;
+  const rates: FundingVenueRate[] = [];
+  const venues = new Set<string>();
+  for (const value of block.rates) {
+    const r = asObj(value);
+    const role = r.role,
+      venue = asStr(r.venue),
+      symbol = asStr(r.symbol);
+    const fetchedAt = shownTime(r.fetchedAt, nowMs),
+      rateFraction = asNum(r.rateFraction);
+    if (
+      (role !== "context_only" && role !== "settlement_reference") ||
+      !venue ||
+      !symbol ||
+      !fetchedAt ||
+      rateFraction === undefined ||
+      r.sourceAt !== null ||
+      r.freshnessBasis !== "collection_time"
+    )
+      continue;
+    const source =
+      role === "context_only"
+        ? "hyperliquid_predicted_fundings"
+        : "paper_futures_reference";
+    if (
+      r.source !== source ||
+      (role === "context_only" &&
+        (venue !== "hyperliquid" ||
+          r.intervalHours !== 1 ||
+          Math.abs(rateFraction) > 0.04))
+    )
+      continue;
+    const intervalHours =
+      typeof r.intervalHours === "number" &&
+      Number.isInteger(r.intervalHours) &&
+      r.intervalHours > 0 &&
+      r.intervalHours <= 24
+        ? r.intervalHours
+        : null;
+    const hourlyEquivalentFraction =
+      intervalHours === null ? null : rateFraction / intervalHours;
+    if (
+      hourlyEquivalentFraction !== null &&
+      !Number.isFinite(hourlyEquivalentFraction)
+    )
+      continue;
+    // A duplicate venue makes identity ambiguous; never pick the first silently.
+    if (venues.has(venue)) return undefined;
+    venues.add(venue);
+    const ageSeconds = Math.max(
+      0,
+      Math.floor((nowMs - Date.parse(fetchedAt)) / 1000),
+    );
+    const next =
+      typeof r.nextFundingTime === "string"
+        ? Date.parse(r.nextFundingTime)
+        : NaN;
+    const nextFundingTime =
+      Number.isFinite(next) &&
+      next > nowMs &&
+      next <=
+        Date.parse(fetchedAt) +
+          (role === "context_only" ? 61 * 60_000 : 24 * 3_600_000)
+        ? new Date(next).toISOString()
+        : null;
+    rates.push({
+      role,
+      venue,
+      symbol,
+      source,
+      rateFraction,
+      intervalHours,
+      hourlyEquivalentFraction,
+      nextFundingTime,
+      fetchedAt,
+      sourceAt: null,
+      ageSeconds,
+      stale: r.stale !== false || ageSeconds > 1800,
+      freshnessBasis: "collection_time",
+    });
+  }
+  return rates.some((r) => r.role === "context_only")
+    ? { rates, sameTime: false }
+    : undefined;
+}
+
 export function depthOf(
   m: Record<string, unknown>,
   nowMs = Date.now(),
@@ -1389,6 +1487,8 @@ export async function observe(
     if (chainTvl) entry.chainTvl = chainTvl;
     const depth = depthOf(m);
     if (depth) entry.depth = depth;
+    const fundingByVenue = fundingByVenueOf(m);
+    if (fundingByVenue) entry.fundingByVenue = fundingByVenue;
     // Macro proxies are the same for every coin: keep the first usable block.
     if (!macro) macro = macroOf(m);
     if (!stablecoinSupply) stablecoinSupply = stablecoinSupplyOf(m);
@@ -1532,6 +1632,8 @@ export async function observe(
       if (chainTvl) entry.chainTvl = chainTvl;
       const depth = depthOf(m);
       if (depth) entry.depth = depth;
+      const fundingByVenue = fundingByVenueOf(m);
+      if (fundingByVenue) entry.fundingByVenue = fundingByVenue;
       if (!macro) macro = macroOf(m);
       if (!stablecoinSupply) stablecoinSupply = stablecoinSupplyOf(m);
       if (wantIndicators)
