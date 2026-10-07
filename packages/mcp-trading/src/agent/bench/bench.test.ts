@@ -415,6 +415,47 @@ describe("runBench", () => {
     expect(report.variants.b.nullCalibration).toBeNull();
   });
 
+  it("baselines read the house's curated board, so a cassette without the uncurated page still scores", async () => {
+    // Live Mia cassettes recorded only the curated limit=30 board (root
+    // 57171). The baselines must use exactly that opportunity set.
+    const cassettes = (await corpus()).map((c) => ({
+      ...c,
+      responses: c.responses.filter(
+        (r) => r.key !== "GET /api/agent/pm/discover?limit=12&q=Bitcoin",
+      ),
+    }));
+    expect(
+      cassettes.every((c) =>
+        c.responses.some(
+          (r) => r.key === "GET /api/agent/pm/discover?limit=30&q=Bitcoin",
+        ),
+      ),
+    ).toBe(true);
+    const labels = Object.fromEntries(
+      cassettes.map((c) => [
+        c.id,
+        {
+          pm: {
+            "polymarket/bitcoin-above-150k-by-december/0xabc123": {
+              settled: 0 as const,
+            },
+          },
+        },
+      ]),
+    );
+    const report = (await runBench({
+      cassettes,
+      labels,
+      repeats: 1,
+      variants: [
+        { name: "b", spec: pmSpec(5), mergedProse: "s", provider: proposePm() },
+      ],
+    })) as Json;
+    const market = report.variants[BASELINE_MARKET].all.labelled;
+    expect(market.pmOpens).toBe(3);
+    expect(market.pmBrierMean).toBeCloseTo(0.01, 9);
+  });
+
   it("reports missing inputs instead of filling them, and keeps crashes as results", async () => {
     const cassettes = (await corpus()).slice(0, 1);
     const crash: Provider = {

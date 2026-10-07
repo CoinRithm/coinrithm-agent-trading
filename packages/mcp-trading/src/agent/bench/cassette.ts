@@ -127,8 +127,10 @@ export function recordingSpec(spec: AgentSpec): AgentSpec {
 /**
  * The market-implied baseline: the recorded agent's spec and caps with the
  * deterministic mechanical "market-implied" strategy as its brain (mechanical
- * .ts). Its observe() reads differ slightly from an LLM agent's (uncurated PM
- * board), which is why recording runs it once too.
+ * .ts). A live mechanical agent reads the uncurated PM board, which is why
+ * recording runs it once too; the bench replays baselines on the house's
+ * curated board instead (runBench, root 57171), the opportunity set every
+ * variant saw.
  */
 export function marketBaselineSpec(spec: AgentSpec): AgentSpec {
   return mechanicalBaselineSpec(spec, "market-implied");

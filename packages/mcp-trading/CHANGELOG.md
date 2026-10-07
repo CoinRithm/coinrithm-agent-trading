@@ -7,6 +7,11 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
 ## 0.7.16 (unpublished)
 
+- Bench: the PM baselines now read the recorded agent's curated PM board
+  (depth 30, churn removed), the same opportunity set every variant saw.
+  Before, they asked for the uncurated 12-row page a live mechanical agent
+  reads, and a cassette recorded without it (house Mia) reported the market
+  as missing. Live mechanical agents are unchanged.
 - Bench: two more PM baselines, `baseline:base-rate` (uninformative 50%) and
   `baseline:random` (seeded 20-80%), next to `baseline:skip` and
   `baseline:market`. They replay the same recorded market pass, so existing

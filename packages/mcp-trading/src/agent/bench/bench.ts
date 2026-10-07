@@ -16,7 +16,7 @@
 // had when recorded (plus the variant's own model latency, as in production).
 
 import { buildAgentDefinitionSnapshot } from "../definitionSnapshot.js";
-import { clearPmCalibrationCache } from "../observe.js";
+import { clearPmCalibrationCache, type ObserveOptions } from "../observe.js";
 import { Provider } from "../providers.js";
 import { runCycle } from "../runner.js";
 import { newState } from "../state.js";
@@ -201,6 +201,7 @@ export async function replayCycle(
   mergedProse: string,
   provider: Provider,
   labels?: LabelFile,
+  observeOptions?: ObserveOptions,
 ): Promise<CycleRow> {
   clearPmCalibrationCache();
   const client = new ReplayClient(cassette);
@@ -215,6 +216,7 @@ export async function replayCycle(
         mergedProse,
         state: newState(BENCH_RUN_ID),
         live: false,
+        ...(observeOptions ? { observeOptions } : {}),
       }),
     );
   } catch (error) {
@@ -341,8 +343,10 @@ export async function runBench(opts: RunBenchOptions): Promise<BenchReport> {
     }
     if (baselines) {
       rows.push(skipBaselineRow(cassette));
-      // Deterministic, so one run per cassette each. They need the mechanical
-      // pass recording made for pm agents; without it they are not run.
+      // Deterministic, so one run per cassette each. They read the house's
+      // curated PM board (the recorded opportunity set every variant saw,
+      // root 57171), never the uncurated board a live mechanical agent reads;
+      // still gated on the recording having made the baseline pass.
       if (cassette.marketBaselineRecorded)
         for (const [name, strategy] of MECHANICAL_BASELINES)
           rows.push(
@@ -354,6 +358,7 @@ export async function runBench(opts: RunBenchOptions): Promise<BenchReport> {
               "",
               SKIP_PROVIDER,
               labels,
+              { curatedPmBoard: true },
             ),
           );
     }
