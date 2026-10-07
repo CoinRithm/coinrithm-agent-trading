@@ -317,8 +317,13 @@ No role gets DELETE. Run the operator migration, then re-run `runtime-role.sql`.
    - the balance is below the worst case;
    - the agent's month spend plus the worst case exceeds the cap.
 
-   The worst case is 64k uncached input plus the 4,096-token output cap, at
-   the price row valid now, with margin. Month spend counts each call in the
+   The worst case is the proven input bound (160,000 bytes of prompt text,
+   at most one token per byte, plus 512 framing tokens) priced as uncached
+   input, plus the 4,096-token output cap, at the price row valid now, with
+   margin. A prompt over 160,000 bytes is never sent (and never truncated):
+   the call is released. Should reported usage still exceed the reserve, the
+   debit is capped at the reserve and the call is flagged uncertain for root
+   review. Month spend counts each call in the
    UTC month it was reserved in: finalized calls count their debit, open calls
    their worst case.
 

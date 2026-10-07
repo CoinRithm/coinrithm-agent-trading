@@ -1041,15 +1041,114 @@ describe("Anthropic usage reporting (paid metering)", () => {
       promptTokens: 7,
       completionTokens: 3,
     });
+  });
+
+  it("keeps real zero counts as zero", () => {
+    expect(
+      anthropicUsage({
+        input_tokens: 0,
+        output_tokens: 0,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 0,
+        cache_creation: {
+          ephemeral_5m_input_tokens: 0,
+          ephemeral_1h_input_tokens: 0,
+        },
+      }),
+    ).toEqual({
+      promptTokens: 0,
+      completionTokens: 0,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      cacheWrite5mTokens: 0,
+      cacheWrite1hTokens: 0,
+    });
+  });
+
+  // Root review of #118: malformed usage is unknown (metered uncertain),
+  // never zero (which would make a billed call free).
+  it.each([
+    ["no usage object", undefined],
+    ["null", null],
+    ["an array", [1, 2]],
+    ["an empty object", {}],
+    ["missing input_tokens", { output_tokens: 3 }],
+    ["missing output_tokens", { input_tokens: 7 }],
+    ["negative input", { input_tokens: -1, output_tokens: 3 }],
+    ["NaN output", { input_tokens: 7, output_tokens: Number.NaN }],
+    ["fractional input", { input_tokens: 7.5, output_tokens: 3 }],
+    ["string output", { input_tokens: 7, output_tokens: "3" }],
+    ["null input", { input_tokens: null, output_tokens: 3 }],
+    ["infinite input", { input_tokens: Infinity, output_tokens: 3 }],
+    [
+      "invalid cache read",
+      { input_tokens: 7, output_tokens: 3, cache_read_input_tokens: -1 },
+    ],
+    [
+      "invalid cache write total",
+      { input_tokens: 7, output_tokens: 3, cache_creation_input_tokens: 1.5 },
+    ],
+    [
+      "invalid 5m split",
+      {
+        input_tokens: 7,
+        output_tokens: 3,
+        cache_creation: { ephemeral_5m_input_tokens: Number.NaN },
+      },
+    ],
+    [
+      "a non-object split",
+      { input_tokens: 7, output_tokens: 3, cache_creation: 40 },
+    ],
+    [
+      "a write total that disagrees with its split",
+      {
+        input_tokens: 7,
+        output_tokens: 3,
+        cache_creation_input_tokens: 40,
+        cache_creation: {
+          ephemeral_5m_input_tokens: 10,
+          ephemeral_1h_input_tokens: 20,
+        },
+      },
+    ],
+  ])("is unknown (undefined) for %s", (_label, raw) => {
+    expect(anthropicUsage(raw)).toBeUndefined();
+  });
+
+  it("derives the write total from a split reported without one", () => {
     expect(
       anthropicUsage({
         input_tokens: 7,
         output_tokens: 3,
-        cache_creation_input_tokens: 40,
-        cache_read_input_tokens: -1,
-        cache_creation: { ephemeral_5m_input_tokens: Number.NaN },
+        cache_creation: { ephemeral_1h_input_tokens: 25 },
       }),
-    ).toEqual({ promptTokens: 7, completionTokens: 3, cacheWriteTokens: 40 });
+    ).toEqual({
+      promptTokens: 7,
+      completionTokens: 3,
+      cacheWriteTokens: 25,
+      cacheWrite1hTokens: 25,
+    });
+  });
+
+  it("returns no usage from decide when the reported usage is malformed", async () => {
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          stop_reason: "end_turn",
+          content: [{ text: '{"decision":"skip"}' }],
+          usage: {},
+        }),
+        { status: 200 },
+      ),
+    );
+    const result = await providerForRoute(
+      { provider: "anthropic", model: "test-model" },
+      "test-only",
+      fetchFn,
+    ).decide({ system: "s", user: "u" });
+    expect(result.ok).toBe(true);
+    expect((result as { usage?: unknown }).usage).toBeUndefined();
   });
 
   it("carries cache usage through decide and sends the caller's max_tokens", async () => {

@@ -611,6 +611,7 @@ interface PaidCallRow {
   price: PaidBrainPriceRow;
   margin_pct: number;
   usage: ProviderUsage | null;
+  worst_case_micro_usd: string;
   stale_reserved: boolean;
   stale_dispatched: boolean;
   stale_answered: boolean;
@@ -643,6 +644,7 @@ export async function finalizePaidCall(
   return ownerCreditTransaction(pool, userId, async (client) => {
     const { rows } = await client.query<PaidCallRow>(
       `SELECT user_id, agent_id, model_id, status, price, margin_pct, usage,
+              worst_case_micro_usd::text AS worst_case_micro_usd,
               created_at < now() - ${STALE_CALL} AS stale_reserved,
               COALESCE(dispatched_at < now() - ${STALE_CALL}, false) AS stale_dispatched,
               COALESCE(answered_at < now() - ${STALE_CALL}, false) AS stale_answered
@@ -708,8 +710,25 @@ export async function finalizePaidCall(
           );
           return "uncertain";
         }
+        // Never charge above the reserve the owner's balance and cap
+        // admitted. Usage above the proven bound should be impossible; if it
+        // happens anyway, the excess is not charged, and the call is flagged
+        // uncertain (blocking the owner's next paid call) for root review.
+        const reserved = Number(call.worst_case_micro_usd);
+        if (!Number.isSafeInteger(reserved) || reserved <= 0) {
+          await markUncertain("cannot read the call's reserve");
+          return "uncertain";
+        }
+        const overReserve = priced.totalMicro > reserved;
+        const debitMicro = overReserve ? reserved : priced.totalMicro;
+        const notes = overReserve
+          ? [
+              `over reserve: priced ${priced.totalMicro}, charged the ${reserved} reserve`,
+              ...priced.notes,
+            ]
+          : priced.notes;
         await release();
-        if (priced.totalMicro > 0) {
+        if (debitMicro > 0) {
           await client.query(
             `INSERT INTO agent_runtime.credit_ledger
                (user_id, kind, amount_micro_usd, agent_id, cycle_id, model_id,
@@ -719,7 +738,7 @@ export async function finalizePaidCall(
              ON CONFLICT (idempotency_key) DO NOTHING`,
             [
               Number(call.user_id),
-              -priced.totalMicro,
+              -debitMicro,
               Number(call.agent_id),
               cycleId,
               call.model_id,
@@ -727,12 +746,22 @@ export async function finalizePaidCall(
               Math.ceil(call.usage!.completionTokens),
               priced.providerCostMicro,
               priced.marginMicro,
-              [`price ${call.price.version}`, ...priced.notes].join("; "),
+              [`price ${call.price.version}`, ...notes].join("; "),
               debitKeyFor(reserveKey),
             ],
           );
         }
-        await close("finalized", priced.totalMicro);
+        if (overReserve) {
+          await client.query(
+            `UPDATE agent_runtime.paid_calls
+                SET status = 'uncertain', debit_micro_usd = $2, note = $3,
+                    cycle_id = COALESCE(cycle_id, $4)
+              WHERE reserve_key = $1 AND status = 'answered'`,
+            [reserveKey, debitMicro, notes[0]!.slice(0, 200), cycleId],
+          );
+          return "uncertain";
+        }
+        await close("finalized", debitMicro);
         return "debited";
       }
       default:

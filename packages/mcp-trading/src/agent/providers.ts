@@ -31,12 +31,6 @@ export interface ProviderUsage {
   cacheWrite1hTokens?: number;
 }
 
-function reportedCount(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0
-    ? value
-    : undefined;
-}
-
 interface AnthropicUsage {
   input_tokens?: number;
   output_tokens?: number;
@@ -48,22 +42,57 @@ interface AnthropicUsage {
   };
 }
 
+// A token count as Anthropic reports it: a non-negative safe integer. Zero
+// is a real count; anything else (missing, null, negative, NaN, fractional,
+// a string) is malformed.
+function exactCount(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0
+    ? value
+    : undefined;
+}
+
 // Anthropic usage, including prompt-cache reads and writes (and the 5m/1h
-// write split) when reported. Cache fields are omitted, not zeroed, when the
-// response does not carry them: absent is unknown, never free.
-export function anthropicUsage(raw: AnthropicUsage): ProviderUsage {
-  const usage: ProviderUsage = {
-    promptTokens: reportedCount(raw.input_tokens) ?? 0,
-    completionTokens: reportedCount(raw.output_tokens) ?? 0,
-  };
-  const cacheRead = reportedCount(raw.cache_read_input_tokens);
-  const cacheWrite = reportedCount(raw.cache_creation_input_tokens);
-  const write5m = reportedCount(raw.cache_creation?.ephemeral_5m_input_tokens);
-  const write1h = reportedCount(raw.cache_creation?.ephemeral_1h_input_tokens);
-  if (cacheRead !== undefined) usage.cacheReadTokens = cacheRead;
-  if (cacheWrite !== undefined) usage.cacheWriteTokens = cacheWrite;
-  if (write5m !== undefined) usage.cacheWrite5mTokens = write5m;
-  if (write1h !== undefined) usage.cacheWrite1hTokens = write1h;
+// write split) when reported. Strict, because paid metering prices it (root
+// review of #118): input_tokens and output_tokens are mandatory, and a
+// malformed reported field (mandatory or cache) makes the WHOLE usage unknown
+// (undefined), never zero, so the call is metered uncertain instead of free.
+// Cache fields the response does not carry at all stay absent. A reported
+// write total must equal its 5m/1h split; a split without a total implies it.
+export function anthropicUsage(raw: unknown): ProviderUsage | undefined {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw))
+    return undefined;
+  const u = raw as AnthropicUsage & Record<string, unknown>;
+  const promptTokens = exactCount(u.input_tokens);
+  const completionTokens = exactCount(u.output_tokens);
+  if (promptTokens === undefined || completionTokens === undefined)
+    return undefined;
+  const usage: ProviderUsage = { promptTokens, completionTokens };
+  const optional = (value: unknown): number | undefined | null =>
+    value === undefined ? undefined : (exactCount(value) ?? null);
+  const cacheRead = optional(u.cache_read_input_tokens);
+  const cacheWrite = optional(u.cache_creation_input_tokens);
+  let write5m: number | undefined | null;
+  let write1h: number | undefined | null;
+  if (u.cache_creation !== undefined) {
+    const split = u.cache_creation as unknown;
+    if (typeof split !== "object" || split === null || Array.isArray(split))
+      return undefined;
+    const s = split as Record<string, unknown>;
+    write5m = optional(s.ephemeral_5m_input_tokens);
+    write1h = optional(s.ephemeral_1h_input_tokens);
+  }
+  if ([cacheRead, cacheWrite, write5m, write1h].includes(null))
+    return undefined;
+  if (write5m != null || write1h != null) {
+    const splitTotal = (write5m ?? 0) + (write1h ?? 0);
+    if (cacheWrite != null && cacheWrite !== splitTotal) return undefined;
+    usage.cacheWriteTokens = splitTotal;
+    if (write5m != null) usage.cacheWrite5mTokens = write5m;
+    if (write1h != null) usage.cacheWrite1hTokens = write1h;
+  } else if (cacheWrite != null) {
+    usage.cacheWriteTokens = cacheWrite;
+  }
+  if (cacheRead != null) usage.cacheReadTokens = cacheRead;
   return usage;
 }
 
@@ -384,7 +413,8 @@ class AnthropicProvider implements Provider {
             usage?: AnthropicUsage;
           };
           const text = json.content?.map((c) => c.text ?? "").join("") ?? "";
-          const usage = json.usage ? anthropicUsage(json.usage) : undefined;
+          // Absent or malformed usage is undefined (unknown), never zero.
+          const usage = anthropicUsage(json.usage);
           if (
             json.stop_reason === "max_tokens" ||
             json.stop_reason === "model_context_window_exceeded"

@@ -170,13 +170,43 @@ export function priceRowAt(
   });
 }
 
-// Hard per-call cap: every paid call is sent with max_tokens 4096, thinking
-// included, so 4096 output tokens is a true upper bound. Input has no hard cap
-// in the engine; the measured agent profile is ~20k tokens, so 64k is a
-// deliberately generous bound. The paid request carries no cache_control, so
-// the worst case prices the whole prompt as uncached input.
+// Hard per-call caps (root review of #118: the reserve must be a proven bound,
+// enforced BEFORE dispatch, not an estimate).
+// - Output: every paid call is sent with max_tokens 4096, thinking included.
+// - Input: the paid request is exactly {system, one user message}; no tools,
+//   images or cache_control. Its text is capped at PAID_BRAIN_MAX_INPUT_BYTES
+//   of UTF-8 and a prompt over the cap is NOT sent (never truncated). A
+//   byte-level BPE token covers at least one byte of text, so the text cannot
+//   exceed that many tokens; the request framing (role and system markers) is
+//   covered by a fixed allowance. The measured agent prompt is ~16-20k tokens
+//   (~50-80 KB), well inside the cap.
+// - Should provider-reported usage ever still exceed the reserve, the debit is
+//   capped at the reserve (never above what the owner's balance and cap
+//   admitted) and the call is flagged for root review (finalizePaidCall).
+// The paid request carries no cache_control, so the reserve prices the whole
+// prompt as uncached input.
 export const PAID_BRAIN_MAX_OUTPUT_TOKENS = 4_096;
-export const PAID_BRAIN_WORST_CASE_INPUT_TOKENS = 64_000;
+export const PAID_BRAIN_MAX_INPUT_BYTES = 160_000;
+export const PAID_BRAIN_FRAMING_TOKENS = 512;
+export const PAID_BRAIN_INPUT_TOKEN_BOUND =
+  PAID_BRAIN_MAX_INPUT_BYTES + PAID_BRAIN_FRAMING_TOKENS;
+
+/** UTF-8 bytes of everything a paid call would send as text. Both user
+ * presentations are counted (the larger wins), so the check never depends on
+ * which one a route picks. */
+export function paidInputBytes(input: {
+  system: string;
+  user: string;
+  compactUser?: string;
+}): number {
+  return (
+    Buffer.byteLength(input.system, "utf8") +
+    Math.max(
+      Buffer.byteLength(input.user, "utf8"),
+      Buffer.byteLength(input.compactUser ?? "", "utf8"),
+    )
+  );
+}
 
 export interface PricedCall {
   providerCostMicro: number;
@@ -248,8 +278,9 @@ export function priceUsage(
   };
 }
 
-/** The reservation for one paid call: 64k uncached input plus the 4096-token
- * output cap at the price row's rates, with margin. */
+/** The reservation for one paid call: the proven input bound priced as
+ * uncached input plus the 4096-token output cap, at the price row's rates,
+ * with margin. */
 export function worstCaseCallMicroUsd(
   price: PaidBrainPriceRow,
   marginPct: number,
@@ -257,7 +288,7 @@ export function worstCaseCallMicroUsd(
   return priceUsage(
     price,
     {
-      promptTokens: PAID_BRAIN_WORST_CASE_INPUT_TOKENS,
+      promptTokens: PAID_BRAIN_INPUT_TOKEN_BOUND,
       completionTokens: PAID_BRAIN_MAX_OUTPUT_TOKENS,
     },
     marginPct,

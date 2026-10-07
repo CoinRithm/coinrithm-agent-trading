@@ -1083,6 +1083,7 @@ describe("paid brain ledger and call state (contract v2)", () => {
     price: sonnet,
     margin_pct: 20,
     usage: { promptTokens: 20_000, completionTokens: 400 },
+    worst_case_micro_usd: "434381",
     stale_reserved: false,
     stale_dispatched: false,
     stale_answered: false,
@@ -1307,6 +1308,39 @@ describe("paid brain ledger and call state (contract v2)", () => {
     // + 100 x 10000 = 13,000,000 / 1000 = 13,000; x 1.2 = 15,600.
     expect(params[1]).toBe(-15_600);
     expect(params[9]).toContain("cache write split not reported");
+  });
+
+  it("never charges above the reserve: usage over it debits the reserve and flags the call uncertain", async () => {
+    // Priced at 52,800 against a 50,000 reserve.
+    const ledger = ledgerPool({
+      call: answeredCall({ worst_case_micro_usd: "50000" }),
+    });
+    expect(
+      await finalizePaidCall(ledger.pool, KEY, {
+        mode: "cycle_end",
+        cycleId: 9,
+      }),
+    ).toBe("uncertain");
+    expect(ledger.call("'release'")).toBeDefined();
+    const debit = ledger.call("'debit'")![1];
+    expect(debit[1]).toBe(-50_000);
+    expect(debit[9]).toContain("over reserve: priced 52800");
+    const [flagSql, flagParams] = ledger.call(
+      "SET status = 'uncertain', debit_micro_usd = $2",
+    )!;
+    expect(flagSql).toContain("AND status = 'answered'");
+    expect(flagParams.slice(0, 2)).toEqual([KEY, 50_000]);
+    expect(ledger.call("SET status = $2")).toBeUndefined();
+  });
+
+  it("marks an answered call uncertain when its reserve cannot be read", async () => {
+    const ledger = ledgerPool({
+      call: answeredCall({ worst_case_micro_usd: null }),
+    });
+    expect(
+      await finalizePaidCall(ledger.pool, KEY, { mode: "cycle_end" }),
+    ).toBe("uncertain");
+    expect(ledger.call("'debit'")).toBeUndefined();
   });
 
   it("marks an unpriceable answered call uncertain instead of guessing", async () => {

@@ -37,8 +37,10 @@ import {
   listPaidRecoveryCandidates,
 } from "./db.js";
 import {
+  PAID_BRAIN_MAX_INPUT_BYTES,
   PAID_BRAIN_MAX_OUTPUT_TOKENS,
   classifyPaidCall,
+  paidInputBytes,
   monthStartUtc,
   paidBrainSpecState,
   priceRowAt,
@@ -661,6 +663,23 @@ class PaidCallProvider implements Provider {
   }
   async decide(input: DecideInput): Promise<DecideResult> {
     const ids = { agentId: this.agentId, reserveKey: this.reserveKey };
+    // The reserve assumes at most PAID_BRAIN_MAX_INPUT_BYTES of prompt text.
+    // A larger prompt is never sent (and never truncated): the call stays
+    // 'reserved' and finalisation releases it.
+    const inputBytes = paidInputBytes(input);
+    if (inputBytes > PAID_BRAIN_MAX_INPUT_BYTES) {
+      logPaidBrain("paid_brain_input_over_bound", {
+        ...ids,
+        inputBytes,
+        maxInputBytes: PAID_BRAIN_MAX_INPUT_BYTES,
+      });
+      this.results.push({ status: "not_called" });
+      return {
+        ok: false,
+        deferred: true,
+        error: `paid call not sent: prompt is ${inputBytes} bytes, over the ${PAID_BRAIN_MAX_INPUT_BYTES}-byte paid input bound`,
+      };
+    }
     let dispatched = false;
     try {
       dispatched = await markPaidCallDispatched(this.pool, this.reserveKey);

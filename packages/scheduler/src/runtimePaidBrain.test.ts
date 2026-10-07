@@ -173,7 +173,7 @@ describe("paid brain runtime wiring (contract v2)", () => {
       modelId: "claude-sonnet-5-5",
       price: priceRowAt(paidBrainModel("claude-sonnet-5-5")!, Date.now()),
       marginPct: 20,
-      worstCaseMicro: 202_752,
+      worstCaseMicro: 434_381,
       capMicro: 25_000_000,
     });
     expect(request.reserveKey).toMatch(RESERVE_KEY);
@@ -214,6 +214,22 @@ describe("paid brain runtime wiring (contract v2)", () => {
     expect(errorLines()).toEqual([]);
     expect(
       logLines().some((line) => line.includes("paid_brain_finalized")),
+    ).toBe(true);
+  });
+
+  it("never sends a prompt over the paid input bound (no truncation) and releases", async () => {
+    const { agent, config } = paidFixture();
+    agent.prose = "x".repeat(170_000);
+    vi.mocked(db.finalizePaidCall).mockResolvedValue("released");
+    await runAgentOnce(pool, agent, config);
+    expect(db.markPaidCallDispatched).not.toHaveBeenCalled();
+    expect(decide).not.toHaveBeenCalled();
+    expect(db.finalizePaidCall).toHaveBeenCalledWith(pool, reservedKey(), {
+      mode: "cycle_end",
+      cycleId: 4242,
+    });
+    expect(
+      errorLines().some((line) => line.includes("paid_brain_input_over_bound")),
     ).toBe(true);
   });
 

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   PAID_BRAIN_MAX_OUTPUT_TOKENS,
-  PAID_BRAIN_WORST_CASE_INPUT_TOKENS,
+  PAID_BRAIN_FRAMING_TOKENS,
+  PAID_BRAIN_INPUT_TOKEN_BOUND,
+  PAID_BRAIN_MAX_INPUT_BYTES,
+  paidInputBytes,
   admitPaidCall,
   classifyPaidCall,
   debitKeyFor,
@@ -191,12 +194,26 @@ describe("priceUsage", () => {
 });
 
 describe("worstCaseCallMicroUsd", () => {
-  it("reserves 64k uncached input plus the 4096-token output cap, with margin", () => {
-    expect(PAID_BRAIN_WORST_CASE_INPUT_TOKENS).toBe(64_000);
+  it("reserves the proven input bound as uncached input plus the 4096-token output cap, with margin", () => {
+    expect(PAID_BRAIN_MAX_INPUT_BYTES).toBe(160_000);
+    expect(PAID_BRAIN_FRAMING_TOKENS).toBe(512);
+    expect(PAID_BRAIN_INPUT_TOKEN_BOUND).toBe(160_512);
     expect(PAID_BRAIN_MAX_OUTPUT_TOKENS).toBe(4_096);
-    // (64k x 2000 + 4096 x 10000) / 1000 = 168,960; x 1.2 = 202,752.
-    expect(worstCaseCallMicroUsd(row("claude-sonnet-5-5"), 20)).toBe(202_752);
-    expect(worstCaseCallMicroUsd(row("claude-opus-5-5"), 20)).toBe(405_504);
+    // (160,512 x 2000 + 4096 x 10000) / 1000 = 361,984; x 1.2 = 434,380.8 -> 434,381.
+    expect(worstCaseCallMicroUsd(row("claude-sonnet-5-5"), 20)).toBe(434_381);
+    // (160,512 x 4000 + 4096 x 20000) / 1000 = 723,968; x 1.2 = 868,761.6 -> 868,762.
+    expect(worstCaseCallMicroUsd(row("claude-opus-5-5"), 20)).toBe(868_762);
+  });
+});
+
+describe("paidInputBytes", () => {
+  it("counts UTF-8 bytes of system plus the larger user presentation", () => {
+    expect(paidInputBytes({ system: "abc", user: "de" })).toBe(5);
+    // Multi-byte text counts bytes, not characters: "ş" is 2 bytes, "€" 3.
+    expect(paidInputBytes({ system: "ş", user: "€" })).toBe(5);
+    expect(
+      paidInputBytes({ system: "s", user: "u", compactUser: "longer" }),
+    ).toBe(7);
   });
 });
 
