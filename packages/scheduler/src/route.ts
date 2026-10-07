@@ -452,6 +452,8 @@ export class RoutedProvider<Lease = unknown> implements Provider {
           { ok: false, error: "model route deadline exhausted" },
           true,
         );
+        // The unused release keeps a claim; this cycle has ended, so end it.
+        await this.abandonOwnerWait(route);
         break;
       }
       lastAttemptedRoute = route;

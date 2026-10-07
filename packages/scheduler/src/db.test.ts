@@ -27,6 +27,7 @@ import {
   EOL_MODEL_SUCCESSORS,
   type CycleRecord,
   agentStillSharedEligible,
+  type AgentRow,
 } from "./db.js";
 import { paidBrainModel, priceRowAt } from "./paidBrain.js";
 
@@ -933,22 +934,50 @@ describe("agentStillSharedEligible (after an owner-refill wait)", () => {
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })
       .mockRejectedValueOnce(new Error("db down"));
     const pool = { query } as unknown as Pool;
-    expect(await agentStillSharedEligible(pool, 7, "m")).toBe(true);
-    expect(await agentStillSharedEligible(pool, 7, "m")).toBe(false);
+    const loaded = {
+      id: 7,
+      modelProvider: "nvidia",
+      modelName: "m",
+      modelBaseUrl: null,
+      spec: { pinnedModel: true, paidBrain: { id: "x" } },
+    } as unknown as AgentRow;
+    expect(await agentStillSharedEligible(pool, loaded)).toBe(true);
+    expect(await agentStillSharedEligible(pool, loaded)).toBe(false);
     // A failed read never lets a stale route dispatch.
-    expect(await agentStillSharedEligible(pool, 7, "m")).toBe(false);
+    expect(await agentStillSharedEligible(pool, loaded)).toBe(false);
     const [sql, params] = query.mock.calls[0] as [string, unknown[]];
     expect(sql).toContain("status = 'active'");
     expect(sql).toContain("brain_key_enc IS NULL");
-    expect(sql).toContain("model_name = $2");
-    expect(params).toEqual([7, "m"]);
+    expect(sql).toContain("model_provider = $2");
+    expect(sql).toContain("model_base_url IS NOT DISTINCT FROM $4");
+    expect(sql).toContain("spec->'paidBrain' IS NOT DISTINCT FROM $5::jsonb");
+    expect(sql).toContain("spec->'pinnedModel' IS NOT DISTINCT FROM $6::jsonb");
+    expect(params).toEqual([
+      7,
+      "nvidia",
+      "m",
+      null,
+      JSON.stringify({ id: "x" }),
+      "true",
+    ]);
   });
 
   it("reads rows when the driver reports no rowCount", async () => {
     const pool = {
       query: vi.fn().mockResolvedValue({ rows: [{}] }),
     } as unknown as Pool;
-    expect(await agentStillSharedEligible(pool, 1, "m")).toBe(true);
+    expect(
+      await agentStillSharedEligible(pool, {
+        id: 1,
+        modelProvider: "nvidia",
+        modelName: "m",
+        spec: {},
+      } as unknown as AgentRow),
+    ).toBe(true);
+    const params = (pool.query as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[1] as unknown[];
+    // Absent spec choices compare as SQL NULL (key absent), not JSON null.
+    expect(params.slice(3)).toEqual([null, null, null]);
   });
 });
 

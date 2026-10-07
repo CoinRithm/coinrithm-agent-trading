@@ -531,4 +531,30 @@ describe("first-attempt owner refill wait (owner fairness, 009)", () => {
     for (const r of await Promise.all(waiting)) expect(r.ok).toBe(true);
     expect(ownerWaitsInFlightNow()).toBe(0);
   });
+
+  it("ends the claim when the deadline runs out after a post-wait re-admission", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    let jump = 0;
+    const h = harness([good], [superRoute], () => Date.now() + jump);
+    h.hooks.abandonOwnerWait = vi.fn(async () => {});
+    vi.mocked(h.hooks.acquire)
+      .mockResolvedValueOnce(ownerDenial(1000))
+      .mockImplementationOnce(async () => {
+        jump = 80_000; // admission itself took the remaining margin
+        return { ok: true, lease: "late" };
+      });
+    const pending = h.provider.decide({ ...input, timeoutMs: 100_000 });
+    await vi.advanceTimersByTimeAsync(1000);
+    const result = await pending;
+    expect(result.ok).toBe(false);
+    expect(h.build).not.toHaveBeenCalled();
+    expect(h.hooks.release).toHaveBeenCalledWith(
+      superRoute,
+      "late",
+      expect.objectContaining({ ok: false }),
+      true,
+    );
+    expect(h.hooks.abandonOwnerWait).toHaveBeenCalledOnce();
+  });
 });

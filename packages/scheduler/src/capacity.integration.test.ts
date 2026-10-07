@@ -31,6 +31,8 @@ import {
   finalizePaidCall,
   migrateHouseAgentsOffGroq,
   migrateAgentsOffEolModels,
+  agentStillSharedEligible,
+  type AgentRow,
 } from "./db.js";
 import { paidBrainModel, priceRowAt, reserveKeyFor } from "./paidBrain.js";
 
@@ -1457,60 +1459,166 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
       expect(await attempt(leo, LEO)).toBe(true);
     });
 
-    it("rotates turns across five agents instead of starving one", async () => {
-      const reserves = [OLIVIA, MIA, LEO, 28_000, 25_000];
-      const keys = await Promise.all(
-        reserves.map(async (_, i) => `agent:${await agentId(`rot-${i}`)}`),
-      );
-      const served = new Map(keys.map((k) => [k, 0]));
-      // Fifteen rounds of the grid order: each agent arrives 45 s after the
-      // previous drain; a deferred agent retries right after (its refill).
-      for (let round = 0; round < 15; round += 1) {
-        for (let i = 0; i < keys.length; i += 1) {
-          await drainedAgo(45);
-          if (await attempt(keys[i]!, reserves[i]!)) {
-            served.set(keys[i]!, served.get(keys[i]!)! + 1);
+    // Equal-horizon event schedule (Codex 56935): ONE bucket state carried
+    // forward in time (consumed balance kept, claim times aged with it), the
+    // same arrivals for both modes. "rule" = the route's behaviour: a first
+    // owner-budget denial with a refill hint <= 60 s re-admits at that hint,
+    // otherwise the claim is released. "without" = no waiter keys, no wait.
+    it("reports per-agent and total calls/tokens on one chronological schedule", async () => {
+      const cadence = 330;
+      const cycles = 12;
+      const roster = [
+        { name: "olivia", reserve: 31_000, phase: 0 },
+        { name: "mia", reserve: 24_000, phase: 45 },
+        { name: "leo", reserve: 26_000, phase: 120 },
+        { name: "sam", reserve: 22_000, phase: 200 },
+        { name: "carl", reserve: 27_000, phase: 260 },
+      ];
+      const ids = new Map<string, string>();
+      for (const a of roster) ids.set(a.name, await agentId(`sim-${a.name}`));
+
+      const run = async (withRule: boolean) => {
+        await drainedAgo(0);
+        await pool.query(
+          `UPDATE agent_runtime.provider_capacity_buckets
+              SET waiter_key = NULL, waiter_tokens = NULL, waiter_since = NULL,
+                  waiter_expires_at = NULL, last_refill_at = clock_timestamp()
+            WHERE route_key = $1`,
+          [routeKey],
+        );
+        let t = 0;
+        // Advance simulated time: refill accrues from last_refill_at, and a
+        // live claim ages by the same amount.
+        const advance = async (to: number) => {
+          const d = to - t;
+          if (d <= 0) return;
+          await pool.query(
+            `UPDATE agent_runtime.provider_capacity_buckets
+                SET last_refill_at = last_refill_at - make_interval(secs => $2),
+                    waiter_since = waiter_since - make_interval(secs => $2),
+                    waiter_expires_at = waiter_expires_at - make_interval(secs => $2)
+              WHERE route_key = $1`,
+            [routeKey, d],
+          );
+          t = to;
+        };
+        const stats = new Map(
+          roster.map((a) => [a.name, { calls: 0, tokens: 0 }]),
+        );
+        type Ev = {
+          at: number;
+          agent: (typeof roster)[number];
+          readmit: boolean;
+        };
+        const queue: Ev[] = [];
+        for (let c = 0; c < cycles; c += 1)
+          for (const agent of roster)
+            queue.push({
+              at: c * cadence + agent.phase,
+              agent,
+              readmit: false,
+            });
+        while (queue.length > 0) {
+          queue.sort((x, y) => x.at - y.at);
+          const ev = queue.shift()!;
+          await advance(ev.at);
+          const key = withRule ? `agent:${ids.get(ev.agent.name)}` : null;
+          const r = await reserveProviderCapacity(
+            pool,
+            owner(key, ev.agent.reserve),
+          );
+          if (r.ok) {
+            await releaseProviderCapacity(pool, r.lease, ev.agent.reserve);
+            const st = stats.get(ev.agent.name)!;
+            st.calls += 1;
+            st.tokens += ev.agent.reserve;
             continue;
           }
-          const c = await claim();
-          if (c.waiter_key === keys[i]) {
-            await drainedAgo(45 + 60);
-            if (await attempt(keys[i]!, reserves[i]!))
-              served.set(keys[i]!, served.get(keys[i]!)! + 1);
-          }
+          if (!withRule) continue;
+          const hint = r.retryAfterMs;
+          const canWait =
+            !ev.readmit &&
+            r.reasons.every(
+              (x) => x === "token_budget" || x === "request_budget",
+            ) &&
+            typeof hint === "number" &&
+            hint > 0 &&
+            hint <= 60_000;
+          if (canWait)
+            queue.push({
+              at: ev.at + hint / 1000,
+              agent: ev.agent,
+              readmit: true,
+            });
+          else await releaseOwnerClaim(pool, routeKey, key!);
         }
-      }
-      for (const key of keys) expect(served.get(key)).toBeGreaterThan(0);
+        const per = Object.fromEntries(stats);
+        const total = Array.from(stats.values()).reduce(
+          (sum, s) => ({
+            calls: sum.calls + s.calls,
+            tokens: sum.tokens + s.tokens,
+          }),
+          { calls: 0, tokens: 0 },
+        );
+        return { per, total, horizon: t };
+      };
+
+      const without = await run(false);
+      const withRule = await run(true);
+      // Evidence for review: per-agent and total, both modes, same horizon.
+      console.info(
+        "owner fairness schedule",
+        JSON.stringify({ without, withRule }),
+      );
+      const budget = (h: number) => (RATE * h) / 60 + 31_000;
+      // Neither mode admits more than the bucket can refill (+ one burst).
+      expect(without.total.tokens).toBeLessThanOrEqual(budget(without.horizon));
+      expect(withRule.total.tokens).toBeLessThanOrEqual(
+        budget(withRule.horizon),
+      );
+      // With the rule, every agent whose reserve one minute of refill can
+      // cover is served; no throughput gain is claimed or asserted.
+      for (const a of roster.filter((x) => x.reserve <= RATE))
+        expect(withRule.per[a.name]!.calls).toBeGreaterThan(0);
     });
 
-    it("measures throughput separately: tokens admitted are not lower with the rule", async () => {
-      const keys = [
-        `agent:${await agentId("tp-a")}`,
-        `agent:${await agentId("tp-b")}`,
-      ];
-      const reserves = [OLIVIA, MIA];
-      const run = async (withRule: boolean) => {
-        let admitted = 0;
-        for (let round = 0; round < 10; round += 1) {
-          for (let i = 0; i < 2; i += 1) {
-            await drainedAgo(i === 0 ? 75 : 45);
-            const key = withRule ? keys[i]! : null;
-            if (await attempt(key, reserves[i]!)) admitted += reserves[i]!;
-            else if (withRule && (await claim()).waiter_key === key) {
-              await drainedAgo(60);
-              if (await attempt(key, reserves[i]!)) admitted += reserves[i]!;
-            }
-          }
-        }
-        return admitted;
-      };
-      const without = await run(false);
-      await pool.query(
-        "UPDATE agent_runtime.provider_capacity_buckets SET waiter_key = NULL, waiter_tokens = NULL, waiter_since = NULL, waiter_expires_at = NULL WHERE route_key = $1",
-        [routeKey],
-      );
-      const withRule = await run(true);
-      expect(withRule).toBeGreaterThanOrEqual(without);
+    it("refuses dispatch after a wait when the route changed under the same model name", async () => {
+      const id = Number(await agentId("route-snapshot"));
+      const loaded = {
+        id,
+        modelProvider: "nvidia",
+        modelName: "fixture",
+        modelBaseUrl: null,
+        spec: {},
+      } as unknown as AgentRow;
+      expect(await agentStillSharedEligible(pool, loaded)).toBe(true);
+      for (const [change, undo] of [
+        [
+          "UPDATE agent_runtime.agents SET model_provider = 'openai-compatible' WHERE id = $1",
+          "UPDATE agent_runtime.agents SET model_provider = 'nvidia' WHERE id = $1",
+        ],
+        [
+          "UPDATE agent_runtime.agents SET model_base_url = 'https://example.invalid/v1' WHERE id = $1",
+          "UPDATE agent_runtime.agents SET model_base_url = NULL WHERE id = $1",
+        ],
+        [
+          `UPDATE agent_runtime.agents SET spec = '{"pinnedModel": true}'::jsonb WHERE id = $1`,
+          "UPDATE agent_runtime.agents SET spec = '{}'::jsonb WHERE id = $1",
+        ],
+        [
+          `UPDATE agent_runtime.agents SET spec = '{"paidBrain": {"id": "x"}}'::jsonb WHERE id = $1`,
+          "UPDATE agent_runtime.agents SET spec = '{}'::jsonb WHERE id = $1",
+        ],
+        [
+          "UPDATE agent_runtime.agents SET status = 'disabled' WHERE id = $1",
+          "UPDATE agent_runtime.agents SET status = 'active' WHERE id = $1",
+        ],
+      ]) {
+        await pool.query(change!, [id]);
+        expect(await agentStillSharedEligible(pool, loaded)).toBe(false);
+        await pool.query(undo!, [id]);
+        expect(await agentStillSharedEligible(pool, loaded)).toBe(true);
+      }
     });
 
     it("releases a paused, deleted or BYO-switched claimant at once, before expiry", async () => {

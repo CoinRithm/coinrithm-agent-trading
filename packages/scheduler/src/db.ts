@@ -1277,21 +1277,42 @@ export const SHARED_CADENCE_TARGET_RPM = (() => {
 
 /**
  * After an in-cycle owner-refill wait (route.ts), dispatch only if the agent is
- * still active on the shared pool with the model its route was built from: a
- * paused, deleted or BYO-switched agent must not keep its old route alive. A
- * failed read answers false (the cycle defers; the claim is released).
+ * still active on the shared pool with the SAME route it was built from: model
+ * provider, model name, base URL (null-safe) and the route-affecting spec
+ * choices (`paidBrain`, `pinnedModel`). A paused, deleted, BYO-switched or
+ * re-routed agent must not keep its old route alive. A failed read answers
+ * false (the cycle defers; the claim is released).
  */
 export async function agentStillSharedEligible(
   pool: Pool,
-  agentId: number,
-  modelName: string,
+  agent: Pick<
+    AgentRow,
+    "id" | "modelProvider" | "modelName" | "modelBaseUrl" | "spec"
+  >,
 ): Promise<boolean> {
+  const specField = (name: string): string | null => {
+    const value = (agent.spec as Record<string, unknown> | null | undefined)?.[
+      name
+    ];
+    return value === undefined ? null : JSON.stringify(value);
+  };
   try {
     const r = await pool.query(
       `SELECT 1 FROM agent_runtime.agents
         WHERE id = $1 AND status = 'active' AND brain_key_enc IS NULL
-          AND model_name = $2`,
-      [agentId, modelName],
+          AND model_provider = $2
+          AND model_name = $3
+          AND model_base_url IS NOT DISTINCT FROM $4
+          AND spec->'paidBrain' IS NOT DISTINCT FROM $5::jsonb
+          AND spec->'pinnedModel' IS NOT DISTINCT FROM $6::jsonb`,
+      [
+        agent.id,
+        agent.modelProvider,
+        agent.modelName,
+        agent.modelBaseUrl ?? null,
+        specField("paidBrain"),
+        specField("pinnedModel"),
+      ],
     );
     return (r.rowCount ?? r.rows.length) > 0;
   } catch {

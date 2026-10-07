@@ -331,6 +331,9 @@ function routedProviderFor(
   agent: AgentRow,
   config: Config,
   log: string[],
+  // The row as loaded for this cycle: the route snapshot an owner-refill
+  // wait must still match before dispatch (agentStillSharedEligible).
+  loaded: AgentRow = agent,
 ): RoutedProvider<
   ProviderCapacityLease & { ownerLease?: ProviderCapacityLease }
 > {
@@ -453,8 +456,7 @@ function routedProviderFor(
       // Owner fairness (009): after an in-cycle refill wait, dispatch only if
       // this agent is still active on the shared pool with the same model;
       // a cycle that will not wait ends its owner-bucket claim at once.
-      stillEligible: async () =>
-        agentStillSharedEligible(pool, agent.id, agent.modelName),
+      stillEligible: async () => agentStillSharedEligible(pool, loaded),
       abandonOwnerWait: async () => {
         if (!config.capacityEnabled || !config.sharedPoolPolicyEnabled) return;
         await releaseOwnerClaim(
@@ -1058,7 +1060,7 @@ export async function runAgentOnce(
     const provider =
       metered ??
       (shouldUseHostedRouter(runAgent, config)
-        ? routedProviderFor(pool, runAgent, config, log)
+        ? routedProviderFor(pool, runAgent, config, log, agent)
         : usesCustomerByoSuperJsonContent(runAgent, config)
           ? selectProvider(spec, providerEnvFor(runAgent, config), modelFetch, {
               nemotronJsonContent: () =>
