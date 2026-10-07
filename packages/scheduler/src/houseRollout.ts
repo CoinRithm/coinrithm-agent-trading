@@ -19,7 +19,10 @@
 //     --scheduler-stopped attests to that external verification. Database
 //     activity markers are additional vetoes, never proof of process safety:
 //     an expired lease or claim timestamp cannot prove a worker has stopped;
-//   - never calls seed-house-agents; no user agent is ever selected.
+//   - never calls seed-house-agents. A user agent is selected only as an
+//     explicit `kind: "user_default"` plan entry with its reviewed owner and
+//     content hash (untouched template defaults, owner 2026-10-07); its
+//     deploy choices are kept and its revision is a system template update.
 import { createHash } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { loadAgent } from "@coinrithm/mcp-trading/engine";
@@ -91,8 +94,29 @@ export function contentHash(state: AgentConfigState): string {
 // Plan + report shapes
 // ---------------------------------------------------------------------------
 
+/**
+ * "house" (default): one of the five HOUSE_ROSTER agents.
+ * "user_default" (owner 2026-10-07, Telegram 56635): a USER agent that still
+ * runs an untouched house template (no owner edits, template settings; the
+ * reviewed list is Data's temp/agentic-baseline-20261007/DEFAULT_AGENTS.md).
+ * It receives the current template bundle while keeping what the user chose
+ * at deploy (name, venues, forkedFrom, model pin). Every other guard is the
+ * same: reviewed content hash (any user edit since review rejects the plan),
+ * the live configuration recorded as a revision first, one transaction,
+ * scheduler stopped. The new revision is authored "system_template_update"
+ * with no user id, so history never presents it as the user's own edit, and
+ * the user can restore the previous revision.
+ */
+export type RolloutKind = "house" | "user_default";
+
+/** Spec keys a deploy writes per user agent; a template update keeps them. */
+export const USER_DEPLOY_SPEC_KEYS = ["name", "venues", "forkedFrom"] as const;
+
 export interface RolloutPlanEntry {
   handle: string;
+  kind?: RolloutKind;
+  /** user_default only: the agent's owner, checked against the live row. */
+  ownerUserId?: number;
   /** Reviewed bundle folder (examples/agents/<handle> or a copy of it). */
   bundlePath: string;
   /** contentHash of the live row the review was made against. */
@@ -301,8 +325,24 @@ export function validatePlan(plan: RolloutPlan): void {
     throw new Error("plan.entries must be a non-empty array");
   const seen = new Set<string>();
   for (const entry of plan.entries) {
-    if (!HOUSE_ROSTER.some((h) => h.handle === entry.handle))
-      throw new Error(`${entry.handle}: not a house agent handle`);
+    const kind = entry.kind ?? "house";
+    if (kind === "house") {
+      if (!HOUSE_ROSTER.some((h) => h.handle === entry.handle))
+        throw new Error(`${entry.handle}: not a house agent handle`);
+      if (entry.ownerUserId !== undefined)
+        throw new Error(`${entry.handle}: ownerUserId is for user_default`);
+    } else if (kind === "user_default") {
+      if (HOUSE_ROSTER.some((h) => h.handle === entry.handle))
+        throw new Error(
+          `${entry.handle}: a house handle cannot be user_default`,
+        );
+      if (!Number.isInteger(entry.ownerUserId) || (entry.ownerUserId ?? 0) < 1)
+        throw new Error(`${entry.handle}: user_default needs ownerUserId`);
+      if (entry.resume === true)
+        throw new Error(`${entry.handle}: resume is house-only`);
+    } else {
+      throw new Error(`${entry.handle}: unknown kind ${String(kind)}`);
+    }
     if (seen.has(entry.handle))
       throw new Error(`${entry.handle}: listed twice`);
     seen.add(entry.handle);
@@ -391,7 +431,11 @@ async function evaluateEntry(
   next: AgentConfigState | null;
 }> {
   const { entry, bundle, loadError } = staged;
-  const roster = HOUSE_ROSTER.find((h) => h.handle === entry.handle)!;
+  const kind = entry.kind ?? "house";
+  const expectedOwner =
+    kind === "house"
+      ? HOUSE_ROSTER.find((h) => h.handle === entry.handle)!.owner
+      : entry.ownerUserId!;
   const report: EntryReport = {
     handle: entry.handle,
     agentId: null,
@@ -425,10 +469,15 @@ async function evaluateEntry(
   report.disabledReason = row.disabled_reason;
   report.lastRunAgeSeconds = ageSeconds(row.last_run_age_seconds);
   report.claimLockVisible = row.claim_lock_visible === true;
-  if (row.is_house !== true) report.reasons.push("row is not a house agent");
-  if (Number(row.owner_user_id) !== roster.owner)
+  if (kind === "house" && row.is_house !== true)
+    report.reasons.push("row is not a house agent");
+  if (kind === "user_default" && row.is_house !== false)
+    report.reasons.push("row is a house agent, not a user agent");
+  if (Number(row.owner_user_id) !== expectedOwner)
     report.reasons.push(
-      `owner ${row.owner_user_id ?? "null"} is not the house owner ${roster.owner}`,
+      kind === "house"
+        ? `owner ${row.owner_user_id ?? "null"} is not the house owner ${expectedOwner}`
+        : `owner ${row.owner_user_id ?? "null"} is not the reviewed owner ${expectedOwner}`,
     );
   if (row.model_provider === "mechanical")
     report.reasons.push("mechanical provider is not a persona agent");
@@ -449,6 +498,13 @@ async function evaluateEntry(
     // The house runs on the live spec.model pin (update-house-models.mjs),
     // not on the bundle's public default; carry the live pin over.
     const nextSpec: Record<string, unknown> = { ...bundle.spec };
+    // A user's deploy choices survive a template update.
+    if (kind === "user_default") {
+      for (const key of USER_DEPLOY_SPEC_KEYS) {
+        if (Object.hasOwn(current.spec, key)) nextSpec[key] = current.spec[key];
+        else delete nextSpec[key];
+      }
+    }
     const hasLiveModel = Object.hasOwn(current.spec, "model");
     if (hasLiveModel) nextSpec.model = current.spec.model;
     else delete nextSpec.model;
@@ -514,7 +570,11 @@ async function insertRevision(
   agentId: number,
   state: AgentConfigState,
   params: {
-    author: "owner" | "system_backfill" | "system_recovered";
+    author:
+      | "owner"
+      | "system_backfill"
+      | "system_recovered"
+      | "system_template_update";
     changeNote: string | null;
     createdByUserId: number | null;
     isBaseline: boolean;
@@ -627,23 +687,42 @@ async function applyEntry(
   next: AgentConfigState,
 ): Promise<void> {
   const agentId = Number(row.id);
-  const roster = HOUSE_ROSTER.find((h) => h.handle === entry.handle)!;
+  const isHouse = (entry.kind ?? "house") === "house";
   await ensureCurrentRecorded(client, row, plan.version);
-  await insertRevision(client, agentId, next, {
-    author: "owner",
-    changeNote: normalizeChangeNote(
-      entry.changeNote ?? `house persona rollout ${plan.version}`,
-    ),
-    createdByUserId: roster.owner,
-    isBaseline: false,
-    createdAt: null,
-  });
+  await insertRevision(
+    client,
+    agentId,
+    next,
+    isHouse
+      ? {
+          author: "owner",
+          changeNote: normalizeChangeNote(
+            entry.changeNote ?? `house persona rollout ${plan.version}`,
+          ),
+          createdByUserId: HOUSE_ROSTER.find((h) => h.handle === entry.handle)!
+            .owner,
+          isBaseline: false,
+          createdAt: null,
+        }
+      : {
+          // Never the user's own edit: no user id, a system author, and a
+          // note that says what happened and that the previous version stays.
+          author: "system_template_update",
+          changeNote: normalizeChangeNote(
+            entry.changeNote ??
+              `template update ${plan.version}: this agent still ran the unedited template, so it received the current version; the previous version stays in history`,
+          ),
+          createdByUserId: null,
+          isBaseline: false,
+          createdAt: null,
+        },
+  );
   // Only spec and prose move; model, cadence, keys, state and history do not.
   await client.query(
     `UPDATE agent_runtime.agents
         SET spec = $2::jsonb, prose = $3, updated_at = now()
-      WHERE id = $1 AND is_house = true`,
-    [agentId, JSON.stringify(next.spec), next.prose],
+      WHERE id = $1 AND is_house = $4`,
+    [agentId, JSON.stringify(next.spec), next.prose, isHouse],
   );
 }
 
@@ -744,9 +823,12 @@ export async function runHouseRollout(
   return { plan: plan.version, applied: true, entries, quiescence };
 }
 
-/** Current live state of every house agent, for writing a plan's expected
- * hashes after review. Read-only. */
-export async function readHouseState(pool: Pool): Promise<
+/** Current live state of every house agent (or of the given handles), for
+ * writing a plan's expected hashes after review. Read-only. */
+export async function readHouseState(
+  pool: Pool,
+  handles: readonly string[] = HOUSE_ROSTER.map((h) => h.handle),
+): Promise<
   Array<{
     handle: string;
     agentId: number | null;
@@ -758,11 +840,11 @@ export async function readHouseState(pool: Pool): Promise<
   }>
 > {
   const out = [];
-  for (const h of HOUSE_ROSTER) {
-    const { rows } = await pool.query<AgentDbRow>(AGENT_ROW_SQL, [h.handle]);
+  for (const handle of handles) {
+    const { rows } = await pool.query<AgentDbRow>(AGENT_ROW_SQL, [handle]);
     const row = rows[0];
     out.push({
-      handle: h.handle,
+      handle,
       agentId: row ? Number(row.id) : null,
       status: row?.status ?? null,
       disabledReason: row?.disabled_reason ?? null,
