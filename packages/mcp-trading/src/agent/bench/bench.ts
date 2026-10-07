@@ -164,6 +164,7 @@ function toRow(
     decisionType,
     modelFailed: result?.modelFailed === true,
     llmCallMade: result?.llmCallMade === true,
+    ...(result?.triggerCodes ? { triggerCodes: [...result.triggerCodes] } : {}),
     ...(result?.skipReason
       ? { skipReason: result.skipReason.slice(0, 200) }
       : {}),

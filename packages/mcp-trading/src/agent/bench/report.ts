@@ -57,6 +57,13 @@ export interface CycleRow {
   decisionType: string;
   modelFailed: boolean;
   llmCallMade: boolean;
+  /**
+   * Gate trigger codes for the cycle. Tells a real setup (PRICE_BREAKOUT,
+   * MOMENTUM_TREND, ...) apart from the periodic PM wake (PM_PERIODIC). Each
+   * cycle starts from a fresh state, so a cassette with PM markets and no
+   * setup or open position CAN wake periodically.
+   */
+  triggerCodes?: string[];
   skipReason?: string;
   runtimeError?: string;
   actions: ActionRow[];
@@ -309,6 +316,9 @@ function variantMetrics(
     model_error: 0,
     runtime_error: 0,
   };
+  // Trigger code occurrences across rows (a row can carry several codes), not
+  // model calls: llmCallMade/decisionMix count those.
+  const triggerMix: Record<string, number> = {};
   const rejectCodes: Record<string, number> = {};
   let proposed = 0;
   let accepted = 0;
@@ -316,6 +326,8 @@ function variantMetrics(
   const scores: ActionScore[] = [];
   for (const row of rows) {
     decisionMix[row.decisionType] = (decisionMix[row.decisionType] ?? 0) + 1;
+    for (const code of row.triggerCodes ?? [])
+      triggerMix[code] = (triggerMix[code] ?? 0) + 1;
     for (const a of row.actions) {
       proposed += 1;
       if (a.accepted) {
@@ -345,6 +357,7 @@ function variantMetrics(
     modelFailures: rows.filter((r) => r.modelFailed).length,
     runtimeErrors: rows.filter((r) => r.runtimeError).length,
     decisionMix,
+    triggerMix,
     actions: {
       proposed,
       accepted,
