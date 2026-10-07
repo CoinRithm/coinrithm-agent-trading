@@ -27,6 +27,7 @@
 
 import { canonicalJson, sha256Hex } from "./cassette.js";
 import { ActionScore } from "./labels.js";
+import type { DecideRouteAttempt } from "../providers.js";
 
 export const REPORT_SCHEMA = "coinrithm.bench.report.v1";
 export const TUNE_FRACTION = 0.7;
@@ -57,6 +58,24 @@ export interface CycleRow {
   decisionType: string;
   modelFailed: boolean;
   llmCallMade: boolean;
+  /** Safe router provenance, at most two attempts. Omitted on legacy rows or
+   * providers without route metadata; no inference from its absence. Error
+   * text, latency, prompts and model output are deliberately not copied. */
+  routeAttempts?: Array<
+    Pick<
+      DecideRouteAttempt,
+      | "provider"
+      | "model"
+      | "outcome"
+      | "failureClass"
+      | "status"
+      | "responseSource"
+      | "actionsStringDiagnostic"
+      | "admissionReasons"
+    >
+  >;
+  /** A nonstandard provider exceeded the shipped two-entry route contract. */
+  routeAttemptsTruncated?: true;
   /**
    * Gate trigger codes for the cycle. Tells a real setup (PRICE_BREAKOUT,
    * MOMENTUM_TREND, ...) apart from the periodic PM wake (PM_PERIODIC). Each

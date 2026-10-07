@@ -122,6 +122,14 @@ export interface DecideRouteAttempt {
   error?: string;
   responseSource?: "tool_call" | "content_fallback" | "content";
   actionsStringDiagnostic?: ActionsStringDiagnostic;
+  /** Scheduler admission categories, never free-form provider error text. */
+  admissionReasons?: Array<
+    | "request_budget"
+    | "token_budget"
+    | "concurrency"
+    | "shared_key_cooldown"
+    | "model_cooldown"
+  >;
 }
 
 export interface DecideRouteMeta {

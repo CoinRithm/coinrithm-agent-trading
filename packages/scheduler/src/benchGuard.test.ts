@@ -6,7 +6,16 @@ import {
   providerCallsOf,
 } from "./benchGuard.js";
 import { OWNER_BUDGET_DEFERRED_ERROR } from "./sharedPolicy.js";
-import type { RouteAttempt, RouteMetadata } from "./route.js";
+import {
+  providerForRoute,
+  type DecideResult,
+} from "@coinrithm/mcp-trading/engine";
+import {
+  NEMOTRON_SUPER,
+  RoutedProvider,
+  type RouteAttempt,
+  type RouteMetadata,
+} from "./route.js";
 
 const route = (...attempts: Partial<RouteAttempt>[]): RouteMetadata =>
   ({
@@ -48,6 +57,105 @@ function harness(
 }
 
 describe("bench guard", () => {
+  it.each(["tool_call", "content_fallback"] as const)(
+    "preserves the real router's %s recovery boundary and provenance",
+    async (source) => {
+      const invalid =
+        '{"decision":"act","actions":"[]","reason":"PRIVATE_OUTPUT"}';
+      const fetchFn = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(
+          Response.json({
+            choices: [
+              {
+                finish_reason: "stop",
+                message:
+                  source === "tool_call"
+                    ? {
+                        tool_calls: [
+                          {
+                            function: {
+                              name: "submit_trading_decision",
+                              arguments: invalid,
+                            },
+                          },
+                        ],
+                      }
+                    : { content: invalid },
+              },
+            ],
+            usage: { prompt_tokens: 100, completion_tokens: 10 },
+          }),
+        )
+        .mockResolvedValueOnce(
+          Response.json({
+            choices: [
+              {
+                finish_reason: "stop",
+                message: { content: '{"decision":"skip","actions":[]}' },
+              },
+            ],
+            usage: { prompt_tokens: 100, completion_tokens: 10 },
+          }),
+        );
+      const guard = createBenchGuard({
+        maxCalls: 2,
+        minIntervalMs: 0,
+        maxOwnerDenialStreak: 3,
+      });
+      const acquire = vi.fn(async () => ({ ok: true as const }));
+      const release = vi.fn(async () => {});
+      const routed = new RoutedProvider(
+        "strong",
+        [{ provider: "nvidia", model: NEMOTRON_SUPER, keyRef: "fixture" }],
+        false,
+        (r, options) => providerForRoute(r, "FIXTURE_SECRET", fetchFn, options),
+        {
+          availability: async () => ({ eligible: true }),
+          acquire,
+          release,
+          observe: async () => {},
+          mayDispatch: guard.mayDispatch,
+        },
+      );
+      let innerResult: DecideResult | undefined;
+      const wrapped = guard.wrap({
+        label: routed.label,
+        decide: async (i) => (innerResult = await routed.decide(i)),
+      });
+      const result = await wrapped.decide(input);
+      expect(result).toBe(innerResult);
+      expect(result.ok).toBe(source === "tool_call");
+      const calls = source === "tool_call" ? 2 : 1;
+      expect(fetchFn).toHaveBeenCalledTimes(calls);
+      expect(acquire).toHaveBeenCalledTimes(calls);
+      expect(release).toHaveBeenCalledTimes(calls);
+      expect(guard.state.providerCalls).toBe(calls);
+      expect(result.route?.attempts[0]).toMatchObject({
+        outcome: "failed",
+        failureClass: "malformed",
+        responseSource: source,
+        actionsStringDiagnostic: "json_array_empty_valid_decision",
+      });
+      if (source === "tool_call") {
+        expect(result.route?.attempts[1]).toMatchObject({
+          outcome: "success",
+          responseSource: "content",
+          model: NEMOTRON_SUPER,
+        });
+        expect(result.usage).toEqual({
+          promptTokens: 200,
+          completionTokens: 20,
+        });
+        const secondBody = JSON.parse(String(fetchFn.mock.calls[1]![1]!.body));
+        expect(secondBody.response_format).toEqual({ type: "json_object" });
+        expect(secondBody).not.toHaveProperty("tools");
+      }
+      expect(JSON.stringify(result)).not.toMatch(
+        /PRIVATE_OUTPUT|FIXTURE_SECRET/,
+      );
+    },
+  );
   it("allows 1..40 calls only", () => {
     expect(BENCH_MAX_CALLS).toBe(40);
     for (const maxCalls of [0, 1, 41, 1.5])
