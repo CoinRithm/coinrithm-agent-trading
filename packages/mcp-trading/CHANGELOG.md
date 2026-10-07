@@ -55,6 +55,13 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
     constraint; its effect on future performance requires separate evaluation.
   - `risk.pmMaxOpenPerEvent` (1..50): open bets per event (source + slug),
     counting held positions and opens accepted this cycle (`pm_event_cap`).
+  - `risk.pmMaxOpenPerCoinHorizon` (1..50): open bets on the same directly
+    linked coin whose events end within 24 h of each other, across different
+    events, counting held positions and opens accepted this cycle
+    (`pm_coin_horizon_cap`). Reads the additive discover `relatedCoins` and
+    `/positions/pm` `relatedCoins` / `eventEndDate`; a missing coin, or an end
+    that is missing, past or over 5 years out, never blocks. A count cap, not
+    a correlation model.
   - `risk.pmMinMinutesToClose` (0..10080): reject a market whose known close is
     nearer than that to the later of `observation.asOf` and the validation
     clock after the model call (`pm_closes_too_soon`). An unknown or

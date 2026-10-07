@@ -83,6 +83,7 @@ const ALLOWED_KEYS: Record<string, string[] | null> = {
     "pmMinEdgeGapPct",
     "pmMaxEdgePoints",
     "pmMaxOpenPerEvent",
+    "pmMaxOpenPerCoinHorizon",
     "pmMinMinutesToClose",
   ],
   sizing: null,

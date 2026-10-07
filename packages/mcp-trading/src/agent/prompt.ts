@@ -298,6 +298,11 @@ export function buildSystemPrompt(
           `- PM PER-EVENT CAP: at most ${r.pmMaxOpenPerEvent} open bet(s) per event (same market slug, counting bets you already hold). Extra opens are REJECTED.`,
         ]
       : []),
+    ...(hasPm && typeof r.pmMaxOpenPerCoinHorizon === "number"
+      ? [
+          `- PM COIN-HORIZON CAP: at most ${r.pmMaxOpenPerCoinHorizon} open bet(s) on the same coin whose events end within 24 h of each other, across DIFFERENT events (counting bets you already hold; uses each market's linked coins and end date). Extra opens are REJECTED.`,
+        ]
+      : []),
     ...(hasPm && typeof r.pmMinMinutesToClose === "number"
       ? [
           `- PM CLOSE CUTOFF: a market whose \`end\` is less than ${r.pmMinMinutesToClose} minutes away when the runner validates your action is REJECTED; the price already knows.`,
