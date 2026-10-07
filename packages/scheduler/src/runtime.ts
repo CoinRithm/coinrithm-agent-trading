@@ -430,6 +430,7 @@ function routedProviderFor(
               error: OWNER_BUDGET_DEFERRED_ERROR,
               admissionReasons: owner.reasons,
               retryAfterMs: owner.retryAfterMs,
+              ...(owner.claimedByOther ? { claimedByOther: true } : {}),
             };
           ownerLease = owner.lease;
         }
@@ -457,6 +458,14 @@ function routedProviderFor(
       // this agent is still active on the shared pool with the same model;
       // a cycle that will not wait ends its owner-bucket claim at once.
       stillEligible: async () => agentStillSharedEligible(pool, loaded),
+      // Bounded structured diagnostics: agent id, model, path, timings and a
+      // reason code only (no prompt, credential, handle or owner identity).
+      onOwnerWait: (event) => {
+        const { event: name, ...fields } = event;
+        console.log(
+          `[scheduler] ${name} ${JSON.stringify({ agentId: agent.id, ...fields })}`,
+        );
+      },
       abandonOwnerWait: async () => {
         if (!config.capacityEnabled || !config.sharedPoolPolicyEnabled) return;
         await releaseOwnerClaim(

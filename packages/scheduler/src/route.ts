@@ -80,6 +80,41 @@ export type CapacityDecision<Lease> =
       retryAfterMs?: number;
       error?: string;
       admissionReasons?: AdmissionReason[];
+      /** Owner scope: another live claimant owns the bucket's turn. */
+      claimedByOther?: boolean;
+    };
+
+/** Why an owner-budget denial did not wait in-cycle. */
+export type OwnerWaitSkipReason =
+  | "no_hint"
+  | "hint_over_ceiling"
+  | "deadline"
+  | "claimed_by_other"
+  | "wait_cap";
+
+/** Structured owner-wait diagnostics: no prompt, credential or identity. */
+export type OwnerWaitEvent =
+  | {
+      event: "owner_wait_start";
+      path: "first_call" | "recovery";
+      model: string;
+      hintMs: number;
+      waitsInFlight: number;
+    }
+  | {
+      event: "owner_wait_skip";
+      path: "first_call" | "recovery";
+      model: string;
+      hintMs?: number;
+      reason: OwnerWaitSkipReason;
+      waitsInFlight: number;
+    }
+  | {
+      event: "owner_wait_outcome";
+      path: "first_call" | "recovery";
+      model: string;
+      waitedMs: number;
+      outcome: "admitted" | "denied" | "route_changed" | "route_unusable";
     };
 
 export interface RouteHooks<Lease = unknown> {
@@ -104,6 +139,8 @@ export interface RouteHooks<Lease = unknown> {
   stillEligible?(route: ModelRoute): Promise<boolean>;
   /** This cycle will not (or no longer) wait: end its owner-bucket claim. */
   abandonOwnerWait?(route: ModelRoute): Promise<void>;
+  /** Diagnostics for owner-refill waits; failures never affect routing. */
+  onOwnerWait?(event: OwnerWaitEvent): void;
 }
 
 const MAX_ROUTE_ATTEMPTS = 2;
@@ -293,6 +330,14 @@ export class RoutedProvider<Lease = unknown> implements Provider {
     this.label = `router/${profile}/${ROUTE_POLICY_VERSION}`;
   }
 
+  private ownerWaitEvent(event: OwnerWaitEvent): void {
+    try {
+      this.hooks.onOwnerWait?.(event);
+    } catch {
+      /* diagnostics never change routing */
+    }
+  }
+
   private async abandonOwnerWait(route: ModelRoute): Promise<void> {
     try {
       await this.hooks.abandonOwnerWait?.(route);
@@ -396,21 +441,58 @@ export class RoutedProvider<Lease = unknown> implements Provider {
       const waitCeilingMs = fairnessWait
         ? MAX_OWNER_REFILL_WAIT_MS
         : MAX_RECOVERY_REFILL_WAIT_MS;
-      if (
+      const waitPath = fairnessWait ? "first_call" : "recovery";
+      const ownerBudgetDenial =
         (options?.nemotronJsonContent === true || firstAttempt) &&
-        (!fairnessWait || ownerWaitsInFlight < MAX_CONCURRENT_OWNER_WAITS) &&
         !acquired.ok &&
         acquired.scope === "owner" &&
-        acquired.admissionReasons?.length &&
+        !!acquired.admissionReasons?.length &&
         acquired.admissionReasons.every(
           (reason) => reason === "token_budget" || reason === "request_budget",
-        ) &&
+        );
+      const hintMs =
         typeof refillWaitMs === "number" &&
         Number.isFinite(refillWaitMs) &&
-        refillWaitMs > 0 &&
-        refillWaitMs <= waitCeilingMs &&
-        this.now() + refillWaitMs + MIN_RECOVERY_RESPONSE_MS <= deadline
-      ) {
+        refillWaitMs > 0
+          ? refillWaitMs
+          : undefined;
+      // A requester denied behind ANOTHER live claimant has no protected turn
+      // (root 57023): holding one of the two first-call slots for it can
+      // starve another owner's claimant, and its re-admission mostly fails
+      // (live a44-oli 09:15 UTC: waited 62 s, still deferred). Recovery waits
+      // do not use these slots and keep their behaviour.
+      let skip: OwnerWaitSkipReason | undefined;
+      if (ownerBudgetDenial) {
+        if (hintMs === undefined) skip = "no_hint";
+        else if (hintMs > waitCeilingMs) skip = "hint_over_ceiling";
+        else if (this.now() + hintMs + MIN_RECOVERY_RESPONSE_MS > deadline)
+          skip = "deadline";
+        else if (fairnessWait && !acquired.ok && acquired.claimedByOther)
+          skip = "claimed_by_other";
+        else if (
+          fairnessWait &&
+          ownerWaitsInFlight >= MAX_CONCURRENT_OWNER_WAITS
+        )
+          skip = "wait_cap";
+        if (skip)
+          this.ownerWaitEvent({
+            event: "owner_wait_skip",
+            path: waitPath,
+            model: route.model,
+            ...(hintMs === undefined ? {} : { hintMs }),
+            reason: skip,
+            waitsInFlight: ownerWaitsInFlight,
+          });
+      }
+      if (ownerBudgetDenial && skip === undefined && hintMs !== undefined) {
+        const waitStarted = this.now();
+        this.ownerWaitEvent({
+          event: "owner_wait_start",
+          path: waitPath,
+          model: route.model,
+          hintMs,
+          waitsInFlight: ownerWaitsInFlight,
+        });
         // No lease is held: a first denial creates none, and a malformed first
         // request was released. The hint comes from the locked SQL snapshot;
         // another agent can consume its credit, so re-admission is mandatory,
@@ -418,9 +500,7 @@ export class RoutedProvider<Lease = unknown> implements Provider {
         waitedForOwner = true;
         if (fairnessWait) ownerWaitsInFlight += 1;
         try {
-          await new Promise<void>((resolve) =>
-            setTimeout(resolve, refillWaitMs),
-          );
+          await new Promise<void>((resolve) => setTimeout(resolve, hintMs));
         } finally {
           if (fairnessWait) ownerWaitsInFlight -= 1;
         }
@@ -435,7 +515,20 @@ export class RoutedProvider<Lease = unknown> implements Provider {
         // Paused, deleted or re-routed while waiting: not owner starvation.
         routeChanged = routeUsable && !canDispatch;
         if (canDispatch) acquired = await this.hooks.acquire(route, routeInput);
-        else if (!firstAttempt) {
+        this.ownerWaitEvent({
+          event: "owner_wait_outcome",
+          path: waitPath,
+          model: route.model,
+          waitedMs: Math.max(0, this.now() - waitStarted),
+          outcome: !routeUsable
+            ? "route_unusable"
+            : routeChanged
+              ? "route_changed"
+              : acquired.ok
+                ? "admitted"
+                : "denied",
+        });
+        if (!canDispatch && !firstAttempt) {
           await this.abandonOwnerWait(route);
           break;
         }

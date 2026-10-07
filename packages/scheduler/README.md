@@ -257,9 +257,18 @@ owner bucket's single claimant: the owner's other agents may only spend tokens
 beyond its need. The claim covers that bounded wait plus 15 s, is fixed at the
 first wait, ends when the claimant's call consumes tokens, stops counting at
 once for a paused, deleted or BYO-switched agent, and is released at once when
-the cycle cannot wait. Two provider calls per cycle, limits, concurrency, spend,
-the 180 s model interval and phase scheduling are unchanged; deferrals rotate
-instead of starving one agent.
+the cycle cannot wait. An agent denied behind another live claimant has no
+protected turn, so it defers at once instead of holding one of the two
+first-call wait slots (the admission snapshot reports `claimedByOther`);
+malformed-tool recovery waits are unaffected. Two provider calls per cycle,
+limits, concurrency, spend, the 180 s model interval and phase scheduling are
+unchanged; deferrals rotate instead of starving one agent.
+
+Each owner-refill wait logs one line per step, `owner_wait_start`,
+`owner_wait_skip` (reason `no_hint`, `hint_over_ceiling`, `deadline`,
+`claimed_by_other` or `wait_cap`) and `owner_wait_outcome` (`admitted`,
+`denied`, `route_changed`, `route_unusable`), carrying only the agent id,
+model, path (`first_call` or `recovery`), hint, waited time and slots in use.
 
 The stored strategy and cycle cadence are unchanged. Protective thesis exits
 still run each cycle before the model-call gate, including during a budget wait.

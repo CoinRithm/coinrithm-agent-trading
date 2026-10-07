@@ -44,6 +44,12 @@ export type ProviderCapacityReservation =
       reasons: ProviderCapacityDenialReason[];
       /** Locked-snapshot refill time; absent for concurrency/cooldown holds. */
       retryAfterMs?: number;
+      /**
+       * True when, in the same locked snapshot, another live claimant owns
+       * this bucket's turn (this requester owed it tokens). Such a requester
+       * has no protected turn, so it should not hold a first-call wait slot.
+       */
+      claimedByOther?: boolean;
     };
 
 /** A waiter never holds an owner bucket longer than this, retries included. */
@@ -148,6 +154,7 @@ export async function reserveProviderCapacity(
       route_key: string | null;
       denial_reasons: ProviderCapacityDenialReason[];
       retry_after_ms: number | null;
+      claimed_by_other: boolean;
     }>(
       `WITH checked AS MATERIALIZED (
          SELECT clock_timestamp() AS at
@@ -247,7 +254,8 @@ export async function reserveProviderCapacity(
                      0, ($2 + d.owed_tokens - d.available_tokens) / d.model_rate_per_min * 60.0,
                      (1 - d.available_requests) / d.request_rate_per_min * 60.0
                    )) * 1000)::double precision + 1
-                   ELSE NULL END AS retry_after_ms
+                   ELSE NULL END AS retry_after_ms,
+              d.owed_tokens > 0 AS claimed_by_other
          FROM decision d LEFT JOIN admitted a ON a.route_key = d.route_key`,
       [
         limit.routeKey,
@@ -271,6 +279,9 @@ export async function reserveProviderCapacity(
         Number.isFinite(refillWaitMs) &&
         refillWaitMs > 0
           ? { retryAfterMs: refillWaitMs }
+          : {}),
+        ...(admission.claimed_by_other === true
+          ? { claimedByOther: true }
           : {}),
       };
     }

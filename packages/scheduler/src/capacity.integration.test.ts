@@ -1956,6 +1956,53 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
       }
     });
 
+    it("reports another live claimant from the same locked snapshot", async () => {
+      const miaId = await agentId("mia-o");
+      const leoId = await agentId("leo-o");
+      const mia = `agent:${miaId}`;
+      const leo = `agent:${leoId}`;
+      await drainedAgo(45);
+      // Mia becomes the claimant: her own denial is not behind anyone.
+      const own = await reserveProviderCapacity(pool, owner(mia, MIA));
+      expect(own.ok).toBe(false);
+      expect(own).not.toHaveProperty("claimedByOther");
+      expect((await claim()).waiter_key).toBe(mia);
+      // Leo is denied behind Mia's live claim.
+      await drainedAgo(50);
+      expect(
+        await reserveProviderCapacity(pool, owner(leo, LEO)),
+      ).toMatchObject({
+        ok: false,
+        claimedByOther: true,
+      });
+      // The claimant's own later denial and keyless requests never are.
+      const again = await reserveProviderCapacity(pool, owner(mia, MIA));
+      expect(again.ok).toBe(false);
+      expect(again).not.toHaveProperty("claimedByOther");
+      const keyless = await reserveProviderCapacity(pool, owner(null, LEO));
+      expect(keyless.ok).toBe(false);
+      expect(keyless).not.toHaveProperty("claimedByOther");
+      // An expired claim no longer owns the turn.
+      await pool.query(
+        `UPDATE agent_runtime.provider_capacity_buckets
+            SET waiter_expires_at = clock_timestamp() - interval '1 second'
+          WHERE route_key = $1`,
+        [routeKey],
+      );
+      const afterExpiry = await reserveProviderCapacity(pool, owner(leo, LEO));
+      expect(afterExpiry.ok).toBe(false);
+      expect(afterExpiry).not.toHaveProperty("claimedByOther");
+      expect((await claim()).waiter_key).toBe(leo);
+      // A disabled claimant's claim stops counting at once.
+      await pool.query(
+        "UPDATE agent_runtime.agents SET status = 'disabled' WHERE id = $1",
+        [leoId],
+      );
+      const afterDisable = await reserveProviderCapacity(pool, owner(mia, MIA));
+      expect(afterDisable.ok).toBe(false);
+      expect(afterDisable).not.toHaveProperty("claimedByOther");
+    });
+
     it("releases a paused, deleted or BYO-switched claimant at once, before expiry", async () => {
       const leo = `agent:${await agentId("leo-e")}`;
       const changes = [
