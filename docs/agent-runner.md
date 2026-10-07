@@ -121,6 +121,8 @@ touch local files.
 | `eject <agent.md\|dir>`                                                       | explode a folder-of-one into the decomposed folder (same spec) |
 | `lock <path>`                                                                 | write the frozen `meta/manifest.lock.json`                     |
 | `run <path> [--once] [--live] [--dry-run] [--state <file>]`                   | run the loop (dry-run by default)                              |
+| `record <path> --out <dir> [--cycles N] [--every 5m]`                         | record bench inputs (reads only, no model call)                |
+| `bench --corpus <dir> --variant a=<path> --variant b=<path> [--repeats 3]`    | compare agent variants on recorded inputs (never writes)       |
 
 ## Examples
 
@@ -320,6 +322,81 @@ Engine consumers can use `buildAgentDefinitionSnapshot(actualSpec, mergedProse)`
 from `@coinrithm/mcp-trading/engine` to freeze their actual compiled inputs. It
 does not recompile a hosted spec or remove platform overrides. This feature
 ships from package version 0.7.14; it is not present in 0.7.13.
+
+## Bench (record and compare variants)
+
+The bench answers "did my change make this agent better?" with a controlled
+comparison instead of two different time windows. Every variant of an agent
+(different settings, different strategy prose, or a different brain) decides
+on the SAME recorded inputs, several times, next to built-in baselines.
+
+```sh
+# 1. Record inputs going forward: one cassette per cycle, every 5 minutes.
+#    Needs only COINRITHM_API_KEY. Reads only: every write is refused, the
+#    cycle runs dry-run, and no model is called.
+coinrithm-agent record my-agent --out corpus/ --cycles 288 --every 5m
+
+# 2. Compare variants on that corpus (each uses its own model key from the env).
+coinrithm-agent bench --corpus corpus/   --variant a=my-agent --variant b=my-agent-floor-10   --repeats 3 --out report.json
+```
+
+What it does:
+
+- `record` runs the production `runCycle` in dry-run through a recording
+  transport and saves every read response (keyed by method, path and sorted
+  query) as `corpus/<asOf>-<hash>.json`. For an agent with the `pm` venue it
+  also records the reads of the market-implied baseline.
+- `bench` replays each cassette through the same `runCycle` for every variant,
+  `--repeats` times, starting each cycle from a fresh run state. It also runs
+  two baselines on every cassette: `baseline:skip` (never trades) and, for PM
+  agents, `baseline:market` (the mechanical market-implied strategy).
+- The report (`coinrithm.bench.report.v1`) gives, per variant: decision mix,
+  model failures and crashes, accepted and rejected actions with reject codes,
+  repeat consistency, missing inputs and synthesized quotes. Per pair of
+  variants: action-set overlap (Jaccard) and paired per-cassette differences
+  with a seeded bootstrap 95% CI, for all cassettes and for a chronological
+  70% tune / 30% holdout split. A `contentHash` makes the report reproducible:
+  the same corpus and the same decisions give the same hash.
+- A calibrated null check per variant (with 2 or more repeats): 200 seeded
+  A/A comparisons built from the variant's own repeats report how often the
+  95% CI test fires with no real difference. It should sit near 5%. One A/A
+  comparison excluding 0 is not a broken bench; a rate far above 5% means the
+  corpus is too small or noisy for its differences to be trusted.
+- Optional outcome labels: `corpus/labels/<cassetteId>.json` with
+  `{ "pm": { "<source>/<slug>/<outcomeId>": { "settled": 0 } }, "prices":
+{ "BTC": [{ "t": 1791367500, "h": 1, "l": 1, "c": 1 }] } }` adds Brier
+  (agent and market), return on stake, futures return on margin and labelled
+  P&L. Without labels, opens are counted as unlabelled, never dropped. The
+  bench does not fetch labels.
+
+Honest limits (also written into every report's `assumptions`):
+
+- Quotes are synthesized, because a quote depends on the proposed action and
+  cannot be recorded. PM quotes use the recorded discover probability plus the
+  documented fee shape (`PM_SYNTHETIC_FEE_RATE_AT_MID`, about 1.8% at a 50%
+  price); spread and slippage are not modelled, so PM costs are slightly
+  optimistic. Futures and spot quotes use the recorded market price with a
+  flat fee. Every synthesized quote is counted in the report.
+- The synthesized PM quote does not apply the server's entry floor; the
+  runner's validator rejects the same action as `pm_entry_below_floor` where
+  production would report `quote_ineligible`.
+- Inputs are recorded going forward only. The stored `decision_input_record`
+  is partial by its own declaration and cannot be replayed; past decisions we
+  never recorded in full are not reconstructed.
+- A read a variant needs but the recording never made (another watchlist, a
+  capability the recorded agent lacked) answers `not_recorded` and is reported
+  as a missing input. Record with the widest variant.
+- Model output is not deterministic. `--repeats` measures that noise; repeat
+  consistency and the calibrated null show how much of a difference is noise.
+- Each replayed cycle starts from a fresh state, so the bench shows how a
+  variant decides on a first look at a recorded market, not deep into a run.
+- Futures outcomes are an OHLC walk model, not fills: entry at the
+  synthesized quote, no entry latency, a bar touching both stop and target
+  counts as the stop (and is counted), a missing bar gives `unlabelled_gap`,
+  and funding is included only when the label file carries funding events.
+- Cassettes hold your paper account's reads (never the API key). Keep a corpus
+  as private as the account. Benching a corpus costs one model call per
+  cassette, variant and repeat: use your own key, not a shared free pool.
 
 ## Embedding the engine
 

@@ -7,6 +7,14 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
 ## 0.7.16 (unpublished)
 
+- Add an agent test bench: `coinrithm-agent record` saves the read inputs of
+  dry-run cycles as cassettes (writes refused, no model call), and
+  `coinrithm-agent bench` replays them through the production runner for
+  several agent variants and repeats, next to skip and market-implied
+  baselines. The deterministic report gives reject codes, action overlap,
+  repeat consistency, seeded paired bootstrap CIs, a calibrated A/A null
+  rate, a chronological holdout and optional label scoring. Quotes are
+  synthesized and counted; see "Bench" in docs/agent-runner.md for the limits.
 - Keep repeated provider 404/410 availability failures out of the generic model
   failure kill-switch. BYO and self-hosted agents retain their configured model
   and provider holds without entering a disable/revive loop. Transient failures
