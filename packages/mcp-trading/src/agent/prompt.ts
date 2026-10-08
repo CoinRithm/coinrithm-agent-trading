@@ -14,11 +14,13 @@ import {
   RunState,
   LastRejection,
   type ObjectivePrimary,
+  type OpenPosition,
 } from "./types.js";
 import { pmQualityOf, pmDecisionSupportOf } from "./pmContext.js";
 import { usesCapitalSizing } from "./capitalSizing.js";
 import type { DecisionActionExclusion } from "./providerCapabilities.js";
 import { serializePromptObservation } from "./promptTables.js";
+import { TRIGGER_PRICE_EPS } from "./decisionValidator.js";
 
 // Prompt-only context, not an Observation receipt or a new persisted counter.
 export interface DailyRiskBudget {
@@ -487,6 +489,39 @@ export function buildSystemPrompt(
   ].join("\n");
 }
 
+/**
+ * Per-position stop-loss side of the mark for futures_set_sltp. Live
+ * 2026-10-08: 473 stop_loss_not_above/below_mark refusals in 24 h, nearly all
+ * agents moving a short's stop to its entry price or trailing it when the
+ * mark was already at or past that level. States only the observed-mark
+ * constraint the validator applies (pos.markPrice, TRIGGER_PRICE_EPS); the
+ * take-profit side, liquidation and every other check stay authoritative.
+ * Prices print unrounded so the text never contradicts the validator.
+ */
+export function stopBoundLines(positions: readonly OpenPosition[]): string[] {
+  const out: string[] = [];
+  for (const p of positions) {
+    const mark = p.markPrice;
+    const side = (p.side ?? "").toLowerCase();
+    if (typeof mark !== "number" || !Number.isFinite(mark) || mark <= 0)
+      continue;
+    if (side !== "long" && side !== "short") continue;
+    const isShort = side === "short";
+    let line = `- pos#${p.id} ${side} ${p.symbol ?? ""}: observed mark ${String(mark)}; a new stopLossPrice must be ${isShort ? "ABOVE" : "BELOW"} it.`;
+    const entry = p.entryPrice;
+    if (typeof entry === "number" && Number.isFinite(entry) && entry > 0) {
+      const entrySideOk = isShort
+        ? entry > mark + TRIGGER_PRICE_EPS
+        : entry < mark - TRIGGER_PRICE_EPS;
+      line += entrySideOk
+        ? ` A stop at the entry price ${String(entry)} is on the allowed side of the mark.`
+        : ` A stop at the entry price ${String(entry)} is on the wrong side of the mark and would be refused; keep the current stop, or close the position if the thesis broke.`;
+    }
+    out.push(line);
+  }
+  return out;
+}
+
 export function buildUserPrompt(
   obs: Observation,
   journal?: Array<{ at: string; did: string }>,
@@ -679,6 +714,14 @@ export function buildUserPrompt(
       "",
       "## Positions whose thesis is INVALIDATED this cycle",
       ...brokenTheses.map((b) => `- ${b}`),
+    );
+  }
+  const stopBounds = stopBoundLines(obs.openPositions);
+  if (stopBounds.length > 0) {
+    lines.push(
+      "",
+      "## Stop-loss side of the mark for futures_set_sltp (a stop on the wrong side is refused; take-profit side, liquidation and the other trigger checks still apply)",
+      ...stopBounds,
     );
   }
   if (

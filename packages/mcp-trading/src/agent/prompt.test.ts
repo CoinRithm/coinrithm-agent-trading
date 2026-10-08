@@ -10,6 +10,7 @@ import {
   formatPmResolutions,
   OBJECTIVE_GUIDANCE,
   objectiveLine,
+  stopBoundLines,
 } from "./prompt.js";
 import { loadAgent, parseSkill } from "./skill.js";
 import { renderFolderOfOne } from "./templates.js";
@@ -1097,5 +1098,78 @@ describe("rejection feedback", () => {
         lastRejections: { invalid: true } as never,
       }),
     ).not.toContain("REJECTED actions");
+  });
+});
+
+describe("stop-loss side of the mark for open futures positions", () => {
+  it("states the observed-mark side and where an entry-price stop falls", () => {
+    const lines = stopBoundLines([
+      {
+        id: 1,
+        symbol: "BTC",
+        side: "short",
+        markPrice: 82921.67893205975,
+        entryPrice: 82000,
+      },
+      {
+        id: 2,
+        symbol: "ETH",
+        side: "short",
+        markPrice: 2400,
+        entryPrice: 2500,
+      },
+      { id: 3, symbol: "ZEC", side: "long", markPrice: 90, entryPrice: 100 },
+    ] as never);
+    expect(lines).toHaveLength(3);
+    expect(lines[0]).toContain(
+      "observed mark 82921.67893205975; a new stopLossPrice must be ABOVE it",
+    );
+    expect(lines[0]).toContain("entry price 82000 is on the wrong side");
+    expect(lines[1]).toContain("entry price 2500 is on the allowed side");
+    expect(lines[2]).toContain("must be BELOW it");
+    expect(lines[2]).toContain("entry price 100 is on the wrong side");
+  });
+  it("never claims validity beyond the mark constraint", () => {
+    // Long mark 110, entry 100, liquidation 80, retained TP 105: the mark side
+    // is fine for an entry stop, but the TP check still decides the action.
+    const [line] = stopBoundLines([
+      {
+        id: 5,
+        side: "long",
+        markPrice: 110,
+        entryPrice: 100,
+        liquidationPrice: 80,
+        takeProfitPrice: 105,
+      },
+    ] as never);
+    expect(line).toContain(
+      "entry price 100 is on the allowed side of the mark",
+    );
+    expect(line).not.toMatch(/valid|profit|breakeven/i);
+  });
+  it("prints unrounded prices and applies the validator epsilon", () => {
+    const [long, short] = stopBoundLines([
+      { id: 6, side: "long", markPrice: 100.000000005, entryPrice: 100 },
+      { id: 7, side: "short", markPrice: 100.000000005, entryPrice: 100 },
+    ] as never);
+    expect(long).toContain("observed mark 100.000000005");
+    expect(long).toContain("entry price 100 is on the wrong side");
+    expect(short).toContain("entry price 100 is on the wrong side");
+  });
+  it("skips positions without a usable mark or side", () => {
+    expect(
+      stopBoundLines([
+        { id: 1, side: "short" },
+        { id: 2, side: "short", markPrice: 0 },
+        { id: 3, side: "sideways", markPrice: 10 },
+      ] as never),
+    ).toEqual([]);
+  });
+  it("omits the entry note without an entry price", () => {
+    const [line] = stopBoundLines([
+      { id: 9, side: "long", markPrice: 10 },
+    ] as never);
+    expect(line).toContain("must be BELOW it");
+    expect(line).not.toContain("entry");
   });
 });

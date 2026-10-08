@@ -133,7 +133,7 @@ const PM_MIN_STAKE_MUSD = 10; // server minimum prediction-market stake
 // Match backend-v2 validateSlTpPrices, including its boundary tolerance. This
 // preflight uses observed evidence only; the API still checks a fresh mark and
 // locked position at execution. Older observations can omit these prices.
-const TRIGGER_PRICE_EPS = 1e-8;
+export const TRIGGER_PRICE_EPS = 1e-8;
 function validateTriggerUpdate(
   action: Extract<ProposedAction, { type: "futures_set_sltp" }>,
   pos: OpenPosition,
