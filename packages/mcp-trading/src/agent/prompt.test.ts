@@ -14,6 +14,7 @@ import {
 import { loadAgent, parseSkill } from "./skill.js";
 import { renderFolderOfOne } from "./templates.js";
 import { Observation, PmResolution } from "./types.js";
+import { lastRejectionsOf } from "./runner.js";
 import { newState } from "./state.js";
 
 const baseObs = (over: Partial<Observation> = {}): Observation => ({
@@ -1039,5 +1040,57 @@ describe("the agent's objective reaches the prompt (Studio audit)", () => {
     expect(
       objectiveLine({ objective: { primary: "moonshot" } } as never),
     ).toBeNull();
+  });
+});
+
+// Live 2026-10-08: agents resubmitted the same refused futures_set_sltp every
+// cycle (one position 48 times in 24 h) because nothing told them why it failed.
+describe("rejection feedback", () => {
+  const refused = {
+    action: {
+      type: "futures_set_sltp" as const,
+      positionId: 19321,
+      stopLossPrice: 0.0085,
+    },
+    accepted: false,
+    code: "stop_loss_not_above_mark",
+    reason:
+      "position 19321: short effective stop 0.0085 must be above\nobserved mark 0.00859",
+  };
+  const accepted = {
+    action: { type: "futures_close" as const, positionId: 7 },
+    accepted: true,
+  };
+
+  it("keeps only refused actions, on one line, capped", () => {
+    expect(lastRejectionsOf([accepted], "t1")).toBeUndefined();
+    const out = lastRejectionsOf(
+      [accepted, refused, ...Array.from({ length: 6 }, () => refused)],
+      "t1",
+    )!;
+    expect(out).toHaveLength(5);
+    expect(out[0]).toEqual({
+      at: "t1",
+      action:
+        "futures_set_sltp pos#19321 (stopLossPrice 0.0085, takeProfitPrice unchanged)",
+      code: "stop_loss_not_above_mark",
+      reason:
+        "position 19321: short effective stop 0.0085 must be above observed mark 0.00859",
+    });
+  });
+
+  it("shows the last decision's refusals in the next prompt and ignores malformed state", () => {
+    const text = buildUserPrompt(baseObs(), undefined, {
+      lastRejections: [
+        ...lastRejectionsOf([refused], "t1")!,
+        { at: "t1", action: 5, code: "" } as never,
+      ],
+    });
+    expect(text).toContain("REJECTED actions");
+    expect(text).toContain(
+      "- futures_set_sltp pos#19321 (stopLossPrice 0.0085, takeProfitPrice unchanged): stop_loss_not_above_mark - position 19321",
+    );
+    expect(text.match(/^- .*stop_loss_not_above_mark/gm)).toHaveLength(1);
+    expect(buildUserPrompt(baseObs())).not.toContain("REJECTED actions");
   });
 });

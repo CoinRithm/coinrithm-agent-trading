@@ -12,6 +12,7 @@ import {
   Observation,
   PmResolution,
   RunState,
+  LastRejection,
   type ObjectivePrimary,
 } from "./types.js";
 import { pmQualityOf, pmDecisionSupportOf } from "./pmContext.js";
@@ -491,6 +492,7 @@ export function buildUserPrompt(
     futuresCapacity?: FuturesCapacity;
     compactTables?: boolean;
     excludeActionTypes?: readonly DecisionActionExclusion[];
+    lastRejections?: readonly LastRejection[];
   } = {},
 ): string {
   // Default to every venue for backwards-compatible direct callers and probes.
@@ -624,6 +626,26 @@ export function buildUserPrompt(
       "",
       "## Your recent moves (memory, newest last) — manage these with continuity; do NOT churn by re-opening an idea you just acted on:",
       ...journal.slice(-6).map((j) => `- ${j.did}`),
+    );
+  }
+  // Persisted state is read back defensively: only well-formed entries render.
+  const rejections = (opts.lastRejections ?? [])
+    .filter(
+      (r) =>
+        r &&
+        typeof r.action === "string" &&
+        typeof r.code === "string" &&
+        r.code.length > 0,
+    )
+    .slice(0, 5);
+  if (rejections.length > 0) {
+    lines.push(
+      "",
+      "## Your last decision's REJECTED actions (refused, nothing happened) - do NOT resubmit them unchanged; fix the cause shown or choose differently:",
+      ...rejections.map(
+        (r) =>
+          `- ${r.action}: ${r.code}${typeof r.reason === "string" && r.reason ? ` - ${r.reason.slice(0, 200)}` : ""}`,
+      ),
     );
   }
   // Slice 2: name the positions whose stated thesis broke this cycle. On a live

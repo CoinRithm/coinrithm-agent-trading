@@ -5,6 +5,14 @@ ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (t
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
 versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
+## Unreleased
+
+- The runner now shows the agent its last decision's refused actions (action,
+  rejection code and a short reason) in the next prompt, so it fixes the cause
+  instead of resubmitting the same action. The list is kept in the persisted
+  run state, capped at five, replaced by every validated decision and cleared
+  when the model chooses to skip.
+
 ## 0.7.16 (published 2026-10-07)
 
 - Preserve independently timed funding-by-venue context in watchlist and

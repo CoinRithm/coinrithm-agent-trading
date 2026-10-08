@@ -21,6 +21,7 @@ import {
   spotBuyCost,
   DEFAULT_TRIGGER_POLICY,
   CapitalSizingAdjustment,
+  LastRejection,
 } from "./types.js";
 import {
   usesCapitalSizing,
@@ -276,6 +277,53 @@ export function repairFuturesTakeProfit(
 // step remembers WHY the position exists (slice 2).
 function thesisTail(t?: Thesis): string {
   return t ? ` on thesis: ${t.summary.slice(0, 70)}` : "";
+}
+
+/** What the model tried, for its own rejection feedback (not a completed move). */
+function describeAttempt(a: ProposedAction): string {
+  switch (a.type) {
+    case "futures_open":
+      return `futures_open ${a.side} ${a.symbol}`;
+    case "futures_close":
+      return `futures_close pos#${a.positionId}`;
+    case "futures_set_sltp":
+      return `futures_set_sltp pos#${a.positionId} (stopLossPrice ${a.stopLossPrice ?? "unchanged"}, takeProfitPrice ${a.takeProfitPrice ?? "unchanged"})`;
+    case "spot_order":
+      return `spot_order ${a.side} ${a.symbol}`;
+    case "spot_cancel":
+      return `spot_cancel order#${a.orderId}`;
+    case "pm_open":
+      return `pm_open ${a.ref ?? a.slug}`;
+  }
+}
+
+export const LAST_REJECTIONS_MAX = 5;
+const REJECTION_REASON_MAX = 200;
+
+/**
+ * Pure: the rejected actions of one validated decision, newest decision only,
+ * for the next prompt. Undefined when nothing was rejected, so a fixed
+ * mistake drops out at once.
+ */
+export function lastRejectionsOf(
+  planned: readonly PlannedAction[],
+  at: string,
+): LastRejection[] | undefined {
+  const rejected = planned.filter((p) => !p.accepted && p.code);
+  if (rejected.length === 0) return undefined;
+  return rejected.slice(0, LAST_REJECTIONS_MAX).map((p) => ({
+    at,
+    action: describeAttempt(p.action),
+    code: p.code as string,
+    ...(p.reason
+      ? {
+          reason: p.reason
+            .replace(/\s+/g, " ")
+            .trim()
+            .slice(0, REJECTION_REASON_MAX),
+        }
+      : {}),
+  }));
 }
 
 function summarizeAction(a: ProposedAction): string {
@@ -914,6 +962,7 @@ async function runCycleCore(
     const userOptions = {
       venues: spec.venues,
       dailyRiskBudget: buildDailyRiskBudget(spec, state),
+      ...(state.lastRejections ? { lastRejections: state.lastRejections } : {}),
       ...(usesCapitalSizing(spec) ? { capitalSizing: spec.capitalSizing } : {}),
       ...(futuresCapacity ? { futuresCapacity } : {}),
       ...actionAvailability,
@@ -1186,6 +1235,8 @@ async function runCycleCore(
       forecastEnabled,
     );
     if (skipOpp) await opportunities.post(skipOpp);
+    // A valid new decision saw the feedback and did not repeat it.
+    state.lastRejections = undefined;
     saveState(stateFile, state);
     log(`model chose skip${decision.reason ? `: ${decision.reason}` : ""}`);
     return {
@@ -1676,6 +1727,7 @@ async function runCycleCore(
   // live write is not progress, or a persistently failing live agent would
   // never trip the kill-switch.
   const progressed = live ? anyExecuted : anyAccepted;
+  state.lastRejections = lastRejectionsOf(planned, observation.asOf);
   state.consecutiveRejectCycles = progressed
     ? 0
     : state.consecutiveRejectCycles + 1;

@@ -1244,6 +1244,19 @@ export interface RunState {
   // (file for self-host, agent_runtime.agent_state for hosted) - no DB change.
   // Pruned when the position is gone; evaluated every cycle by the runner.
   theses?: Record<string, PositionThesis>;
+  // The actions the server or runner refused in the last decision that reached
+  // validation (code + short reason), shown in the next prompt so the model
+  // fixes the cause instead of resubmitting the same action. Live 2026-10-08:
+  // 715 futures_set_sltp rejections in 24 h over 201 positions, one position
+  // resubmitted 48 times. Rides in the persisted state JSON; capped.
+  lastRejections?: LastRejection[];
+}
+
+export interface LastRejection {
+  at: string;
+  action: string;
+  code: string;
+  reason?: string;
 }
 
 export interface AgentTrace {
