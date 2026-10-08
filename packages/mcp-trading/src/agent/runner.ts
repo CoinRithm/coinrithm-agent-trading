@@ -1499,9 +1499,12 @@ async function runCycleCore(
         capitalSizingEnabled ? spec.capitalSizing?.minRewardRisk : undefined,
       );
       if (fixed.repaired) {
+        // Diagnostics keep the model's own request next to the applied target.
+        const requested = (action as { takeProfitPrice?: number })
+          .takeProfitPrice;
         action = fixed.action;
         log(
-          `repaired ${action.type} take-profit -> ${(action as { takeProfitPrice?: number }).takeProfitPrice} (R:R off stop; model TP was missing, wrong-side or inside the reward:risk floor)`,
+          `repaired ${action.type} take-profit ${requested ?? "missing"} -> ${(action as { takeProfitPrice?: number }).takeProfitPrice} (R:R off stop; model TP was missing, wrong-side or inside the reward:risk floor)`,
         );
       }
     }
