@@ -20,6 +20,7 @@ import { pmQualityOf, pmDecisionSupportOf } from "./pmContext.js";
 import { usesCapitalSizing } from "./capitalSizing.js";
 import type { DecisionActionExclusion } from "./providerCapabilities.js";
 import { serializePromptObservation } from "./promptTables.js";
+import { TRIGGER_PRICE_EPS } from "./decisionValidator.js";
 
 // Prompt-only context, not an Observation receipt or a new persisted counter.
 export interface DailyRiskBudget {
@@ -488,15 +489,14 @@ export function buildSystemPrompt(
   ].join("\n");
 }
 
-const boundNum = (n: number) => String(Number(n.toPrecision(10)));
-
 /**
- * Per-position stop-loss bound for futures_set_sltp. Live 2026-10-08: 473
- * stop_loss_not_above/below_mark refusals in 24 h, nearly all agents moving a
- * short's stop to "breakeven" or trailing it when the mark was already at or
- * past that level (the position was not in profit there). States the exact
- * side of the mark and whether breakeven is reachable; it is guidance only,
- * the validator still decides.
+ * Per-position stop-loss side of the mark for futures_set_sltp. Live
+ * 2026-10-08: 473 stop_loss_not_above/below_mark refusals in 24 h, nearly all
+ * agents moving a short's stop to its entry price or trailing it when the
+ * mark was already at or past that level. States only the observed-mark
+ * constraint the validator applies (pos.markPrice, TRIGGER_PRICE_EPS); the
+ * take-profit side, liquidation and every other check stay authoritative.
+ * Prices print unrounded so the text never contradicts the validator.
  */
 export function stopBoundLines(positions: readonly OpenPosition[]): string[] {
   const out: string[] = [];
@@ -507,13 +507,15 @@ export function stopBoundLines(positions: readonly OpenPosition[]): string[] {
       continue;
     if (side !== "long" && side !== "short") continue;
     const isShort = side === "short";
-    let line = `- pos#${p.id} ${side} ${p.symbol ?? ""}: mark ${boundNum(mark)}, so a new stopLossPrice must be ${isShort ? "ABOVE" : "BELOW"} ${boundNum(mark)}.`;
+    let line = `- pos#${p.id} ${side} ${p.symbol ?? ""}: observed mark ${String(mark)}; a new stopLossPrice must be ${isShort ? "ABOVE" : "BELOW"} it.`;
     const entry = p.entryPrice;
     if (typeof entry === "number" && Number.isFinite(entry) && entry > 0) {
-      const inProfit = isShort ? mark < entry : mark > entry;
-      line += inProfit
-        ? ` In profit: a breakeven stop at entry ${boundNum(entry)} is valid.`
-        : ` NOT in profit (entry ${boundNum(entry)}): a breakeven or tighter stop would fire at once and is refused; keep the current stop, or close the position if the thesis broke.`;
+      const entrySideOk = isShort
+        ? entry > mark + TRIGGER_PRICE_EPS
+        : entry < mark - TRIGGER_PRICE_EPS;
+      line += entrySideOk
+        ? ` A stop at the entry price ${String(entry)} is on the allowed side of the mark.`
+        : ` A stop at the entry price ${String(entry)} is on the wrong side of the mark and would be refused; keep the current stop, or close the position if the thesis broke.`;
     }
     out.push(line);
   }
@@ -718,7 +720,7 @@ export function buildUserPrompt(
   if (stopBounds.length > 0) {
     lines.push(
       "",
-      "## Stop-loss bounds for futures_set_sltp (a stop on the wrong side of the mark is refused)",
+      "## Stop-loss side of the mark for futures_set_sltp (a stop on the wrong side is refused; take-profit side, liquidation and the other trigger checks still apply)",
       ...stopBounds,
     );
   }

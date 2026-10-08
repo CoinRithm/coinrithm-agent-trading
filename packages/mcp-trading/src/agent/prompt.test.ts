@@ -1101,8 +1101,8 @@ describe("rejection feedback", () => {
   });
 });
 
-describe("stop-loss bounds for open futures positions", () => {
-  it("states the side of the mark and whether breakeven is reachable", () => {
+describe("stop-loss side of the mark for open futures positions", () => {
+  it("states the observed-mark side and where an entry-price stop falls", () => {
     const lines = stopBoundLines([
       {
         id: 1,
@@ -1118,19 +1118,43 @@ describe("stop-loss bounds for open futures positions", () => {
         markPrice: 2400,
         entryPrice: 2500,
       },
-      { id: 3, symbol: "SOL", side: "long", markPrice: 150, entryPrice: 140 },
-      { id: 4, symbol: "ZEC", side: "long", markPrice: 90, entryPrice: 100 },
+      { id: 3, symbol: "ZEC", side: "long", markPrice: 90, entryPrice: 100 },
     ] as never);
-    expect(lines).toHaveLength(4);
-    expect(lines[0]).toContain("must be ABOVE 82921.67893");
-    expect(lines[0]).toContain("NOT in profit (entry 82000)");
-    expect(lines[1]).toContain("ABOVE 2400");
-    expect(lines[1]).toContain(
-      "In profit: a breakeven stop at entry 2500 is valid",
+    expect(lines).toHaveLength(3);
+    expect(lines[0]).toContain(
+      "observed mark 82921.67893205975; a new stopLossPrice must be ABOVE it",
     );
-    expect(lines[2]).toContain("BELOW 150");
-    expect(lines[2]).toContain("In profit");
-    expect(lines[3]).toContain("NOT in profit (entry 100)");
+    expect(lines[0]).toContain("entry price 82000 is on the wrong side");
+    expect(lines[1]).toContain("entry price 2500 is on the allowed side");
+    expect(lines[2]).toContain("must be BELOW it");
+    expect(lines[2]).toContain("entry price 100 is on the wrong side");
+  });
+  it("never claims validity beyond the mark constraint", () => {
+    // Long mark 110, entry 100, liquidation 80, retained TP 105: the mark side
+    // is fine for an entry stop, but the TP check still decides the action.
+    const [line] = stopBoundLines([
+      {
+        id: 5,
+        side: "long",
+        markPrice: 110,
+        entryPrice: 100,
+        liquidationPrice: 80,
+        takeProfitPrice: 105,
+      },
+    ] as never);
+    expect(line).toContain(
+      "entry price 100 is on the allowed side of the mark",
+    );
+    expect(line).not.toMatch(/valid|profit|breakeven/i);
+  });
+  it("prints unrounded prices and applies the validator epsilon", () => {
+    const [long, short] = stopBoundLines([
+      { id: 6, side: "long", markPrice: 100.000000005, entryPrice: 100 },
+      { id: 7, side: "short", markPrice: 100.000000005, entryPrice: 100 },
+    ] as never);
+    expect(long).toContain("observed mark 100.000000005");
+    expect(long).toContain("entry price 100 is on the wrong side");
+    expect(short).toContain("entry price 100 is on the wrong side");
   });
   it("skips positions without a usable mark or side", () => {
     expect(
@@ -1141,11 +1165,11 @@ describe("stop-loss bounds for open futures positions", () => {
       ] as never),
     ).toEqual([]);
   });
-  it("omits the profit note without an entry price", () => {
+  it("omits the entry note without an entry price", () => {
     const [line] = stopBoundLines([
       { id: 9, side: "long", markPrice: 10 },
     ] as never);
-    expect(line).toContain("BELOW 10");
-    expect(line).not.toContain("profit");
+    expect(line).toContain("must be BELOW it");
+    expect(line).not.toContain("entry");
   });
 });
