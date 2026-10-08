@@ -706,7 +706,10 @@ describe("opt-in high-conviction futures tier", () => {
       observation(),
       budget,
     );
-    expect(sized.action).toMatchObject({ marginMusd: 5_000 });
+    // 10% of 50,000, less the disclosed entry-fee buffer on the cash room.
+    expect(sized.action).toMatchObject({
+      marginMusd: Math.floor((5_000 / (1 + 2 * 0.001)) * 100) / 100,
+    });
   });
   it("never changes prediction-market stakes", () => {
     const sized = prepareCapitalAction(
