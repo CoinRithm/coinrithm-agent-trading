@@ -589,7 +589,7 @@ export function buildUserPrompt(
       minRewardRisk >= 1
     ) {
       lines.push(
-        `REWARD:RISK FLOOR ${minRewardRisk} (your capitalSizing.minRewardRisk, enforced with fees; an open below it is rejected as capital_quote_reward_risk_too_low): the take-profit's distance from entry, minus the entry and exit fees, must be at least ${minRewardRisk}x the stop's distance from entry plus those fees. A target exactly ${minRewardRisk}x the stop distance FAILS once fees are counted, so leave room. If the setup cannot offer such a target, do not open it.`,
+        `REWARD:RISK FLOOR ${minRewardRisk} (your capitalSizing.minRewardRisk, enforced with fees; a correct-side take-profit inside it is widened by the runner to the floor, never narrowed, and an open that still cannot meet it is rejected as capital_quote_reward_risk_too_low): the take-profit's distance from entry, minus the entry and exit fees, must be at least ${minRewardRisk}x the stop's distance from entry plus those fees. A target exactly ${minRewardRisk}x the stop distance FAILS once fees are counted, so leave room. If the setup cannot offer such a target, do not open it.`,
       );
     }
     if (held.length > 0) {

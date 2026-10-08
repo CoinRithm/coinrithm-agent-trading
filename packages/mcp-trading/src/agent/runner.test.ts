@@ -750,6 +750,81 @@ describe("take-profit repair boundaries", () => {
       ),
     ).toEqual({ action: a, repaired: false });
   });
+  // Owner GO 2026-10-08: widen a correct-side TP that sits inside the agent's
+  // own capital reward:risk floor instead of letting the quote check refuse it.
+  const costed = {
+    entryPrice: 70,
+    futuresFeeBps: 5,
+    estimatedEntryFeeMusd: 0.05,
+  };
+  // The quote check in capitalSizing.validateCapitalAction, for notional 100.
+  const rewardRisk = (side: "long" | "short", stop: number, tp: number) => {
+    const n = 100,
+      fee = 0.0005,
+      e = 0.05;
+    const adverse = side === "long" ? 70 - stop : stop - 70;
+    const favorable = side === "long" ? tp - 70 : 70 - tp;
+    const risk = (n * adverse) / 70 + e + ((n * stop) / 70) * fee;
+    const reward = (n * favorable) / 70 - e - ((n * tp) / 70) * fee;
+    return reward / risk;
+  };
+  it("widens a long take-profit inside the capital reward:risk floor", () => {
+    const r = repairFuturesTakeProfit(
+      { ...action, takeProfitPrice: 72 },
+      costed,
+      2,
+    );
+    const tp = (r.action as { takeProfitPrice: number }).takeProfitPrice;
+    expect(r.repaired).toBe(true);
+    expect(tp).toBeGreaterThan(72);
+    expect(rewardRisk("long", 60, tp) + 1e-8).toBeGreaterThanOrEqual(2);
+  });
+  it("widens a short take-profit inside the floor downward", () => {
+    const a = {
+      ...action,
+      side: "short",
+      stopLossPrice: 80,
+      takeProfitPrice: 68,
+    } as ProposedAction;
+    const r = repairFuturesTakeProfit(a, costed, 2);
+    const tp = (r.action as { takeProfitPrice: number }).takeProfitPrice;
+    expect(r.repaired).toBe(true);
+    expect(tp).toBeLessThan(68);
+    expect(rewardRisk("short", 80, tp) + 1e-8).toBeGreaterThanOrEqual(2);
+  });
+  it("never narrows a take-profit already beyond the floor", () => {
+    const a = { ...action, takeProfitPrice: 95 } as ProposedAction;
+    expect(repairFuturesTakeProfit(a, costed, 2)).toEqual({
+      action: a,
+      repaired: false,
+    });
+  });
+  it.each([
+    ["100% fee", { ...costed, futuresFeeBps: 10_000 }],
+    ["huge price", { ...costed, entryPrice: Number.MAX_VALUE }],
+  ])("fails closed on non-finite repair economics: %s", (_label, quote) => {
+    const a = { ...action, takeProfitPrice: 72 } as ProposedAction;
+    expect(repairFuturesTakeProfit(a, quote, 2).repaired).toBe(false);
+  });
+  it("never touches a futures_set_sltp take-profit", () => {
+    const a = {
+      type: "futures_set_sltp",
+      positionId: 7,
+      stopLossPrice: 60,
+      takeProfitPrice: 71,
+    } as ProposedAction;
+    expect(repairFuturesTakeProfit(a, costed, 2)).toEqual({
+      action: a,
+      repaired: false,
+    });
+  });
+  it("leaves a correct-side take-profit alone without a capital floor", () => {
+    const a = { ...action, takeProfitPrice: 72 } as ProposedAction;
+    expect(repairFuturesTakeProfit(a, costed)).toEqual({
+      action: a,
+      repaired: false,
+    });
+  });
 });
 
 describe("PM periodic budget gate", () => {
@@ -1063,6 +1138,77 @@ describe("opt-in owned-book capital sizing", () => {
     expect(planned.quote?.cashRequiredMusd).toBeGreaterThan(
       planned.capitalSizing!.sizedAmountMusd!,
     );
+  });
+
+  // Owner GO 2026-10-08: a correct-side TP inside the R:R floor is widened
+  // end to end (one quote, sized margin, executed target, persisted record).
+  const shortQuote = vi.fn(
+    async (a: { marginMusd: number; leverage: number }) => {
+      const entryFee = a.marginMusd * a.leverage * 0.0005;
+      return okData({
+        eligible: true,
+        entryPrice: 67_000,
+        liquidationPrice: 100_000,
+        executionModel: { feeBps: 5, estimatedEntryFeeMusd: entryFee },
+        cashRequiredMusd: a.marginMusd + entryFee,
+        observation: { freshness: { status: "fresh" } },
+      });
+    },
+  );
+  it.each([
+    ["long", 60_000, 68_000, undefined],
+    ["short", 74_000, 66_000, shortQuote],
+  ] as const)(
+    "widens a %s take-profit inside the floor and persists the requested target",
+    async (side, stopLossPrice, takeProfitPrice, futuresQuote) => {
+      const client = sizedClient(futuresQuote ? { futuresQuote } : {});
+      const result = await runCycle(
+        sizedDeps(true, client, {
+          ...VALID_OPEN,
+          actions: [
+            { ...VALID_OPEN.actions[0], side, stopLossPrice, takeProfitPrice },
+          ],
+        }),
+      );
+      const planned = result.planned[0];
+      expect(planned.accepted).toBe(true);
+      expect(planned.executed).toBe(true);
+      expect(planned.takeProfitRepair).toMatchObject({
+        requestedTakeProfitPrice: takeProfitPrice,
+        reason: "below_reward_risk_floor",
+      });
+      const applied = planned.takeProfitRepair!.appliedTakeProfitPrice;
+      if (side === "long") expect(applied).toBeGreaterThan(takeProfitPrice);
+      else expect(applied).toBeLessThan(takeProfitPrice);
+      expect(client.openFutures.mock.calls[0][0].takeProfitPrice).toBe(applied);
+      expect((futuresQuote ?? client.futuresQuote).mock.calls).toHaveLength(1);
+    },
+  );
+  it("leaves a compliant take-profit and records no repair", async () => {
+    const client = sizedClient();
+    const result = await runCycle(
+      sizedDeps(true, client, {
+        ...VALID_OPEN,
+        actions: [{ ...VALID_OPEN.actions[0], takeProfitPrice: 90_000 }],
+      }),
+    );
+    expect(result.planned[0].executed).toBe(true);
+    expect(result.planned[0].takeProfitRepair).toBeUndefined();
+    expect(client.openFutures.mock.calls[0][0].takeProfitPrice).toBe(90_000);
+  });
+  it("does not invent a target when the stop is missing", async () => {
+    const client = sizedClient();
+    const open = {
+      ...VALID_OPEN.actions[0],
+      takeProfitPrice: 68_000,
+    } as Record<string, unknown>;
+    delete open.stopLossPrice;
+    const result = await runCycle(
+      sizedDeps(true, client, { ...VALID_OPEN, actions: [open] }),
+    );
+    expect(result.planned[0].accepted).toBe(false);
+    expect(result.planned[0].takeProfitRepair).toBeUndefined();
+    expect(client.openFutures).not.toHaveBeenCalled();
   });
 
   it("keeps a known legacy-wallet position closeable while sizing this wallet's PM entry", async () => {

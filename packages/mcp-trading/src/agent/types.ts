@@ -1299,6 +1299,15 @@ export interface PlannedAction {
   executed?: boolean;
   result?: unknown;
   capitalSizing?: CapitalSizingAdjustment;
+  /** Set when the runner replaced the model's futures take-profit; persisted
+   * with the cycle so the requested target is never lost. */
+  takeProfitRepair?: TakeProfitRepair;
+}
+
+export interface TakeProfitRepair {
+  requestedTakeProfitPrice: number | null;
+  appliedTakeProfitPrice: number;
+  reason: "missing" | "wrong_side" | "below_reward_risk_floor";
 }
 
 export interface CycleResult {
