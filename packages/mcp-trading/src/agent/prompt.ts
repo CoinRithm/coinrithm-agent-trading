@@ -14,6 +14,7 @@ import {
   RunState,
   LastRejection,
   type ObjectivePrimary,
+  type OpenPosition,
 } from "./types.js";
 import { pmQualityOf, pmDecisionSupportOf } from "./pmContext.js";
 import { usesCapitalSizing } from "./capitalSizing.js";
@@ -487,6 +488,38 @@ export function buildSystemPrompt(
   ].join("\n");
 }
 
+const boundNum = (n: number) => String(Number(n.toPrecision(10)));
+
+/**
+ * Per-position stop-loss bound for futures_set_sltp. Live 2026-10-08: 473
+ * stop_loss_not_above/below_mark refusals in 24 h, nearly all agents moving a
+ * short's stop to "breakeven" or trailing it when the mark was already at or
+ * past that level (the position was not in profit there). States the exact
+ * side of the mark and whether breakeven is reachable; it is guidance only,
+ * the validator still decides.
+ */
+export function stopBoundLines(positions: readonly OpenPosition[]): string[] {
+  const out: string[] = [];
+  for (const p of positions) {
+    const mark = p.markPrice;
+    const side = (p.side ?? "").toLowerCase();
+    if (typeof mark !== "number" || !Number.isFinite(mark) || mark <= 0)
+      continue;
+    if (side !== "long" && side !== "short") continue;
+    const isShort = side === "short";
+    let line = `- pos#${p.id} ${side} ${p.symbol ?? ""}: mark ${boundNum(mark)}, so a new stopLossPrice must be ${isShort ? "ABOVE" : "BELOW"} ${boundNum(mark)}.`;
+    const entry = p.entryPrice;
+    if (typeof entry === "number" && Number.isFinite(entry) && entry > 0) {
+      const inProfit = isShort ? mark < entry : mark > entry;
+      line += inProfit
+        ? ` In profit: a breakeven stop at entry ${boundNum(entry)} is valid.`
+        : ` NOT in profit (entry ${boundNum(entry)}): a breakeven or tighter stop would fire at once and is refused; keep the current stop, or close the position if the thesis broke.`;
+    }
+    out.push(line);
+  }
+  return out;
+}
+
 export function buildUserPrompt(
   obs: Observation,
   journal?: Array<{ at: string; did: string }>,
@@ -679,6 +712,14 @@ export function buildUserPrompt(
       "",
       "## Positions whose thesis is INVALIDATED this cycle",
       ...brokenTheses.map((b) => `- ${b}`),
+    );
+  }
+  const stopBounds = stopBoundLines(obs.openPositions);
+  if (stopBounds.length > 0) {
+    lines.push(
+      "",
+      "## Stop-loss bounds for futures_set_sltp (a stop on the wrong side of the mark is refused)",
+      ...stopBounds,
     );
   }
   if (

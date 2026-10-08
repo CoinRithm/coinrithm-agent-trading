@@ -10,6 +10,7 @@ import {
   formatPmResolutions,
   OBJECTIVE_GUIDANCE,
   objectiveLine,
+  stopBoundLines,
 } from "./prompt.js";
 import { loadAgent, parseSkill } from "./skill.js";
 import { renderFolderOfOne } from "./templates.js";
@@ -1097,5 +1098,54 @@ describe("rejection feedback", () => {
         lastRejections: { invalid: true } as never,
       }),
     ).not.toContain("REJECTED actions");
+  });
+});
+
+describe("stop-loss bounds for open futures positions", () => {
+  it("states the side of the mark and whether breakeven is reachable", () => {
+    const lines = stopBoundLines([
+      {
+        id: 1,
+        symbol: "BTC",
+        side: "short",
+        markPrice: 82921.67893205975,
+        entryPrice: 82000,
+      },
+      {
+        id: 2,
+        symbol: "ETH",
+        side: "short",
+        markPrice: 2400,
+        entryPrice: 2500,
+      },
+      { id: 3, symbol: "SOL", side: "long", markPrice: 150, entryPrice: 140 },
+      { id: 4, symbol: "ZEC", side: "long", markPrice: 90, entryPrice: 100 },
+    ] as never);
+    expect(lines).toHaveLength(4);
+    expect(lines[0]).toContain("must be ABOVE 82921.67893");
+    expect(lines[0]).toContain("NOT in profit (entry 82000)");
+    expect(lines[1]).toContain("ABOVE 2400");
+    expect(lines[1]).toContain(
+      "In profit: a breakeven stop at entry 2500 is valid",
+    );
+    expect(lines[2]).toContain("BELOW 150");
+    expect(lines[2]).toContain("In profit");
+    expect(lines[3]).toContain("NOT in profit (entry 100)");
+  });
+  it("skips positions without a usable mark or side", () => {
+    expect(
+      stopBoundLines([
+        { id: 1, side: "short" },
+        { id: 2, side: "short", markPrice: 0 },
+        { id: 3, side: "sideways", markPrice: 10 },
+      ] as never),
+    ).toEqual([]);
+  });
+  it("omits the profit note without an entry price", () => {
+    const [line] = stopBoundLines([
+      { id: 9, side: "long", markPrice: 10 },
+    ] as never);
+    expect(line).toContain("BELOW 10");
+    expect(line).not.toContain("profit");
   });
 });
