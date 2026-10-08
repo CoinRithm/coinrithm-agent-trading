@@ -22,6 +22,7 @@ import {
   DEFAULT_TRIGGER_POLICY,
   CapitalSizingAdjustment,
   LastRejection,
+  TakeProfitRepair,
 } from "./types.js";
 import {
   usesCapitalSizing,
@@ -216,14 +217,20 @@ function cashConsumed(action: ProposedAction, quote?: QuoteEvidence): number {
 // WHOLE open (take_profit_not_*_mark) — the position never opens, so the model
 // can't "let winners run". Here we substitute a sensible R:R target off the stop so
 // the open succeeds with a valid TP. Only fires when a usable stop is present (so
-// risk is computable) and the TP is actually missing/wrong-side; a correct TP is
-// left untouched. Systemic fix for the whole free-tier 8B/instruct fleet.
+// risk is computable) and the TP is missing/wrong-side, or (capital policy only,
+// owner GO 2026-10-08) on the right side but inside the agent's own reward:risk
+// floor, where it is widened to the floor and never narrowed. Any other correct
+// TP is left untouched. Systemic fix for the whole free-tier 8B/instruct fleet.
 const DEFAULT_TP_RR = 1.5; // reward:risk of the substituted take-profit
 export function repairFuturesTakeProfit(
   action: ProposedAction,
   quote?: QuoteEvidence,
   capitalMinimumRewardRisk?: number,
-): { action: ProposedAction; repaired: boolean } {
+): {
+  action: ProposedAction;
+  repaired: boolean;
+  reason?: TakeProfitRepair["reason"];
+} {
   if (action.type !== "futures_open") return { action, repaired: false };
   const entry = quote?.entryPrice;
   const sl = action.stopLossPrice;
@@ -264,6 +271,9 @@ export function repairFuturesTakeProfit(
       return { action, repaired: false };
     const notional = action.marginMusd * action.leverage;
     const fee = bps / 10_000;
+    // Fail closed on economics that cannot yield a finite target.
+    if (!(Number.isFinite(notional) && notional > 0) || !(fee < 1))
+      return { action, repaired: false };
     const stopRisk =
       (notional * risk) / entry + entryFee + ((notional * sl) / entry) * fee;
     const required = (capitalMinimumRewardRisk + 1e-8) * stopRisk;
@@ -271,11 +281,21 @@ export function repairFuturesTakeProfit(
       ? (entry * (notional + entryFee + required)) / (notional * (1 - fee))
       : (entry * (notional - entryFee - required)) / (notional * (1 + fee));
   }
-  if (!(target > 0)) return { action, repaired: false };
+  if (!Number.isFinite(target) || !(target > 0))
+    return { action, repaired: false };
   // Widen only: a valid TP at or beyond the floor is the model's choice.
   if (tpValid && (isLong ? (tp as number) >= target : (tp as number) <= target))
     return { action, repaired: false };
-  return { action: { ...action, takeProfitPrice: target }, repaired: true };
+  const reason: TakeProfitRepair["reason"] = tpValid
+    ? "below_reward_risk_floor"
+    : typeof tp === "number" && Number.isFinite(tp) && tp > 0
+      ? "wrong_side"
+      : "missing";
+  return {
+    action: { ...action, takeProfitPrice: target },
+    repaired: true,
+    reason,
+  };
 }
 
 // One-line, human-readable summary of an executed action for the agent's journal
@@ -1491,7 +1511,9 @@ async function runCycleCore(
     }
     // Auto-clamp a missing/wrong-side futures take-profit to a valid R:R target
     // off the stop, so the open isn't silently rejected server-side (the runner
-    // owns trigger orientation; weak models routinely mis-sign it).
+    // owns trigger orientation; weak models routinely mis-sign it). Under a
+    // capital policy a correct-side TP inside the R:R floor is widened to it.
+    let takeProfitRepair: TakeProfitRepair | undefined;
     {
       const fixed = repairFuturesTakeProfit(
         action,
@@ -1503,6 +1525,15 @@ async function runCycleCore(
         const requested = (action as { takeProfitPrice?: number })
           .takeProfitPrice;
         action = fixed.action;
+        takeProfitRepair = {
+          requestedTakeProfitPrice:
+            typeof requested === "number" && Number.isFinite(requested)
+              ? requested
+              : null,
+          appliedTakeProfitPrice: (action as { takeProfitPrice: number })
+            .takeProfitPrice,
+          reason: fixed.reason ?? "missing",
+        };
         log(
           `repaired ${action.type} take-profit ${requested ?? "missing"} -> ${(action as { takeProfitPrice?: number }).takeProfitPrice} (R:R off stop; model TP was missing, wrong-side or inside the reward:risk floor)`,
         );
@@ -1539,6 +1570,7 @@ async function runCycleCore(
         reason: v.reason,
         quote,
         ...(capitalSizing ? { capitalSizing } : {}),
+        ...(takeProfitRepair ? { takeProfitRepair } : {}),
       });
       log(`reject ${action.type}: ${v.code} (${v.reason})`);
       continue;
@@ -1554,6 +1586,7 @@ async function runCycleCore(
         reason: "paper capital policy rejected quoted economics",
         quote,
         capitalSizing,
+        ...(takeProfitRepair ? { takeProfitRepair } : {}),
       });
       log(`reject ${action.type}: ${capitalRejection}`);
       continue;
@@ -1585,6 +1618,7 @@ async function runCycleCore(
         quote,
         executed: false,
         ...(capitalSizing ? { capitalSizing } : {}),
+        ...(takeProfitRepair ? { takeProfitRepair } : {}),
       });
       // Opt-in simulations reserve the same accepted capital as paper-live.
       // No close/sell proceeds are credited until a future observed wallet read.
@@ -1643,6 +1677,7 @@ async function runCycleCore(
       executed: r.ok,
       result: r.data,
       ...(capitalSizing ? { capitalSizing } : {}),
+      ...(takeProfitRepair ? { takeProfitRepair } : {}),
     });
     if (r.ok) {
       anyExecuted = true;
