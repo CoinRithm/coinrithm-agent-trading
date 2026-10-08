@@ -1,18 +1,19 @@
 {
-  "configHash": "sha256:4146035d80589e5c50dbc07b08caaf79196f07291486ba6ebb3863d80f5992ec",
+  "configHash": "sha256:b8192523a48f1c84e4dee2e13db4e5dfc83c02c536558f33a6bde725581cd3a6",
   "contentHashes": {
-    "agent.md": "sha256:050cd2281d298304b4103a2469dc82417998448da65cd2fc228ec83641246dcd",
+    "agent.md": "sha256:e49d3c92fefff4ad33988ba349877135af22d687b658ba1c067565b7eae5d4cf",
     "character/abstention.yaml": "sha256:8c7e78658c35687ec8ad8759f3bcea04525548467b70573f618dc8215adefde2",
     "character/entries.md": "sha256:49f36a0d11c44c15965b48e06f3dbdf88c70775c1874c2f8743a10927e6aea21",
     "character/exits.md": "sha256:e6632dfa9f5daa7b780569a1ca18f09f5140ce882d47ff4cf3620b53744059b2",
     "character/guards.md": "sha256:49e979fb08a33b21cc9621f718661e212757cfe7b1ff0aa981485b4a9f86cf72",
-    "character/limits.yaml": "sha256:563f9dd016d4ba5d53af20d50570e1e264c6a6112ee1b3eea33fd4b09d504333",
+    "character/limits.yaml": "sha256:6c7889c3d1b362aea5a24242e29f595d706eae372362b37519c3f2f13045a479",
     "character/persona.md": "sha256:6dda86c0af08b6edefb30eab12263bc32646045f3fbb440b5a3a886e02122a05",
     "character/research.md": "sha256:77fd940242fde69e89db57ce520c8dacddd43d2b9f6805b0a8339ada7b52d231",
-    "character/risk.yaml": "sha256:4959761136e0892599113b81230321ac84082bdcf4e562d270d67f29df583181",
+    "character/risk.yaml": "sha256:9b194135aae55e2ceb0d237074d55adafd4629356f6e12539ac14df918cea6b3",
     "character/sizing.md": "sha256:c1d0c416a176729939563b462e61dc0fb2fcdbaa609c6500598e9e6f01b38678",
     "character/sizing.yaml": "sha256:6e54354190108bbf52de440dcc3db6a086cd0e8bf9ca96df801755224b37e15a",
     "character/thesis.md": "sha256:566ef933d3353f9b6d13bac702d4cc55059a63a86095e474591c78ceda688eb2",
+    "character/universe.yaml": "sha256:5142af6df95fad578538304a010789c9e75b97502dfcec405b8bd12b06860172",
     "functionality/coinrithm.yaml": "sha256:d109ef9569618c60ca5d00190ff59376dc0e30ea2ac085cfc8557f966d089e45",
     "journal/notes.md": "sha256:931fe973205d1b9c10789e1d00c9b55cd945604623bc43479d29e3c84f50be7c",
     "runtime.yaml": "sha256:bf074f710fa3edd8858ab7d682b3151b1571d725119790e5a80cef33ad3f92a2",
@@ -24,6 +25,7 @@
     "mergeOrder": [
       "agent.md",
       "runtime.yaml",
+      "character/universe.yaml",
       "character/sizing.yaml",
       "character/risk.yaml",
       "character/limits.yaml",
@@ -56,6 +58,7 @@
       "spec": "agent.md",
       "sync": "agent.md",
       "trigger": "runtime.yaml",
+      "universe": "character/universe.yaml",
       "venues": "agent.md"
     }
   },
@@ -71,10 +74,15 @@
     "capitalSizing": {
       "cashReservePct": 20,
       "futuresRiskPct": 1,
+      "highConviction": {
+        "futuresRiskPct": 5,
+        "minConfidence": 0.85,
+        "perTicketCapitalPct": 50
+      },
       "minRewardRisk": 2,
       "perTicketCapitalPct": 12,
       "pmMaxLossPct": 1,
-      "totalCapitalPct": 50,
+      "totalCapitalPct": 70,
       "version": "equity_fraction_v1"
     },
     "description": "Trend-following CoinRithm paper-futures agent. She trades only in the direction of the 7-day and 24-hour trend, enters on pullbacks, sets a stop about one day's move away and trails winners for days.",
@@ -86,7 +94,7 @@
     },
     "limits": {
       "maxDailyLossMusd": 0,
-      "maxOpenMarginMusd": 24000,
+      "maxOpenMarginMusd": 40000,
       "maxTradesPerDay": 0,
       "maxWritesPerCycle": 2
     },
@@ -107,7 +115,9 @@
     "risk": {
       "maxConcurrentPositions": 4,
       "maxLeverage": 4,
-      "perTradeMarginMusd": 6000,
+      "perTradeMarginMusd": 30000,
+      "pmMaxEdgePoints": 20,
+      "pmMaxOpenPerEvent": 1,
       "pmMinEntryProbabilityPct": 20,
       "requireStopLoss": true,
       "watchlist": [
@@ -131,6 +141,19 @@
       "cadence": "1h",
       "timezone": "UTC"
     },
+    "universe": {
+      "excludeSectors": [
+        "pegged-assets"
+      ],
+      "excludeStablecoins": true,
+      "minVolume24hUsd": 10000000,
+      "rank": {
+        "max": 100,
+        "min": 1
+      },
+      "resolveTop": 6,
+      "sort": "abs_change_24h"
+    },
     "venues": [
       "futures",
       "spot",
@@ -153,10 +176,15 @@
     "capitalSizing": {
       "cashReservePct": 20,
       "futuresRiskPct": 1,
+      "highConviction": {
+        "futuresRiskPct": 5,
+        "minConfidence": 0.85,
+        "perTicketCapitalPct": 50
+      },
       "minRewardRisk": 2,
       "perTicketCapitalPct": 12,
       "pmMaxLossPct": 1,
-      "totalCapitalPct": 50,
+      "totalCapitalPct": 70,
       "version": "equity_fraction_v1"
     },
     "description": "Trend-following CoinRithm paper-futures agent. She trades only in the direction of the 7-day and 24-hour trend, enters on pullbacks, sets a stop about one day's move away and trails winners for days.",
@@ -168,7 +196,7 @@
     },
     "limits": {
       "maxDailyLossMusd": 0,
-      "maxOpenMarginMusd": 24000,
+      "maxOpenMarginMusd": 40000,
       "maxTradesPerDay": 1000000,
       "maxWritesPerCycle": 2
     },
@@ -189,7 +217,9 @@
       "blocklist": [],
       "maxConcurrentPositions": 4,
       "maxLeverage": 4,
-      "perTradeMarginMusd": 6000,
+      "perTradeMarginMusd": 30000,
+      "pmMaxEdgePoints": 20,
+      "pmMaxOpenPerEvent": 1,
       "pmMinEntryProbabilityPct": 20,
       "requireStopLoss": true,
       "watchlist": [
@@ -215,6 +245,19 @@
       "mode": "event_driven",
       "pmEvalCooldownMinutes": 10,
       "skipLlmWhenNoTrigger": true
+    },
+    "universe": {
+      "excludeSectors": [
+        "pegged-assets"
+      ],
+      "excludeStablecoins": true,
+      "minVolume24hUsd": 10000000,
+      "rank": {
+        "max": 100,
+        "min": 1
+      },
+      "resolveTop": 6,
+      "sort": "abs_change_24h"
     },
     "venues": [
       "futures",

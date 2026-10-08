@@ -1,18 +1,19 @@
 {
-  "configHash": "sha256:de975acec6aa5e9968e3bf2052906bdf96b2315d7161e198c077aa6a0c211aad",
+  "configHash": "sha256:8a3dcf13cc47ac7d10c0cbb047b080a0e598c15948c838cc5356947038628b54",
   "contentHashes": {
-    "agent.md": "sha256:e4beda26ee4d470b90ac7b958c432b15648517a929932126655fd28b0edb3d36",
+    "agent.md": "sha256:367ba9cbeb144e22b7fa8e199db246e581c7e10583ad9d372aeaa445d150042b",
     "character/abstention.yaml": "sha256:8af8788902fe47d64870cf1020886ac32265d9fc0d6438ee518e399e81f00794",
     "character/entries.md": "sha256:bf20df96b3d80a9728003a677b16519dcf5fd315024d10bcf71d568114b57467",
     "character/exits.md": "sha256:5bc15d197f90c894bb952e213a07b6dbe21dac873773f5b35a841a36597bf682",
     "character/guards.md": "sha256:baae72888100bd7a2f2bc13440ffc876be3b39654e3dbd1076fb023eeeb122cf",
-    "character/limits.yaml": "sha256:840b9e937490d8212f27a2c8070c4c53dd3f6833a88e1d80a1a258d783004571",
+    "character/limits.yaml": "sha256:94fcf0780badc87602f88ab9b7ba15abeb248bbeb9a7bdb32badf194a495934c",
     "character/persona.md": "sha256:7b43d4cac3d97a44969d256048a998d9a7b74f9ad3e3c487c4a63dadbf605196",
     "character/research.md": "sha256:487abdd2cda120da6eab540e921dfc5e2f5196af8014ef09e0244a3b6084dbda",
-    "character/risk.yaml": "sha256:7edef2f5d3b9020d9693615954e744e87a62d942ae0cb2419cf4d68574c64a44",
+    "character/risk.yaml": "sha256:b7dd1def9d795173380fafa917b1534487312da5748765726c2fbdc3d4c77744",
     "character/sizing.md": "sha256:81a8400b04da5425820ad5ded66a8cfa3d7e24668d32b6481a7b82463f7a5ae7",
     "character/sizing.yaml": "sha256:9076c4ba169099cece52cb49c27c4c220649cea4ab21e73033fae83f30da045f",
     "character/thesis.md": "sha256:060cc733ca840642f2ee31fa91fb549ec80fb1b264b4f8848eb9a7c70cef7968",
+    "character/universe.yaml": "sha256:9c52bc5e5c402408bfd0088494c8e891d0dc50676fbaf8c2335167a5fbfb3400",
     "functionality/coinrithm.yaml": "sha256:d109ef9569618c60ca5d00190ff59376dc0e30ea2ac085cfc8557f966d089e45",
     "journal/notes.md": "sha256:b2457f7fee4be0e20b52669184502626ed54778a64f7dd4abda88398caa7fa4d",
     "runtime.yaml": "sha256:bf074f710fa3edd8858ab7d682b3151b1571d725119790e5a80cef33ad3f92a2",
@@ -24,6 +25,7 @@
     "mergeOrder": [
       "agent.md",
       "runtime.yaml",
+      "character/universe.yaml",
       "character/sizing.yaml",
       "character/risk.yaml",
       "character/limits.yaml",
@@ -56,6 +58,7 @@
       "spec": "agent.md",
       "sync": "agent.md",
       "trigger": "runtime.yaml",
+      "universe": "character/universe.yaml",
       "venues": "agent.md"
     }
   },
@@ -71,10 +74,15 @@
     "capitalSizing": {
       "cashReservePct": 20,
       "futuresRiskPct": 0.75,
+      "highConviction": {
+        "futuresRiskPct": 5,
+        "minConfidence": 0.85,
+        "perTicketCapitalPct": 50
+      },
       "minRewardRisk": 2,
       "perTicketCapitalPct": 10,
       "pmMaxLossPct": 1,
-      "totalCapitalPct": 40,
+      "totalCapitalPct": 70,
       "version": "equity_fraction_v1"
     },
     "description": "Breakout CoinRithm paper-futures agent. He trades the first close through a 20-bar range in the direction of the day, prefers breaks out of a coil or with fresh news, and cuts a failed break at the level.",
@@ -86,7 +94,7 @@
     },
     "limits": {
       "maxDailyLossMusd": 0,
-      "maxOpenMarginMusd": 15000,
+      "maxOpenMarginMusd": 35000,
       "maxTradesPerDay": 0,
       "maxWritesPerCycle": 2
     },
@@ -107,7 +115,9 @@
     "risk": {
       "maxConcurrentPositions": 3,
       "maxLeverage": 4,
-      "perTradeMarginMusd": 5000,
+      "perTradeMarginMusd": 30000,
+      "pmMaxEdgePoints": 20,
+      "pmMaxOpenPerEvent": 1,
       "pmMinEntryProbabilityPct": 20,
       "requireStopLoss": true,
       "watchlist": [
@@ -131,6 +141,19 @@
       "cadence": "1h",
       "timezone": "UTC"
     },
+    "universe": {
+      "excludeSectors": [
+        "pegged-assets"
+      ],
+      "excludeStablecoins": true,
+      "minVolume24hUsd": 10000000,
+      "rank": {
+        "max": 100,
+        "min": 1
+      },
+      "resolveTop": 6,
+      "sort": "abs_change_24h"
+    },
     "venues": [
       "futures",
       "spot",
@@ -153,10 +176,15 @@
     "capitalSizing": {
       "cashReservePct": 20,
       "futuresRiskPct": 0.75,
+      "highConviction": {
+        "futuresRiskPct": 5,
+        "minConfidence": 0.85,
+        "perTicketCapitalPct": 50
+      },
       "minRewardRisk": 2,
       "perTicketCapitalPct": 10,
       "pmMaxLossPct": 1,
-      "totalCapitalPct": 40,
+      "totalCapitalPct": 70,
       "version": "equity_fraction_v1"
     },
     "description": "Breakout CoinRithm paper-futures agent. He trades the first close through a 20-bar range in the direction of the day, prefers breaks out of a coil or with fresh news, and cuts a failed break at the level.",
@@ -168,7 +196,7 @@
     },
     "limits": {
       "maxDailyLossMusd": 0,
-      "maxOpenMarginMusd": 15000,
+      "maxOpenMarginMusd": 35000,
       "maxTradesPerDay": 1000000,
       "maxWritesPerCycle": 2
     },
@@ -189,7 +217,9 @@
       "blocklist": [],
       "maxConcurrentPositions": 3,
       "maxLeverage": 4,
-      "perTradeMarginMusd": 5000,
+      "perTradeMarginMusd": 30000,
+      "pmMaxEdgePoints": 20,
+      "pmMaxOpenPerEvent": 1,
       "pmMinEntryProbabilityPct": 20,
       "requireStopLoss": true,
       "watchlist": [
@@ -215,6 +245,19 @@
       "mode": "event_driven",
       "pmEvalCooldownMinutes": 10,
       "skipLlmWhenNoTrigger": true
+    },
+    "universe": {
+      "excludeSectors": [
+        "pegged-assets"
+      ],
+      "excludeStablecoins": true,
+      "minVolume24hUsd": 10000000,
+      "rank": {
+        "max": 100,
+        "min": 1
+      },
+      "resolveTop": 6,
+      "sort": "abs_change_24h"
     },
     "venues": [
       "futures",
