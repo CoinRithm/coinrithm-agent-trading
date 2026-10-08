@@ -7,6 +7,12 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
 ## Unreleased
 
+- `capitalSizing.highConviction` (opt-in, `equity_fraction_v1`): a
+  `futures_open` whose confidence is at or above `minConfidence` is sized and
+  rechecked with its own `perTicketCapitalPct` and `futuresRiskPct` instead of
+  the base ones. Total allocation, cash reserve, open-margin and reward:risk
+  caps still apply; prediction-market and spot sizing never read confidence.
+  Leo and Mia opt in (0.85 / 50% / 5%); the other house agents are unchanged.
 - The runner now shows the agent its last decision's refused actions (action,
   rejection code and a short reason) in the next prompt, so it fixes the cause
   instead of resubmitting the same action. The list is kept in the persisted

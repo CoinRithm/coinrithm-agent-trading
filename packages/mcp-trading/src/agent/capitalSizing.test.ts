@@ -26,6 +26,11 @@ const policy: CapitalSizingPolicy = {
   cashReservePct: 20,
   minRewardRisk: 1.5,
 };
+const highConviction = {
+  minConfidence: 0.85,
+  perTicketCapitalPct: 30,
+  futuresRiskPct: 3,
+};
 const spec = () => ({
   ...parseSkill(renderFolderOfOne("test", "conservative")).spec,
   capitalSizing: policy,
@@ -458,6 +463,14 @@ describe("deterministic equity fraction tickets", () => {
     { ...policy, perTicketCapitalPct: 41 },
     { ...policy, totalCapitalPct: 81 },
     { ...policy, surprise: 1 },
+    { ...policy, highConviction: null },
+    { ...policy, highConviction: { ...highConviction, minConfidence: 1.5 } },
+    {
+      ...policy,
+      highConviction: { ...highConviction, perTicketCapitalPct: 41 },
+    },
+    { ...policy, highConviction: { ...highConviction, futuresRiskPct: 0 } },
+    { ...policy, highConviction: { ...highConviction, surprise: 1 } },
   ])(
     "fails closed for malformed persisted policy without blocking protection %#",
     (value) => {
@@ -636,6 +649,73 @@ describe("deterministic equity fraction tickets", () => {
         estimatedFeeMusd: 0.4,
       }),
     ).toBe("capital_spot_risk_exceeded");
+  });
+});
+
+describe("opt-in high-conviction futures tier", () => {
+  const hcSpec = () => ({
+    ...spec(),
+    capitalSizing: { ...policy, highConviction },
+  });
+  const base = Math.floor((375 / (2 * (0.1 + 0.001 * (1 + 0.9)))) * 100) / 100;
+  const big = Math.floor((1_500 / (2 * (0.1 + 0.001 * (1 + 0.9)))) * 100) / 100;
+  it.each([
+    [undefined, base],
+    [0.84, base],
+    [0.85, big],
+    [0.95, big],
+  ])("confidence %s sizes margin %s", (confidence, margin) => {
+    const action = {
+      ...future,
+      ...(confidence === undefined ? {} : { confidence }),
+    };
+    const sized = prepareCapitalAction(action, hcSpec(), observation(), budget);
+    expect(sized.action).toMatchObject({ marginMusd: margin });
+    expect(
+      validateCapitalAction(
+        sized.action,
+        hcSpec(),
+        observation(),
+        budget,
+        quote(margin),
+      ),
+    ).toBeUndefined();
+  });
+  it("rechecks the base stop risk when the action is below the threshold", () => {
+    expect(
+      validateCapitalAction(
+        { ...future, marginMusd: big, confidence: 0.84 },
+        hcSpec(),
+        observation(),
+        budget,
+        quote(big),
+      ),
+    ).toBe("capital_quote_stop_risk_exceeded");
+  });
+  it("keeps the ticket ceiling at the high-conviction percent", () => {
+    const tight = {
+      ...hcSpec(),
+      capitalSizing: {
+        ...policy,
+        highConviction: { ...highConviction, perTicketCapitalPct: 10 },
+      },
+    };
+    const sized = prepareCapitalAction(
+      { ...future, confidence: 0.9 },
+      tight,
+      observation(),
+      budget,
+    );
+    expect(sized.action).toMatchObject({ marginMusd: 5_000 });
+  });
+  it("never changes prediction-market stakes", () => {
+    const sized = prepareCapitalAction(
+      { ...bet, confidence: 0.99 } as ProposedAction,
+      hcSpec(),
+      observation(),
+      budget,
+    );
+    expect(sized.action).toMatchObject({ stakeMusd: 1_000 });
   });
 });
 

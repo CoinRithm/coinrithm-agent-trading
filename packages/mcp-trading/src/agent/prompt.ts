@@ -235,6 +235,11 @@ export function buildSystemPrompt(
     ...(usesCapitalSizing(spec)
       ? [
           `- Opt-in paper capital policy ${spec.capitalSizing?.version ?? "invalid"}: the runner REPLACES proposed futures margins and PM stakes using current owned-book evidence, stops and fixed policy limits; it does not treat your confidence or the nominal starting grant as a sizing instruction. Choose the market, direction and meaningful protection; invalid policy, quoted costs, shared allocation and cash reserve can still reject an entry.`,
+          ...(spec.capitalSizing?.highConviction
+            ? [
+                `- HIGH-CONVICTION exception: a futures_open with confidence >= ${spec.capitalSizing.highConviction.minConfidence} is sized with the larger limits (ticket up to ${spec.capitalSizing.highConviction.perTicketCapitalPct}% of equity, stop risk up to ${spec.capitalSizing.highConviction.futuresRiskPct}%). Rate a setup that high ONLY when it is your best opportunity in days: its stop-out costs far more. Everything else stays at the base size.`,
+              ]
+            : []),
         ]
       : []),
     ...(hasFutures

@@ -62,6 +62,7 @@ export function validateCapitalSizingPolicy(
     ...percentKeys,
     "cashReservePct",
     "minRewardRisk",
+    "highConviction",
   ]);
   for (const key of Object.keys(p)) {
     if (!allowedKeys.has(key))
@@ -115,6 +116,48 @@ export function validateCapitalSizingPolicy(
       "skill_capital_sizing_total_reserve",
       "capitalSizing.totalCapitalPct + cashReservePct cannot exceed 100",
     );
+  }
+  if (p.highConviction !== undefined) {
+    const hc = p.highConviction;
+    if (!isObj(hc)) {
+      add(
+        "skill_capital_sizing_high_conviction",
+        "capitalSizing.highConviction must be an object",
+      );
+    } else {
+      for (const key of Object.keys(hc)) {
+        if (
+          !["minConfidence", "perTicketCapitalPct", "futuresRiskPct"].includes(
+            key,
+          )
+        )
+          add(
+            "skill_capital_sizing_unknown_key",
+            `unknown capitalSizing.highConviction key "${key}"`,
+          );
+      }
+      if (!isPosNum(hc.minConfidence) || hc.minConfidence > 1)
+        add(
+          "skill_capital_sizing_high_conviction",
+          "capitalSizing.highConviction.minConfidence must be a finite number in (0, 1]",
+        );
+      for (const key of ["perTicketCapitalPct", "futuresRiskPct"] as const) {
+        if (!isPosNum(hc[key]) || (hc[key] as number) > 100)
+          add(
+            "skill_capital_sizing_percent",
+            `capitalSizing.highConviction.${key} must be a finite number in (0, 100]`,
+          );
+      }
+      if (
+        isPosNum(hc.perTicketCapitalPct) &&
+        isPosNum(p.totalCapitalPct) &&
+        hc.perTicketCapitalPct > p.totalCapitalPct
+      )
+        add(
+          "skill_capital_sizing_ticket_cap",
+          "capitalSizing.highConviction.perTicketCapitalPct cannot exceed totalCapitalPct",
+        );
+    }
   }
   return issues;
 }

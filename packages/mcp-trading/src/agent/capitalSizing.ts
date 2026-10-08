@@ -5,6 +5,7 @@ import { validateCapitalSizingPolicy } from "./skillValidator.js";
 import type {
   AgentSpec,
   CapitalBook,
+  CapitalSizingPolicy,
   CapitalSizingAdjustment,
   Observation,
   ProposedAction,
@@ -28,6 +29,38 @@ const positive = (n: unknown): n is number =>
   asNum(n) !== undefined && (n as number) > 0;
 const nonnegative = (n: unknown): n is number =>
   asNum(n) !== undefined && (n as number) >= 0;
+
+/** The ticket and stop-risk limits for one action. Owner 2026-10-08: a
+ * risk-taker may size a futures entry it rates at or above
+ * highConviction.minConfidence far above its base ticket. Only futures_open
+ * qualifies; PM and spot sizing never read confidence. */
+export function capitalLimitsFor(
+  policy: CapitalSizingPolicy,
+  action: ProposedAction,
+): {
+  perTicketCapitalPct: number;
+  futuresRiskPct: number;
+  highConviction: boolean;
+} {
+  const hc = policy.highConviction;
+  if (
+    hc &&
+    action.type === "futures_open" &&
+    typeof action.confidence === "number" &&
+    Number.isFinite(action.confidence) &&
+    action.confidence >= hc.minConfidence
+  )
+    return {
+      perTicketCapitalPct: hc.perTicketCapitalPct,
+      futuresRiskPct: hc.futuresRiskPct,
+      highConviction: true,
+    };
+  return {
+    perTicketCapitalPct: policy.perTicketCapitalPct,
+    futuresRiskPct: policy.futuresRiskPct,
+    highConviction: false,
+  };
+}
 
 /** Reconcile the bounded open-position reads against the wallet's frozen
  * buckets. A full page is not assumed complete: the collateral checksums must
@@ -167,6 +200,7 @@ export function prepareCapitalAction(
   if (validateCapitalSizingPolicy(spec.capitalSizing).length > 0)
     return { action, rejection: "capital_policy_invalid" };
   const policy = spec.capitalSizing!;
+  const limits = capitalLimitsFor(policy, action);
   const adjustment: CapitalSizingAdjustment = {
     version: policy.version,
     basis: "owned_collateral_spot_marked_negative_position_marks_only",
@@ -186,7 +220,7 @@ export function prepareCapitalAction(
   adjustment.conservativeEquityMusd = equity;
   const ticket = Math.min(
     spec.risk.perTradeMarginMusd,
-    (equity * policy.perTicketCapitalPct) / 100,
+    (equity * limits.perTicketCapitalPct) / 100,
   );
   const room = Math.min(
     ticket,
@@ -220,7 +254,7 @@ export function prepareCapitalAction(
   const distance = Math.abs(mark - stop) / mark;
   const fee = CAPITAL_FEE_BUFFER_BPS / 10_000;
   const riskPerMargin = action.leverage * (distance + fee * (1 + stop / mark));
-  const riskBudget = (equity * policy.futuresRiskPct) / 100;
+  const riskBudget = (equity * limits.futuresRiskPct) / 100;
   const margin = centsDown(
     Math.min(
       ticket,
@@ -262,6 +296,7 @@ export function validateCapitalAction(
     !nonnegative(budget.openMarginMusd)
   )
     return "capital_budget_unavailable";
+  const limits = capitalLimitsFor(p, action);
   let cost: number | undefined, allocated: number | undefined;
   if (action.type === "pm_open") {
     cost = allocated = action.stakeMusd;
@@ -308,7 +343,7 @@ export function validateCapitalAction(
       (notional * favorable) / entry -
       entryFee -
       ((notional * target) / entry) * feeRate;
-    if (risk > (equity * p.futuresRiskPct) / 100 + 1e-8)
+    if (risk > (equity * limits.futuresRiskPct) / 100 + 1e-8)
       return "capital_quote_stop_risk_exceeded";
     if (reward / risk + 1e-8 < p.minRewardRisk)
       return "capital_quote_reward_risk_too_low";
@@ -319,7 +354,7 @@ export function validateCapitalAction(
     cost >
     Math.min(
       spec.risk.perTradeMarginMusd,
-      (equity * p.perTicketCapitalPct) / 100,
+      (equity * limits.perTicketCapitalPct) / 100,
     ) +
       1e-8
   )

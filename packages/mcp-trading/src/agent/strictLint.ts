@@ -95,6 +95,7 @@ const ALLOWED_KEYS: Record<string, string[] | null> = {
     "totalCapitalPct",
     "cashReservePct",
     "minRewardRisk",
+    "highConviction",
   ],
   limits: [
     "maxTradesPerDay",

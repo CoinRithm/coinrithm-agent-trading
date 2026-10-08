@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-08 - high-conviction entries (owner GO)
+
+Owner: default trades stay small; a risk-taker may put 20,000-30,000 on one opportunity it rates highly, and losing the book is accepted because a balance reset exists.
+
+Changes:
+- agent.md capitalSizing: new `highConviction` (futures entries with confidence >= 0.85: ticket up to 50% of equity, stop risk up to 5%); totalCapitalPct 50 -> 70 so one such entry fits beside the reserve. Other entries keep the base ticket and risk.
+- character/risk.yaml: perTradeMarginMusd 6000 -> 30000 (an absolute ceiling; base entries stay bounded by perTicketCapitalPct 12%).
+- character/limits.yaml: maxOpenMarginMusd 24000 -> 40000.
+
 ## 2026-10-07 - granular, enforced settings
 
 Evidence, read-only from production on 2026-10-07 (Data, temp/agentic-baseline-20261007/BASELINE.md):

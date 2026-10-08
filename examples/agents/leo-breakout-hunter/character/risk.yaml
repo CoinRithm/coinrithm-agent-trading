@@ -1,6 +1,6 @@
 # Enforced on every entry. These must stay positive: 0 here blocks trading.
 maxLeverage: 4 # leverage changes margin use, not risk; the stop sets the risk
-perTradeMarginMusd: 5000 # = perTicketCapitalPct 10% of the original 50,000 book
+perTradeMarginMusd: 30000 # absolute ceiling; base entries stay at perTicketCapitalPct 10% of equity, high-conviction entries up to 50%
 maxConcurrentPositions: 3 # open futures positions
 requireStopLoss: true
 pmMinEntryProbabilityPct: 20 # chosen-outcome entry price in points, before fees

@@ -103,6 +103,24 @@ function buildCapitalSizing(raw: unknown): CapitalSizingPolicy {
     totalCapitalPct: num(policy.totalCapitalPct, Number.NaN),
     cashReservePct: num(policy.cashReservePct, Number.NaN),
     minRewardRisk: num(policy.minRewardRisk, Number.NaN),
+    ...(policy.highConviction !== undefined
+      ? {
+          highConviction: {
+            minConfidence: num(
+              obj(policy.highConviction).minConfidence,
+              Number.NaN,
+            ),
+            perTicketCapitalPct: num(
+              obj(policy.highConviction).perTicketCapitalPct,
+              Number.NaN,
+            ),
+            futuresRiskPct: num(
+              obj(policy.highConviction).futuresRiskPct,
+              Number.NaN,
+            ),
+          },
+        }
+      : {}),
   };
 }
 

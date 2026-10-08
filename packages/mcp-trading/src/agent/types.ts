@@ -184,6 +184,16 @@ export interface CapitalSizingPolicy {
   totalCapitalPct: number;
   cashReservePct: number;
   minRewardRisk: number;
+  /** Opt-in (owner 2026-10-08): a futures_open the model rates at or above
+   * minConfidence uses these larger ticket and stop-risk limits instead of
+   * the base ones. Every other cap (total, reserve, open margin, R:R) holds. */
+  highConviction?: CapitalHighConviction;
+}
+
+export interface CapitalHighConviction {
+  minConfidence: number;
+  perTicketCapitalPct: number;
+  futuresRiskPct: number;
 }
 
 export type CapitalBook =

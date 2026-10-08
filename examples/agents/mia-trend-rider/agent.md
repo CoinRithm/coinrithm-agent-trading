@@ -33,9 +33,13 @@ capitalSizing:
   futuresRiskPct: 1 # loss at the stop, % of equity, per futures entry
   pmMaxLossPct: 1 # stake per prediction-market bet, % of equity
   perTicketCapitalPct: 12 # margin ceiling per entry, % of equity
-  totalCapitalPct: 50 # all open margin and stakes together, % of equity
+  totalCapitalPct: 70 # all open margin and stakes together, % of equity
   cashReservePct: 20 # cash never committed, % of equity
   minRewardRisk: 2 # fee-inclusive target/stop floor; trend payoffs need 2R+
+  highConviction: # owner 2026-10-08: a futures entry rated >= 0.85 may go big; blowing the book is accepted (balance reset exists)
+    minConfidence: 0.85
+    perTicketCapitalPct: 50 # margin ceiling for that entry, % of equity (25,000 of 50,000)
+    futuresRiskPct: 5 # loss at the stop for that entry, % of equity
 risk:
   $ref: character/risk.yaml
 limits:
