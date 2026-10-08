@@ -750,6 +750,62 @@ describe("take-profit repair boundaries", () => {
       ),
     ).toEqual({ action: a, repaired: false });
   });
+  // Owner GO 2026-10-08: widen a correct-side TP that sits inside the agent's
+  // own capital reward:risk floor instead of letting the quote check refuse it.
+  const costed = {
+    entryPrice: 70,
+    futuresFeeBps: 5,
+    estimatedEntryFeeMusd: 0.05,
+  };
+  // The quote check in capitalSizing.validateCapitalAction, for notional 100.
+  const rewardRisk = (side: "long" | "short", stop: number, tp: number) => {
+    const n = 100,
+      fee = 0.0005,
+      e = 0.05;
+    const adverse = side === "long" ? 70 - stop : stop - 70;
+    const favorable = side === "long" ? tp - 70 : 70 - tp;
+    const risk = (n * adverse) / 70 + e + ((n * stop) / 70) * fee;
+    const reward = (n * favorable) / 70 - e - ((n * tp) / 70) * fee;
+    return reward / risk;
+  };
+  it("widens a long take-profit inside the capital reward:risk floor", () => {
+    const r = repairFuturesTakeProfit(
+      { ...action, takeProfitPrice: 72 },
+      costed,
+      2,
+    );
+    const tp = (r.action as { takeProfitPrice: number }).takeProfitPrice;
+    expect(r.repaired).toBe(true);
+    expect(tp).toBeGreaterThan(72);
+    expect(rewardRisk("long", 60, tp) + 1e-8).toBeGreaterThanOrEqual(2);
+  });
+  it("widens a short take-profit inside the floor downward", () => {
+    const a = {
+      ...action,
+      side: "short",
+      stopLossPrice: 80,
+      takeProfitPrice: 68,
+    } as ProposedAction;
+    const r = repairFuturesTakeProfit(a, costed, 2);
+    const tp = (r.action as { takeProfitPrice: number }).takeProfitPrice;
+    expect(r.repaired).toBe(true);
+    expect(tp).toBeLessThan(68);
+    expect(rewardRisk("short", 80, tp) + 1e-8).toBeGreaterThanOrEqual(2);
+  });
+  it("never narrows a take-profit already beyond the floor", () => {
+    const a = { ...action, takeProfitPrice: 95 } as ProposedAction;
+    expect(repairFuturesTakeProfit(a, costed, 2)).toEqual({
+      action: a,
+      repaired: false,
+    });
+  });
+  it("leaves a correct-side take-profit alone without a capital floor", () => {
+    const a = { ...action, takeProfitPrice: 72 } as ProposedAction;
+    expect(repairFuturesTakeProfit(a, costed)).toEqual({
+      action: a,
+      repaired: false,
+    });
+  });
 });
 
 describe("PM periodic budget gate", () => {

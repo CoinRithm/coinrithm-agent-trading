@@ -238,7 +238,11 @@ export function repairFuturesTakeProfit(
     Number.isFinite(tp) &&
     tp > 0 &&
     (isLong ? tp > entry : tp < entry);
-  if (tpValid) return { action, repaired: false };
+  // A correct-side TP is only revisited against the agent's own capital R:R
+  // floor (owner GO 2026-10-08: widen a too-close target instead of refusing
+  // the trade; 114 capital_quote_reward_risk_too_low refusals in 10 h).
+  if (tpValid && capitalMinimumRewardRisk === undefined)
+    return { action, repaired: false };
   // Stop must be on the correct side to imply a positive risk distance; if it
   // isn't, leave the action for the validator to reject (don't fabricate).
   const risk = isLong ? entry - sl : sl - entry;
@@ -268,6 +272,9 @@ export function repairFuturesTakeProfit(
       : (entry * (notional - entryFee - required)) / (notional * (1 + fee));
   }
   if (!(target > 0)) return { action, repaired: false };
+  // Widen only: a valid TP at or beyond the floor is the model's choice.
+  if (tpValid && (isLong ? (tp as number) >= target : (tp as number) <= target))
+    return { action, repaired: false };
   return { action: { ...action, takeProfitPrice: target }, repaired: true };
 }
 
@@ -1494,7 +1501,7 @@ async function runCycleCore(
       if (fixed.repaired) {
         action = fixed.action;
         log(
-          `repaired ${action.type} take-profit -> ${(action as { takeProfitPrice?: number }).takeProfitPrice} (R:R off stop; model TP was missing/wrong-side)`,
+          `repaired ${action.type} take-profit -> ${(action as { takeProfitPrice?: number }).takeProfitPrice} (R:R off stop; model TP was missing, wrong-side or inside the reward:risk floor)`,
         );
       }
     }

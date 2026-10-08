@@ -7,6 +7,11 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
 ## Unreleased
 
+- Capital-sizing agents: a correct-side futures take-profit that sits inside
+  the agent's own `capitalSizing.minRewardRisk` floor is widened to that floor
+  (fees included) instead of the open being refused as
+  `capital_quote_reward_risk_too_low`. A target at or beyond the floor is never
+  changed; agents without a capital policy are unaffected.
 - `capitalSizing.highConviction` (opt-in, `equity_fraction_v1`): a
   `futures_open` whose confidence is at or above `minConfidence` is sized and
   rechecked with its own `perTicketCapitalPct` and `futuresRiskPct` instead of
