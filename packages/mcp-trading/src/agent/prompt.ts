@@ -629,7 +629,9 @@ export function buildUserPrompt(
     );
   }
   // Persisted state is read back defensively: only well-formed entries render.
-  const rejections = (opts.lastRejections ?? [])
+  const rejections = (
+    Array.isArray(opts.lastRejections) ? opts.lastRejections : []
+  )
     .filter(
       (r) =>
         r &&
@@ -644,7 +646,7 @@ export function buildUserPrompt(
       "## Your last decision's REJECTED actions (refused, nothing happened) - do NOT resubmit them unchanged; fix the cause shown or choose differently:",
       ...rejections.map(
         (r) =>
-          `- ${r.action}: ${r.code}${typeof r.reason === "string" && r.reason ? ` - ${r.reason.slice(0, 200)}` : ""}`,
+          `- ${r.action.replace(/\s+/g, " ").slice(0, 200)}: ${r.code.replace(/\s+/g, " ").slice(0, 80)}${typeof r.reason === "string" && r.reason ? ` - ${r.reason.replace(/\s+/g, " ").slice(0, 200)}` : ""}`,
       ),
     );
   }

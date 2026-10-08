@@ -258,6 +258,12 @@ describe("runner lifecycle and failure boundaries", () => {
       }
       expect(d.state.writesToday).toBe(0);
       expect(d.state.journal ?? []).toEqual([]);
+      expect(d.state.lastRejections).toEqual([
+        expect.objectContaining({
+          action: expect.stringContaining("futures_set_sltp pos#7"),
+          code: markMoved ? "sl_tp_invalid" : "stop_loss_not_above_mark",
+        }),
+      ]);
     },
   );
 
@@ -840,6 +846,14 @@ describe("confirmed action memory", () => {
       });
       expect(client.setFuturesSlTp).toHaveBeenCalledTimes(1);
       expect(d.state.journal).toEqual(before);
+      if (status === 422) {
+        expect(d.state.lastRejections?.[0]).toMatchObject({
+          code: "sl_tp_invalid",
+          reason: "stop_loss_not_below_mark",
+        });
+      } else {
+        expect(d.state.lastRejections).toBeUndefined();
+      }
       c.decide.mockResolvedValue({
         ok: true,
         text: JSON.stringify({ decision: "skip" }),
@@ -854,6 +868,10 @@ describe("confirmed action memory", () => {
       expect(c.decide.mock.calls[1][0].user).toContain(
         "confirmed earlier action",
       );
+      expect(c.decide.mock.calls[1][0].user.includes("REJECTED actions")).toBe(
+        status === 422,
+      );
+      expect(d.state.lastRejections).toBeUndefined();
     },
   );
   it("keeps only confirmed moves and omits the whole-cycle rationale on partial success", async () => {

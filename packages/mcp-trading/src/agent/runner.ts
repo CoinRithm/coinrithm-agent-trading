@@ -1261,6 +1261,7 @@ async function runCycleCore(
 
   // VALIDATE (+ ACT when live). Quote evidence is fetched by the runner.
   const planned: PlannedAction[] = [];
+  const protectionRefusals: PlannedAction[] = [];
   let riskIncreasesThisCycle = 0;
   let openCount = observation.openPositions.length;
   // RUNNING totals so multiple opens in one cycle accumulate correctly.
@@ -1680,6 +1681,28 @@ async function runCycleCore(
         committedCapitalMusd += capitalCashCost(action, quote);
     } else {
       anyExecFailed = true;
+      // The mark can move after local validation. This explicit API rejection
+      // confirms that the protection update was refused. A timeout/5xx cannot
+      // establish that nothing happened and must never enter this feedback.
+      const response = asObj(r.data);
+      if (
+        action.type === "futures_set_sltp" &&
+        r.status === 422 &&
+        response.error === "sl_tp_invalid"
+      ) {
+        const codes = Array.isArray(response.blockReasons)
+          ? response.blockReasons.filter(
+              (code): code is string =>
+                typeof code === "string" && /^[a-z][a-z0-9_]{0,79}$/.test(code),
+            )
+          : [];
+        protectionRefusals.push({
+          action,
+          accepted: false,
+          code: "sl_tp_invalid",
+          reason: codes.slice(0, 5).join(", ") || "Recheck the current mark.",
+        });
+      }
       // A transport/server failure does not prove an entry stayed unfilled.
       // Reserve its possible spend for subsequent actions this cycle, without
       // recording a confirmed trade or advancing its idempotency sequence.
@@ -1727,7 +1750,10 @@ async function runCycleCore(
   // live write is not progress, or a persistently failing live agent would
   // never trip the kill-switch.
   const progressed = live ? anyExecuted : anyAccepted;
-  state.lastRejections = lastRejectionsOf(planned, observation.asOf);
+  state.lastRejections = lastRejectionsOf(
+    [...planned, ...protectionRefusals],
+    observation.asOf,
+  );
   state.consecutiveRejectCycles = progressed
     ? 0
     : state.consecutiveRejectCycles + 1;

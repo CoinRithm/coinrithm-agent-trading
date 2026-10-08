@@ -1092,5 +1092,10 @@ describe("rejection feedback", () => {
     );
     expect(text.match(/^- .*stop_loss_not_above_mark/gm)).toHaveLength(1);
     expect(buildUserPrompt(baseObs())).not.toContain("REJECTED actions");
+    expect(
+      buildUserPrompt(baseObs(), undefined, {
+        lastRejections: { invalid: true } as never,
+      }),
+    ).not.toContain("REJECTED actions");
   });
 });

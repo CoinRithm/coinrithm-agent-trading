@@ -12,6 +12,9 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
   instead of resubmitting the same action. The list is kept in the persisted
   run state, capped at five, replaced by every validated decision and cleared
   when the model chooses to skip.
+  Explicit server refusals of stop/target updates are included when the mark
+  moves after local validation. Network and server failures remain uncertain
+  outcomes; they are not described as confirmed refusals.
 
 ## 0.7.16 (published 2026-10-07)
 
