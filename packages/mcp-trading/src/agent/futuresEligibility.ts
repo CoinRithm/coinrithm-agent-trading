@@ -93,14 +93,25 @@ export function futuresEntryPreflight(
   observation: Observation,
 ): FuturesEntryPreflightRejection | null {
   if (action.type !== "futures_open") return null;
-  const base = baseSymbol(action.symbol);
-  const holdsCoin = (observation.openPositions ?? []).some(
+  return futuresReferenceBlock(action.symbol, observation);
+}
+
+function holdsFutures(symbol: string, observation: Observation): boolean {
+  const base = baseSymbol(symbol);
+  return (observation.openPositions ?? []).some(
     (p) =>
       p.venue === "futures" &&
       (p.status ?? "open") === "open" &&
       baseSymbol(p.symbol) === base,
   );
-  if (holdsCoin) return null;
+}
+
+function futuresReferenceBlock(
+  symbol: string,
+  observation: Observation,
+): FuturesEntryPreflightRejection | null {
+  const base = baseSymbol(symbol);
+  if (holdsFutures(symbol, observation)) return null;
   const entry = observation.watch.find((w) => baseSymbol(w.symbol) === base);
   const e = entry?.futuresEntryEligibility;
   if (!e || !e.referenceRequired || e.status === "eligible") return null;
@@ -108,11 +119,51 @@ export function futuresEntryPreflight(
   if (e.status === "reference_stale") {
     return {
       code: "futures_reference_stale",
-      reason: `${action.symbol}: the perpetual reference${e.venue ? ` (${e.venue})` : ""} is stale or unusable for a NEW futures open${when} (too old, or its refresh time is missing, invalid or in the future); the server would refuse it (perpetual_reference_stale). Trade another coin or wait for a fresh reference.`,
+      reason: `${symbol}: the perpetual reference${e.venue ? ` (${e.venue})` : ""} is stale or unusable for a NEW futures open${when} (too old, or its refresh time is missing, invalid or in the future); the server would refuse it (perpetual_reference_stale). Trade another coin or wait for a fresh reference.`,
     };
   }
   return {
     code: "futures_reference_unavailable",
-    reason: `${action.symbol}: CoinRithm has no supported perpetual reference for this coin${when}, so the server refuses a NEW futures open (perpetual_reference_unavailable). Use spot for it, or another coin for futures.`,
+    reason: `${symbol}: CoinRithm has no supported perpetual reference for this coin${when}, so the server refuses a NEW futures open (perpetual_reference_unavailable). Use spot for it, or another coin for futures.`,
   };
+}
+
+/** Prompt-only choices from the SAME reference preflight, not trade approval.
+ * Keep unknown evidence and held-position exceptions distinct from eligibility.
+ * Watch rows, setup receipts and all execution/risk checks remain unchanged. */
+export function futuresEntryChoices(observation: Observation): {
+  candidates: Array<{
+    symbol: string;
+    reference: "eligible" | "unknown" | "not_required" | "held_position";
+  }>;
+  blocked: Array<{
+    symbol: string;
+    code: FuturesEntryPreflightRejection["code"];
+  }>;
+} {
+  const candidates: ReturnType<typeof futuresEntryChoices>["candidates"] = [];
+  const blocked: ReturnType<typeof futuresEntryChoices>["blocked"] = [];
+  const seen = new Set<string>();
+  for (const entry of observation.watch) {
+    const base = baseSymbol(entry.symbol);
+    if (seen.has(base)) continue;
+    seen.add(base);
+    const rejection = futuresReferenceBlock(entry.symbol, observation);
+    if (rejection) {
+      blocked.push({ symbol: entry.symbol, code: rejection.code });
+    } else {
+      const e = entry.futuresEntryEligibility;
+      candidates.push({
+        symbol: entry.symbol,
+        reference: holdsFutures(entry.symbol, observation)
+          ? "held_position"
+          : !e
+            ? "unknown"
+            : !e.referenceRequired
+              ? "not_required"
+              : "eligible",
+      });
+    }
+  }
+  return { candidates, blocked };
 }
