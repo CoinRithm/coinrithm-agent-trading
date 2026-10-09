@@ -21,6 +21,8 @@ import { usesCapitalSizing } from "./capitalSizing.js";
 import type { DecisionActionExclusion } from "./providerCapabilities.js";
 import { serializePromptObservation } from "./promptTables.js";
 import { TRIGGER_PRICE_EPS } from "./decisionValidator.js";
+import { futuresEntryChoices } from "./futuresEligibility.js";
+import { baseSymbol } from "./setups.js";
 
 // Prompt-only context, not an Observation receipt or a new persisted counter.
 export interface DailyRiskBudget {
@@ -544,9 +546,43 @@ export function buildUserPrompt(
     hasFutures && opts.excludeActionTypes?.includes("futures_open") === true;
   const hasSpot = venues.includes("spot");
   const hasPm = venues.includes("pm");
+  const entryChoices = hasFutures ? futuresEntryChoices(obs) : undefined;
+  const blockedFutures = new Set(
+    entryChoices?.blocked.map((entry) => baseSymbol(entry.symbol)),
+  );
+  // Structural signals remain in the observation/receipt. Only the model's
+  // action shortlist changes: an unsupported NEW futures entry is not an
+  // actionable futures setup. Spot and held-position context remain visible.
+  const promptSetups = (obs.setups ?? []).flatMap((setup) => {
+    if (!blockedFutures.has(baseSymbol(setup.symbol))) return [setup];
+    return hasSpot
+      ? [
+          {
+            ...setup,
+            note: `${setup.note} [NEW FUTURES ENTRY BLOCKED: consider spot only if independently allowed, or skip]`,
+          },
+        ]
+      : [];
+  });
+  const noFuturesEntryCandidates =
+    entryChoices !== undefined &&
+    entryChoices.blocked.length > 0 &&
+    entryChoices.candidates.length === 0;
   const lines: string[] = [
     "Decide for THIS cycle using only the observation below (data available now — no look-ahead).",
   ];
+  if (entryChoices && entryChoices.blocked.length > 0) {
+    lines.push(
+      `NEW FUTURES ENTRY AVAILABILITY: ${entryChoices.blocked.map((entry) => `${entry.symbol} (${entry.code})`).join(", ")} cannot be used for a NEW futures_open this cycle. A strong move or flagged structure does not override this block.`,
+      "If futures_open is otherwise available, choose a new futures entry only from futuresEntryChoices.candidates below; this list checks perpetual-reference availability only, not other caps, universe boundaries, direction or quote/execution rules. reference=unknown is NOT eligibility: it still needs validation at quote time. held_position means the existing add/manage exception, under the unchanged add rules; it is not a fresh entry recommendation.",
+      `Blocked coins remain in watch for market context${hasSpot ? " and otherwise-valid spot decisions" : ""}. Existing futures_close, futures_set_sltp and valid adds remain governed by their existing rules. ${hasSpot ? "Blocked setup notes apply only to NEW futures entries; do not force a spot trade to avoid skipping." : "Their unheld entry setups are omitted from this prompt's shortlist; the underlying market evidence remains visible."}`,
+      ...(noFuturesEntryCandidates
+        ? [
+            "There are NO new futures entry candidates this cycle. Manage/protect existing positions where valid, or skip. Unavailable futures entries are a valid reason to skip; do not invent an alternative trade.",
+          ]
+        : []),
+    );
+  }
   if (opts.capitalSizing) {
     lines.push(
       "capitalSizingPolicy is the opt-in paper sizing policy (percent fields use percentage points). capitalBook is captured owned-book collateral plus marked spot, reduced only by negative futures/PM marks on its walletId; positive open-position gains are excluded, so this is NOT complete marked equity. Positions on other walletIds remain visible for management but their collateral, marks and close proceeds do not fund this book. Missing/unavailable capitalBook means no new entries; otherwise-valid closes, protection, cancellations and spot sells remain available.",
@@ -646,7 +682,9 @@ export function buildUserPrompt(
     (!hasPm || (obs.pmPositions?.length ?? 0) === 0)
   ) {
     const openingActions = [
-      ...(hasFutures && !futuresOpenWithheld ? ["futures_open"] : []),
+      ...(hasFutures && !futuresOpenWithheld && !noFuturesEntryCandidates
+        ? ["futures_open"]
+        : []),
       ...(hasSpot ? ["spot_order"] : []),
       ...(hasPm ? ["pm_open"] : []),
     ];
@@ -805,7 +843,10 @@ export function buildUserPrompt(
           ? { pmCalibration: obs.pmCalibration }
           : {}),
         watch: obs.watch,
-        setups: obs.setups,
+        ...(entryChoices && entryChoices.blocked.length > 0
+          ? { futuresEntryChoices: entryChoices }
+          : {}),
+        setups: promptSetups,
         news: obs.news,
         universeMovers: obs.universeMovers,
         whaleContext: obs.whaleContext,
