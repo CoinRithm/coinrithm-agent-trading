@@ -1071,10 +1071,12 @@ export function macroOf(
     if (!symbol || !label || !kind || price == null || price <= 0 || !asOf)
       continue;
     const change = asNum(q.change24hPct);
+    const source = asStr(q.source);
     quotes.push({
       symbol,
       label,
       kind,
+      ...(source ? { source } : {}),
       price,
       change24hPct: change == null ? null : change,
       asOf,

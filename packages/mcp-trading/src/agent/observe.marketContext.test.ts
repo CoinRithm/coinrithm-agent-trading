@@ -174,6 +174,32 @@ describe("macroOf", () => {
     ]);
   });
 
+  it("carries each quote's source when the server sends it (Deribit DVOL)", () => {
+    const out = macroOf(
+      {
+        macro: {
+          note: "proxies, not exchange quotes; Deribit DVOL",
+          quotes: [
+            quote({ source: "hyperliquid-xyz" }),
+            quote({
+              symbol: "deribit:BTC-DVOL",
+              label: "BTC 30-day implied volatility (Deribit DVOL)",
+              kind: "volatility",
+              source: "deribit",
+              price: 35.91,
+              change24hPct: -0.44,
+            }),
+          ],
+        },
+      },
+      NOW,
+    );
+    expect(out?.quotes.map((q) => [q.kind, q.source])).toEqual([
+      ["index", "hyperliquid-xyz"],
+      ["volatility", "deribit"],
+    ]);
+  });
+
   it("drops future-dated or unpriced quotes and omits an empty block", () => {
     expect(
       macroOf(
