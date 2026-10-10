@@ -113,6 +113,13 @@ const mcpReads: Contract[] = [
     "/api/agent/pm/discover",
     { q: "fixture" },
   ],
+  [
+    "discoverPmPaperV2",
+    [{ q: "Bitcoin", limit: 20 }],
+    "GET",
+    "/api/agent/pm/v2/discover",
+    { q: "Bitcoin", limit: "20" },
+  ],
   ["getPerformance", [], "GET", "/api/agent/performance"],
   [
     "getLedger",
@@ -253,6 +260,13 @@ const runnerContracts: Contract[] = [
     "GET",
     "/api/agent/pm/discover",
     { q: "fixture" },
+  ],
+  [
+    "discoverPmPaperV2",
+    [{ q: "Bitcoin", limit: 20 }, trace],
+    "GET",
+    "/api/agent/pm/v2/discover",
+    { q: "Bitcoin", limit: "20" },
   ],
   [
     "agentNews",

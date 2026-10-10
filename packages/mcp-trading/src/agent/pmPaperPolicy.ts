@@ -14,6 +14,7 @@ export const pmHousePolicySchema = pmHouseIdentitySchema
     maxModelCallsPerHour: z.number().int().min(1).max(30).default(12),
     maxDailyLoss: pmPaperOpenSchema.shape.maxCashBudget,
     discoveryQuery: z.string().min(1).max(100),
+    maxEndDays: z.number().int().min(1).max(30).optional(),
   })
   .strict();
 export type PmHouseIdentity = z.infer<typeof pmHouseIdentitySchema>;
