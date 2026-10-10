@@ -55,6 +55,10 @@ import {
 } from "./decisionValidator.js";
 import { resolvePmRef } from "./resolvePm.js";
 import { fetchQuote, executeAction } from "./act.js";
+import {
+  executionOutcome,
+  exitOutcomeMetadata,
+} from "./futuresCloseOutcome.js";
 import { makeDecisionId, makeTrace, exportRunEvidence } from "./runEvidence.js";
 import {
   rollDay,
@@ -833,26 +837,34 @@ async function runCycleCore(
       provenance,
       { pmMinEntryProbabilityPct: spec.risk.pmMinEntryProbabilityPct },
     );
+    const outcome = executionOutcome(action, r);
     exitPlanned.push({
       action,
       accepted: true,
       code: "thesis_invalidated",
       reason: why,
-      executed: r.ok,
+      executed: outcome.executed,
+      ...exitOutcomeMetadata(outcome),
       result: r.data,
     });
-    if (r.ok) {
+    if (outcome.newWrite) {
       state.intentSeq[intentKey] = seq + 1;
       state.writesToday += 1;
+    }
+    if (outcome.executed) {
       forgetThesis(state, thesisKey("futures", pos.id));
       closedByThesis.push(pos.id);
-      state.journal = [
-        ...(state.journal ?? []),
-        { at: observation.asOf, did: `thesis exit: closed ${label} (${why})` },
-      ].slice(-12);
+      if (!outcome.replayed)
+        state.journal = [
+          ...(state.journal ?? []),
+          {
+            at: observation.asOf,
+            did: `thesis exit: closed ${label} (${why})`,
+          },
+        ].slice(-12);
     }
     log(
-      `${r.ok ? "executed" : "FAILED"} thesis exit on ${label} (HTTP ${r.status}): ${why}`,
+      `${outcome.executed ? "executed" : outcome.pending ? "pending" : "FAILED"} thesis exit on ${label} (HTTP ${r.status}): ${why}`,
     );
   }
   if (closedByThesis.length > 0) {
@@ -914,7 +926,8 @@ async function runCycleCore(
       tokensOut: 0,
       estimatedCostUsd: 0,
       writeAttempted: live ? exitPlanned.length : 0,
-      writeAccepted: exitPlanned.filter((p) => p.executed).length,
+      writeAccepted: exitPlanned.filter((p) => p.writeRecorded ?? p.executed)
+        .length,
       ...observationReceipt,
     };
   }
@@ -1251,7 +1264,11 @@ async function runCycleCore(
   const rawModelOutput = undefined;
 
   if (decision.decision === "skip" || decision.actions.length === 0) {
-    state.consecutiveRejectCycles += 1;
+    if (
+      !exitPlanned.length ||
+      !exitPlanned.every((p) => p.executionPending === true)
+    )
+      state.consecutiveRejectCycles += 1;
     // Capture the abstention / forecast-only: the model evaluated a non-empty PM
     // universe and chose NOT to open, so the public evaluation must see it (else an
     // agent looks skilled by exposure choice alone). One post carries the whole
@@ -1317,6 +1334,7 @@ async function runCycleCore(
   let anyAccepted = false;
   let anyExecuted = false;
   let anyExecFailed = false;
+  let anyPending = false;
 
   for (let action of decision.actions) {
     let capitalSizing: CapitalSizingAdjustment | undefined;
@@ -1670,19 +1688,26 @@ async function runCycleCore(
       provenance,
       { pmMinEntryProbabilityPct: spec.risk.pmMinEntryProbabilityPct },
     );
+    const outcome = executionOutcome(action, r);
     planned.push({
       action,
       accepted: true,
       quote,
-      executed: r.ok,
+      executed: outcome.executed,
+      ...exitOutcomeMetadata(outcome),
       result: r.data,
       ...(capitalSizing ? { capitalSizing } : {}),
       ...(takeProfitRepair ? { takeProfitRepair } : {}),
     });
-    if (r.ok) {
-      anyExecuted = true;
+    if (outcome.newWrite) {
       state.intentSeq[intentKey] = seq + 1;
       state.writesToday += 1;
+    }
+    if (outcome.pending) anyPending = true;
+    if (outcome.executed) {
+      anyExecuted = true;
+      if (outcome.v2 && action.type === "futures_close")
+        forgetThesis(state, thesisKey("futures", action.positionId));
       if (isRiskIncreasingAction(action)) {
         riskIncreasesThisCycle += 1;
         state.riskIncreasesToday += 1;
@@ -1724,7 +1749,7 @@ async function runCycleCore(
           : cashConsumed(action, quote);
       if (capitalSizingEnabled)
         committedCapitalMusd += capitalCashCost(action, quote);
-    } else {
+    } else if (!outcome.pending) {
       anyExecFailed = true;
       // The mark can move after local validation. This explicit API rejection
       // confirms that the protection update was refused. A timeout/5xx cannot
@@ -1788,7 +1813,9 @@ async function runCycleCore(
         });
       }
     }
-    log(`${r.ok ? "executed" : "FAILED"} ${action.type} (HTTP ${r.status})`);
+    log(
+      `${outcome.executed ? "executed" : outcome.pending ? "pending" : "FAILED"} ${action.type} (HTTP ${r.status})`,
+    );
   }
 
   // Reset the reject kill-switch only on real PROGRESS: an accepted-but-FAILED
@@ -1801,15 +1828,23 @@ async function runCycleCore(
   );
   state.consecutiveRejectCycles = progressed
     ? 0
-    : state.consecutiveRejectCycles + 1;
+    : live && anyPending && planned.every((p) => p.executionPending === true)
+      ? state.consecutiveRejectCycles
+      : state.consecutiveRejectCycles + 1;
   state.consecutiveExecFailures =
-    anyExecFailed && !anyExecuted ? state.consecutiveExecFailures + 1 : 0;
+    anyExecFailed && !anyExecuted
+      ? state.consecutiveExecFailures + 1
+      : !anyExecuted && anyPending
+        ? state.consecutiveExecFailures
+        : 0;
   state.rateLimitHits = client.rateLimitHits ?? state.rateLimitHits;
   // Memory describes completed moves, not policy acceptance. A backend rejection,
   // lost response, or dry-run plan must not become "opened" / "trailed stop" in
   // the next model prompt. Attempts remain in planned[] and the audit ledger.
   const moves = planned
-    .filter((p) => p.accepted && p.executed === true)
+    .filter(
+      (p) => p.accepted && p.executed === true && p.executionReplayed !== true,
+    )
     .map((p) => summarizeAction(p.action));
   if (moves.length > 0) {
     // A cycle-wide rationale may describe a failed/rejected sibling action.

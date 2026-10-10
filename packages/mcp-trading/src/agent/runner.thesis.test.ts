@@ -199,6 +199,218 @@ const OPEN_WITH_THESIS = {
   ],
 };
 
+// Explicit future API contract fixtures. No live v2 producer is enabled yet.
+const v2Exit = (over: Record<string, unknown> = {}) => ({
+  executionModel: "hl_paper_v2",
+  positionId: 52,
+  accepted: true,
+  executed: false,
+  intent: { id: "e30de15e-09e1-40dc-97f5-5b2462c68d52", status: "pending" },
+  accountingStatus: "pending",
+  replayed: false,
+  ...over,
+});
+
+describe.each(["thesis", "model"] as const)(
+  "runCycle: v2 pending %s exits",
+  (path) => {
+    function scenario(response: {
+      ok: boolean;
+      status: number;
+      data: unknown;
+    }) {
+      const client = baseClient({
+        futuresPositions: async () =>
+          okData({
+            positions: [
+              heldBtc({ markPrice: path === "thesis" ? 63900 : 67500 }),
+            ],
+          }),
+        closeFutures: vi.fn(async () => response),
+      });
+      const prov =
+        path === "thesis"
+          ? capturingProvider()
+          : provider({
+              decision: "act",
+              confidence: 0.9,
+              actions: [
+                { type: "futures_close", positionId: 52, confidence: 0.9 },
+              ],
+            });
+      const d = deps({ live: true }, client, prov);
+      d.state.theses = { "futures:52": btcThesis() };
+      d.state.consecutiveExecFailures = 1;
+      d.state.consecutiveRejectCycles = 1;
+      return { d, client, prov };
+    }
+
+    it.each(["pending", "leased", "retry", "manual_attention"])(
+      "keeps exposure/thesis and prior counters while %s",
+      async (status) => {
+        const { d } = scenario({
+          ok: true,
+          status: 202,
+          data: v2Exit({ intent: { ...v2Exit().intent, status } }),
+        });
+        const result = await runCycle(d);
+        expect(result.planned).toHaveLength(1);
+        expect(result.planned[0]).toMatchObject({
+          accepted: true,
+          executed: false,
+          executionPending: true,
+          writeRecorded: true,
+        });
+        expect(d.state.theses?.["futures:52"]).toBeDefined();
+        expect(d.state.writesToday).toBe(1);
+        expect(d.state.intentSeq["close:52:full"]).toBe(1);
+        expect(d.state.journal ?? []).toEqual([]);
+        expect(d.state.consecutiveExecFailures).toBe(1);
+        expect(d.state.consecutiveRejectCycles).toBe(1);
+        expect(result.decisionInputRecord?.lists.futuresPositions).toHaveLength(
+          1,
+        );
+      },
+    );
+
+    it("replayed pending intent does not spend write budget again", async () => {
+      const { d, client } = scenario({ ok: true, status: 202, data: v2Exit() });
+      await runCycle(d);
+      client.closeFutures.mockResolvedValue({
+        ok: true,
+        status: 202,
+        data: v2Exit({ replayed: true }),
+      });
+      const again = await runCycle(d);
+      expect(again.planned[0]).toMatchObject({
+        executed: false,
+        executionPending: true,
+        executionReplayed: true,
+        writeRecorded: false,
+      });
+      expect(d.state.writesToday).toBe(1);
+      expect(d.state.intentSeq["close:52:full"]).toBe(1);
+      expect(d.state.theses?.["futures:52"]).toBeDefined();
+      expect(d.state.journal ?? []).toEqual([]);
+    });
+
+    it.each([false, true])(
+      "acquired full close reconciles thesis with accounting pending (replay=%s)",
+      async (replayed) => {
+        const { d } = scenario({
+          ok: true,
+          status: 200,
+          data: v2Exit({
+            executed: true,
+            intent: { ...v2Exit().intent, status: "filled" },
+            replayed,
+          }),
+        });
+        const result = await runCycle(d);
+        expect(result.planned[0]).toMatchObject({
+          executed: true,
+          executionPending: false,
+          executionReplayed: replayed,
+          writeRecorded: !replayed,
+        });
+        expect(d.state.theses?.["futures:52"]).toBeUndefined();
+        expect(d.state.writesToday).toBe(replayed ? 0 : 1);
+        expect(d.state.intentSeq["close:52:full"] ?? 0).toBe(replayed ? 0 : 1);
+        expect((d.state.journal ?? []).length).toBe(replayed ? 0 : 1);
+        if (path === "thesis")
+          expect(result.decisionInputRecord?.lists.futuresPositions).toEqual(
+            [],
+          );
+      },
+    );
+
+    it.each([
+      { positionId: 53 },
+      { accepted: false },
+      { replayed: "false" },
+      { executed: true },
+      { accountingStatus: "settled" },
+      { intent: { id: "not-a-uuid", status: "pending" } },
+      { intent: { ...v2Exit().intent, status: ["pending"] } },
+    ])("malformed v2 cannot become a fill or new write: %j", async (over) => {
+      const { d } = scenario({ ok: true, status: 202, data: v2Exit(over) });
+      const result = await runCycle(d);
+      expect(result.planned[0]).toMatchObject({
+        accepted: true,
+        executed: false,
+        executionPending: false,
+        writeRecorded: false,
+      });
+      expect(d.state.theses?.["futures:52"]).toBeDefined();
+      expect(d.state.writesToday).toBe(0);
+      expect(d.state.intentSeq["close:52:full"]).toBeUndefined();
+      expect(d.state.journal ?? []).toEqual([]);
+      if (path === "model") expect(d.state.consecutiveExecFailures).toBe(2);
+    });
+
+    it.each([200, 202])(
+      "preserves legacy res.ok semantics at HTTP%s",
+      async (status) => {
+        const { d } = scenario({
+          ok: true,
+          status,
+          data: { position: { id: 52, status: "closed" } },
+        });
+        const result = await runCycle(d);
+        expect(result.planned[0].executed).toBe(true);
+        expect(result.planned[0].executionPending).toBeUndefined();
+        expect(d.state.writesToday).toBe(1);
+      },
+    );
+
+    it.each([
+      { ok: true, status: 200 },
+      { ok: false, status: 202 },
+      { ok: true, status: 201 },
+    ])(
+      "requires the exact successful pending HTTP contract: %j",
+      async (transport) => {
+        const { d } = scenario({ ...transport, data: v2Exit() });
+        const result = await runCycle(d);
+        expect(result.planned[0]).toMatchObject({
+          executed: false,
+          executionPending: false,
+          writeRecorded: false,
+        });
+        expect(d.state.writesToday).toBe(0);
+        expect(d.state.theses?.["futures:52"]).toBeDefined();
+      },
+    );
+
+    if (path === "thesis")
+      it.each([false, true])(
+        "gate skip meters a pending intent without a completed exit (replay=%s)",
+        async (replayed) => {
+          const { d } = scenario({
+            ok: true,
+            status: 202,
+            data: v2Exit({ replayed }),
+          });
+          d.minModelIntervalSeconds = 180;
+          d.state.lastLlmCallAt = Date.now() - 60_000;
+          const result = await runCycle(d);
+          expect(result).toMatchObject({
+            decisionType: "gate_skip",
+            writeAttempted: 1,
+            writeAccepted: replayed ? 0 : 1,
+          });
+          expect(result.planned[0]).toMatchObject({
+            executed: false,
+            executionPending: true,
+          });
+          expect(d.state.consecutiveExecFailures).toBe(1);
+          expect(d.state.consecutiveRejectCycles).toBe(1);
+          expect(d.state.theses?.["futures:52"]).toBeDefined();
+        },
+      );
+  },
+);
+
 describe("runCycle: thesis binding on open", () => {
   it("open-with-thesis: a live futures_open binds its sanitized thesis to the returned position id", async () => {
     const client = baseClient();
