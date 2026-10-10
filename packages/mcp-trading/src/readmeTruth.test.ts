@@ -20,6 +20,7 @@ const repoRoot = join(pkgRoot, "..", "..");
 const registeredTools = (pmV2 = false): string[] => {
   const names: string[] = [];
   vi.stubEnv("COINRITHM_PM_PAPER_V2_TOOLS_ENABLED", pmV2 ? "true" : undefined);
+  vi.stubEnv("COINRITHM_SPOT_REFERENCE_TOOLS_ENABLED", undefined);
   try {
     registerTools(
       {
