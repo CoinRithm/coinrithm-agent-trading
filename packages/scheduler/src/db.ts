@@ -31,6 +31,9 @@ export interface AgentRow {
   brainKeyEnc: string | null;
   ownerUserId?: number | null;
   isHouse?: boolean;
+  /** Private scheduler projection from a persisted house row, never spec input.
+   * Presence pins PM-only dispatch even if the stored marker is malformed. */
+  persistedPmPaperHouse?: { plan: unknown; identity: unknown };
   /** Owner-budget tenant override. Never loaded from the database: only
    *  the operator bench (runtime.ts benchRoutedProvider) sets "bench". */
   capacityTenant?: "bench";
@@ -837,6 +840,8 @@ interface RawAgent {
   brain_key_enc: string | null;
   owner_user_id?: string | null;
   is_house?: boolean;
+  plan?: unknown;
+  manifest?: unknown;
 }
 
 function mapAgent(r: RawAgent): AgentRow {
@@ -855,6 +860,19 @@ function mapAgent(r: RawAgent): AgentRow {
     brainKeyEnc: r.brain_key_enc,
     ownerUserId: r.owner_user_id == null ? null : Number(r.owner_user_id),
     isHouse: r.is_house === true,
+    ...(r.is_house === true &&
+    r.manifest !== null &&
+    typeof r.manifest === "object" &&
+    !Array.isArray(r.manifest) &&
+    Object.hasOwn(r.manifest, "pmPaperHouseIdentity")
+      ? {
+          persistedPmPaperHouse: {
+            plan: r.plan,
+            identity: (r.manifest as Record<string, unknown>)
+              .pmPaperHouseIdentity,
+          },
+        }
+      : {}),
   };
 }
 
@@ -928,7 +946,7 @@ export async function claimDueAgents(
        ), picked AS MATERIALIZED (
          SELECT a.id, a.handle, a.display_name, a.live, a.cadence_seconds,
                 a.model_provider, a.model_name, a.model_base_url, a.spec,
-                a.prose, a.coinrithm_key_enc, a.brain_key_enc, a.owner_user_id, a.is_house,
+                a.prose, a.coinrithm_key_enc, a.brain_key_enc, a.owner_user_id, a.is_house, a.plan, a.manifest,
                 due.tenant_position, a.next_run_at
            FROM due
            JOIN agent_runtime.agents a ON a.id = due.id
@@ -939,7 +957,7 @@ export async function claimDueAgents(
        )
        SELECT id, handle, display_name, live, cadence_seconds, model_provider,
               model_name, model_base_url, spec, prose, coinrithm_key_enc,
-              brain_key_enc, owner_user_id, is_house
+              brain_key_enc, owner_user_id, is_house, plan, manifest
          FROM picked
         ORDER BY tenant_position, next_run_at, id`,
       excludeAgentIds.length > 0
