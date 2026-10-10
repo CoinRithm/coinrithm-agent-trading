@@ -41,14 +41,17 @@ key remains revoked. After an ambiguous COMMIT result, do not blindly retry with
 a new plan: reconcile with the same reviewed plan, which can return the existing
 receipt. No raw database error or key is printed.
 
-Before any production use, verify the existing-house seed roster guard has shipped;
-its broad historical revival behavior must not reactivate this new paused house.
-The isolated proof also does not replace the final live parent catalog attestation.
+Before any production use, verify the exact existing-house seed roster guard and
+persisted PM-house scheduler dispatch guard have shipped together with this
+operator. The isolated proof does not replace the final live parent catalog
+attestation.
 
 Provisioning does **not** apply API house tuples, scheduler PM policies or flags.
 The newly returned identity must undergo a separate reviewed enrollment with
 entry disabled, followed by explicit activation (including `live=true` and
-active status). Do not enroll an existing house or remove a PM policy while its
-agent is active: removal selects the legacy runner. Keep the PM drain worker on
-while durable claims exist. Starting cash is nominal paper mUSD; it is not a
+active status). Do not enroll an existing house. A persisted PM-only house with a
+missing or mismatched scheduler policy skips without selecting the legacy runner.
+Keep its matching policy with entry disabled when scheduler-driven receipt
+reconciliation or exit requests should continue. Keep the independent PM drain
+worker on while durable claims exist. Starting cash is nominal paper mUSD; it is not a
 conversion of a venue collateral asset.
