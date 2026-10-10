@@ -1550,3 +1550,61 @@ describe("paid brain pause and cycle id", () => {
     ).toBeUndefined();
   });
 });
+
+describe("persisted PM house identity dispatch projection", () => {
+  it.each([
+    ["operator house", true, { pmPaperHouseIdentity: { userId: 57 } }, true],
+    ["malformed marked house", true, { pmPaperHouseIdentity: null }, true],
+    [
+      "customer uploaded marker",
+      false,
+      { pmPaperHouseIdentity: { userId: 57 } },
+      false,
+    ],
+    ["existing unmarked house", true, {}, false],
+    ["malformed unrelated manifest", true, [], false],
+  ] as const)(
+    "projects only the persisted house marker: %s",
+    async (_name, house, manifest, marked) => {
+      const query = vi.fn(async (sql: string) => ({
+        rows: sql.includes("WITH due AS MATERIALIZED")
+          ? [
+              {
+                id: "4",
+                handle: "fixture",
+                display_name: "Fixture",
+                live: true,
+                cadence_seconds: "600",
+                model_provider: "nvidia",
+                model_name: "fixture",
+                model_base_url: null,
+                spec: {},
+                prose: "fixture",
+                coinrithm_key_enc: "encrypted",
+                brain_key_enc: null,
+                owner_user_id: "57",
+                is_house: house,
+                plan: "house",
+                manifest,
+              },
+            ]
+          : [],
+      }));
+      const pool = {
+        connect: async () => ({ query, release: () => {} }),
+      } as unknown as Pool;
+      const agents = await claimDueAgents(pool, 1);
+      const claimSql = query.mock.calls.find(([sql]) =>
+        sql.includes("WITH due AS MATERIALIZED"),
+      )?.[0];
+      expect(claimSql).toContain("a.plan, a.manifest");
+      expect(agents).toHaveLength(1);
+      expect(Object.hasOwn(agents[0]!, "persistedPmPaperHouse")).toBe(marked);
+      if (marked)
+        expect(agents[0]!.persistedPmPaperHouse).toEqual({
+          plan: "house",
+          identity: (manifest as Record<string, unknown>).pmPaperHouseIdentity,
+        });
+    },
+  );
+});

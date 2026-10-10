@@ -1003,6 +1003,42 @@ export async function runAgentOnce(
   config: Config,
 ): Promise<void> {
   const log: string[] = [];
+  const pmPolicy = config.pmPaperV2Houses?.length
+    ? selectPmHousePolicy(agent, config.pmPaperV2Houses)
+    : undefined;
+  // The operator marker is projected by claimDueAgents from the persisted house
+  // row, not customer skill/manifest input. A removed or mismatched enrollment
+  // must never silently switch this PM-only identity to the legacy engine.
+  if (agent.isHouse === true && agent.persistedPmPaperHouse !== undefined) {
+    const { plan, identity } = agent.persistedPmPaperHouse;
+    const marker =
+      identity !== null &&
+      typeof identity === "object" &&
+      !Array.isArray(identity)
+        ? (identity as Record<string, unknown>)
+        : null;
+    if (
+      plan !== "house" ||
+      !marker ||
+      marker.version !== "pm_paper_house_identity_v1" ||
+      typeof marker.planHash !== "string" ||
+      !/^[a-f0-9]{64}$/.test(marker.planHash) ||
+      !pmPolicy ||
+      marker.userId !== agent.ownerUserId ||
+      marker.userId !== pmPolicy.userId ||
+      marker.apiKeyId !== pmPolicy.apiKeyId ||
+      marker.walletId !== pmPolicy.walletId
+    ) {
+      await recordCycle(pool, agent.id, {
+        decision: "skip",
+        skipReason: "PM paper house enrollment unavailable or mismatched",
+        modelFailed: false,
+        llmCallMade: false,
+      }).catch(() => {});
+      await rescheduleToCadence(pool, agent.id).catch(() => {});
+      return;
+    }
+  }
   // Kept only in this invocation. A failed run can retain its captured inputs
   // without putting private input data into the public log/action surfaces.
   let decisionInputRecord: DecisionInputRecord | undefined;
@@ -1222,9 +1258,6 @@ export async function runAgentOnce(
   // a crash before persist replays the SAME key and the server's unique index
   // returns the cached result — never a double-trade (at-most-once per window).
   try {
-    const pmPolicy = config.pmPaperV2Houses?.length
-      ? selectPmHousePolicy(agent, config.pmPaperV2Houses)
-      : undefined;
     const result = pmPolicy
       ? await runPmPaperCycle(deps, pmPolicy, (state) =>
           saveStateJson(pool, agent.id, state),

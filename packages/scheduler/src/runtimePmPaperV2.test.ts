@@ -141,6 +141,66 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("hosted PM v2 dispatch and durable recovery", () => {
+  it.each(["missing", "owner", "key", "wallet", "plan", "malformed"])(
+    "never falls back for a persisted PM house with %s enrollment",
+    async (mode) => {
+      const f = fixture();
+      f.agent.persistedPmPaperHouse = {
+        plan: "house",
+        identity: {
+          version: "pm_paper_house_identity_v1",
+          planHash: "a".repeat(64),
+          ...scope,
+        },
+      };
+      if (mode === "missing") f.config.pmPaperV2Houses = [];
+      if (mode === "owner") f.agent.ownerUserId = 9;
+      if (mode === "key")
+        f.config.pmPaperV2Houses = [{ ...policy, apiKeyId: 99 }];
+      if (mode === "wallet")
+        f.config.pmPaperV2Houses = [{ ...policy, walletId: 99 }];
+      if (mode === "plan") f.agent.persistedPmPaperHouse.plan = "customer";
+      if (mode === "malformed") f.agent.persistedPmPaperHouse.identity = null;
+      const legacy = vi.spyOn(engine, "runCycle");
+      const v2 = vi.spyOn(engine, "runPmPaperCycle");
+      await runAgentOnce(f.pool, f.agent, f.config);
+      expect(legacy).not.toHaveBeenCalled();
+      expect(v2).not.toHaveBeenCalled();
+      expect(engine.selectProvider).not.toHaveBeenCalled();
+      expect(engine.CoinRithmClient).not.toHaveBeenCalled();
+      expect(f.decide).not.toHaveBeenCalled();
+      expect(f.close).not.toHaveBeenCalled();
+      expect(
+        f.query.mock.calls.some(([sql]) => sql.startsWith("SELECT state")),
+      ).toBe(false);
+      const cycle = f.query.mock.calls.find(([sql]) =>
+        sql.includes("INSERT INTO agent_runtime.agent_cycles"),
+      );
+      expect(cycle?.[1]).toContain(
+        "PM paper house enrollment unavailable or mismatched",
+      );
+      expect(
+        f.query.mock.calls.some(([sql]) =>
+          sql.includes("UPDATE agent_runtime.agents"),
+        ),
+      ).toBe(true);
+    },
+  );
+  it("ignores marker-like customer skill input and preserves legacy dispatch", async () => {
+    const f = fixture();
+    f.agent.isHouse = false;
+    f.agent.spec = {
+      ...(f.agent.spec as object),
+      manifest: { pmPaperHouseIdentity: { ...scope } },
+    };
+    const legacy = vi
+      .spyOn(engine, "runCycle")
+      .mockResolvedValue({ decision: "skip", planned: [], live: true });
+    await runAgentOnce(f.pool, f.agent, f.config);
+    expect(legacy).toHaveBeenCalledTimes(1);
+    expect(f.close).not.toHaveBeenCalled();
+  });
+
   it("default config enrolls nobody and configured JSON pins independent entry switch", () => {
     const env = {
       DATABASE_URL: "postgresql://fixture/unused",
@@ -173,6 +233,14 @@ describe("hosted PM v2 dispatch and durable recovery", () => {
   );
   it("actual runtime checkpoints before API then resumes exact request through JSON state with entries disabled", async () => {
     const f = fixture();
+    f.agent.persistedPmPaperHouse = {
+      plan: "house",
+      identity: {
+        version: "pm_paper_house_identity_v1",
+        planHash: "a".repeat(64),
+        ...scope,
+      },
+    };
     const legacy = vi.spyOn(engine, "runCycle");
     await runAgentOnce(f.pool, f.agent, f.config);
     expect(legacy).not.toHaveBeenCalled();

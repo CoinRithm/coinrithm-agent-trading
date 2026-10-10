@@ -3,7 +3,8 @@
 // lint/drift issue), encrypts its CoinRithm key, and upserts the row + initial
 // state. House CoinRithm keys come from env COINRITHM_KEY_<DISPLAY> — never
 // hardcoded. Re-running is safe: it refreshes the definition but never resets
-// running state or the schedule.
+// running state or the schedule during definition updates. The final revival
+// step deliberately clears kill-switch counters only for these five identities.
 //
 // CONFIG-ONLY re-seed: if a COINRITHM_KEY_<DISPLAY> is absent, that agent's
 // spec/prose/model/cadence are UPDATED in place without its raw key (the stored
@@ -17,15 +18,7 @@
 //   npm run seed:house
 
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
-import pg from "pg";
-import {
-  loadAgent,
-  newState,
-  makeRunId,
-} from "@coinrithm/mcp-trading/engine";
-import { encrypt, loadMasterKey } from "../dist/crypto.js";
-
+import { dirname, join, resolve } from "node:path";
 // Each house agent runs on a DIFFERENT free brain so the public Arena showcases
 // the full model lineup (the model shows in each agent's live terminal). All ids
 // are probe-verified (scripts/probe-models.mjs). Cadence is per-agent: the Groq
@@ -37,20 +30,38 @@ import { encrypt, loadMasterKey } from "../dist/crypto.js";
 // at ~6.5k and 413'd even a LONE agent, so Groq is BYO-only. 5 agents = ~5 calls/
 // min vs the 40 RPM shared key. Carl/Olivia Nemotron is only fast (~4s) once the kit forces
 // "detailed thinking off" (kit >= 57be052), so deploy that kit before seeding.
-const HOUSE = [
+export const HOUSE = [
   {
-    handle: "mia-trend-rider", display: "Mia", owner: 57,
-    model: { provider: "nvidia", name: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning", baseUrl: null },
+    handle: "mia-trend-rider",
+    display: "Mia",
+    owner: 57,
+    model: {
+      provider: "nvidia",
+      name: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+      baseUrl: null,
+    },
     cadence: 180,
   },
   {
-    handle: "contrarian-carl", display: "Carl", owner: 58,
-    model: { provider: "nvidia", name: "nvidia/nemotron-3-super-120b-a12b", baseUrl: null },
+    handle: "contrarian-carl",
+    display: "Carl",
+    owner: 58,
+    model: {
+      provider: "nvidia",
+      name: "nvidia/nemotron-3-super-120b-a12b",
+      baseUrl: null,
+    },
     cadence: 180,
   },
   {
-    handle: "leo-breakout-hunter", display: "Leo", owner: 59,
-    model: { provider: "nvidia", name: "nvidia/nemotron-3-super-120b-a12b", baseUrl: null },
+    handle: "leo-breakout-hunter",
+    display: "Leo",
+    owner: 59,
+    model: {
+      provider: "nvidia",
+      name: "nvidia/nemotron-3-super-120b-a12b",
+      baseUrl: null,
+    },
     cadence: 180,
   },
   {
@@ -59,16 +70,28 @@ const HOUSE = [
     // can't host one of our agents at this prompt size. On NVIDIA Nemotron (a
     // reasoning brain that suits a calibrated-quant + PM specialist) she runs
     // reliably. Groq is BYO-only now (a user's own key has its own quota).
-    handle: "olivia-calibrated-quant", display: "Olivia", owner: 60,
-    model: { provider: "nvidia", name: "nvidia/nemotron-3-super-120b-a12b", baseUrl: null },
+    handle: "olivia-calibrated-quant",
+    display: "Olivia",
+    owner: 60,
+    model: {
+      provider: "nvidia",
+      name: "nvidia/nemotron-3-super-120b-a12b",
+      baseUrl: null,
+    },
     cadence: 180,
   },
   {
     // Moved OFF Groq to NVIDIA: two Groq agents sharing one 6k-TPM free key both
     // 413/429'd (~10k tok/min > 6k). Sam on NVIDIA 70B trades reliably (like Leo)
     // and leaves Olivia ALONE on Groq, where one ~5k-token call/min fits 6k TPM.
-    handle: "sam-risk-managed-swinger", display: "Sam", owner: 61,
-    model: { provider: "nvidia", name: "nvidia/nemotron-3-super-120b-a12b", baseUrl: null },
+    handle: "sam-risk-managed-swinger",
+    display: "Sam",
+    owner: 61,
+    model: {
+      provider: "nvidia",
+      name: "nvidia/nemotron-3-super-120b-a12b",
+      baseUrl: null,
+    },
     cadence: 180,
   },
 ];
@@ -80,14 +103,27 @@ function reqEnv(k) {
 }
 
 const here = dirname(fileURLToPath(import.meta.url));
-const pool = new pg.Pool({ connectionString: reqEnv("DATABASE_URL") });
-// ENCRYPTION_KEY is only needed when we (re)write a raw CoinRithm key. A
-// config-only re-seed never encrypts, so load the master key lazily — that path
-// requires only DATABASE_URL.
-let _masterKey = null;
-const masterKey = () => (_masterKey ??= loadMasterKey(reqEnv("ENCRYPTION_KEY")));
+// Every mutation rechecks identity in SQL, including model/spec guards before
+// definition replacement. A matching handle alone never authorizes takeover.
+const NON_MECHANICAL_HOUSE = `a.is_house = true
+  AND a.model_provider <> 'mechanical'
+  AND (a.spec #>> '{model,provider}') IS DISTINCT FROM 'mechanical'
+  AND jsonb_typeof(a.spec) = 'object'`;
+const roster = JSON.stringify(
+  HOUSE.map(({ handle, owner }) => ({ handle, owner })),
+);
 
-try {
+// Injectable for offline/disposable-DB proof; importing never connects or seeds.
+export async function seedHouseAgents({
+  pool,
+  loadAgent,
+  newState,
+  makeRunId,
+  encrypt,
+  masterKey,
+  env = process.env,
+  log = console.log,
+}) {
   for (const h of HOUSE) {
     const folder = join(here, "..", "..", "..", "examples", "agents", h.handle);
     const { spec, body } = loadAgent(folder, "hosted"); // throws if invalid / drifted
@@ -98,33 +134,41 @@ try {
       new Set([...(spec.capabilities ?? []), "indicators"]),
     );
     const cadenceSeconds = h.cadence;
-    const rawKey = process.env[`COINRITHM_KEY_${h.display.toUpperCase()}`]?.trim();
+    const rawKey = env[`COINRITHM_KEY_${h.display.toUpperCase()}`]?.trim();
 
     // CONFIG-ONLY path: no raw key -> refresh an EXISTING agent's definition
     // (spec/prose/model/cadence) without touching its key or running state.
     if (!rawKey) {
       const { rowCount } = await pool.query(
-        `UPDATE agent_runtime.agents SET
+        `UPDATE agent_runtime.agents a SET
             display_name = $2, cadence_seconds = $3, model_provider = $4,
             model_name = $5, model_base_url = $6, spec = $7::jsonb, prose = $8,
             updated_at = now()
-         WHERE handle = $1`,
+         WHERE a.handle = $1 AND a.owner_user_id = $9
+           AND ${NON_MECHANICAL_HOUSE}`,
         [
-          h.handle, h.display, cadenceSeconds, h.model.provider, h.model.name,
-          h.model.baseUrl, JSON.stringify(spec), body,
+          h.handle,
+          h.display,
+          cadenceSeconds,
+          h.model.provider,
+          h.model.name,
+          h.model.baseUrl,
+          JSON.stringify(spec),
+          body,
+          h.owner,
         ],
       );
-      console.log(
+      log(
         rowCount
           ? `updated ${h.handle} (config-only; key + state unchanged, cadence ${cadenceSeconds}s, brain ${h.model.provider}/${h.model.name})`
-          : `skipped ${h.handle}: not seeded yet — set COINRITHM_KEY_${h.display.toUpperCase()} to create it`,
+          : `skipped ${h.handle}: missing or excluded identity; no definition changed`,
       );
       continue;
     }
 
     const crkEnc = encrypt(rawKey, masterKey());
     const { rows } = await pool.query(
-      `INSERT INTO agent_runtime.agents
+      `INSERT INTO agent_runtime.agents AS a
          (owner_user_id, handle, display_name, status, is_house, live, cadence_seconds,
           model_provider, model_name, model_base_url, spec, prose, coinrithm_key_enc, next_run_at)
        VALUES ($1,$2,$3,'active',true,true,$4,$5,$6,$7,$8::jsonb,$9,$10, now())
@@ -138,30 +182,51 @@ try {
           prose             = EXCLUDED.prose,
           coinrithm_key_enc = EXCLUDED.coinrithm_key_enc,
           updated_at        = now()
+       WHERE a.owner_user_id = EXCLUDED.owner_user_id
+         AND ${NON_MECHANICAL_HOUSE}
        RETURNING id`,
       [
-        h.owner, h.handle, h.display, cadenceSeconds, h.model.provider, h.model.name,
-        h.model.baseUrl, JSON.stringify(spec), body, crkEnc,
+        h.owner,
+        h.handle,
+        h.display,
+        cadenceSeconds,
+        h.model.provider,
+        h.model.name,
+        h.model.baseUrl,
+        JSON.stringify(spec),
+        body,
+        crkEnc,
       ],
     );
+    if (rows.length !== 1)
+      throw new Error(`excluded house identity: ${h.handle}`);
     const id = rows[0].id;
     // Initialise state only if absent — never reset a running agent's counters.
     await pool.query(
       `INSERT INTO agent_runtime.agent_state (agent_id, state)
-       VALUES ($1, $2::jsonb) ON CONFLICT (agent_id) DO NOTHING`,
-      [id, JSON.stringify(newState(makeRunId(spec)))],
+       SELECT a.id, $2::jsonb FROM agent_runtime.agents a
+       WHERE a.id = $1 AND a.handle = $3 AND a.owner_user_id = $4
+         AND ${NON_MECHANICAL_HOUSE}
+       ON CONFLICT (agent_id) DO NOTHING`,
+      [id, JSON.stringify(newState(makeRunId(spec))), h.handle, h.owner],
     );
-    console.log(`seeded ${h.handle} (id ${id}, cadence ${cadenceSeconds}s, brain ${h.model.provider}/${h.model.name})`);
+    log(
+      `seeded ${h.handle} (id ${id}, cadence ${cadenceSeconds}s, brain ${h.model.provider}/${h.model.name})`,
+    );
   }
 
-  // House agents are meant to stay live. After refreshing definitions, revive any
+  // Only the original five identities are revived. Other house/pilot stops are
+  // deliberate and must remain untouched. After refreshing definitions, revive any
   // that a kill-switch (e.g. a flaky-model streak) disabled, and clear the
   // consecutive-failure counter — surgically, without resetting PnL or schedule.
   const revived = await pool.query(
-    `UPDATE agent_runtime.agents
+    `UPDATE agent_runtime.agents a
         SET status = 'active', disabled_reason = NULL, next_run_at = now(), updated_at = now()
-      WHERE is_house = true AND status <> 'active'
-      RETURNING handle`,
+       FROM jsonb_to_recordset($1::jsonb) AS r(handle text, owner integer)
+      WHERE a.handle = r.handle AND a.owner_user_id = r.owner
+        AND ${NON_MECHANICAL_HOUSE} AND a.status <> 'active'
+      RETURNING a.handle`,
+    [roster],
   );
   await pool.query(
     // Zero EVERY kill-switch counter (model failures, reject cycles, exec
@@ -172,14 +237,48 @@ try {
         SET state = (s.state - 'disabledReason')
                    || '{"disabled":false,"consecutiveModelFailures":0,"consecutiveRejectCycles":0,"consecutiveExecFailures":0,"rateLimitHits":0}'::jsonb
        FROM agent_runtime.agents a
-      WHERE s.agent_id = a.id AND a.is_house = true`,
+      JOIN jsonb_to_recordset($1::jsonb) AS r(handle text, owner integer)
+        ON a.handle = r.handle AND a.owner_user_id = r.owner
+      WHERE s.agent_id = a.id AND ${NON_MECHANICAL_HOUSE}`,
+    [roster],
   );
-  console.log(
+  log(
     revived.rowCount
       ? `revived ${revived.rowCount} disabled house agent(s): ${revived.rows.map((r) => r.handle).join(", ")}`
       : "all house agents already active",
   );
-  console.log("house agents seeded.");
-} finally {
-  await pool.end();
+  log("house agents seeded.");
+}
+
+async function main() {
+  const [
+    { default: pg },
+    { loadAgent, newState, makeRunId },
+    { encrypt, loadMasterKey },
+  ] = await Promise.all([
+    import("pg"),
+    import("@coinrithm/mcp-trading/engine"),
+    import("../dist/crypto.js"),
+  ]);
+  const pool = new pg.Pool({ connectionString: reqEnv("DATABASE_URL") });
+  let key = null;
+  const masterKey = () => (key ??= loadMasterKey(reqEnv("ENCRYPTION_KEY")));
+  try {
+    await seedHouseAgents({
+      pool,
+      loadAgent,
+      newState,
+      makeRunId,
+      encrypt,
+      masterKey,
+    });
+  } finally {
+    await pool.end();
+  }
+}
+if (
+  process.argv[1] &&
+  resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+) {
+  await main();
 }
