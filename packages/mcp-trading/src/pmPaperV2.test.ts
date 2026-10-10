@@ -16,6 +16,81 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
 });
+it("both real clients preserve exact entry, replay-only misses, and open-page queries", async () => {
+  const fetch = vi.fn();
+  vi.stubGlobal("fetch", fetch);
+  const mcp = new CoinRithmClient({
+    baseUrl: "https://fixture.example.test",
+    apiKey: "fixture-key",
+  });
+  const runner = new RunnerClient({
+    baseUrl: "https://fixture.example.test",
+    apiKey: "fixture-key",
+  });
+  for (const client of [mcp, runner]) {
+    fetch.mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            executionModel: "pm_paper_v2",
+            accepted: true,
+            executed: true,
+            positionId: 1,
+            replayed: false,
+          }),
+          { status: 200 },
+        ),
+    );
+    expect((await client.openPmPaperV2(open)).ok).toBe(true);
+    expect(fetch.mock.lastCall?.[0]).toBe(
+      "https://fixture.example.test/api/agent/pm/v2/open",
+    );
+    expect(JSON.parse(fetch.mock.lastCall?.[1].body)).toEqual(open);
+    const missing = {
+      executionModel: "pm_paper_v2",
+      accepted: false,
+      executed: false,
+      reason: "no_existing_receipt",
+      replayMissing: true,
+    };
+    fetch.mockImplementation(
+      async () => new Response(JSON.stringify(missing), { status: 404 }),
+    );
+    const replay = await client.replayPmPaperV2Open(open);
+    expect(replay).toMatchObject({ ok: false, status: 404, data: missing });
+    expect(fetch.mock.lastCall?.[0]).toBe(
+      "https://fixture.example.test/api/agent/pm/v2/open/replay",
+    );
+    expect(JSON.parse(fetch.mock.lastCall?.[1].body)).toEqual(open);
+  }
+  const view = {
+    executionModel: "pm_paper_v2",
+    positions: [],
+    hasMore: false,
+    nextBeforeId: null,
+    entryEnabled: false,
+    configuredHouse: null,
+  };
+  fetch.mockImplementation(async () => new Response(JSON.stringify(view)));
+  const query = { status: "open" as const, limit: 50, beforeId: 12 };
+  for (const response of [
+    await mcp.pmPaperV2Positions(undefined, query),
+    await runner.pmPaperV2Positions(query),
+  ]) {
+    expect(response.data).toEqual(view);
+  }
+  for (const call of fetch.mock.calls.slice(-2)) {
+    const url = new URL(call[0]);
+    expect(url.pathname).toBe("/api/agent/pm/v2/positions");
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      status: "open",
+      limit: "50",
+      beforeId: "12",
+    });
+  }
+  expect((await mcp.pmPaperV2Positions()).data).toEqual(view);
+  expect((await runner.pmPaperV2Positions()).data).toEqual(view);
+});
 describe("explicit PM v2 consumer wire contract", () => {
   it("preserves decimals and explicit nulls", () => {
     const body = {

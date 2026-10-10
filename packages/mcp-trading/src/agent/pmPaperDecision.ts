@@ -32,9 +32,7 @@ export const pmPaperDecisionSchema = z
   );
 export type PmPaperAction =
   z.infer<typeof pmV2OpenActionSchema> | z.infer<typeof pmV2CloseActionSchema>;
-export function parsePmPaperDecision(
-  text: string,
-):
+export function parsePmPaperDecision(text: string):
   | { ok: true; decision: z.infer<typeof pmPaperDecisionSchema> }
   | {
       ok: false;
