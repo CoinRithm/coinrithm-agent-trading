@@ -1297,6 +1297,11 @@ export interface PlannedAction {
   reason?: string;
   quote?: QuoteEvidence;
   executed?: boolean;
+  /** V2 close accepted but exposure remains open; accounting is separate. */
+  executionPending?: boolean;
+  executionReplayed?: boolean;
+  /** A newly accepted v2 intent/fill consumes write budget; replay does not. */
+  writeRecorded?: boolean;
   result?: unknown;
   capitalSizing?: CapitalSizingAdjustment;
   /** Set when the runner replaced the model's futures take-profit; persisted
