@@ -51,6 +51,9 @@ The newly returned identity must undergo a separate reviewed enrollment with
 entry disabled, followed by explicit activation (including `live=true` and
 active status). Do not enroll an existing house. A persisted PM-only house with a
 missing or mismatched scheduler policy skips without selecting the legacy runner.
+For an operator stop or rollback, use `status='paused'`, or `status='disabled'`
+with a `disabled_reason` containing `by owner`; the scheduler's periodic recovery
+can revive an ordinary disabled row.
 Keep its matching policy with entry disabled when scheduler-driven receipt
 reconciliation or exit requests should continue. Keep the independent PM drain
 worker on while durable claims exist. Starting cash is nominal paper mUSD; it is not a
