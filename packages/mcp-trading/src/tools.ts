@@ -817,6 +817,42 @@ export function registerTools(
   server: McpServer,
   client: CoinRithmClient,
 ): void {
+  // Separate opt-in inventory: never enrich existing market context or prompts.
+  if (process.env.COINRITHM_SPOT_REFERENCE_TOOLS_ENABLED === "true") {
+    server.registerTool(
+      "get_spot_reference",
+      {
+        title: "Get optional spot reference",
+        description:
+          "Read a separate Binance spot last-ticker reference and stored REST " +
+          "consensus fallback for one coinId (read scope). Reference only: " +
+          "stream price and rolling 24h quote volume are USDT; fallback price " +
+          "is USD, with no currency conversion. A 200 response can contain " +
+          "an unavailable stream or stale/unavailable fallback: inspect each " +
+          "status, reason and expiresAt. preferredSource does not establish " +
+          "freshness or execution eligibility. eventAt is emission, " +
+          "statisticsCloseAt is the ticker window close, receivedAt is " +
+          "acquisition and localPriceChangedAt is a local observation; " +
+          "lastTradeAt is unknown. This is not an executable quote, order-book " +
+          "depth or fill guarantee and does not replace get_market_context.",
+        inputSchema: {
+          coinId: z
+            .string()
+            .regex(/^[a-zA-Z0-9_-]{1,64}$/)
+            .describe(
+              "CoinRithm coinId from resolve_symbol; not an exchange pair.",
+            ),
+          agentTrace: AGENT_TRACE_SCHEMA,
+        },
+        outputSchema: API_RESULT_OUTPUT_SCHEMA,
+        annotations: readOnlyAnnotations("Get optional spot reference"),
+      },
+      async ({ coinId, agentTrace }, extra) =>
+        present(
+          await client.getSpotReference(coinId, requestKey(extra), agentTrace),
+        ),
+    );
+  }
   // ---------------- identity ----------------
   server.registerTool(
     "whoami",

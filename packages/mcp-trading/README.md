@@ -426,3 +426,26 @@ A close may return HTTP202 accepted/pending; only `executed:true` confirms
 completion. Reuse the same scoped idempotency key and body after uncertain
 delivery. Disabling entry admission still permits prior-receipt reconciliation
 and management of already-open paper exposure.
+
+### Opt-in spot reference tool
+
+`COINRITHM_SPOT_REFERENCE_TOOLS_ENABLED=true` adds `get_spot_reference` on an
+explicitly opted-in MCP server. It is off by default and independent of the PM
+tool flag. The 41 default tools, hosted runner observations and existing agent
+prompts stay unchanged. Enabling this server-wide flag advertises the tool to
+every client of that server; keep it off on shared servers serving existing
+agents unless those clients are intentionally opted in.
+
+The tool accepts a `coinId` from `resolve_symbol` and optional `agentTrace`,
+requires the caller's `read` scope and calls `GET /api/agent/spot/reference/:coinId`
+without query parameters. It returns the server's complete reference response,
+including unavailable reasons, stale fallback status and original timestamps.
+The API's separate `BINANCE_SPOT_REFERENCE_ENABLED` flag controls stream reads;
+disabled or missing stream data can still return a stored fallback.
+
+Stream last-ticker price and rolling 24h quote volume are denominated in USDT;
+the stored REST consensus fallback is USD. No conversion or consensus replacement
+is implied. Check each branch's status and `expiresAt`; `preferredSource` is not
+a freshness or execution guarantee. Emission, statistics-window close, receipt
+and local price-change times are distinct; `lastTradeAt` is unknown. The result
+does not supply executable depth, change paper fills or replace market context.

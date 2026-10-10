@@ -494,6 +494,13 @@ export class CoinRithmClient {
       { apiKey, agentTrace },
     );
   }
+  getSpotReference(coinId: string, apiKey?: string, agentTrace?: AgentTrace) {
+    return this.request(
+      "GET",
+      `/api/agent/spot/reference/${encodeURIComponent(coinId)}`,
+      { apiKey, agentTrace },
+    );
+  }
   getCandles(
     coinId: string,
     query?: { range?: "1H" | "1D" | "1W" | "1M" | "3M"; fiat?: string },
