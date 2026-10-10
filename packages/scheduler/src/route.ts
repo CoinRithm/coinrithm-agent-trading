@@ -1,5 +1,5 @@
 import {
-  parseDecision,
+  parseDecisionForContract,
   classifyProviderFailure,
   canRetrySuperToolOutput,
   type DecideInput,
@@ -663,7 +663,10 @@ export class RoutedProvider<Lease = unknown> implements Provider {
       }
 
       if (result.ok) {
-        const parsed = parseDecision(result.text);
+        const parsed = parseDecisionForContract(
+          result.text,
+          input.decisionContract,
+        );
         if (parsed.ok) {
           const attempt: RouteAttempt = {
             provider: route.provider,

@@ -1210,6 +1210,8 @@ export interface FuturesFundingQuoteEvidence {
 // ───────────────────────── Per-session run state ────────────────────────────
 
 export interface RunState {
+  /** Exact checkpointed v2 request; validated before replay, never model-controlled. */
+  pmPaperV2Pending?: unknown;
   runId: string;
   cyclesRun: number;
   // Legacy total of every successful write. Kept for durable run telemetry;

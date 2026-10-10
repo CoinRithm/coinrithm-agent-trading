@@ -3,6 +3,8 @@ import type { Pool } from "pg";
 import { publicFetch } from "./publicEgress.js";
 import {
   runCycle,
+  runPmPaperCycle,
+  selectPmHousePolicy,
   selectProvider,
   providerForRoute,
   CoinRithmClient,
@@ -23,6 +25,7 @@ import { decrypt } from "./crypto.js";
 import {
   type AgentRow,
   loadStateJson,
+  saveStateJson,
   recordCycle,
   disableAgent,
   persistCycleResult,
@@ -1219,7 +1222,14 @@ export async function runAgentOnce(
   // a crash before persist replays the SAME key and the server's unique index
   // returns the cached result — never a double-trade (at-most-once per window).
   try {
-    const result = await runCycle(deps);
+    const pmPolicy = config.pmPaperV2Houses?.length
+      ? selectPmHousePolicy(agent, config.pmPaperV2Houses)
+      : undefined;
+    const result = pmPolicy
+      ? await runPmPaperCycle(deps, pmPolicy, (state) =>
+          saveStateJson(pool, agent.id, state),
+        )
+      : await runCycle(deps);
     const cycleId = await persistCycleResult(pool, agent.id, {
       state: deps.state,
       cycle: {

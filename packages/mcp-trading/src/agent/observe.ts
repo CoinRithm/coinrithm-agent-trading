@@ -1180,7 +1180,7 @@ function titleMentionsCoin(title: string | undefined, symbol: string): boolean {
 // backend flagged not-openable (eligible === false) and markets the agent already
 // holds (heldPmKeys). Shared by the primary board fetch and the crypto-targeted
 // secondary fetch so both go through the exact same filters.
-function expandPmMarkets(
+export function expandPmMarkets(
   discData: unknown,
   heldPmKeys: Set<string>,
 ): Omit<PmMarket, "ref">[] {

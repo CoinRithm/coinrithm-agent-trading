@@ -1,3 +1,8 @@
+import {
+  PM_PAPER_V2_BASE,
+  type PmPaperOpen,
+  type PmPaperClose,
+} from "./pmPaperV2.js";
 // Thin HTTP client for the CoinRithm agent surface (/api/agent/*).
 //
 // Auth: a user-minted API key (crk_live_…) passed as `Authorization: Bearer …`.
@@ -726,6 +731,29 @@ export class CoinRithmClient {
   ) {
     return this.request("POST", "/api/agent/futures/close", { body, apiKey });
   }
+  // Explicit opt-in contract; API derives and authorizes the configured house tuple.
+  openPmPaperV2(body: PmPaperOpen, apiKey?: string) {
+    return this.request("POST", `${PM_PAPER_V2_BASE}/open`, { body, apiKey });
+  }
+  replayPmPaperV2Open(body: PmPaperOpen, apiKey?: string) {
+    return this.request("POST", `${PM_PAPER_V2_BASE}/open/replay`, {
+      body,
+      apiKey,
+    });
+  }
+  closePmPaperV2(body: PmPaperClose, apiKey?: string) {
+    return this.request("POST", `${PM_PAPER_V2_BASE}/close`, { body, apiKey });
+  }
+  pmPaperV2Positions(
+    apiKey?: string,
+    query?: { status?: "open"; beforeId?: number; limit?: number },
+  ) {
+    return this.request("GET", `${PM_PAPER_V2_BASE}/positions`, {
+      apiKey,
+      query,
+    });
+  }
+
   openPmPosition(
     body: TraceableBody<{
       source: string;

@@ -21,7 +21,8 @@ vi.mock("./config.js", async (importOriginal) => ({
 }));
 vi.mock("./db.js", () => mocks);
 vi.mock("./scheduler.js", () => ({ runScheduler: mocks.runScheduler }));
-vi.mock("@coinrithm/mcp-trading/engine", () => ({
+vi.mock("@coinrithm/mcp-trading/engine", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@coinrithm/mcp-trading/engine")>()),
   probeDecisionContract: mocks.probeDecisionContract,
 }));
 vi.mock("node:http", () => ({ createServer: mocks.createServer }));

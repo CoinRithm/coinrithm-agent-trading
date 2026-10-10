@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { registerTools } from "./tools.js";
+import type { CoinRithmClient } from "./client.js";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { ALLOWED_CAPABILITIES } from "./agent/types.js";
@@ -12,14 +15,31 @@ import { ALLOWED_CAPABILITIES } from "./agent/types.js";
 const pkgRoot = join(__dirname, "..");
 const repoRoot = join(pkgRoot, "..", "..");
 
+// Public docs describe the default advertised surface; opt-in tools stay in
+// their explicit README section. Observe actual registration, including gates.
+const registeredTools = (pmV2 = false): string[] => {
+  const names: string[] = [];
+  vi.stubEnv("COINRITHM_PM_PAPER_V2_TOOLS_ENABLED", pmV2 ? "true" : undefined);
+  try {
+    registerTools(
+      {
+        registerTool: (name: string) => names.push(name),
+      } as unknown as McpServer,
+      {} as CoinRithmClient,
+    );
+    return names;
+  } finally {
+    vi.unstubAllEnvs();
+  }
+};
+
 describe("public docs stay truthful", () => {
   it("llms.txt tool count matches the registered MCP surface", () => {
-    const tools = readFileSync(join(__dirname, "tools.ts"), "utf-8");
     const llms = readFileSync(
       join(repoRoot, ".well-known", "llms.txt"),
       "utf-8",
     );
-    const registered = tools.match(/server\.registerTool\(/g)?.length ?? 0;
+    const registered = registeredTools().length;
     const claim = llms.match(/\b(\d+) tools\b/);
     expect(claim, "llms.txt tool-count claim missing").not.toBeNull();
     expect(Number(claim![1])).toBe(registered);
@@ -250,17 +270,10 @@ describe("tool-surface docs tripwire (publish audit 2026-08-19)", () => {
   // cross-venue dataset exists. Counting is not enough on its own: the count
   // was wrong AND the omissions were the differentiating tools, so assert both
   // the number and per-tool presence in every surface that enumerates tools.
-  const registeredTools = (): string[] => {
-    const src = readFileSync(join(__dirname, "tools.ts"), "utf8");
-    // \s already spans the newline prettier inserts after the open paren.
-    return [...src.matchAll(/server\.registerTool\(\s*"([a-z0-9_]+)"/g)].map(
-      (m) => m[1]!,
-    );
-  };
 
-  it("every registered tool is named in the package README", () => {
+  it("every default and opt-in tool is named in the package README", () => {
     const readme = readFileSync(join(pkgRoot, "README.md"), "utf8");
-    for (const tool of registeredTools()) {
+    for (const tool of registeredTools(true)) {
       expect(readme, `README missing tool ${tool}`).toContain(`\`${tool}\``);
     }
   });

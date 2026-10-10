@@ -1,3 +1,4 @@
+import { parsePmPaperDecision } from "./pmPaperDecision.js";
 // Parse the model's single text response into a strict, structured Decision.
 // Accepts futures + spot + prediction-market actions. Anything else — invalid
 // JSON, an unknown action type, a free-form endpoint/tool name, extra unknown
@@ -512,4 +513,14 @@ export function parseDecision(text: string): ParseDecisionResult {
       actions,
     },
   };
+}
+
+/** Only the trusted host selects a versioned contract; default stays legacy. */
+export function parseDecisionForContract(
+  text: string,
+  contract?: "pm_paper_v2",
+) {
+  return contract === "pm_paper_v2"
+    ? parsePmPaperDecision(text)
+    : parseDecision(text);
 }

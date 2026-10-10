@@ -523,3 +523,33 @@ lines across runtime source. CI also starts a disposable PostgreSQL database
 and runs the capacity, concurrent-claim and state-isolation integration tests.
 Missing database configuration fails CI; skipped local database tests are not
 passing evidence. See [reliability and reproduction](../../docs/RELIABILITY.md).
+
+## Opt-in PM paper v2 houses
+
+`SCHEDULER_PM_PAPER_V2_HOUSES_JSON` defaults to an empty list. Each enrolled
+record must explicitly contain `version: "pm_paper_house_v2"`, the exact
+`userId`, `apiKeyId`, `walletId`, `houseAgentId` tuple, `maxCashBudgetPerEntry`
+and `maxDailyLoss` as decimal strings, integer `maxOpenPositions` and
+`maxEntriesPerDay`, and `discoveryQuery`. `entryEnabled` defaults to false;
+`maxModelCallsPerHour` defaults to 12 (maximum 30). Only a matching house-owned
+scheduler row with a dedicated `venues: ["pm"]` spec uses this separate cycle.
+The API's private read must independently confirm the full key/wallet tuple.
+Existing agents retain the existing runner, prompt, actions and budgets.
+
+The versioned model vocabulary is `pm_v2_open` with an explicit fee-inclusive
+`maxCashBudget` string, or `pm_v2_close` for a full exit. No legacy `stakeMusd`
+is converted. Current exact aggregate exposure/daily loss/entry counts are
+checked before the model and re-read before a new entry. Unknown accounting,
+legacy exposure or stale risk holds entries. The normal shared-provider
+routing/metering remains in use, with the separate versioned decision schema.
+
+Before any write, the exact request and idempotency key are checkpointed in
+existing scheduler state. An uncertain entry first calls `/api/agent/pm/v2/open/replay`,
+which cannot create a position. A missing receipt permits resending the exact
+request only after current admission/risk checks. Entry pauses do not prevent
+receipt reconciliation or full-close requests. HTTP202 is stored as accepted
+and pending, never executed or final PnL. The aggregator separately drains exits;
+disabling this house's entry policy does not disable that worker.
+
+This configuration is deployment preparation, not authorization to enroll any
+existing customer or place live-market orders. All balances here are paper.

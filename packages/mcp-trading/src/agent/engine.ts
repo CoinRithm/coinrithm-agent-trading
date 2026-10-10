@@ -32,6 +32,7 @@ export {
 } from "./providers.js";
 export {
   parseDecision,
+  parseDecisionForContract,
   ACTIONS_STRING_DIAGNOSTICS,
   type ActionsStringDiagnostic,
 } from "./decision.js";
@@ -77,3 +78,11 @@ export type {
   ProviderName,
   ModelConfig,
 } from "./types.js";
+
+export {
+  readPmHousePolicies,
+  selectPmHousePolicy,
+  type PmHousePolicy,
+} from "./pmPaperPolicy.js";
+
+export { runPmPaperCycle, type PmPaperCycleResult } from "./pmPaperCycle.js";

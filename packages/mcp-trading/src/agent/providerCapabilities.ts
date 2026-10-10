@@ -1,3 +1,4 @@
+import { PM_PAPER_DECISION_JSON_SCHEMA } from "./pmPaperDecision.js";
 // Provider request-capability adapter (reliability slice A, contract frozen on
 // Telegram 2026-08-26). One declarative table answers "what request shape does
 // this route accept?" so the runner call builder, the decision probe, and any
@@ -178,13 +179,16 @@ export function buildChatBody(
     maxTokens: number;
     temperature?: number;
     excludeActionTypes?: readonly DecisionActionExclusion[];
+    decisionContract?: "pm_paper_v2";
   },
 ): Record<string, unknown> {
   const system = shape.systemHint
     ? `${shape.systemHint}\n\n${args.system}`
     : args.system;
   const jsonSchema = shape.jsonSchema
-    ? restrictDecisionSchema(shape.jsonSchema, args.excludeActionTypes)
+    ? args.decisionContract === "pm_paper_v2"
+      ? PM_PAPER_DECISION_JSON_SCHEMA
+      : restrictDecisionSchema(shape.jsonSchema, args.excludeActionTypes)
     : undefined;
   return {
     model: args.model,
