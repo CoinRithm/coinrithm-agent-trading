@@ -1,3 +1,7 @@
+import {
+  readPmHousePolicies,
+  type PmHousePolicy,
+} from "@coinrithm/mcp-trading/engine";
 import { parsePaidBrainMarginPct } from "./paidBrain.js";
 import { loadMasterKey } from "./crypto.js";
 
@@ -64,6 +68,7 @@ export interface Config {
   // Rollback: SCHEDULER_SUPER_FALLBACK_JSON_CONTENT_ENABLED=false.
   superFallbackJsonContentEnabled: boolean;
   compactPromptTablesEnabled: boolean;
+  pmPaperV2Houses?: readonly PmHousePolicy[];
   sharedOwnerTpm: number;
   sharedMinModelIntervalSeconds: number;
   nvidiaTpm: number;
@@ -295,6 +300,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       "SCHEDULER_CUSTOMER_SUPER_JSON_CONTENT_BYO_ENABLED",
       false,
     ),
+    pmPaperV2Houses: readPmHousePolicies(env.SCHEDULER_PM_PAPER_V2_HOUSES_JSON),
     compactPromptTablesEnabled: boolEnv(
       env,
       "SCHEDULER_COMPACT_PROMPT_TABLES_ENABLED",

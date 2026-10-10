@@ -2085,63 +2085,69 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
-    "open_pm_paper_v2",
-    {
-      title: "Open opted-in PM paper position",
-      description:
-        "For server-configured PM paper v2 house keys only. Opens against freshly acquired native Kalshi/Polymarket depth. maxCashBudget is an explicit exact decimal TOTAL cash budget including fees, not legacy stakeMusd. Server admission defaults off. Reuse the identical pm-entry key and body after uncertain delivery. Existing legacy tools keep their behavior. " +
-        PAPER_NOTE_SHORT,
-      inputSchema: pmPaperOpenSchema.shape,
-      outputSchema: API_RESULT_OUTPUT_SCHEMA,
-      annotations: mutatingAnnotations("Open opted-in PM paper position", {
-        idempotent: true,
-      }),
-    },
-    async (body, extra) =>
-      present(
-        await client.openPmPaperV2(
-          pmPaperOpenSchema.parse(body),
-          requestKey(extra),
+  if (process.env.COINRITHM_PM_PAPER_V2_TOOLS_ENABLED === "true") {
+    server.registerTool(
+      "open_pm_paper_v2",
+      {
+        title: "Open opted-in PM paper position",
+        description:
+          "For server-configured PM paper v2 house keys only. Opens against freshly acquired native Kalshi/Polymarket depth. maxCashBudget is an explicit exact decimal TOTAL cash budget including fees, not legacy stakeMusd. Server admission defaults off. Reuse the identical pm-entry key and body after uncertain delivery. Existing legacy tools keep their behavior. " +
+          PAPER_NOTE_SHORT,
+        inputSchema: pmPaperOpenSchema.shape,
+        outputSchema: API_RESULT_OUTPUT_SCHEMA,
+        annotations: mutatingAnnotations("Open opted-in PM paper position", {
+          idempotent: true,
+        }),
+      },
+      async (body, extra) =>
+        present(
+          await client.openPmPaperV2(
+            pmPaperOpenSchema.parse(body),
+            requestKey(extra),
+          ),
         ),
-      ),
-  );
-  server.registerTool(
-    "close_pm_paper_v2",
-    {
-      title: "Request full PM paper exit",
-      description:
-        "Request a durable FULL exit for an owned PM paper v2 position. A 202 accepted response is pending, NOT an executed sale or final PnL. Native depth and settlement can leave an exit pending or requiring attention. Reuse the identical pm-exit key/body to reconcile; only executed:true confirms completion. Entry pauses do not stop existing exits. " +
-        PAPER_NOTE_SHORT,
-      inputSchema: pmPaperCloseSchema.shape,
-      outputSchema: API_RESULT_OUTPUT_SCHEMA,
-      annotations: mutatingAnnotations("Request full PM paper exit", {
-        destructive: true,
-        idempotent: true,
-      }),
-    },
-    async (body, extra) =>
-      present(
-        await client.closePmPaperV2(
-          pmPaperCloseSchema.parse(body),
-          requestKey(extra),
+    );
+    server.registerTool(
+      "close_pm_paper_v2",
+      {
+        title: "Request full PM paper exit",
+        description:
+          "Request a durable FULL exit for an owned PM paper v2 position. A 202 accepted response is pending, NOT an executed sale or final PnL. Native depth and settlement can leave an exit pending or requiring attention. Reuse the identical pm-exit key/body to reconcile; only executed:true confirms completion. Entry pauses do not stop existing exits. " +
+          PAPER_NOTE_SHORT,
+        inputSchema: pmPaperCloseSchema.shape,
+        outputSchema: API_RESULT_OUTPUT_SCHEMA,
+        annotations: mutatingAnnotations("Request full PM paper exit", {
+          destructive: true,
+          idempotent: true,
+        }),
+      },
+      async (body, extra) =>
+        present(
+          await client.closePmPaperV2(
+            pmPaperCloseSchema.parse(body),
+            requestKey(extra),
+          ),
         ),
-      ),
-  );
-  server.registerTool(
-    "get_pm_paper_v2_positions",
-    {
-      title: "Read PM paper v2 positions and exit receipts",
-      description:
-        "Read the caller's bounded PM paper v2 positions, persisted exit intents and terminal accounting receipts. Pending/leased/retry/manual_attention do not establish execution or final PnL. " +
-        PAPER_NOTE_SHORT,
-      inputSchema: {},
-      outputSchema: API_RESULT_OUTPUT_SCHEMA,
-      annotations: readOnlyAnnotations("Read PM paper v2 positions"),
-    },
-    async (_body, extra) =>
-      present(await client.pmPaperV2Positions(requestKey(extra))),
-  );
+    );
+    server.registerTool(
+      "get_pm_paper_v2_positions",
+      {
+        title: "Read PM paper v2 positions and exit receipts",
+        description:
+          "Read the caller's bounded PM paper v2 positions, persisted exit intents and terminal accounting receipts. Pending/leased/retry/manual_attention do not establish execution or final PnL. " +
+          PAPER_NOTE_SHORT,
+        inputSchema: {
+          status: z.literal("open").optional(),
+          beforeId: z.number().int().positive().max(2147483647).optional(),
+          limit: z.number().int().min(1).max(50).optional(),
+        },
+        outputSchema: API_RESULT_OUTPUT_SCHEMA,
+        annotations: readOnlyAnnotations("Read PM paper v2 positions"),
+      },
+      async (query, extra) =>
+        present(await client.pmPaperV2Positions(requestKey(extra), query)),
+    );
+  }
 
   server.registerTool(
     "report_pm_opportunity",

@@ -5,7 +5,10 @@
 
 import { AgentSpec, ProviderName } from "./types.js";
 import { retryAfterSeconds } from "../retryAfter.js";
-import { parseDecision, type ActionsStringDiagnostic } from "./decision.js";
+import {
+  parseDecisionForContract,
+  type ActionsStringDiagnostic,
+} from "./decision.js";
 import {
   chatShapeFor,
   buildChatBody,
@@ -109,6 +112,7 @@ export interface DecideInput {
   // runner withholds futures_open when futures capacity is spent). Transport
   // only: parseDecision still validates against the full contract.
   excludeActionTypes?: readonly DecisionActionExclusion[];
+  decisionContract?: "pm_paper_v2";
 }
 
 export interface DecideRouteAttempt {
@@ -524,6 +528,7 @@ class OpenAiCompatProvider implements Provider {
                 user: input.user,
                 maxTokens: input.maxTokens ?? 1024,
                 excludeActionTypes: input.excludeActionTypes,
+                decisionContract: input.decisionContract,
               }),
             ),
           });
@@ -631,7 +636,9 @@ class SameModelRetryProvider implements Provider {
     const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     const first = await this.delegate.decide(input);
     const firstFinished = Date.now();
-    const parsedFirst = first.ok ? parseDecision(first.text) : undefined;
+    const parsedFirst = first.ok
+      ? parseDecisionForContract(first.text, input.decisionContract)
+      : undefined;
     const retryContent =
       first.ok &&
       parsedFirst?.ok === false &&
@@ -665,7 +672,7 @@ class SameModelRetryProvider implements Provider {
       timeoutMs: remainingMs,
     });
     const parsedRetry = retryResult.ok
-      ? parseDecision(retryResult.text)
+      ? parseDecisionForContract(retryResult.text, input.decisionContract)
       : undefined;
     const result: DecideResult =
       retryResult.ok && parsedRetry?.ok === false
@@ -680,7 +687,9 @@ class SameModelRetryProvider implements Provider {
       res: DecideResult,
       latencyMs: number,
     ): DecideRouteAttempt => {
-      const parsed = res.ok ? parseDecision(res.text) : undefined;
+      const parsed = res.ok
+        ? parseDecisionForContract(res.text, input.decisionContract)
+        : undefined;
       return {
         provider: this.provider,
         model: this.model,

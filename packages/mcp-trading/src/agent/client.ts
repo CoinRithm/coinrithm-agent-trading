@@ -538,11 +538,18 @@ export class CoinRithmClient {
   openPmPaperV2(body: PmPaperOpen) {
     return this.request("POST", `${PM_PAPER_V2_BASE}/open`, { body });
   }
+  replayPmPaperV2Open(body: PmPaperOpen) {
+    return this.request("POST", `${PM_PAPER_V2_BASE}/open/replay`, { body });
+  }
   closePmPaperV2(body: PmPaperClose) {
     return this.request("POST", `${PM_PAPER_V2_BASE}/close`, { body });
   }
-  pmPaperV2Positions() {
-    return this.request("GET", `${PM_PAPER_V2_BASE}/positions`, {});
+  pmPaperV2Positions(query?: {
+    status?: "open";
+    beforeId?: number;
+    limit?: number;
+  }) {
+    return this.request("GET", `${PM_PAPER_V2_BASE}/positions`, { query });
   }
 
   openPmPosition(body: {

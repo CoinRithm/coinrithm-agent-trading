@@ -12,7 +12,10 @@ const open = {
   maxCashBudget: "10.123456789012345678",
   idempotencyKey: "pm-entry:fixture",
 } as const;
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+});
 describe("explicit PM v2 consumer wire contract", () => {
   it("preserves decimals and explicit nulls", () => {
     const body = {
@@ -130,6 +133,7 @@ describe("explicit PM v2 consumer wire contract", () => {
 });
 
 it("registered tools pass per-request key and preserve pending receipt", async () => {
+  vi.stubEnv("COINRITHM_PM_PAPER_V2_TOOLS_ENABLED", "true");
   const pending = {
     ok: true,
     status: 202,
@@ -169,5 +173,19 @@ it("registered tools pass per-request key and preserve pending receipt", async (
   expect(client.closePmPaperV2).toHaveBeenCalledWith(close, "request-fixture");
   expect(JSON.stringify(response)).toContain('"executed":false');
   await handlers.get("get_pm_paper_v2_positions")!({}, extra);
-  expect(client.pmPaperV2Positions).toHaveBeenCalledWith("request-fixture");
+  expect(client.pmPaperV2Positions).toHaveBeenCalledWith("request-fixture", {});
+});
+
+it("default tool list does not advertise PM v2", () => {
+  vi.stubEnv("COINRITHM_PM_PAPER_V2_TOOLS_ENABLED", undefined);
+  const names: string[] = [];
+  registerTools(
+    {
+      registerTool: (name: string) => names.push(name),
+    } as unknown as McpServer,
+    {} as CoinRithmClient,
+  );
+  expect(names).toContain("open_pm_position");
+  expect(names).not.toContain("open_pm_paper_v2");
+  expect(names).not.toContain("close_pm_paper_v2");
 });

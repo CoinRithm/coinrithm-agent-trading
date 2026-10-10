@@ -413,3 +413,16 @@ fewer than 20 decided trades carries a separate small-sample warning. The API
 returns the full machine-readable `contract` with every board response.
 
 stdout is the MCP JSON-RPC channel; this server logs only to stderr.
+
+### Opt-in PM paper v2 tools
+
+The default tool list is unchanged. Set `COINRITHM_PM_PAPER_V2_TOOLS_ENABLED=true`
+only for a server intended to expose the separately authorized house pilot:
+`open_pm_paper_v2`, `close_pm_paper_v2`, and `get_pm_paper_v2_positions`.
+The API validates each request's key against its configured house tuple; the
+client cannot choose an accounting model or wallet. An exact decimal
+`maxCashBudget` includes entry fees and never substitutes for legacy stake.
+A close may return HTTP202 accepted/pending; only `executed:true` confirms
+completion. Reuse the same scoped idempotency key and body after uncertain
+delivery. Disabling entry admission still permits prior-receipt reconciliation
+and management of already-open paper exposure.
