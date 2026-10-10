@@ -439,6 +439,12 @@ export class CoinRithmClient {
     });
   }
   // ── prediction markets ───────────────────────────────────────────────────
+  discoverPmPaperV2(
+    query?: { q?: string; limit?: number },
+    trace?: AgentTrace,
+  ) {
+    return this.request("GET", "/api/agent/pm/v2/discover", { query, trace });
+  }
   discoverPmMarkets(
     query?: { q?: string; source?: string; limit?: number },
     trace?: AgentTrace,

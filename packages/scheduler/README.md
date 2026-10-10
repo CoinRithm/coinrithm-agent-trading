@@ -536,6 +536,20 @@ scheduler row with a dedicated `venues: ["pm"]` spec uses this separate cycle.
 The API's private read must independently confirm the full key/wallet tuple.
 Existing agents retain the existing runner, prompt, actions and budgets.
 
+Optional integer `maxEndDays` (1–30) must match the API's configured house
+policy exactly before new entries; omission on both sides leaves the maturity
+filter unset. Dedicated `/api/agent/pm/v2/discover` supplies selected-native
+market identity and scheduled end evidence. The cycle excludes held native
+markets, deduplicates token/outcome aliases, and applies the horizon before
+the twelve-candidate model limit. Unknown, expired or out-of-window native
+dates refuse candidates when the horizon is configured; event-level dates
+cannot substitute. Scheduled end is not a settlement-time guarantee. Final
+API admission reacquires native evidence and remains authoritative.
+
+Unknown held identity or mismatched horizon holds new entries without changing
+confirmed receipt reconciliation or full-close management. The durable pending
+request remains bound to the original four ownership IDs, not mutable policy.
+
 The versioned model vocabulary is `pm_v2_open` with an explicit fee-inclusive
 `maxCashBudget` string, or `pm_v2_close` for a full exit. No legacy `stakeMusd`
 is converted. Current exact aggregate exposure/daily loss/entry counts are

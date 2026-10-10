@@ -60,7 +60,7 @@ function fixture() {
   } as unknown as Pool;
   const context = {
     executionModel: "pm_paper_v2",
-    configuredHouse: scope,
+    configuredHouse: { ...scope } as typeof scope & { maxEndDays?: number },
     entryEnabled: true,
     risk: {
       asOf: new Date().toISOString(),
@@ -88,7 +88,7 @@ function fixture() {
         payoutQuanta6: null,
         exit: null,
       },
-    ],
+    ] as Record<string, unknown>[],
   };
   const close = vi.fn(async (body: unknown) => {
     expect(stored).toMatchObject({
@@ -98,10 +98,32 @@ function fixture() {
   });
   const client = {
     pmPaperV2Positions: async () => ({ ok: true, status: 200, data: context }),
-    discoverPmMarkets: async () => ({
+    discoverPmPaperV2: vi.fn(async () => ({
       ok: true,
       status: 200,
-      data: { data: [] },
+      data: {
+        executionModel: "pm_paper_v2",
+        data: [] as Record<string, unknown>[],
+      },
+    })),
+    discoverPmMarkets: vi.fn(async () => {
+      throw new Error("legacy discovery forbidden in v2");
+    }),
+    openPmPaperV2: vi.fn(async (body: unknown) => {
+      expect(stored).toMatchObject({
+        pmPaperV2Pending: { kind: "open", scope, body },
+      });
+      return {
+        ok: true,
+        status: 200,
+        data: {
+          executionModel: "pm_paper_v2",
+          accepted: true,
+          executed: true,
+          positionId: 11,
+          replayed: false,
+        },
+      };
     }),
     closePmPaperV2: close,
   };
@@ -133,6 +155,7 @@ function fixture() {
     close,
     decide,
     context,
+    client,
     stored: () => stored,
   };
 }
@@ -141,6 +164,90 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("hosted PM v2 dispatch and durable recovery", () => {
+  it("actual hosted cycle filters native aliases and maturity before model cap", async () => {
+    const f = fixture();
+    f.context.positions = [];
+    f.context.risk.totalOpen = 0;
+    f.context.configuredHouse.maxEndDays = 1;
+    f.config.pmPaperV2Houses = [{ ...policy, maxEndDays: 1 }];
+    const now = Date.now(),
+      day = 86_400_000;
+    const native = (id: string, end: number) => ({
+      externalMarketId: id,
+      probability: 60,
+      nativeMarket: { venue: "kalshi", key: `kalshi:${id}` },
+      nativeEndAt: new Date(end).toISOString(),
+      nativeEndBasis: "kalshi_market_close_time",
+      settlementTimeKnown: false,
+    });
+    f.client.discoverPmPaperV2.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        executionModel: "pm_paper_v2",
+        data: [
+          {
+            source: "kalshi",
+            slug: "fixture",
+            outcomes: [
+              ...Array.from({ length: 15 }, (_, i) =>
+                native(`ANNUAL-${i}`, now + 365 * day),
+              ),
+              ...Array.from({ length: 15 }, (_, i) =>
+                native(`NEAR-${i}`, now + 3600000),
+              ),
+            ],
+          },
+        ],
+      },
+    });
+    f.decide.mockImplementation(async () => ({
+      ok: true,
+      text: JSON.stringify({
+        decision: "act",
+        actions: [
+          {
+            type: "pm_v2_open",
+            source: "kalshi",
+            slug: "fixture",
+            outcomeExternalMarketId: "NEAR-11",
+            side: "yes",
+            maxCashBudget: "10",
+          },
+        ],
+      }),
+    }));
+    const legacy = vi.spyOn(engine, "runCycle");
+    await runAgentOnce(f.pool, f.agent, f.config);
+    expect(legacy).not.toHaveBeenCalled();
+    expect(f.client.discoverPmMarkets).not.toHaveBeenCalled();
+    expect(f.client.discoverPmPaperV2).toHaveBeenCalledWith({
+      q: "Bitcoin",
+      limit: 20,
+    });
+    const prompt = JSON.parse(f.decide.mock.calls[0]?.[0].user);
+    expect(prompt.markets).toHaveLength(12);
+    expect(
+      prompt.markets.map(
+        (m: { outcomeExternalMarketId: string }) => m.outcomeExternalMarketId,
+      ),
+    ).toEqual(Array.from({ length: 12 }, (_, i) => `NEAR-${i}`));
+    expect(prompt.policy.maxEndDays).toBe(1);
+    expect(f.client.openPmPaperV2).toHaveBeenCalledOnce();
+    expect(f.stored()).not.toHaveProperty("pmPaperV2Pending");
+  });
+  it("actual hosted cycle holds entries on server horizon mismatch without legacy fallback", async () => {
+    const f = fixture();
+    f.context.positions = [];
+    f.context.risk.totalOpen = 0;
+    f.config.pmPaperV2Houses = [{ ...policy, maxEndDays: 1 }];
+    const legacy = vi.spyOn(engine, "runCycle");
+    await runAgentOnce(f.pool, f.agent, f.config);
+    expect(legacy).not.toHaveBeenCalled();
+    expect(f.decide).not.toHaveBeenCalled();
+    expect(f.client.discoverPmPaperV2).not.toHaveBeenCalled();
+    expect(f.client.openPmPaperV2).not.toHaveBeenCalled();
+  });
   it.each(["missing", "owner", "key", "wallet", "plan", "malformed"])(
     "never falls back for a persisted PM house with %s enrollment",
     async (mode) => {

@@ -529,6 +529,17 @@ export class CoinRithmClient {
       agentTrace,
     });
   }
+  discoverPmPaperV2(
+    query?: { q?: string; limit?: number },
+    apiKey?: string,
+    agentTrace?: AgentTrace,
+  ) {
+    return this.request("GET", "/api/agent/pm/v2/discover", {
+      query,
+      apiKey,
+      agentTrace,
+    });
+  }
   discoverPmMarkets(
     query?: {
       q?: string;

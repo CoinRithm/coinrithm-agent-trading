@@ -31,7 +31,7 @@ const action = {
 };
 const read = () => ({
   executionModel: "pm_paper_v2",
-  configuredHouse: scope,
+  configuredHouse: { ...scope } as typeof scope & { maxEndDays?: number },
   entryEnabled: true,
   risk: {
     asOf: new Date().toISOString(),
@@ -49,21 +49,34 @@ const read = () => ({
 function setup() {
   const context = read();
   const client = {
+    discoverPmMarkets: vi
+      .fn()
+      .mockRejectedValue(new Error("legacy discovery forbidden in v2")),
     pmPaperV2Positions: vi.fn().mockImplementation(async () => ({
       ok: true,
       status: 200,
       data: context,
     })),
-    discoverPmMarkets: vi.fn().mockResolvedValue({
+    discoverPmPaperV2: vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
       data: {
+        executionModel: "pm_paper_v2",
         data: [
           {
             source: "kalshi",
             slug: "fixture",
             title: "Fixture market",
-            outcomes: [{ externalMarketId: "native-YES", probability: 60 }],
+            outcomes: [
+              {
+                externalMarketId: "native-YES",
+                probability: 60,
+                nativeMarket: { venue: "kalshi", key: "kalshi:NATIVE" },
+                nativeEndAt: new Date(Date.now() + 3600000).toISOString(),
+                nativeEndBasis: "kalshi_market_close_time",
+                settlementTimeKnown: false,
+              },
+            ],
           },
         ],
       },
@@ -205,6 +218,7 @@ describe("dedicated PM v2 house cycle", () => {
       idempotencyKey: expect.stringMatching(/^pm-entry:/),
     });
     expect(f.deps.state.pmPaperV2Pending).toBeUndefined();
+    expect(f.client.discoverPmMarkets).not.toHaveBeenCalled();
   });
   it("checkpoint failure prevents any write", async () => {
     const f = setup();
@@ -230,7 +244,7 @@ describe("dedicated PM v2 house cycle", () => {
     const original = f.client.openPmPaperV2.mock.calls[0][0];
     f.context.entryEnabled = false;
     f.provider.decide.mockClear();
-    f.client.discoverPmMarkets.mockClear();
+    f.client.discoverPmPaperV2.mockClear();
     const replay = await runPmPaperCycle(
       f.deps,
       { ...policy, entryEnabled: false },
@@ -239,7 +253,7 @@ describe("dedicated PM v2 house cycle", () => {
     expect(f.client.replayPmPaperV2Open.mock.calls[0][0]).toEqual(original);
     expect(f.client.openPmPaperV2).toHaveBeenCalledTimes(1);
     expect(f.provider.decide).not.toHaveBeenCalled();
-    expect(f.client.discoverPmMarkets).not.toHaveBeenCalled();
+    expect(f.client.discoverPmPaperV2).not.toHaveBeenCalled();
     expect(replay.planned[0].executed).toBe(true);
   });
   it.each([
@@ -315,7 +329,7 @@ describe("dedicated PM v2 house cycle", () => {
       executed: false,
       executionPending: true,
     });
-    expect(f.client.discoverPmMarkets).not.toHaveBeenCalled();
+    expect(f.client.discoverPmPaperV2).not.toHaveBeenCalled();
     expect(f.client.openPmPaperV2).not.toHaveBeenCalled();
   });
   it("dry run never checkpoints or mutates", async () => {
@@ -369,4 +383,203 @@ it("caps model calls without changing pending replay", async () => {
   const result = await runPmPaperCycle(f.deps, policy, f.checkpoint);
   expect(result.skipReason).toBe("pm_v2_model_budget");
   expect(f.provider.decide).not.toHaveBeenCalled();
+});
+
+const heldPosition = (
+  native: unknown = { venue: "kalshi", requestedTicker: "NATIVE", side: "yes" },
+) => ({
+  id: 10,
+  source: "kalshi",
+  slug: "other-alias",
+  outcomeExternalMarketId: "other-NO",
+  side: "yes",
+  status: "open",
+  accountingStatus: "open",
+  quantityUnits2: "100",
+  reservedCashQuanta6: "500000",
+  exit: { status: "pending" },
+  pnlQuanta6: null,
+  payoutQuanta6: null,
+  entry: { nativeIdentity: native },
+});
+
+it.each([0, 31, 1.5, null, "1"])(
+  "strict policy rejects maxEndDays=%s",
+  (maxEndDays) => {
+    expect(() =>
+      readPmHousePolicies(JSON.stringify([{ ...policy, maxEndDays }])),
+    ).toThrow();
+  },
+);
+it("accepts optional/one/thirty-day policy without changing four-ID scope", () => {
+  expect(
+    readPmHousePolicies(JSON.stringify([policy]))[0]?.maxEndDays,
+  ).toBeUndefined();
+  for (const maxEndDays of [1, 30])
+    expect(
+      readPmHousePolicies(JSON.stringify([{ ...policy, maxEndDays }]))[0]
+        ?.maxEndDays,
+    ).toBe(maxEndDays);
+});
+it.each([
+  [undefined, 1],
+  [1, undefined],
+  [1, 2],
+])(
+  "requires exact scheduler/server horizon parity %s/%s",
+  async (local, server) => {
+    const f = setup();
+    f.context.configuredHouse.maxEndDays = server;
+    const result = await runPmPaperCycle(
+      f.deps,
+      { ...policy, maxEndDays: local },
+      f.checkpoint,
+    );
+    expect(result.skipReason).toBe("pm_v2_no_available_action");
+    expect(f.client.discoverPmPaperV2).not.toHaveBeenCalled();
+    expect(f.client.openPmPaperV2).not.toHaveBeenCalled();
+  },
+);
+it("passes explicit horizon to model and checkpoints only canonical four IDs", async () => {
+  const f = setup();
+  f.context.configuredHouse.maxEndDays = 1;
+  let checkpointScope: unknown;
+  f.checkpoint.mockImplementation(async (state) => {
+    checkpointScope = state.pmPaperV2Pending.scope;
+  });
+  await runPmPaperCycle(f.deps, { ...policy, maxEndDays: 1 }, f.checkpoint);
+  expect(checkpointScope).toEqual(scope);
+  const prompt = JSON.parse(f.provider.decide.mock.calls[0]?.[0].user);
+  expect(prompt.policy.maxEndDays).toBe(1);
+  expect(prompt.markets[0]).toMatchObject({
+    nativeMarketKey: "kalshi:NATIVE",
+    settlementTimeKnown: false,
+  });
+});
+it.each(["held", "unknown"])(
+  "does not discover/open an existing or uncertain native exposure: %s",
+  async (kind) => {
+    const f = setup();
+    f.context.positions = [heldPosition(kind === "unknown" ? {} : undefined)];
+    f.context.risk.totalOpen = 1;
+    await runPmPaperCycle(f.deps, policy, f.checkpoint);
+    expect(f.provider.decide).not.toHaveBeenCalled();
+    expect(f.client.openPmPaperV2).not.toHaveBeenCalled();
+    expect(f.client.discoverPmMarkets).not.toHaveBeenCalled();
+  },
+);
+it("held alias appearing during model decision prevents checkpoint/send", async () => {
+  const f = setup();
+  f.provider.decide.mockImplementation(async () => {
+    f.context.positions = [heldPosition()];
+    f.context.risk.totalOpen = 1;
+    return {
+      ok: true,
+      text: JSON.stringify({ decision: "act", actions: [action] }),
+    };
+  });
+  expect((await runPmPaperCycle(f.deps, policy, f.checkpoint)).skipReason).toBe(
+    "pm_v2_entry_policy_changed",
+  );
+  expect(f.checkpoint).not.toHaveBeenCalled();
+  expect(f.client.openPmPaperV2).not.toHaveBeenCalled();
+});
+it("native maturity expiring during model decision refuses before send", async () => {
+  const f = setup();
+  f.context.configuredHouse.maxEndDays = 1;
+  const now = Date.now();
+  const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+  const near = {
+    executionModel: "pm_paper_v2",
+    data: [
+      {
+        source: "kalshi",
+        slug: "fixture",
+        outcomes: [
+          {
+            externalMarketId: "native-YES",
+            probability: 60,
+            nativeMarket: { venue: "kalshi", key: "kalshi:NATIVE" },
+            nativeEndAt: new Date(now + 1).toISOString(),
+            nativeEndBasis: "kalshi_market_close_time",
+          },
+        ],
+      },
+    ],
+  };
+  f.client.discoverPmPaperV2.mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: near,
+  });
+  f.provider.decide.mockImplementation(async () => {
+    clock.mockReturnValue(now + 1);
+    return {
+      ok: true,
+      text: JSON.stringify({ decision: "act", actions: [action] }),
+    };
+  });
+  try {
+    expect(
+      (
+        await runPmPaperCycle(
+          f.deps,
+          { ...policy, maxEndDays: 1 },
+          f.checkpoint,
+        )
+      ).skipReason,
+    ).toBe("pm_v2_entry_policy_changed");
+    expect(f.checkpoint).not.toHaveBeenCalled();
+  } finally {
+    clock.mockRestore();
+  }
+});
+it("native discovery refusal never falls back to legacy discovery", async () => {
+  const f = setup();
+  f.client.discoverPmPaperV2.mockResolvedValue({
+    ok: false,
+    status: 503,
+    data: {},
+  });
+  expect((await runPmPaperCycle(f.deps, policy, f.checkpoint)).skipReason).toBe(
+    "pm_v2_no_available_action",
+  );
+  expect(f.client.discoverPmMarkets).not.toHaveBeenCalled();
+  expect(f.provider.decide).not.toHaveBeenCalled();
+});
+it("horizon mismatch does not block a protective close", async () => {
+  const f = setup();
+  f.context.configuredHouse.maxEndDays = 1;
+  f.context.positions = [{ ...heldPosition(), exit: null }];
+  f.provider.decide.mockResolvedValue({
+    ok: true,
+    text: JSON.stringify({
+      decision: "act",
+      actions: [{ type: "pm_v2_close", positionId: 10 }],
+    }),
+  });
+  const result = await runPmPaperCycle(f.deps, policy, f.checkpoint);
+  expect(result.planned[0]).toMatchObject({
+    accepted: true,
+    executed: false,
+    executionPending: true,
+  });
+  expect(f.client.discoverPmPaperV2).not.toHaveBeenCalled();
+});
+it("confirmed replay survives changed horizon and reuses exact prior receipt", async () => {
+  const f = setup();
+  f.client.openPmPaperV2.mockResolvedValueOnce({
+    ok: false,
+    status: 0,
+    data: {},
+  });
+  await runPmPaperCycle(f.deps, policy, f.checkpoint);
+  const original = f.client.openPmPaperV2.mock.calls[0]?.[0];
+  f.context.configuredHouse.maxEndDays = 1;
+  f.provider.decide.mockClear();
+  const result = await runPmPaperCycle(f.deps, policy, f.checkpoint);
+  expect(f.client.replayPmPaperV2Open).toHaveBeenCalledWith(original);
+  expect(f.client.openPmPaperV2).toHaveBeenCalledTimes(1);
+  expect(f.provider.decide).not.toHaveBeenCalled();
+  expect(result.planned[0]?.executed).toBe(true);
 });
