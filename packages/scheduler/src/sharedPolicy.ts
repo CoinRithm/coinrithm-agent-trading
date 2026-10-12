@@ -22,13 +22,21 @@ export function sharedOwnerLimit(
   config: Config,
   reserveTokens: number,
 ): ProviderCapacityLimit {
+  // A provisioned PM paper house runs its own dedicated cycle with a much
+  // larger prompt than the classic houses. Sharing the classic house bucket
+  // (25k TPM, one call at a time) starved it completely: every cycle of house
+  // 74 deferred on "shared pool owner budget" (2026-10-12). It gets its own
+  // bucket; the classic five keep theirs unchanged.
   const tenant = agent.capacityTenant
     ? agent.capacityTenant
-    : agent.isHouse
-      ? "house"
-      : Number.isSafeInteger(agent.ownerUserId) && (agent.ownerUserId ?? 0) > 0
-        ? `user:${agent.ownerUserId}`
-        : `agent:${agent.id}`;
+    : agent.isHouse && agent.persistedPmPaperHouse !== undefined
+      ? `pm-house:${agent.id}`
+      : agent.isHouse
+        ? "house"
+        : Number.isSafeInteger(agent.ownerUserId) &&
+            (agent.ownerUserId ?? 0) > 0
+          ? `user:${agent.ownerUserId}`
+          : `agent:${agent.id}`;
   return {
     routeKey: `shared-owner:${tenant}`,
     provider: "shared_pool",
