@@ -63,6 +63,35 @@ describe("shared owner token allocation", () => {
   });
 });
 
+describe("PM paper house capacity tenant", () => {
+  it("gives a provisioned PM house its own bucket, leaving classic houses grouped", () => {
+    const classic = sharedOwnerLimit(
+      { id: 1, isHouse: true, ownerUserId: 57 } as AgentRow,
+      config,
+      1000,
+    ).routeKey;
+    const pm = sharedOwnerLimit(
+      {
+        id: 74,
+        isHouse: true,
+        ownerUserId: 136,
+        persistedPmPaperHouse: { plan: "house", identity: {} },
+      } as AgentRow,
+      config,
+      1000,
+    ).routeKey;
+    expect(classic).toBe("shared-owner:house");
+    expect(pm).toBe("shared-owner:pm-house:74");
+    expect(
+      sharedOwnerLimit(
+        { id: 2, isHouse: true, ownerUserId: 58 } as AgentRow,
+        config,
+        1000,
+      ).routeKey,
+    ).toBe(classic);
+  });
+});
+
 describe("owner bucket waiter", () => {
   it("bounds the claim by the 120 s in-cycle refill wait plus slack", () => {
     expect(OWNER_WAITER_TTL_SECONDS).toBe(120 + WAITER_RETRY_SLACK_SECONDS);
