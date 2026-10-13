@@ -5,12 +5,13 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
 
+from ..models.public_pm_whales_response_min_usd import PublicPmWhalesResponseMinUsd
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
+    from ..models.public_pm_whale_stats_24h import PublicPmWhaleStats24H
     from ..models.public_pm_whale_trade import PublicPmWhaleTrade
     from ..models.public_pm_whales_response_coverage_item import PublicPmWhalesResponseCoverageItem
-    from ..models.public_pm_whales_response_stats_24h import PublicPmWhalesResponseStats24H
 
 
 T = TypeVar("T", bound="PublicPmWhalesResponse")
@@ -22,12 +23,15 @@ class PublicPmWhalesResponse:
     Attributes:
         trades (list[PublicPmWhaleTrade]):
         coverage (list[PublicPmWhalesResponseCoverageItem]):
-        stats24h (PublicPmWhalesResponseStats24H | Unset):
+        min_usd (PublicPmWhalesResponseMinUsd | Unset): The size tier applied; present only when `minUsd` was requested.
+        stats24h (PublicPmWhaleStats24H | Unset): Trailing 24-hour aggregates over the full verified whale table, not
+            only the 50-row tape.
     """
 
     trades: list[PublicPmWhaleTrade]
     coverage: list[PublicPmWhalesResponseCoverageItem]
-    stats24h: PublicPmWhalesResponseStats24H | Unset = UNSET
+    min_usd: PublicPmWhalesResponseMinUsd | Unset = UNSET
+    stats24h: PublicPmWhaleStats24H | Unset = UNSET
 
     def to_dict(self) -> dict[str, Any]:
         trades = []
@@ -39,6 +43,10 @@ class PublicPmWhalesResponse:
         for coverage_item_data in self.coverage:
             coverage_item = coverage_item_data.to_dict()
             coverage.append(coverage_item)
+
+        min_usd: int | Unset = UNSET
+        if not isinstance(self.min_usd, Unset):
+            min_usd = self.min_usd.value
 
         stats24h: dict[str, Any] | Unset = UNSET
         if not isinstance(self.stats24h, Unset):
@@ -52,6 +60,8 @@ class PublicPmWhalesResponse:
                 "coverage": coverage,
             }
         )
+        if min_usd is not UNSET:
+            field_dict["minUsd"] = min_usd
         if stats24h is not UNSET:
             field_dict["stats24h"] = stats24h
 
@@ -59,9 +69,9 @@ class PublicPmWhalesResponse:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        from ..models.public_pm_whale_stats_24h import PublicPmWhaleStats24H
         from ..models.public_pm_whale_trade import PublicPmWhaleTrade
         from ..models.public_pm_whales_response_coverage_item import PublicPmWhalesResponseCoverageItem
-        from ..models.public_pm_whales_response_stats_24h import PublicPmWhalesResponseStats24H
 
         d = dict(src_dict)
         trades = []
@@ -78,16 +88,24 @@ class PublicPmWhalesResponse:
 
             coverage.append(coverage_item)
 
+        _min_usd = d.pop("minUsd", UNSET)
+        min_usd: PublicPmWhalesResponseMinUsd | Unset
+        if isinstance(_min_usd, Unset):
+            min_usd = UNSET
+        else:
+            min_usd = PublicPmWhalesResponseMinUsd(_min_usd)
+
         _stats24h = d.pop("stats24h", UNSET)
-        stats24h: PublicPmWhalesResponseStats24H | Unset
+        stats24h: PublicPmWhaleStats24H | Unset
         if isinstance(_stats24h, Unset):
             stats24h = UNSET
         else:
-            stats24h = PublicPmWhalesResponseStats24H.from_dict(_stats24h)
+            stats24h = PublicPmWhaleStats24H.from_dict(_stats24h)
 
         public_pm_whales_response = cls(
             trades=trades,
             coverage=coverage,
+            min_usd=min_usd,
             stats24h=stats24h,
         )
 

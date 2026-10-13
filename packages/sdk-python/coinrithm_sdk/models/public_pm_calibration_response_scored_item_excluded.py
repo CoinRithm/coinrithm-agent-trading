@@ -22,11 +22,19 @@ class PublicPmCalibrationResponseScoredItemExcluded:
                 would condition inclusion on whether the eventual winner happened to be captured.
             winner_not_an_outcome (int | Unset): Complete book, but the declared winner is not one of the event's outcomes —
                 a resolution-provenance defect.
+            invalid_lead_point (int | Unset): The lead-window capture failed validation.
+            non_exclusive_book (int | Unset): Complete lead book without a recorded single-winner structure, so one stored
+                winner cannot score the other outcomes.
+            unpriced_mass_book (int | Unset): Complete single-winner book whose prices sum below the complete-book minimum
+                (probability mass no outcome carries).
     """
 
     no_lead_point: int | Unset = UNSET
     partial_book_at_lead: int | Unset = UNSET
     winner_not_an_outcome: int | Unset = UNSET
+    invalid_lead_point: int | Unset = UNSET
+    non_exclusive_book: int | Unset = UNSET
+    unpriced_mass_book: int | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -35,6 +43,12 @@ class PublicPmCalibrationResponseScoredItemExcluded:
         partial_book_at_lead = self.partial_book_at_lead
 
         winner_not_an_outcome = self.winner_not_an_outcome
+
+        invalid_lead_point = self.invalid_lead_point
+
+        non_exclusive_book = self.non_exclusive_book
+
+        unpriced_mass_book = self.unpriced_mass_book
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -45,6 +59,12 @@ class PublicPmCalibrationResponseScoredItemExcluded:
             field_dict["partialBookAtLead"] = partial_book_at_lead
         if winner_not_an_outcome is not UNSET:
             field_dict["winnerNotAnOutcome"] = winner_not_an_outcome
+        if invalid_lead_point is not UNSET:
+            field_dict["invalidLeadPoint"] = invalid_lead_point
+        if non_exclusive_book is not UNSET:
+            field_dict["nonExclusiveBook"] = non_exclusive_book
+        if unpriced_mass_book is not UNSET:
+            field_dict["unpricedMassBook"] = unpriced_mass_book
 
         return field_dict
 
@@ -57,10 +77,19 @@ class PublicPmCalibrationResponseScoredItemExcluded:
 
         winner_not_an_outcome = d.pop("winnerNotAnOutcome", UNSET)
 
+        invalid_lead_point = d.pop("invalidLeadPoint", UNSET)
+
+        non_exclusive_book = d.pop("nonExclusiveBook", UNSET)
+
+        unpriced_mass_book = d.pop("unpricedMassBook", UNSET)
+
         public_pm_calibration_response_scored_item_excluded = cls(
             no_lead_point=no_lead_point,
             partial_book_at_lead=partial_book_at_lead,
             winner_not_an_outcome=winner_not_an_outcome,
+            invalid_lead_point=invalid_lead_point,
+            non_exclusive_book=non_exclusive_book,
+            unpriced_mass_book=unpriced_mass_book,
         )
 
         public_pm_calibration_response_scored_item_excluded.additional_properties = d

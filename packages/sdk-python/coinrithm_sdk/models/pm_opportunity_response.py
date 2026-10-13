@@ -24,7 +24,7 @@ class PmOpportunityResponse:
             forecast_only->quoted, quote_expired->rejected).
         idempotent_replay (bool | Unset): Present and true only when an existing (apiKey, decisionId) artifact was
             returned instead of a new insert.
-        thesis (None | str | Unset): Optional normalized one-line thesis attached to the opportunity.
+        thesis (None | str | Unset): Not returned by this endpoint; always absent.
     """
 
     decision_uuid: UUID | Unset = UNSET

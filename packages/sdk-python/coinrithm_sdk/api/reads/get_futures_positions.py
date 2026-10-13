@@ -81,7 +81,8 @@ def sync_detailed(
 ) -> Response[Error | GetFuturesPositionsResponse200]:
     """Mock futures positions + unrealized PnL + liquidation distance
 
-     Up to 200 positions (open and historical). Supports `updatedSince`
+     The 200 most recently updated positions plus every open position (up
+    to 1,000), open and historical. Supports `updatedSince`
     delta polling — open/close/liquidation all bump a position's row, so
     polling deltas tells you what changed between loops (use the
     response's `asOf` as the next cursor). Requires scope `read`.
@@ -115,7 +116,8 @@ def sync(
 ) -> Error | GetFuturesPositionsResponse200 | None:
     """Mock futures positions + unrealized PnL + liquidation distance
 
-     Up to 200 positions (open and historical). Supports `updatedSince`
+     The 200 most recently updated positions plus every open position (up
+    to 1,000), open and historical. Supports `updatedSince`
     delta polling — open/close/liquidation all bump a position's row, so
     polling deltas tells you what changed between loops (use the
     response's `asOf` as the next cursor). Requires scope `read`.
@@ -144,7 +146,8 @@ async def asyncio_detailed(
 ) -> Response[Error | GetFuturesPositionsResponse200]:
     """Mock futures positions + unrealized PnL + liquidation distance
 
-     Up to 200 positions (open and historical). Supports `updatedSince`
+     The 200 most recently updated positions plus every open position (up
+    to 1,000), open and historical. Supports `updatedSince`
     delta polling — open/close/liquidation all bump a position's row, so
     polling deltas tells you what changed between loops (use the
     response's `asOf` as the next cursor). Requires scope `read`.
@@ -176,7 +179,8 @@ async def asyncio(
 ) -> Error | GetFuturesPositionsResponse200 | None:
     """Mock futures positions + unrealized PnL + liquidation distance
 
-     Up to 200 positions (open and historical). Supports `updatedSince`
+     The 200 most recently updated positions plus every open position (up
+    to 1,000), open and historical. Supports `updatedSince`
     delta polling — open/close/liquidation all bump a position's row, so
     polling deltas tells you what changed between loops (use the
     response's `asOf` as the next cursor). Requires scope `read`.

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, TypeVar, cast
 
@@ -11,6 +12,12 @@ from ..types import UNSET, Unset
 if TYPE_CHECKING:
     from ..models.get_public_prediction_market_whale_wallet_response_200_daily_item import (
         GetPublicPredictionMarketWhaleWalletResponse200DailyItem,
+    )
+    from ..models.get_public_prediction_market_whale_wallet_response_200_enrichment_type_0 import (
+        GetPublicPredictionMarketWhaleWalletResponse200EnrichmentType0,
+    )
+    from ..models.get_public_prediction_market_whale_wallet_response_200_meta import (
+        GetPublicPredictionMarketWhaleWalletResponse200Meta,
     )
     from ..models.get_public_prediction_market_whale_wallet_response_200_recent_fills_item import (
         GetPublicPredictionMarketWhaleWalletResponse200RecentFillsItem,
@@ -44,6 +51,20 @@ class GetPublicPredictionMarketWhaleWalletResponse200:
         daily (list[GetPublicPredictionMarketWhaleWalletResponse200DailyItem] | Unset):
         top_events_30_d (list[GetPublicPredictionMarketWhaleWalletResponse200TopEvents30DItem] | Unset):
         recent_fills (list[GetPublicPredictionMarketWhaleWalletResponse200RecentFillsItem] | Unset):
+        as_of (datetime.datetime | Unset):
+        enrichment (GetPublicPredictionMarketWhaleWalletResponse200EnrichmentType0 | None | Unset): Provider-reported
+            wallet context; null for limitless and
+            myriad. For polymarket: `{provider, asOf, profile, pnl,
+            positions, closedPositions}`, where each section is either
+            `{available: false, reason}` or `{available: true, ...}`.
+            `pnl.allTime.pnlUsd` is realized-only lifetime PnL,
+            `pnl.month.pnlUsd` is a mark-to-market change, ranks are
+            PnL ranks (null when 0 or absent), and `volumeUsd` is null
+            without a leaderboard standing. `positions.rows[].endDate`
+            is a `YYYY-MM-DD` date. These are the provider's figures,
+            not CoinRithm-derived holdings or PnL.
+        meta (GetPublicPredictionMarketWhaleWalletResponse200Meta | Unset): Present only when enrichment hit its time
+            budget; `freshUntil` is epoch milliseconds.
     """
 
     source: str | Unset = UNSET
@@ -57,9 +78,16 @@ class GetPublicPredictionMarketWhaleWalletResponse200:
     daily: list[GetPublicPredictionMarketWhaleWalletResponse200DailyItem] | Unset = UNSET
     top_events_30_d: list[GetPublicPredictionMarketWhaleWalletResponse200TopEvents30DItem] | Unset = UNSET
     recent_fills: list[GetPublicPredictionMarketWhaleWalletResponse200RecentFillsItem] | Unset = UNSET
+    as_of: datetime.datetime | Unset = UNSET
+    enrichment: GetPublicPredictionMarketWhaleWalletResponse200EnrichmentType0 | None | Unset = UNSET
+    meta: GetPublicPredictionMarketWhaleWalletResponse200Meta | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        from ..models.get_public_prediction_market_whale_wallet_response_200_enrichment_type_0 import (
+            GetPublicPredictionMarketWhaleWalletResponse200EnrichmentType0,
+        )
+
         source = self.source
 
         source_name = self.source_name
@@ -113,6 +141,22 @@ class GetPublicPredictionMarketWhaleWalletResponse200:
                 recent_fills_item = recent_fills_item_data.to_dict()
                 recent_fills.append(recent_fills_item)
 
+        as_of: str | Unset = UNSET
+        if not isinstance(self.as_of, Unset):
+            as_of = self.as_of.isoformat()
+
+        enrichment: dict[str, Any] | None | Unset
+        if isinstance(self.enrichment, Unset):
+            enrichment = UNSET
+        elif isinstance(self.enrichment, GetPublicPredictionMarketWhaleWalletResponse200EnrichmentType0):
+            enrichment = self.enrichment.to_dict()
+        else:
+            enrichment = self.enrichment
+
+        meta: dict[str, Any] | Unset = UNSET
+        if not isinstance(self.meta, Unset):
+            meta = self.meta.to_dict()
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update({})
@@ -138,6 +182,12 @@ class GetPublicPredictionMarketWhaleWalletResponse200:
             field_dict["topEvents30d"] = top_events_30_d
         if recent_fills is not UNSET:
             field_dict["recentFills"] = recent_fills
+        if as_of is not UNSET:
+            field_dict["asOf"] = as_of
+        if enrichment is not UNSET:
+            field_dict["enrichment"] = enrichment
+        if meta is not UNSET:
+            field_dict["meta"] = meta
 
         return field_dict
 
@@ -145,6 +195,12 @@ class GetPublicPredictionMarketWhaleWalletResponse200:
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.get_public_prediction_market_whale_wallet_response_200_daily_item import (
             GetPublicPredictionMarketWhaleWalletResponse200DailyItem,
+        )
+        from ..models.get_public_prediction_market_whale_wallet_response_200_enrichment_type_0 import (
+            GetPublicPredictionMarketWhaleWalletResponse200EnrichmentType0,
+        )
+        from ..models.get_public_prediction_market_whale_wallet_response_200_meta import (
+            GetPublicPredictionMarketWhaleWalletResponse200Meta,
         )
         from ..models.get_public_prediction_market_whale_wallet_response_200_recent_fills_item import (
             GetPublicPredictionMarketWhaleWalletResponse200RecentFillsItem,
@@ -238,6 +294,39 @@ class GetPublicPredictionMarketWhaleWalletResponse200:
 
                 recent_fills.append(recent_fills_item)
 
+        _as_of = d.pop("asOf", UNSET)
+        as_of: datetime.datetime | Unset
+        if isinstance(_as_of, Unset):
+            as_of = UNSET
+        else:
+            as_of = datetime.datetime.fromisoformat(_as_of.replace("Z", "+00:00"))
+
+        def _parse_enrichment(
+            data: object,
+        ) -> GetPublicPredictionMarketWhaleWalletResponse200EnrichmentType0 | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                enrichment_type_0 = GetPublicPredictionMarketWhaleWalletResponse200EnrichmentType0.from_dict(data)
+
+                return enrichment_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(GetPublicPredictionMarketWhaleWalletResponse200EnrichmentType0 | None | Unset, data)
+
+        enrichment = _parse_enrichment(d.pop("enrichment", UNSET))
+
+        _meta = d.pop("meta", UNSET)
+        meta: GetPublicPredictionMarketWhaleWalletResponse200Meta | Unset
+        if isinstance(_meta, Unset):
+            meta = UNSET
+        else:
+            meta = GetPublicPredictionMarketWhaleWalletResponse200Meta.from_dict(_meta)
+
         get_public_prediction_market_whale_wallet_response_200 = cls(
             source=source,
             source_name=source_name,
@@ -250,6 +339,9 @@ class GetPublicPredictionMarketWhaleWalletResponse200:
             daily=daily,
             top_events_30_d=top_events_30_d,
             recent_fills=recent_fills,
+            as_of=as_of,
+            enrichment=enrichment,
+            meta=meta,
         )
 
         get_public_prediction_market_whale_wallet_response_200.additional_properties = d

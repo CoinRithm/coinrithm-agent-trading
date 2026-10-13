@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, TypeVar, cast
 
@@ -11,6 +12,7 @@ from ..types import UNSET, Unset
 if TYPE_CHECKING:
     from ..models.public_pm_order_book_ask_evidence import PublicPmOrderBookAskEvidence
     from ..models.public_pm_order_book_level import PublicPmOrderBookLevel
+    from ..models.public_pm_order_book_side_evidence import PublicPmOrderBookSideEvidence
 
 
 T = TypeVar("T", bound="PublicPmOrderBookType0")
@@ -28,6 +30,12 @@ class PublicPmOrderBookType0:
         bids (list[PublicPmOrderBookLevel]): Bid levels, best (highest price) first.
         asks (list[PublicPmOrderBookLevel]): Ask levels, best (lowest price) first.
         ask_evidence (PublicPmOrderBookAskEvidence | Unset): Present only for Polymarket books; Kalshi books omit it.
+        received_at (datetime.datetime | None | Unset): When this server acquired the book (its own time, not a venue
+            trade time).
+        side_evidence (PublicPmOrderBookSideEvidence | Unset): True when that side's supplied levels validated
+            completely and the
+            book is not crossed (an explicit empty side is valid). A dated
+            observation, not a fill or liquidity guarantee.
     """
 
     bid: float | None
@@ -37,6 +45,8 @@ class PublicPmOrderBookType0:
     bids: list[PublicPmOrderBookLevel]
     asks: list[PublicPmOrderBookLevel]
     ask_evidence: PublicPmOrderBookAskEvidence | Unset = UNSET
+    received_at: datetime.datetime | None | Unset = UNSET
+    side_evidence: PublicPmOrderBookSideEvidence | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -66,6 +76,18 @@ class PublicPmOrderBookType0:
         if not isinstance(self.ask_evidence, Unset):
             ask_evidence = self.ask_evidence.to_dict()
 
+        received_at: None | str | Unset
+        if isinstance(self.received_at, Unset):
+            received_at = UNSET
+        elif isinstance(self.received_at, datetime.datetime):
+            received_at = self.received_at.isoformat()
+        else:
+            received_at = self.received_at
+
+        side_evidence: dict[str, Any] | Unset = UNSET
+        if not isinstance(self.side_evidence, Unset):
+            side_evidence = self.side_evidence.to_dict()
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -80,6 +102,10 @@ class PublicPmOrderBookType0:
         )
         if ask_evidence is not UNSET:
             field_dict["askEvidence"] = ask_evidence
+        if received_at is not UNSET:
+            field_dict["receivedAt"] = received_at
+        if side_evidence is not UNSET:
+            field_dict["sideEvidence"] = side_evidence
 
         return field_dict
 
@@ -87,6 +113,7 @@ class PublicPmOrderBookType0:
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.public_pm_order_book_ask_evidence import PublicPmOrderBookAskEvidence
         from ..models.public_pm_order_book_level import PublicPmOrderBookLevel
+        from ..models.public_pm_order_book_side_evidence import PublicPmOrderBookSideEvidence
 
         d = dict(src_dict)
 
@@ -139,6 +166,30 @@ class PublicPmOrderBookType0:
         else:
             ask_evidence = PublicPmOrderBookAskEvidence.from_dict(_ask_evidence)
 
+        def _parse_received_at(data: object) -> datetime.datetime | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, str):
+                    raise TypeError()
+                received_at_type_0 = datetime.datetime.fromisoformat(data.replace("Z", "+00:00"))
+
+                return received_at_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(datetime.datetime | None | Unset, data)
+
+        received_at = _parse_received_at(d.pop("receivedAt", UNSET))
+
+        _side_evidence = d.pop("sideEvidence", UNSET)
+        side_evidence: PublicPmOrderBookSideEvidence | Unset
+        if isinstance(_side_evidence, Unset):
+            side_evidence = UNSET
+        else:
+            side_evidence = PublicPmOrderBookSideEvidence.from_dict(_side_evidence)
+
         public_pm_order_book_type_0 = cls(
             bid=bid,
             ask=ask,
@@ -147,6 +198,8 @@ class PublicPmOrderBookType0:
             bids=bids,
             asks=asks,
             ask_evidence=ask_evidence,
+            received_at=received_at,
+            side_evidence=side_evidence,
         )
 
         public_pm_order_book_type_0.additional_properties = d

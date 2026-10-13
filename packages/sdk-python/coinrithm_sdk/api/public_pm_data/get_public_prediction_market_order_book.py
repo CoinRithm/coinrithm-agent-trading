@@ -9,13 +9,21 @@ from ...client import AuthenticatedClient, Client
 from ...models.error import Error
 from ...models.public_pm_order_book_response import PublicPmOrderBookResponse
 from ...models.public_pm_source_slug import PublicPmSourceSlug
-from ...types import Response
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     source: PublicPmSourceSlug,
     slug: str,
+    *,
+    outcome_external_market_id: str | Unset = UNSET,
 ) -> dict[str, Any]:
+
+    params: dict[str, Any] = {}
+
+    params["outcomeExternalMarketId"] = outcome_external_market_id
+
+    params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
 
     _kwargs: dict[str, Any] = {
         "method": "get",
@@ -23,6 +31,7 @@ def _get_kwargs(
             source=quote(str(source), safe=""),
             slug=quote(str(slug), safe=""),
         ),
+        "params": params,
     }
 
     return _kwargs
@@ -73,6 +82,7 @@ def sync_detailed(
     slug: str,
     *,
     client: AuthenticatedClient | Client,
+    outcome_external_market_id: str | Unset = UNSET,
 ) -> Response[Error | PublicPmOrderBookResponse]:
     r"""Live order book for one outcome of an event
 
@@ -94,10 +104,17 @@ def sync_detailed(
     whether the supplied ask snapshot parsed as a valid non-empty book
     (`validated`) and when this server fetched it (`receivedAt`, its own
     acquisition time, not an upstream trade time). Kalshi books omit it.
+    Both venues' books carry `receivedAt` and `sideEvidence`.
+
+    `outcomeExternalMarketId` selects a different outcome of the event
+    instead (a Kalshi `No` side is complemented). That book must have been
+    received less than 10 seconds earlier, otherwise `orderBook` is null;
+    an outcome that is not on the event returns 404.
 
     Args:
         source (PublicPmSourceSlug):
         slug (str):
+        outcome_external_market_id (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -110,6 +127,7 @@ def sync_detailed(
     kwargs = _get_kwargs(
         source=source,
         slug=slug,
+        outcome_external_market_id=outcome_external_market_id,
     )
 
     response = client.get_httpx_client().request(
@@ -124,6 +142,7 @@ def sync(
     slug: str,
     *,
     client: AuthenticatedClient | Client,
+    outcome_external_market_id: str | Unset = UNSET,
 ) -> Error | PublicPmOrderBookResponse | None:
     r"""Live order book for one outcome of an event
 
@@ -145,10 +164,17 @@ def sync(
     whether the supplied ask snapshot parsed as a valid non-empty book
     (`validated`) and when this server fetched it (`receivedAt`, its own
     acquisition time, not an upstream trade time). Kalshi books omit it.
+    Both venues' books carry `receivedAt` and `sideEvidence`.
+
+    `outcomeExternalMarketId` selects a different outcome of the event
+    instead (a Kalshi `No` side is complemented). That book must have been
+    received less than 10 seconds earlier, otherwise `orderBook` is null;
+    an outcome that is not on the event returns 404.
 
     Args:
         source (PublicPmSourceSlug):
         slug (str):
+        outcome_external_market_id (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -162,6 +188,7 @@ def sync(
         source=source,
         slug=slug,
         client=client,
+        outcome_external_market_id=outcome_external_market_id,
     ).parsed
 
 
@@ -170,6 +197,7 @@ async def asyncio_detailed(
     slug: str,
     *,
     client: AuthenticatedClient | Client,
+    outcome_external_market_id: str | Unset = UNSET,
 ) -> Response[Error | PublicPmOrderBookResponse]:
     r"""Live order book for one outcome of an event
 
@@ -191,10 +219,17 @@ async def asyncio_detailed(
     whether the supplied ask snapshot parsed as a valid non-empty book
     (`validated`) and when this server fetched it (`receivedAt`, its own
     acquisition time, not an upstream trade time). Kalshi books omit it.
+    Both venues' books carry `receivedAt` and `sideEvidence`.
+
+    `outcomeExternalMarketId` selects a different outcome of the event
+    instead (a Kalshi `No` side is complemented). That book must have been
+    received less than 10 seconds earlier, otherwise `orderBook` is null;
+    an outcome that is not on the event returns 404.
 
     Args:
         source (PublicPmSourceSlug):
         slug (str):
+        outcome_external_market_id (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -207,6 +242,7 @@ async def asyncio_detailed(
     kwargs = _get_kwargs(
         source=source,
         slug=slug,
+        outcome_external_market_id=outcome_external_market_id,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -219,6 +255,7 @@ async def asyncio(
     slug: str,
     *,
     client: AuthenticatedClient | Client,
+    outcome_external_market_id: str | Unset = UNSET,
 ) -> Error | PublicPmOrderBookResponse | None:
     r"""Live order book for one outcome of an event
 
@@ -240,10 +277,17 @@ async def asyncio(
     whether the supplied ask snapshot parsed as a valid non-empty book
     (`validated`) and when this server fetched it (`receivedAt`, its own
     acquisition time, not an upstream trade time). Kalshi books omit it.
+    Both venues' books carry `receivedAt` and `sideEvidence`.
+
+    `outcomeExternalMarketId` selects a different outcome of the event
+    instead (a Kalshi `No` side is complemented). That book must have been
+    received less than 10 seconds earlier, otherwise `orderBook` is null;
+    an outcome that is not on the event returns 404.
 
     Args:
         source (PublicPmSourceSlug):
         slug (str):
+        outcome_external_market_id (str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -258,5 +302,6 @@ async def asyncio(
             source=source,
             slug=slug,
             client=client,
+            outcome_external_market_id=outcome_external_market_id,
         )
     ).parsed

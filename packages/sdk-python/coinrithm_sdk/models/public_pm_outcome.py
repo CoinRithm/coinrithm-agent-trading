@@ -11,6 +11,7 @@ from ..types import UNSET, Unset
 if TYPE_CHECKING:
     from ..models.public_pm_outcome_lifecycle_type_0 import PublicPmOutcomeLifecycleType0
     from ..models.public_pm_outcome_prior_probability_type_0 import PublicPmOutcomePriorProbabilityType0
+    from ..models.public_pm_outcome_quote_evidence_type_0 import PublicPmOutcomeQuoteEvidenceType0
     from ..models.public_pm_outcome_source_observation_type_0 import PublicPmOutcomeSourceObservationType0
     from ..models.public_pm_outcome_venue_terms import PublicPmOutcomeVenueTerms
 
@@ -60,6 +61,11 @@ class PublicPmOutcome:
             outcome closed, when available.
         venue_terms (PublicPmOutcomeVenueTerms | Unset): Venue-published order and settlement terms; null values mean
             unavailable, unreported, or invalid.
+        quote_evidence (None | PublicPmOutcomeQuoteEvidenceType0 | Unset): Present only when the request sent
+            `includeQuoteEvidence=1`. The
+            stored venue book observation for Polymarket and Kalshi outcomes on
+            a 0-100 scale (values outside 0-100 are served as null); null for
+            other venues or when none is stored. Not an executable quote.
     """
 
     name: str
@@ -73,11 +79,13 @@ class PublicPmOutcome:
     lifecycle: None | PublicPmOutcomeLifecycleType0 | Unset = UNSET
     prior_probability: None | PublicPmOutcomePriorProbabilityType0 | Unset = UNSET
     venue_terms: PublicPmOutcomeVenueTerms | Unset = UNSET
+    quote_evidence: None | PublicPmOutcomeQuoteEvidenceType0 | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         from ..models.public_pm_outcome_lifecycle_type_0 import PublicPmOutcomeLifecycleType0
         from ..models.public_pm_outcome_prior_probability_type_0 import PublicPmOutcomePriorProbabilityType0
+        from ..models.public_pm_outcome_quote_evidence_type_0 import PublicPmOutcomeQuoteEvidenceType0
         from ..models.public_pm_outcome_source_observation_type_0 import PublicPmOutcomeSourceObservationType0
 
         name = self.name
@@ -134,6 +142,14 @@ class PublicPmOutcome:
         if not isinstance(self.venue_terms, Unset):
             venue_terms = self.venue_terms.to_dict()
 
+        quote_evidence: dict[str, Any] | None | Unset
+        if isinstance(self.quote_evidence, Unset):
+            quote_evidence = UNSET
+        elif isinstance(self.quote_evidence, PublicPmOutcomeQuoteEvidenceType0):
+            quote_evidence = self.quote_evidence.to_dict()
+        else:
+            quote_evidence = self.quote_evidence
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -161,6 +177,8 @@ class PublicPmOutcome:
             field_dict["priorProbability"] = prior_probability
         if venue_terms is not UNSET:
             field_dict["venueTerms"] = venue_terms
+        if quote_evidence is not UNSET:
+            field_dict["quoteEvidence"] = quote_evidence
 
         return field_dict
 
@@ -168,6 +186,7 @@ class PublicPmOutcome:
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.public_pm_outcome_lifecycle_type_0 import PublicPmOutcomeLifecycleType0
         from ..models.public_pm_outcome_prior_probability_type_0 import PublicPmOutcomePriorProbabilityType0
+        from ..models.public_pm_outcome_quote_evidence_type_0 import PublicPmOutcomeQuoteEvidenceType0
         from ..models.public_pm_outcome_source_observation_type_0 import PublicPmOutcomeSourceObservationType0
         from ..models.public_pm_outcome_venue_terms import PublicPmOutcomeVenueTerms
 
@@ -265,6 +284,23 @@ class PublicPmOutcome:
         else:
             venue_terms = PublicPmOutcomeVenueTerms.from_dict(_venue_terms)
 
+        def _parse_quote_evidence(data: object) -> None | PublicPmOutcomeQuoteEvidenceType0 | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                quote_evidence_type_0 = PublicPmOutcomeQuoteEvidenceType0.from_dict(data)
+
+                return quote_evidence_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(None | PublicPmOutcomeQuoteEvidenceType0 | Unset, data)
+
+        quote_evidence = _parse_quote_evidence(d.pop("quoteEvidence", UNSET))
+
         public_pm_outcome = cls(
             name=name,
             external_market_id=external_market_id,
@@ -277,6 +313,7 @@ class PublicPmOutcome:
             lifecycle=lifecycle,
             prior_probability=prior_probability,
             venue_terms=venue_terms,
+            quote_evidence=quote_evidence,
         )
 
         public_pm_outcome.additional_properties = d

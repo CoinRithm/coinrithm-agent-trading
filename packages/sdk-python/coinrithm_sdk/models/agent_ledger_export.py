@@ -29,8 +29,9 @@ class AgentLedgerExport:
         max_rows (int | Unset):
         run (AgentRunEvidenceManifest | None | Unset): Present when exporting with a runId filter.
         data (list[AgentActionEvent] | Unset):
-        futures (list[AuditFuturesPosition] | Unset): Futures positions included in a filtered run export.
-        futures_events (list[AuditFuturesEvent] | Unset): Canonical futures mutation events for the exported positions.
+        futures (list[AuditFuturesPosition] | Unset): Not emitted by this endpoint (the futures audit export is a
+            separate signed-in surface); always absent.
+        futures_events (list[AuditFuturesEvent] | Unset): Not emitted by this endpoint; always absent.
     """
 
     api_key_id: int | Unset = UNSET

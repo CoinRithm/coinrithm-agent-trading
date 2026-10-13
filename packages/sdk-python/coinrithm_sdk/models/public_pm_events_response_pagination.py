@@ -15,14 +15,16 @@ T = TypeVar("T", bound="PublicPmEventsResponsePagination")
 class PublicPmEventsResponsePagination:
     """
     Attributes:
-        total (int | Unset):
+        total (int | Unset): Never sent by the server; use `hasMore`.
         limit (int | Unset):
         offset (int | Unset):
+        has_more (bool | Unset):
     """
 
     total: int | Unset = UNSET
     limit: int | Unset = UNSET
     offset: int | Unset = UNSET
+    has_more: bool | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -31,6 +33,8 @@ class PublicPmEventsResponsePagination:
         limit = self.limit
 
         offset = self.offset
+
+        has_more = self.has_more
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -41,6 +45,8 @@ class PublicPmEventsResponsePagination:
             field_dict["limit"] = limit
         if offset is not UNSET:
             field_dict["offset"] = offset
+        if has_more is not UNSET:
+            field_dict["hasMore"] = has_more
 
         return field_dict
 
@@ -53,10 +59,13 @@ class PublicPmEventsResponsePagination:
 
         offset = d.pop("offset", UNSET)
 
+        has_more = d.pop("hasMore", UNSET)
+
         public_pm_events_response_pagination = cls(
             total=total,
             limit=limit,
             offset=offset,
+            has_more=has_more,
         )
 
         public_pm_events_response_pagination.additional_properties = d

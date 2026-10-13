@@ -47,6 +47,14 @@ from .agent_run_outcome_summary_coverage import AgentRunOutcomeSummaryCoverage
 from .agent_scorecard_response import AgentScorecardResponse
 from .agent_scorecard_response_calibration_basis import AgentScorecardResponseCalibrationBasis
 from .agent_trace_metadata import AgentTraceMetadata
+from .agent_universe_response import AgentUniverseResponse
+from .agent_universe_row import AgentUniverseRow
+from .agent_universe_sector import AgentUniverseSector
+from .agent_universe_sector_kind import AgentUniverseSectorKind
+from .agent_universe_sector_tier import AgentUniverseSectorTier
+from .agent_universe_sectors_response import AgentUniverseSectorsResponse
+from .agent_universe_validation_error import AgentUniverseValidationError
+from .agent_universe_validation_error_details_item import AgentUniverseValidationErrorDetailsItem
 from .agent_venue_perf import AgentVenuePerf
 from .arena_agent import ArenaAgent
 from .arena_agent_badges_item import ArenaAgentBadgesItem
@@ -122,6 +130,8 @@ from .futures_quote_response_fill_type_0_impact_basis import FuturesQuoteRespons
 from .futures_quote_response_fill_type_0_volume_coverage import FuturesQuoteResponseFillType0VolumeCoverage
 from .get_agent_news_response_200 import GetAgentNewsResponse200
 from .get_agent_news_response_200_items_item import GetAgentNewsResponse200ItemsItem
+from .get_agent_universe_exclude_stablecoins import GetAgentUniverseExcludeStablecoins
+from .get_agent_universe_sort import GetAgentUniverseSort
 from .get_arena_agent_response_200 import GetArenaAgentResponse200
 from .get_arena_decisions_format import GetArenaDecisionsFormat
 from .get_arena_decisions_response_200 import GetArenaDecisionsResponse200
@@ -165,7 +175,12 @@ from .get_my_trades_response_200_trades_item_venue import GetMyTradesResponse200
 from .get_my_trades_venue import GetMyTradesVenue
 from .get_performance_response_200 import GetPerformanceResponse200
 from .get_performance_response_200_by_venue import GetPerformanceResponse200ByVenue
+from .get_pm_paper_v2_positions_response_503 import GetPmPaperV2PositionsResponse503
+from .get_pm_paper_v2_positions_status import GetPmPaperV2PositionsStatus
 from .get_pm_positions_response_200 import GetPmPositionsResponse200
+from .get_public_large_trades_asset_class import GetPublicLargeTradesAssetClass
+from .get_public_large_trades_venue import GetPublicLargeTradesVenue
+from .get_public_liquidations_venue import GetPublicLiquidationsVenue
 from .get_public_prediction_market_consensus_methodology_response_200 import (
     GetPublicPredictionMarketConsensusMethodologyResponse200,
 )
@@ -178,6 +193,12 @@ from .get_public_prediction_market_consensus_methodology_response_200_schema imp
 from .get_public_prediction_market_disagreements_sort import GetPublicPredictionMarketDisagreementsSort
 from .get_public_prediction_market_disagreements_source_kind import GetPublicPredictionMarketDisagreementsSourceKind
 from .get_public_prediction_market_disagreements_status import GetPublicPredictionMarketDisagreementsStatus
+from .get_public_prediction_market_disagreements_view import GetPublicPredictionMarketDisagreementsView
+from .get_public_prediction_market_event_full import GetPublicPredictionMarketEventFull
+from .get_public_prediction_market_event_include_quote_evidence import (
+    GetPublicPredictionMarketEventIncludeQuoteEvidence,
+)
+from .get_public_prediction_market_event_view import GetPublicPredictionMarketEventView
 from .get_public_prediction_market_price_history_interval import GetPublicPredictionMarketPriceHistoryInterval
 from .get_public_prediction_market_price_history_response_200 import GetPublicPredictionMarketPriceHistoryResponse200
 from .get_public_prediction_market_price_history_response_200_outcome_type_0 import (
@@ -189,6 +210,12 @@ from .get_public_prediction_market_price_history_response_200_points_item import
 from .get_public_prediction_market_whale_wallet_response_200 import GetPublicPredictionMarketWhaleWalletResponse200
 from .get_public_prediction_market_whale_wallet_response_200_daily_item import (
     GetPublicPredictionMarketWhaleWalletResponse200DailyItem,
+)
+from .get_public_prediction_market_whale_wallet_response_200_enrichment_type_0 import (
+    GetPublicPredictionMarketWhaleWalletResponse200EnrichmentType0,
+)
+from .get_public_prediction_market_whale_wallet_response_200_meta import (
+    GetPublicPredictionMarketWhaleWalletResponse200Meta,
 )
 from .get_public_prediction_market_whale_wallet_response_200_recent_fills_item import (
     GetPublicPredictionMarketWhaleWalletResponse200RecentFillsItem,
@@ -215,6 +242,9 @@ from .get_public_prediction_market_whale_wallets_response_200_window import (
 )
 from .get_public_prediction_market_whale_wallets_source import GetPublicPredictionMarketWhaleWalletsSource
 from .get_public_prediction_market_whale_wallets_window import GetPublicPredictionMarketWhaleWalletsWindow
+from .get_public_prediction_market_whales_min_usd import GetPublicPredictionMarketWhalesMinUsd
+from .get_public_tradfi_reference_window import GetPublicTradfiReferenceWindow
+from .get_spot_reference_response_404 import GetSpotReferenceResponse404
 from .list_competitions_response_200 import ListCompetitionsResponse200
 from .list_open_orders_response_200 import ListOpenOrdersResponse200
 from .list_public_prediction_market_surprises_window import ListPublicPredictionMarketSurprisesWindow
@@ -274,6 +304,53 @@ from .pm_opportunity_request_kind import PmOpportunityRequestKind
 from .pm_opportunity_response import PmOpportunityResponse
 from .pm_opportunity_response_opportunity_kind import PmOpportunityResponseOpportunityKind
 from .pm_opportunity_response_result import PmOpportunityResponseResult
+from .pm_paper_v2_close_request import PmPaperV2CloseRequest
+from .pm_paper_v2_close_result import PmPaperV2CloseResult
+from .pm_paper_v2_close_result_intent import PmPaperV2CloseResultIntent
+from .pm_paper_v2_close_result_kind import PmPaperV2CloseResultKind
+from .pm_paper_v2_discovery_market import PmPaperV2DiscoveryMarket
+from .pm_paper_v2_discovery_outcome import PmPaperV2DiscoveryOutcome
+from .pm_paper_v2_discovery_outcome_native_end_basis import PmPaperV2DiscoveryOutcomeNativeEndBasis
+from .pm_paper_v2_discovery_response import PmPaperV2DiscoveryResponse
+from .pm_paper_v2_discovery_response_meta import PmPaperV2DiscoveryResponseMeta
+from .pm_paper_v2_discovery_response_meta_bounded_selection import PmPaperV2DiscoveryResponseMetaBoundedSelection
+from .pm_paper_v2_discovery_response_meta_bounded_selection_excluded import (
+    PmPaperV2DiscoveryResponseMetaBoundedSelectionExcluded,
+)
+from .pm_paper_v2_discovery_response_meta_source_health_item import PmPaperV2DiscoveryResponseMetaSourceHealthItem
+from .pm_paper_v2_discovery_response_meta_source_health_item_status import (
+    PmPaperV2DiscoveryResponseMetaSourceHealthItemStatus,
+)
+from .pm_paper_v2_discovery_response_meta_sources_item import PmPaperV2DiscoveryResponseMetaSourcesItem
+from .pm_paper_v2_discovery_response_pagination import PmPaperV2DiscoveryResponsePagination
+from .pm_paper_v2_exit_status import PmPaperV2ExitStatus
+from .pm_paper_v2_failure import PmPaperV2Failure
+from .pm_paper_v2_native_identity_type_0 import PmPaperV2NativeIdentityType0
+from .pm_paper_v2_native_identity_type_1 import PmPaperV2NativeIdentityType1
+from .pm_paper_v2_native_identity_type_1_side import PmPaperV2NativeIdentityType1Side
+from .pm_paper_v2_native_market import PmPaperV2NativeMarket
+from .pm_paper_v2_native_market_venue import PmPaperV2NativeMarketVenue
+from .pm_paper_v2_open_replay_request import PmPaperV2OpenReplayRequest
+from .pm_paper_v2_open_replay_request_side import PmPaperV2OpenReplayRequestSide
+from .pm_paper_v2_open_replay_request_source import PmPaperV2OpenReplayRequestSource
+from .pm_paper_v2_open_request import PmPaperV2OpenRequest
+from .pm_paper_v2_open_request_side import PmPaperV2OpenRequestSide
+from .pm_paper_v2_open_request_source import PmPaperV2OpenRequestSource
+from .pm_paper_v2_opened import PmPaperV2Opened
+from .pm_paper_v2_position import PmPaperV2Position
+from .pm_paper_v2_position_accounting_status import PmPaperV2PositionAccountingStatus
+from .pm_paper_v2_position_entry import PmPaperV2PositionEntry
+from .pm_paper_v2_position_exit_type_0 import PmPaperV2PositionExitType0
+from .pm_paper_v2_position_side import PmPaperV2PositionSide
+from .pm_paper_v2_position_source import PmPaperV2PositionSource
+from .pm_paper_v2_position_status import PmPaperV2PositionStatus
+from .pm_paper_v2_position_terminal_type_0 import PmPaperV2PositionTerminalType0
+from .pm_paper_v2_position_terminal_type_0_evidence_basis import PmPaperV2PositionTerminalType0EvidenceBasis
+from .pm_paper_v2_position_terminal_type_0_type import PmPaperV2PositionTerminalType0Type
+from .pm_paper_v2_positions_response import PmPaperV2PositionsResponse
+from .pm_paper_v2_positions_response_configured_house_type_0 import PmPaperV2PositionsResponseConfiguredHouseType0
+from .pm_paper_v2_refused import PmPaperV2Refused
+from .pm_paper_v2_risk import PmPaperV2Risk
 from .pm_position import PmPosition
 from .pm_position_entry_outcomes_snapshot_type_0 import PmPositionEntryOutcomesSnapshotType0
 from .pm_position_envelope import PmPositionEnvelope
@@ -287,13 +364,45 @@ from .pm_quote_response_eligibility import PmQuoteResponseEligibility
 from .pm_quote_response_event import PmQuoteResponseEvent
 from .pm_quote_response_frozen_entry_snapshot import PmQuoteResponseFrozenEntrySnapshot
 from .pm_quote_response_side import PmQuoteResponseSide
+from .public_cftc_change import PublicCftcChange
+from .public_cftc_contract import PublicCftcContract
+from .public_cftc_non_commercial_side import PublicCftcNonCommercialSide
+from .public_cftc_positioning_response import PublicCftcPositioningResponse
+from .public_cftc_positioning_response_coverage import PublicCftcPositioningResponseCoverage
+from .public_cftc_report import PublicCftcReport
+from .public_cftc_side import PublicCftcSide
+from .public_cftc_source import PublicCftcSource
+from .public_coin_gecko_attribution import PublicCoinGeckoAttribution
 from .public_crypto_mover import PublicCryptoMover
+from .public_crypto_treasury_company import PublicCryptoTreasuryCompany
+from .public_crypto_treasury_response import PublicCryptoTreasuryResponse
+from .public_data_status import PublicDataStatus
+from .public_fresh_until_meta import PublicFreshUntilMeta
+from .public_large_trade import PublicLargeTrade
+from .public_large_trade_links import PublicLargeTradeLinks
+from .public_large_trades_filters import PublicLargeTradesFilters
+from .public_large_trades_response import PublicLargeTradesResponse
+from .public_liquidation_event import PublicLiquidationEvent
+from .public_liquidation_totals import PublicLiquidationTotals
+from .public_liquidation_venue_summary import PublicLiquidationVenueSummary
+from .public_liquidations_response import PublicLiquidationsResponse
+from .public_liquidations_window import PublicLiquidationsWindow
+from .public_market_feed_source import PublicMarketFeedSource
+from .public_market_feed_venue import PublicMarketFeedVenue
+from .public_message_error import PublicMessageError
 from .public_pm_calibration_response import PublicPmCalibrationResponse
 from .public_pm_calibration_response_pending_item import PublicPmCalibrationResponsePendingItem
+from .public_pm_calibration_response_pending_item_excluded import PublicPmCalibrationResponsePendingItemExcluded
 from .public_pm_calibration_response_scored_item import PublicPmCalibrationResponseScoredItem
 from .public_pm_calibration_response_scored_item_excluded import PublicPmCalibrationResponseScoredItemExcluded
 from .public_pm_calibration_response_scored_item_reliability_item import (
     PublicPmCalibrationResponseScoredItemReliabilityItem,
+)
+from .public_pm_calibration_series import PublicPmCalibrationSeries
+from .public_pm_calibration_series_scored_item import PublicPmCalibrationSeriesScoredItem
+from .public_pm_calibration_series_scored_item_by_year_item import PublicPmCalibrationSeriesScoredItemByYearItem
+from .public_pm_calibration_series_scored_item_reliability_item import (
+    PublicPmCalibrationSeriesScoredItemReliabilityItem,
 )
 from .public_pm_canonical_consensus import PublicPmCanonicalConsensus
 from .public_pm_canonical_consensus_kind import PublicPmCanonicalConsensusKind
@@ -319,10 +428,13 @@ from .public_pm_disagreements_response_data_item import PublicPmDisagreementsRes
 from .public_pm_disagreements_response_meta import PublicPmDisagreementsResponseMeta
 from .public_pm_disagreements_response_pagination import PublicPmDisagreementsResponsePagination
 from .public_pm_event import PublicPmEvent
+from .public_pm_event_availability import PublicPmEventAvailability
+from .public_pm_event_availability_status import PublicPmEventAvailabilityStatus
 from .public_pm_event_cross_platform_item import PublicPmEventCrossPlatformItem
 from .public_pm_event_decision_support_type_0 import PublicPmEventDecisionSupportType0
 from .public_pm_event_detail_response import PublicPmEventDetailResponse
 from .public_pm_event_detail_response_cross_source_matches_item import PublicPmEventDetailResponseCrossSourceMatchesItem
+from .public_pm_event_detail_response_detail_mode import PublicPmEventDetailResponseDetailMode
 from .public_pm_event_detail_response_related_news_item import PublicPmEventDetailResponseRelatedNewsItem
 from .public_pm_event_detail_response_resolution_type_0 import PublicPmEventDetailResponseResolutionType0
 from .public_pm_event_detail_response_snapshots_item import PublicPmEventDetailResponseSnapshotsItem
@@ -346,6 +458,7 @@ from .public_pm_microstructure_outcome_type_0 import PublicPmMicrostructureOutco
 from .public_pm_order_book_ask_evidence import PublicPmOrderBookAskEvidence
 from .public_pm_order_book_level import PublicPmOrderBookLevel
 from .public_pm_order_book_response import PublicPmOrderBookResponse
+from .public_pm_order_book_side_evidence import PublicPmOrderBookSideEvidence
 from .public_pm_order_book_type_0 import PublicPmOrderBookType0
 from .public_pm_outcome import PublicPmOutcome
 from .public_pm_outcome_lifecycle_type_0 import PublicPmOutcomeLifecycleType0
@@ -355,6 +468,7 @@ from .public_pm_outcome_lifecycle_type_0_result_type_2_type_1 import PublicPmOut
 from .public_pm_outcome_lifecycle_type_0_result_type_3_type_1 import PublicPmOutcomeLifecycleType0ResultType3Type1
 from .public_pm_outcome_lifecycle_type_0_state import PublicPmOutcomeLifecycleType0State
 from .public_pm_outcome_prior_probability_type_0 import PublicPmOutcomePriorProbabilityType0
+from .public_pm_outcome_quote_evidence_type_0 import PublicPmOutcomeQuoteEvidenceType0
 from .public_pm_outcome_source_observation_type_0 import PublicPmOutcomeSourceObservationType0
 from .public_pm_outcome_source_observation_type_0_basis import PublicPmOutcomeSourceObservationType0Basis
 from .public_pm_outcome_source_observation_type_0_provider import PublicPmOutcomeSourceObservationType0Provider
@@ -393,11 +507,44 @@ from .public_pm_volume_history_response_days_item_by_source_item import (
     PublicPmVolumeHistoryResponseDaysItemBySourceItem,
 )
 from .public_pm_volume_history_response_meta import PublicPmVolumeHistoryResponseMeta
+from .public_pm_whale_stats_24h import PublicPmWhaleStats24H
+from .public_pm_whale_stats_24h_by_source_item import PublicPmWhaleStats24HBySourceItem
+from .public_pm_whale_stats_24h_max_trade_type_0 import PublicPmWhaleStats24HMaxTradeType0
 from .public_pm_whale_trade import PublicPmWhaleTrade
 from .public_pm_whale_trade_availability import PublicPmWhaleTradeAvailability
+from .public_pm_whale_trade_event import PublicPmWhaleTradeEvent
+from .public_pm_whale_trade_event_market_outcomes_type_0 import PublicPmWhaleTradeEventMarketOutcomesType0
+from .public_pm_whale_trade_event_market_outcomes_type_0_top_item import (
+    PublicPmWhaleTradeEventMarketOutcomesType0TopItem,
+)
 from .public_pm_whales_response import PublicPmWhalesResponse
 from .public_pm_whales_response_coverage_item import PublicPmWhalesResponseCoverageItem
-from .public_pm_whales_response_stats_24h import PublicPmWhalesResponseStats24H
+from .public_pm_whales_response_min_usd import PublicPmWhalesResponseMinUsd
+from .public_sec_filings_response import PublicSecFilingsResponse
+from .public_sec_filings_response_coverage import PublicSecFilingsResponseCoverage
+from .public_sec_filings_source import PublicSecFilingsSource
+from .public_sec_insider_reporter import PublicSecInsiderReporter
+from .public_sec_insider_transaction import PublicSecInsiderTransaction
+from .public_ticker_treasury import PublicTickerTreasury
+from .public_ticker_treasury_holding import PublicTickerTreasuryHolding
+from .public_ticker_treasury_response import PublicTickerTreasuryResponse
+from .public_tradfi_reference_catalog import PublicTradfiReferenceCatalog
+from .public_tradfi_reference_catalog_item import PublicTradfiReferenceCatalogItem
+from .public_tradfi_reference_change import PublicTradfiReferenceChange
+from .public_tradfi_reference_detail import PublicTradfiReferenceDetail
+from .public_tradfi_reference_freshness import PublicTradfiReferenceFreshness
+from .public_tradfi_reference_history_window import PublicTradfiReferenceHistoryWindow
+from .public_tradfi_reference_home_listing import PublicTradfiReferenceHomeListing
+from .public_tradfi_reference_instrument import PublicTradfiReferenceInstrument
+from .public_tradfi_reference_leverage import PublicTradfiReferenceLeverage
+from .public_tradfi_reference_live import PublicTradfiReferenceLive
+from .public_tradfi_reference_live_venue import PublicTradfiReferenceLiveVenue
+from .public_tradfi_reference_methodology import PublicTradfiReferenceMethodology
+from .public_tradfi_reference_range import PublicTradfiReferenceRange
+from .public_tradfi_reference_snapshot import PublicTradfiReferenceSnapshot
+from .public_tradfi_reference_snapshot_summary import PublicTradfiReferenceSnapshotSummary
+from .public_tradfi_reference_unit import PublicTradfiReferenceUnit
+from .public_tradfi_reference_venue_quote import PublicTradfiReferenceVenueQuote
 from .realized_paper_trade import RealizedPaperTrade
 from .realized_paper_trade_cost_basis import RealizedPaperTradeCostBasis
 from .realized_paper_trade_schema import RealizedPaperTradeSchema
@@ -416,7 +563,13 @@ from .scorecard_run_list_entry import ScorecardRunListEntry
 from .scorecard_run_list_page import ScorecardRunListPage
 from .scorecard_run_pointer import ScorecardRunPointer
 from .scorecard_schema import ScorecardSchema
+from .search_public_prediction_market_events_dedupe import SearchPublicPredictionMarketEventsDedupe
+from .search_public_prediction_market_events_include_quote_evidence import (
+    SearchPublicPredictionMarketEventsIncludeQuoteEvidence,
+)
+from .search_public_prediction_market_events_lead import SearchPublicPredictionMarketEventsLead
 from .search_public_prediction_market_events_sort import SearchPublicPredictionMarketEventsSort
+from .search_public_prediction_market_events_view import SearchPublicPredictionMarketEventsView
 from .set_futures_sl_tp_body import SetFuturesSlTpBody
 from .set_futures_sl_tp_response_422 import SetFuturesSlTpResponse422
 from .spot_order_request import SpotOrderRequest
@@ -433,11 +586,23 @@ from .spot_quote_response import SpotQuoteResponse
 from .spot_quote_response_available import SpotQuoteResponseAvailable
 from .spot_quote_response_coin import SpotQuoteResponseCoin
 from .spot_quote_response_side import SpotQuoteResponseSide
+from .spot_reference_fallback import SpotReferenceFallback
+from .spot_reference_fallback_status import SpotReferenceFallbackStatus
+from .spot_reference_observation import SpotReferenceObservation
+from .spot_reference_response import SpotReferenceResponse
+from .spot_reference_response_coin import SpotReferenceResponseCoin
+from .spot_reference_response_preferred_source_type_1 import SpotReferenceResponsePreferredSourceType1
+from .spot_reference_response_preferred_source_type_2_type_1 import SpotReferenceResponsePreferredSourceType2Type1
+from .spot_reference_response_preferred_source_type_3_type_1 import SpotReferenceResponsePreferredSourceType3Type1
+from .spot_reference_response_verification import SpotReferenceResponseVerification
+from .spot_reference_stream import SpotReferenceStream
+from .spot_reference_stream_status import SpotReferenceStreamStatus
 from .wallet import Wallet
 from .wallet_coin_type_0 import WalletCoinType0
 from .wallet_usdt import WalletUsdt
 from .whoami_response_200 import WhoamiResponse200
 from .whoami_response_200_scopes_item import WhoamiResponse200ScopesItem
+from .whoami_response_200_usage import WhoamiResponse200Usage
 
 __all__ = (
     "AgentActionEvent",
@@ -485,6 +650,14 @@ __all__ = (
     "AgentScorecardResponse",
     "AgentScorecardResponseCalibrationBasis",
     "AgentTraceMetadata",
+    "AgentUniverseResponse",
+    "AgentUniverseRow",
+    "AgentUniverseSector",
+    "AgentUniverseSectorKind",
+    "AgentUniverseSectorsResponse",
+    "AgentUniverseSectorTier",
+    "AgentUniverseValidationError",
+    "AgentUniverseValidationErrorDetailsItem",
     "AgentVenuePerf",
     "ArenaAgent",
     "ArenaAgentBadgesItem",
@@ -560,6 +733,8 @@ __all__ = (
     "FuturesQuoteResponseFillType0VolumeCoverage",
     "GetAgentNewsResponse200",
     "GetAgentNewsResponse200ItemsItem",
+    "GetAgentUniverseExcludeStablecoins",
+    "GetAgentUniverseSort",
     "GetArenaAgentResponse200",
     "GetArenaDecisionsFormat",
     "GetArenaDecisionsResponse200",
@@ -599,19 +774,31 @@ __all__ = (
     "GetMyTradesVenue",
     "GetPerformanceResponse200",
     "GetPerformanceResponse200ByVenue",
+    "GetPmPaperV2PositionsResponse503",
+    "GetPmPaperV2PositionsStatus",
     "GetPmPositionsResponse200",
+    "GetPublicLargeTradesAssetClass",
+    "GetPublicLargeTradesVenue",
+    "GetPublicLiquidationsVenue",
     "GetPublicPredictionMarketConsensusMethodologyResponse200",
     "GetPublicPredictionMarketConsensusMethodologyResponse200Methodology",
     "GetPublicPredictionMarketConsensusMethodologyResponse200Schema",
     "GetPublicPredictionMarketDisagreementsSort",
     "GetPublicPredictionMarketDisagreementsSourceKind",
     "GetPublicPredictionMarketDisagreementsStatus",
+    "GetPublicPredictionMarketDisagreementsView",
+    "GetPublicPredictionMarketEventFull",
+    "GetPublicPredictionMarketEventIncludeQuoteEvidence",
+    "GetPublicPredictionMarketEventView",
     "GetPublicPredictionMarketPriceHistoryInterval",
     "GetPublicPredictionMarketPriceHistoryResponse200",
     "GetPublicPredictionMarketPriceHistoryResponse200OutcomeType0",
     "GetPublicPredictionMarketPriceHistoryResponse200PointsItem",
+    "GetPublicPredictionMarketWhalesMinUsd",
     "GetPublicPredictionMarketWhaleWalletResponse200",
     "GetPublicPredictionMarketWhaleWalletResponse200DailyItem",
+    "GetPublicPredictionMarketWhaleWalletResponse200EnrichmentType0",
+    "GetPublicPredictionMarketWhaleWalletResponse200Meta",
     "GetPublicPredictionMarketWhaleWalletResponse200RecentFillsItem",
     "GetPublicPredictionMarketWhaleWalletResponse200Rollup",
     "GetPublicPredictionMarketWhaleWalletResponse200Summary30D",
@@ -623,6 +810,8 @@ __all__ = (
     "GetPublicPredictionMarketWhaleWalletsResponse200Window",
     "GetPublicPredictionMarketWhaleWalletsSource",
     "GetPublicPredictionMarketWhaleWalletsWindow",
+    "GetPublicTradfiReferenceWindow",
+    "GetSpotReferenceResponse404",
     "ListCompetitionsResponse200",
     "ListOpenOrdersResponse200",
     "ListPublicPredictionMarketSurprisesWindow",
@@ -682,6 +871,49 @@ __all__ = (
     "PmOpportunityResponse",
     "PmOpportunityResponseOpportunityKind",
     "PmOpportunityResponseResult",
+    "PmPaperV2CloseRequest",
+    "PmPaperV2CloseResult",
+    "PmPaperV2CloseResultIntent",
+    "PmPaperV2CloseResultKind",
+    "PmPaperV2DiscoveryMarket",
+    "PmPaperV2DiscoveryOutcome",
+    "PmPaperV2DiscoveryOutcomeNativeEndBasis",
+    "PmPaperV2DiscoveryResponse",
+    "PmPaperV2DiscoveryResponseMeta",
+    "PmPaperV2DiscoveryResponseMetaBoundedSelection",
+    "PmPaperV2DiscoveryResponseMetaBoundedSelectionExcluded",
+    "PmPaperV2DiscoveryResponseMetaSourceHealthItem",
+    "PmPaperV2DiscoveryResponseMetaSourceHealthItemStatus",
+    "PmPaperV2DiscoveryResponseMetaSourcesItem",
+    "PmPaperV2DiscoveryResponsePagination",
+    "PmPaperV2ExitStatus",
+    "PmPaperV2Failure",
+    "PmPaperV2NativeIdentityType0",
+    "PmPaperV2NativeIdentityType1",
+    "PmPaperV2NativeIdentityType1Side",
+    "PmPaperV2NativeMarket",
+    "PmPaperV2NativeMarketVenue",
+    "PmPaperV2Opened",
+    "PmPaperV2OpenReplayRequest",
+    "PmPaperV2OpenReplayRequestSide",
+    "PmPaperV2OpenReplayRequestSource",
+    "PmPaperV2OpenRequest",
+    "PmPaperV2OpenRequestSide",
+    "PmPaperV2OpenRequestSource",
+    "PmPaperV2Position",
+    "PmPaperV2PositionAccountingStatus",
+    "PmPaperV2PositionEntry",
+    "PmPaperV2PositionExitType0",
+    "PmPaperV2PositionSide",
+    "PmPaperV2PositionSource",
+    "PmPaperV2PositionsResponse",
+    "PmPaperV2PositionsResponseConfiguredHouseType0",
+    "PmPaperV2PositionStatus",
+    "PmPaperV2PositionTerminalType0",
+    "PmPaperV2PositionTerminalType0EvidenceBasis",
+    "PmPaperV2PositionTerminalType0Type",
+    "PmPaperV2Refused",
+    "PmPaperV2Risk",
     "PmPosition",
     "PmPositionEntryOutcomesSnapshotType0",
     "PmPositionEnvelope",
@@ -695,12 +927,42 @@ __all__ = (
     "PmQuoteResponseEvent",
     "PmQuoteResponseFrozenEntrySnapshot",
     "PmQuoteResponseSide",
+    "PublicCftcChange",
+    "PublicCftcContract",
+    "PublicCftcNonCommercialSide",
+    "PublicCftcPositioningResponse",
+    "PublicCftcPositioningResponseCoverage",
+    "PublicCftcReport",
+    "PublicCftcSide",
+    "PublicCftcSource",
+    "PublicCoinGeckoAttribution",
     "PublicCryptoMover",
+    "PublicCryptoTreasuryCompany",
+    "PublicCryptoTreasuryResponse",
+    "PublicDataStatus",
+    "PublicFreshUntilMeta",
+    "PublicLargeTrade",
+    "PublicLargeTradeLinks",
+    "PublicLargeTradesFilters",
+    "PublicLargeTradesResponse",
+    "PublicLiquidationEvent",
+    "PublicLiquidationsResponse",
+    "PublicLiquidationsWindow",
+    "PublicLiquidationTotals",
+    "PublicLiquidationVenueSummary",
+    "PublicMarketFeedSource",
+    "PublicMarketFeedVenue",
+    "PublicMessageError",
     "PublicPmCalibrationResponse",
     "PublicPmCalibrationResponsePendingItem",
+    "PublicPmCalibrationResponsePendingItemExcluded",
     "PublicPmCalibrationResponseScoredItem",
     "PublicPmCalibrationResponseScoredItemExcluded",
     "PublicPmCalibrationResponseScoredItemReliabilityItem",
+    "PublicPmCalibrationSeries",
+    "PublicPmCalibrationSeriesScoredItem",
+    "PublicPmCalibrationSeriesScoredItemByYearItem",
+    "PublicPmCalibrationSeriesScoredItemReliabilityItem",
     "PublicPmCanonicalConsensus",
     "PublicPmCanonicalConsensusKind",
     "PublicPmCanonicalConsensusListingsItem",
@@ -723,10 +985,13 @@ __all__ = (
     "PublicPmDisagreementsResponseMeta",
     "PublicPmDisagreementsResponsePagination",
     "PublicPmEvent",
+    "PublicPmEventAvailability",
+    "PublicPmEventAvailabilityStatus",
     "PublicPmEventCrossPlatformItem",
     "PublicPmEventDecisionSupportType0",
     "PublicPmEventDetailResponse",
     "PublicPmEventDetailResponseCrossSourceMatchesItem",
+    "PublicPmEventDetailResponseDetailMode",
     "PublicPmEventDetailResponseRelatedNewsItem",
     "PublicPmEventDetailResponseResolutionType0",
     "PublicPmEventDetailResponseSnapshotsItem",
@@ -750,6 +1015,7 @@ __all__ = (
     "PublicPmOrderBookAskEvidence",
     "PublicPmOrderBookLevel",
     "PublicPmOrderBookResponse",
+    "PublicPmOrderBookSideEvidence",
     "PublicPmOrderBookType0",
     "PublicPmOutcome",
     "PublicPmOutcomeLifecycleType0",
@@ -759,6 +1025,7 @@ __all__ = (
     "PublicPmOutcomeLifecycleType0ResultType3Type1",
     "PublicPmOutcomeLifecycleType0State",
     "PublicPmOutcomePriorProbabilityType0",
+    "PublicPmOutcomeQuoteEvidenceType0",
     "PublicPmOutcomeSourceObservationType0",
     "PublicPmOutcomeSourceObservationType0Basis",
     "PublicPmOutcomeSourceObservationType0Provider",
@@ -797,9 +1064,40 @@ __all__ = (
     "PublicPmVolumeHistoryResponseMeta",
     "PublicPmWhalesResponse",
     "PublicPmWhalesResponseCoverageItem",
-    "PublicPmWhalesResponseStats24H",
+    "PublicPmWhalesResponseMinUsd",
+    "PublicPmWhaleStats24H",
+    "PublicPmWhaleStats24HBySourceItem",
+    "PublicPmWhaleStats24HMaxTradeType0",
     "PublicPmWhaleTrade",
     "PublicPmWhaleTradeAvailability",
+    "PublicPmWhaleTradeEvent",
+    "PublicPmWhaleTradeEventMarketOutcomesType0",
+    "PublicPmWhaleTradeEventMarketOutcomesType0TopItem",
+    "PublicSecFilingsResponse",
+    "PublicSecFilingsResponseCoverage",
+    "PublicSecFilingsSource",
+    "PublicSecInsiderReporter",
+    "PublicSecInsiderTransaction",
+    "PublicTickerTreasury",
+    "PublicTickerTreasuryHolding",
+    "PublicTickerTreasuryResponse",
+    "PublicTradfiReferenceCatalog",
+    "PublicTradfiReferenceCatalogItem",
+    "PublicTradfiReferenceChange",
+    "PublicTradfiReferenceDetail",
+    "PublicTradfiReferenceFreshness",
+    "PublicTradfiReferenceHistoryWindow",
+    "PublicTradfiReferenceHomeListing",
+    "PublicTradfiReferenceInstrument",
+    "PublicTradfiReferenceLeverage",
+    "PublicTradfiReferenceLive",
+    "PublicTradfiReferenceLiveVenue",
+    "PublicTradfiReferenceMethodology",
+    "PublicTradfiReferenceRange",
+    "PublicTradfiReferenceSnapshot",
+    "PublicTradfiReferenceSnapshotSummary",
+    "PublicTradfiReferenceUnit",
+    "PublicTradfiReferenceVenueQuote",
     "RealizedPaperTrade",
     "RealizedPaperTradeCostBasis",
     "RealizedPaperTradeSchema",
@@ -818,7 +1116,11 @@ __all__ = (
     "ScorecardRunListPage",
     "ScorecardRunPointer",
     "ScorecardSchema",
+    "SearchPublicPredictionMarketEventsDedupe",
+    "SearchPublicPredictionMarketEventsIncludeQuoteEvidence",
+    "SearchPublicPredictionMarketEventsLead",
     "SearchPublicPredictionMarketEventsSort",
+    "SearchPublicPredictionMarketEventsView",
     "SetFuturesSlTpBody",
     "SetFuturesSlTpResponse422",
     "SpotOrderRequest",
@@ -835,9 +1137,21 @@ __all__ = (
     "SpotQuoteResponseAvailable",
     "SpotQuoteResponseCoin",
     "SpotQuoteResponseSide",
+    "SpotReferenceFallback",
+    "SpotReferenceFallbackStatus",
+    "SpotReferenceObservation",
+    "SpotReferenceResponse",
+    "SpotReferenceResponseCoin",
+    "SpotReferenceResponsePreferredSourceType1",
+    "SpotReferenceResponsePreferredSourceType2Type1",
+    "SpotReferenceResponsePreferredSourceType3Type1",
+    "SpotReferenceResponseVerification",
+    "SpotReferenceStream",
+    "SpotReferenceStreamStatus",
     "Wallet",
     "WalletCoinType0",
     "WalletUsdt",
     "WhoamiResponse200",
     "WhoamiResponse200ScopesItem",
+    "WhoamiResponse200Usage",
 )
