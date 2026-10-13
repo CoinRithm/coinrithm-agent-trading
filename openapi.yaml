@@ -208,6 +208,13 @@ tags:
       Keyless crypto universe reads used for candidate discovery. Same
       Acceptable Use terms as the other keyless surfaces:
       https://www.coinrithm.com/en/terms-of-use
+  - name: public-market-data
+    description: >-
+      Keyless market data beyond the coin universe: TradFi reference prices,
+      large perpetual trades, liquidations, CFTC positioning, SEC Form 4
+      insider filings and public-company crypto treasuries. Same Acceptable
+      Use terms as the other keyless surfaces, plus each source's
+      attribution: https://www.coinrithm.com/en/terms-of-use
   - name: ledger
     description: Agent action ledger and the reproducible run-evidence export.
 
@@ -3118,6 +3125,402 @@ paths:
               schema: { $ref: "#/components/schemas/Error" }
         "429": { $ref: "#/components/responses/TooManyRequests" }
         "500": { $ref: "#/components/responses/ServerError" }
+
+  /api/market/large-trades:
+    get:
+      operationId: getPublicLargeTrades
+      tags: [public-market-data]
+      summary: Large perpetual-futures trades (whale prints)
+      description: |
+        Keyless tape of large perpetual-futures prints on Binance USD-M and
+        Hyperliquid, covering crypto perpetuals and the TradFi perpetuals
+        those venues list (equities, commodities, FX, indices). Newest first.
+
+        A row is one taker order (Binance: consecutive fills at the same
+        trade time) or one transaction (Hyperliquid) at or above a
+        per-market USD notional floor. `thresholdUsd` on each row is the
+        floor that row had to reach; `side` is the taker side. Notional is
+        in the venue's quote stablecoin (USDT/USDC). `assetClass` is a
+        best-effort label. Rows exist only while the collector's
+        connection is live, so gaps are possible and an empty list is not
+        proof that no large trade happened. Hyperliquid rows may carry the
+        buyer/seller address and explorer links; Binance publishes no
+        per-trade page or address.
+
+        `symbol` matches an exact venue symbol when it contains `:` (a
+        Hyperliquid HIP-3 market such as `xyz:TSLA`) or ends in `USDT`
+        (`BTCUSDT`); any other value matches the base across venues (`TSLA`
+        returns `TSLAUSDT` and `xyz:TSLA`). Unknown query parameters return
+        400. The response is shared-cached for about 15 seconds.
+      security: []
+      parameters:
+        - name: symbol
+          in: query
+          required: false
+          description: "Exact venue symbol (`BTCUSDT`, `xyz:TSLA`) or a base (`BTC`, `TSLA`)."
+          schema: { type: string, pattern: "^(?:[A-Za-z0-9]{1,12}:)?[A-Za-z0-9]{1,24}$" }
+        - name: venue
+          in: query
+          required: false
+          schema: { type: string, enum: [binance, hyperliquid] }
+        - name: assetClass
+          in: query
+          required: false
+          schema: { type: string, enum: [crypto, equity, commodity, fx, index] }
+        - name: limit
+          in: query
+          required: false
+          description: "Rows to return, 1-200 (default 50). Out of range returns 400."
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      responses:
+        "200":
+          description: "Newest large prints, the applied filters and source attribution"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicLargeTradesResponse" }
+        "400":
+          description: "Invalid or unknown query parameter"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicMessageError" }
+        "429":
+          description: "Public request rate limit exceeded; honor `Retry-After`."
+        "500":
+          description: "Large trades temporarily unavailable"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicMessageError" }
+
+  /api/market/liquidations:
+    get:
+      operationId: getPublicLiquidations
+      tags: [public-market-data]
+      summary: Last-24h liquidations for one base symbol
+      description: |
+        Keyless 24-hour liquidation summary for one base symbol (a coin such
+        as `BTC`, or a TradFi perpetual base such as `XAU` or `NVDA`) across
+        the Binance USD-M forced-order stream and the OKX liquidation-orders
+        channel: long/short totals, per-venue totals, and the biggest and
+        latest events.
+
+        Sums cover only what CoinRithm's capture saw while running.
+        `capturedPct` is a lower bound of capture uptime for the window, not
+        exchange completeness, and is null when no capture was recorded (a
+        gap, never "no liquidations"). Binance publishes at most the latest
+        liquidation per symbol per second. `long` means a long position was
+        liquidated (a forced sell). The base is the venue's own base symbol,
+        so two assets that share a ticker share a row set; for a stock ticker
+        pass `venue=okx`, because Binance's feed carries crypto contracts
+        only. `truncated` is true when the row cap was reached and totals are
+        then a lower bound. An unknown base returns 200 with zero totals.
+        The response is shared-cached for about 60 seconds.
+      security: []
+      parameters:
+        - name: base
+          in: query
+          required: true
+          description: "Base symbol, case-insensitive (`BTC`, `XAU`)."
+          schema: { type: string, pattern: "^[A-Za-z0-9]{1,20}$" }
+        - name: limit
+          in: query
+          required: false
+          description: "Events in each of `biggest` and `latest`, 1-50 (default 10)."
+          schema: { type: integer, minimum: 1, maximum: 50, default: 10 }
+        - name: venue
+          in: query
+          required: false
+          description: "Restrict to one venue; omit for every captured venue."
+          schema: { type: string, enum: [binance, okx] }
+      responses:
+        "200":
+          description: "24h totals, per-venue coverage and the biggest/latest events"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicLiquidationsResponse" }
+        "400":
+          description: "Missing `base`, invalid value or unknown query parameter"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicMessageError" }
+        "429":
+          description: "Public request rate limit exceeded; honor `Retry-After`."
+        "500":
+          description: "Liquidations temporarily unavailable"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicMessageError" }
+
+  /api/market/treasuries/{coin}:
+    get:
+      operationId: getPublicCryptoTreasuries
+      tags: [public-market-data]
+      summary: Public companies holding a coin in treasury
+      description: |
+        Keyless list of public companies holding `bitcoin`, `ethereum`,
+        `solana` or `binancecoin` (`bnb` is accepted as an alias), largest
+        holding first, with the coin-wide totals. Data provided by CoinGecko:
+        keep the `source` attribution next to any display of these values.
+        The upstream list is read at most every 12 hours and never served
+        older than 24 hours. `status` is `fresh` within 12 hours, `stale`
+        up to 24 hours, and `unavailable` (null totals, no companies) when
+        no usable copy exists; an upstream failure still answers 200.
+        `tradfiTicker` links a US-listed company to its
+        `/api/market/references/{ticker}` reference when one exists.
+        Other coins return 404; any query parameter returns 400.
+      security: []
+      parameters:
+        - name: coin
+          in: path
+          required: true
+          description: "`bitcoin`, `ethereum`, `solana`, `binancecoin` or `bnb` (case-insensitive)."
+          schema: { type: string, pattern: "^[A-Za-z]{1,20}$" }
+      responses:
+        "200":
+          description: "Company holdings, totals, freshness and attribution"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicCryptoTreasuryResponse" }
+        "400":
+          description: "Query parameters are not accepted"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicMessageError" }
+        "404":
+          description: "Treasury data is not available for this coin"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicMessageError" }
+        "429":
+          description: "Public request rate limit exceeded; honor `Retry-After`."
+
+  /api/market/references:
+    get:
+      operationId: listPublicTradfiReferences
+      tags: [public-market-data]
+      summary: TradFi reference catalog with latest consensus prices
+      description: |
+        Keyless catalog of every approved TradFi reference instrument
+        (equities, ETFs, metals, commodities and FX) with its latest
+        validated consensus, derived 24h/7d change, 24h range, a 7-day
+        sparkline and the optional near-real-time `live` overlay.
+
+        A reference price is the median of 2-3 derivatives-venue index
+        prices (Binance, Bybit, Gate) that agree within 5%, recorded every
+        15 minutes. It is a venue index in the contract's quote asset
+        (USDT), not an exchange last trade, and the instrument `unit` is
+        deliberately unverified. `latest` and the derived fields come from
+        recorded snapshots; `live` republishes the same median about every
+        10 seconds and is null when the overlay is off, unavailable,
+        invalid, or older than `methodology.liveMaxAgeSeconds`. Freshness
+        is collection time, not a venue quote time. Change and range
+        values are null when no validated reference snapshot exists for
+        the comparison time. Query parameters return 400.
+      security: []
+      responses:
+        "200":
+          description: "Methodology and one item per reference instrument"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicTradfiReferenceCatalog" }
+        "400":
+          description: "Query parameters are not accepted"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicMessageError" }
+        "429":
+          description: "Public request rate limit exceeded; honor `Retry-After`."
+        "500":
+          description: "Reference data temporarily unavailable"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicMessageError" }
+
+  /api/market/references/{ticker}:
+    get:
+      operationId: getPublicTradfiReference
+      tags: [public-market-data]
+      summary: One TradFi reference with venue constituents and history
+      description: |
+        Keyless detail for one catalog ticker: the latest validated
+        consensus with each contributing venue's index price, derived
+        change and range, the optional `live` overlay, and recorded
+        15-minute history over `window` (24 hours or 7 days, oldest
+        first). Same methodology and caveats as the catalog. A ticker
+        outside the catalog returns 404.
+      security: []
+      parameters:
+        - name: ticker
+          in: path
+          required: true
+          description: "Catalog ticker, case-insensitive (`AAPL`, `XAU`)."
+          schema: { type: string, pattern: "^[A-Za-z0-9]{1,20}$" }
+        - name: window
+          in: query
+          required: false
+          description: "History window. Any other query parameter returns 400."
+          schema: { type: string, enum: ["24h", "7d"], default: "24h" }
+      responses:
+        "200":
+          description: "Latest snapshot with venues, live overlay and history"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicTradfiReferenceDetail" }
+        "400":
+          description: "Invalid ticker, window or query parameter"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicMessageError" }
+        "404":
+          description: "Reference instrument not found"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicMessageError" }
+        "429":
+          description: "Public request rate limit exceeded; honor `Retry-After`."
+        "500":
+          description: "Reference data temporarily unavailable"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicMessageError" }
+
+  /api/market/references/{ticker}/treasury:
+    get:
+      operationId: getPublicTradfiReferenceTreasury
+      tags: [public-market-data]
+      summary: A listed company's crypto treasury
+      description: |
+        Keyless crypto holdings (BTC, ETH, SOL, BNB) of the company behind a
+        catalog ticker, from the same CoinGecko data as
+        `/api/market/treasuries/{coin}`. Only plain US-listed equities in
+        the catalog can match. `treasury` is null when the company holds
+        none of the four coins (or is not matched); `status` combines the
+        four coin datasets (`fresh` when all are fresh, `unavailable` when
+        none is usable, otherwise `stale`), and `asOf` is the oldest
+        dataset read. Keep the `source` attribution next to any display.
+        A ticker outside the catalog returns 404.
+      security: []
+      parameters:
+        - name: ticker
+          in: path
+          required: true
+          description: "Catalog ticker, case-insensitive (`MSTR`)."
+          schema: { type: string, pattern: "^[A-Za-z0-9]{1,20}$" }
+      responses:
+        "200":
+          description: "Company holdings per coin, or a null treasury"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicTickerTreasuryResponse" }
+        "400":
+          description: "Invalid ticker or query parameter"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicMessageError" }
+        "404":
+          description: "Reference instrument not found"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicMessageError" }
+        "429":
+          description: "Public request rate limit exceeded; honor `Retry-After`."
+
+  /api/market/references/{ticker}/filings:
+    get:
+      operationId: getPublicTradfiReferenceFilings
+      tags: [public-market-data]
+      summary: SEC Form 4 insider transactions for a reference
+      description: |
+        Keyless SEC EDGAR Form 4 insider transactions (non-derivative table)
+        for one catalog ticker: up to 50 latest transactions of every code
+        and up to 20 latest open-market purchases and sales (codes `P` and
+        `S`), newest filing first. Every row links to its original filing
+        on sec.gov. Form 4 is due within two business days of the trade, so
+        `filedAt` can trail `transactionDate`.
+
+        `coverage` is `not_applicable` for instruments that do not file
+        Form 4 (metals, commodities, FX, non-US home listings),
+        `none_recorded` when no transaction has been collected yet, and
+        `available` otherwise. Dates are `YYYY-MM-DD` strings. Shares,
+        prices and values are null when the filing omits them. A ticker
+        outside the catalog returns 404. The response is shared-cached for
+        about 10 minutes.
+      security: []
+      parameters:
+        - name: ticker
+          in: path
+          required: true
+          description: "Catalog ticker, case-insensitive (`MSTR`)."
+          schema: { type: string, pattern: "^[A-Za-z0-9]{1,20}$" }
+      responses:
+        "200":
+          description: "Insider and open-market transactions with source attribution"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicSecFilingsResponse" }
+        "400":
+          description: "Invalid ticker or query parameter"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicMessageError" }
+        "404":
+          description: "Reference instrument not found"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicMessageError" }
+        "429":
+          description: "Public request rate limit exceeded; honor `Retry-After`."
+        "500":
+          description: "Filings temporarily unavailable"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicMessageError" }
+
+  /api/market/references/{ticker}/positioning:
+    get:
+      operationId: getPublicTradfiReferencePositioning
+      tags: [public-market-data]
+      summary: CFTC Commitments of Traders positioning for a reference
+      description: |
+        Keyless weekly CFTC Commitments of Traders positioning (legacy
+        report, futures only) for a catalog ticker with a listed US futures
+        equivalent: gold, silver, platinum, palladium, WTI and Brent crude,
+        EUR/USD, GBP/USD, and the S&P 500 and Nasdaq-100 e-mini futures for
+        `SPY` and `QQQ`. Up to 12 reports, newest first.
+
+        Positions are as of each Tuesday (`reportDate`) and published the
+        following Friday. Values are in contracts; net is long minus short.
+        Non-commercial traders are mostly speculators, commercial traders
+        hedge a business exposure. Week-over-week changes are CFTC's own
+        and null when not published. Other catalog tickers answer 200 with
+        `coverage: not_applicable`. `status` is `fresh` within 12 hours of
+        CoinRithm's last read, `stale` up to 8 days, then `unavailable`
+        with no reports; an upstream failure still answers 200. A ticker
+        outside the catalog returns 404.
+      security: []
+      parameters:
+        - name: ticker
+          in: path
+          required: true
+          description: "Catalog ticker, case-insensitive (`XAU`, `SPY`)."
+          schema: { type: string, pattern: "^[A-Za-z0-9]{1,20}$" }
+      responses:
+        "200":
+          description: "Contract, weekly reports, freshness and attribution"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicCftcPositioningResponse" }
+        "400":
+          description: "Invalid ticker or query parameter"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicMessageError" }
+        "404":
+          description: "Reference instrument not found"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicMessageError" }
+        "429":
+          description: "Public request rate limit exceeded; honor `Retry-After`."
 
 components:
   securitySchemes:
@@ -6935,3 +7338,717 @@ components:
             inactiveMarket: { type: boolean }
             highAmbiguity: { type: boolean }
             nearResolution: { type: boolean }
+
+    PublicMessageError:
+      type: object
+      description: "Error body of the keyless `/api/market/*` reads."
+      required: [message]
+      properties:
+        message: { type: string }
+
+    PublicDataStatus:
+      type: string
+      enum: [fresh, stale, unavailable]
+      description: |
+        Freshness of an upstream dataset CoinRithm re-reads on a schedule.
+        `stale` data is still served inside its documented maximum age;
+        `unavailable` means no usable copy, never zero or empty truth.
+
+    PublicFreshUntilMeta:
+      type: object
+      required: [freshUntil]
+      properties:
+        freshUntil:
+          type: string
+          format: date-time
+          description: "Instant until which shared caches may reuse this response."
+
+    PublicMarketFeedVenue:
+      type: object
+      required: [venue, name, url, feed]
+      properties:
+        venue: { type: string }
+        name: { type: string }
+        url: { type: string, format: uri }
+        feed: { type: string, description: "The venue's public feed the collector reads." }
+        note: { type: string, description: "Venue-specific coverage limitation, when published." }
+
+    PublicMarketFeedSource:
+      type: object
+      required: [provider, venues, method]
+      properties:
+        provider: { type: string }
+        venues:
+          type: array
+          items: { $ref: "#/components/schemas/PublicMarketFeedVenue" }
+        method: { type: string, description: "How rows are selected and valued." }
+        coverage: { type: string, description: "Which markets are collected, and the gap caveat." }
+
+    PublicLargeTradesFilters:
+      type: object
+      required: [symbol, venue, assetClass, limit]
+      properties:
+        symbol:
+          type: [string, "null"]
+          description: "Canonical symbol or base filter applied, or null."
+        venue: { type: [string, "null"] }
+        assetClass: { type: [string, "null"] }
+        limit: { type: integer }
+
+    PublicLargeTradeLinks:
+      type: object
+      required: [market, buyer, seller, tx]
+      properties:
+        market: { type: string, format: uri, description: "The venue's market page." }
+        buyer:
+          type: [string, "null"]
+          description: "Explorer page of the buyer address (Hyperliquid only)."
+        seller:
+          type: [string, "null"]
+          description: "Explorer page of the seller address (Hyperliquid only)."
+        tx:
+          type: [string, "null"]
+          description: "Explorer page of the transaction (Hyperliquid only)."
+
+    PublicLargeTrade:
+      type: object
+      required: [id, venue, symbol, base, assetClass, side, price, qty, notionalUsd, fills, thresholdUsd, tradeTime, ingestedAt, buyer, seller, links]
+      properties:
+        id:
+          type: string
+          description: "Opaque stable row id (`venue:symbol:tradeId`)."
+        venue: { type: string, description: "`binance` or `hyperliquid`." }
+        symbol:
+          type: string
+          description: "Venue symbol, e.g. `BTCUSDT` or the Hyperliquid HIP-3 market `xyz:TSLA`."
+        base: { type: string }
+        assetClass:
+          type: string
+          description: "Best-effort label; currently crypto, equity, commodity, fx or index."
+        side: { type: string, description: "Taker side: `buy` or `sell`." }
+        price: { type: number, description: "Average fill price in the quote stablecoin." }
+        qty: { type: number, description: "Size in base units." }
+        notionalUsd: { type: number, description: "Notional in the venue's quote stablecoin (USDT/USDC)." }
+        fills: { type: integer, description: "Venue fills merged into this row." }
+        thresholdUsd: { type: number, description: "The notional floor this market's prints must reach to be listed." }
+        tradeTime: { type: string, format: date-time, description: "Venue trade time." }
+        ingestedAt: { type: string, format: date-time, description: "When CoinRithm stored the row." }
+        buyer:
+          type: [string, "null"]
+          description: "Buyer address when the venue publishes it (Hyperliquid), else null."
+        seller:
+          type: [string, "null"]
+          description: "Seller address when the venue publishes it (Hyperliquid), else null."
+        links: { $ref: "#/components/schemas/PublicLargeTradeLinks" }
+
+    PublicLargeTradesResponse:
+      type: object
+      required: [version, generatedAt, filters, count, items, source]
+      properties:
+        version: { type: integer, description: "Response schema version (1)." }
+        generatedAt: { type: string, format: date-time }
+        filters: { $ref: "#/components/schemas/PublicLargeTradesFilters" }
+        count: { type: integer }
+        items:
+          type: array
+          description: "Newest first."
+          items: { $ref: "#/components/schemas/PublicLargeTrade" }
+        source: { $ref: "#/components/schemas/PublicMarketFeedSource" }
+
+    PublicLiquidationsWindow:
+      type: object
+      required: [from, to, hours]
+      properties:
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+        hours: { type: integer }
+
+    PublicLiquidationTotals:
+      type: object
+      description: "Captured liquidation sums in USD (rounded to whole dollars) and event counts."
+      required: [longUsd, shortUsd, totalUsd, longEvents, shortEvents, events]
+      properties:
+        longUsd: { type: number }
+        shortUsd: { type: number }
+        totalUsd: { type: number }
+        longEvents: { type: integer }
+        shortEvents: { type: integer }
+        events: { type: integer }
+
+    PublicLiquidationVenueSummary:
+      type: object
+      required: [venue, longUsd, shortUsd, totalUsd, longEvents, shortEvents, events, instIds, capturedPct, lastEventAt]
+      properties:
+        venue: { type: string, description: "`binance` or `okx`." }
+        longUsd: { type: number }
+        shortUsd: { type: number }
+        totalUsd: { type: number }
+        longEvents: { type: integer }
+        shortEvents: { type: integer }
+        events: { type: integer }
+        instIds:
+          type: array
+          items: { type: string }
+        capturedPct:
+          type: [number, "null"]
+          description: |
+            Lower bound of capture uptime for the window, 0-100. Null when no
+            capture was recorded: a gap, never evidence of no liquidations.
+        lastEventAt: { type: [string, "null"], format: date-time }
+
+    PublicLiquidationEvent:
+      type: object
+      required: [venue, instId, eventAt, liquidatedSide, contracts, price, notionalUsd, marketUrl]
+      properties:
+        venue: { type: string }
+        instId: { type: string, description: "Venue instrument id, e.g. `BTCUSDT` or `XAU-USDT-SWAP`." }
+        eventAt: { type: string, format: date-time }
+        liquidatedSide:
+          type: string
+          description: "`long` (a long was liquidated, a forced sell) or `short`."
+        contracts: { type: number, description: "Size in venue contract units." }
+        price: { type: number, description: "OKX bankruptcy price; Binance liquidation order price." }
+        notionalUsd: { type: number, description: "Notional in USDT, rounded to cents." }
+        marketUrl: { type: string, format: uri }
+
+    PublicLiquidationsResponse:
+      type: object
+      required: [version, generatedAt, base, venue, window, totals, venues, biggest, latest, truncated, source]
+      properties:
+        version: { type: integer }
+        generatedAt: { type: string, format: date-time }
+        base: { type: string }
+        venue:
+          type: [string, "null"]
+          description: "The venue filter applied, or null for every captured venue."
+        window: { $ref: "#/components/schemas/PublicLiquidationsWindow" }
+        totals: { $ref: "#/components/schemas/PublicLiquidationTotals" }
+        venues:
+          type: array
+          description: "One entry per venue with captured events in the window."
+          items: { $ref: "#/components/schemas/PublicLiquidationVenueSummary" }
+        biggest:
+          type: array
+          description: "Largest events by notional."
+          items: { $ref: "#/components/schemas/PublicLiquidationEvent" }
+        latest:
+          type: array
+          description: "Most recent events."
+          items: { $ref: "#/components/schemas/PublicLiquidationEvent" }
+        truncated:
+          type: boolean
+          description: "True when the row cap was reached; totals are then a lower bound."
+        source: { $ref: "#/components/schemas/PublicMarketFeedSource" }
+
+    PublicCoinGeckoAttribution:
+      type: object
+      description: "Keep this attribution next to any display of the data."
+      required: [name, url, attribution]
+      properties:
+        name: { type: string }
+        url: { type: string, format: uri }
+        attribution: { type: string }
+
+    PublicCryptoTreasuryCompany:
+      type: object
+      required: [name, symbol, country, holdings, valueUsd, pctOfSupply, tradfiTicker]
+      properties:
+        name: { type: string }
+        symbol:
+          type: [string, "null"]
+          description: "Upstream listing symbol such as `MSTR.US` or `3350.T`; null when unlisted upstream."
+        country:
+          type: [string, "null"]
+          description: "ISO 3166-1 alpha-2 code, or null."
+        holdings: { type: number, description: "Coins held." }
+        valueUsd: { type: number, description: "Current value of the holding in USD." }
+        pctOfSupply: { type: number, description: "Percent of the coin's total supply." }
+        tradfiTicker:
+          type: [string, "null"]
+          description: "CoinRithm TradFi reference ticker for US listings in the catalog, else null."
+
+    PublicCryptoTreasuryResponse:
+      type: object
+      required: [coin, status, totalHoldings, totalValueUsd, companies, asOf, source, meta]
+      properties:
+        coin:
+          type: string
+          description: "Canonical coin id (`bitcoin`, `ethereum`, `solana`, `binancecoin`)."
+        status: { $ref: "#/components/schemas/PublicDataStatus" }
+        totalHoldings: { type: [number, "null"] }
+        totalValueUsd: { type: [number, "null"] }
+        companies:
+          type: array
+          description: "Largest holding first; former holders with zero balance are excluded."
+          items: { $ref: "#/components/schemas/PublicCryptoTreasuryCompany" }
+        asOf:
+          type: [string, "null"]
+          format: date-time
+          description: "When CoinRithm read the upstream list."
+        source: { $ref: "#/components/schemas/PublicCoinGeckoAttribution" }
+        meta: { $ref: "#/components/schemas/PublicFreshUntilMeta" }
+
+    PublicTickerTreasuryHolding:
+      type: object
+      required: [coin, holdings, valueUsd, pctOfSupply]
+      properties:
+        coin: { type: string }
+        holdings: { type: number }
+        valueUsd: { type: number }
+        pctOfSupply: { type: number }
+
+    PublicTickerTreasury:
+      type: object
+      required: [name, symbol, country, holdings]
+      properties:
+        name: { type: string }
+        symbol: { type: [string, "null"] }
+        country: { type: [string, "null"] }
+        holdings:
+          type: array
+          items: { $ref: "#/components/schemas/PublicTickerTreasuryHolding" }
+
+    PublicTickerTreasuryResponse:
+      type: object
+      required: [ticker, status, treasury, asOf, source, meta]
+      properties:
+        ticker: { type: string }
+        status: { $ref: "#/components/schemas/PublicDataStatus" }
+        treasury:
+          anyOf:
+            - $ref: "#/components/schemas/PublicTickerTreasury"
+            - { type: "null" }
+        asOf:
+          type: [string, "null"]
+          format: date-time
+          description: "Oldest upstream read among the coin datasets used."
+        source: { $ref: "#/components/schemas/PublicCoinGeckoAttribution" }
+        meta: { $ref: "#/components/schemas/PublicFreshUntilMeta" }
+
+    PublicSecInsiderReporter:
+      type: object
+      required: [name, cik, count, relationship, isDirector, isOfficer, isTenPercentOwner, isOther, officerTitle]
+      properties:
+        name: { type: string, description: "First reporting person on the form." }
+        cik: { type: [integer, "null"] }
+        count: { type: integer, description: "Joint filers on the same Form 4." }
+        relationship:
+          type: string
+          description: "Display summary such as `Director, Chief Executive Officer`."
+        isDirector: { type: boolean }
+        isOfficer: { type: boolean }
+        isTenPercentOwner: { type: boolean }
+        isOther: { type: boolean }
+        officerTitle: { type: [string, "null"] }
+
+    PublicSecInsiderTransaction:
+      type: object
+      required: [accessionNumber, filingUrl, filingIndexUrl, filedAt, transactionDate, reporter, securityTitle, code, codeLabel, isOpenMarket, acquiredDisposed, shares, pricePerShare, valueUsd, sharesOwnedAfter, ownership, is10b5One]
+      properties:
+        accessionNumber: { type: string }
+        filingUrl: { type: string, format: uri, description: "SEC rendering of the original Form 4." }
+        filingIndexUrl: { type: string, format: uri, description: "EDGAR filing index." }
+        filedAt: { type: string, description: "EDGAR filing date, `YYYY-MM-DD`." }
+        transactionDate: { type: string, description: "Trade date, `YYYY-MM-DD`." }
+        reporter: { $ref: "#/components/schemas/PublicSecInsiderReporter" }
+        securityTitle: { type: string }
+        code: { type: string, description: "Form 4 transaction code, e.g. `P`, `S`, `A`, `M`." }
+        codeLabel: { type: string }
+        isOpenMarket: { type: boolean, description: "Code `P` or `S`." }
+        acquiredDisposed:
+          type: [string, "null"]
+          description: "`A` (acquired) or `D` (disposed), or null."
+        shares: { type: [number, "null"] }
+        pricePerShare: { type: [number, "null"] }
+        valueUsd: { type: [number, "null"] }
+        sharesOwnedAfter: { type: [number, "null"] }
+        ownership:
+          type: [string, "null"]
+          description: "`direct` or `indirect`, or null."
+        is10b5One:
+          type: [boolean, "null"]
+          description: "Reported under a Rule 10b5-1 plan; null when the form predates that checkbox."
+
+    PublicSecFilingsSource:
+      type: object
+      required: [name, url, publisher, forms, issuerFilingsUrl, note]
+      properties:
+        name: { type: string }
+        url: { type: string, format: uri }
+        publisher: { type: string }
+        forms:
+          type: array
+          items: { type: string }
+        issuerFilingsUrl:
+          type: [string, "null"]
+          description: "EDGAR list of this issuer's Form 4 filings, when known."
+        note: { type: string }
+
+    PublicSecFilingsResponse:
+      type: object
+      required: [version, generatedAt, ticker, name, coverage, insiderTransactions, openMarketTransactions, source]
+      properties:
+        version: { type: integer }
+        generatedAt: { type: string, format: date-time }
+        ticker: { type: string }
+        name: { type: string }
+        coverage: { type: string, enum: [available, none_recorded, not_applicable] }
+        insiderTransactions:
+          type: array
+          description: "Up to 50 latest non-derivative transactions of every code."
+          items: { $ref: "#/components/schemas/PublicSecInsiderTransaction" }
+        openMarketTransactions:
+          type: array
+          description: "Up to 20 latest open-market purchases and sales."
+          items: { $ref: "#/components/schemas/PublicSecInsiderTransaction" }
+        source: { $ref: "#/components/schemas/PublicSecFilingsSource" }
+
+    PublicCftcContract:
+      type: object
+      required: [code, market, exchange, units]
+      properties:
+        code: { type: string, description: "CFTC contract market code." }
+        market: { type: string, description: "Market and exchange name as CFTC publishes it." }
+        exchange: { type: string }
+        units: { type: [string, "null"], description: "Contract units as CFTC publishes them." }
+
+    PublicCftcSide:
+      type: object
+      required: [long, short, net]
+      properties:
+        long: { type: number }
+        short: { type: number }
+        net: { type: number, description: "Long minus short, in contracts." }
+
+    PublicCftcNonCommercialSide:
+      type: object
+      required: [long, short, net, spreading]
+      properties:
+        long: { type: number }
+        short: { type: number }
+        net: { type: number }
+        spreading: { type: [number, "null"] }
+
+    PublicCftcChange:
+      type: object
+      description: "Week-over-week changes as computed by CFTC; null when not published."
+      required: [openInterest, nonCommercialNet, commercialNet]
+      properties:
+        openInterest: { type: [number, "null"] }
+        nonCommercialNet: { type: [number, "null"] }
+        commercialNet: { type: [number, "null"] }
+
+    PublicCftcReport:
+      type: object
+      required: [reportDate, openInterest, nonCommercial, commercial, nonReportable, change]
+      properties:
+        reportDate: { type: string, description: "Tuesday the positions are as of, `YYYY-MM-DD`." }
+        openInterest: { type: number }
+        nonCommercial: { $ref: "#/components/schemas/PublicCftcNonCommercialSide" }
+        commercial: { $ref: "#/components/schemas/PublicCftcSide" }
+        nonReportable:
+          anyOf:
+            - $ref: "#/components/schemas/PublicCftcSide"
+            - { type: "null" }
+        change: { $ref: "#/components/schemas/PublicCftcChange" }
+
+    PublicCftcSource:
+      type: object
+      required: [name, url, publisher, dataset, datasetUrl, note]
+      properties:
+        name: { type: string }
+        url: { type: string, format: uri }
+        publisher: { type: string }
+        dataset: { type: string }
+        datasetUrl: { type: string, format: uri }
+        note: { type: string }
+
+    PublicCftcPositioningResponse:
+      type: object
+      required: [ticker, coverage, status, contract, reports, asOf, source, meta]
+      properties:
+        ticker: { type: string }
+        coverage: { type: string, enum: [available, not_applicable] }
+        status: { $ref: "#/components/schemas/PublicDataStatus" }
+        contract:
+          anyOf:
+            - $ref: "#/components/schemas/PublicCftcContract"
+            - { type: "null" }
+        reports:
+          type: array
+          description: "Up to 12 weekly reports, newest first."
+          items: { $ref: "#/components/schemas/PublicCftcReport" }
+        asOf:
+          type: [string, "null"]
+          format: date-time
+          description: "When CoinRithm last read the report from CFTC."
+        source: { $ref: "#/components/schemas/PublicCftcSource" }
+        meta: { $ref: "#/components/schemas/PublicFreshUntilMeta" }
+
+    PublicTradfiReferenceMethodology:
+      type: object
+      required: [basis, aggregation, minimumVenueCount, maxVenueSpreadPct, collectionIntervalSeconds, freshnessThresholdSeconds, retentionDays, liveMaxAgeSeconds]
+      properties:
+        basis: { type: string }
+        aggregation: { type: string }
+        minimumVenueCount: { type: integer }
+        maxVenueSpreadPct: { type: number }
+        collectionIntervalSeconds: { type: integer }
+        freshnessThresholdSeconds: { type: integer }
+        retentionDays: { type: integer }
+        liveMaxAgeSeconds:
+          type: integer
+          description: "A `live` value older than this is not served."
+
+    PublicTradfiReferenceUnit:
+      type: object
+      description: "The index denomination is deliberately not inferred; `status` is `unverified`."
+      required: [status, currency, per]
+      properties:
+        status: { type: string }
+        currency: { type: [string, "null"] }
+        per: { type: [string, "null"] }
+
+    PublicTradfiReferenceLeverage:
+      type: object
+      required: [factor, underlying]
+      properties:
+        factor:
+          type: number
+          description: "Daily target multiple of the underlying's return; negative means inverse."
+        underlying: { type: string }
+
+    PublicTradfiReferenceHomeListing:
+      type: object
+      description: "Home-market listing of an instrument quoted outside the US."
+      required: [exchange, currency, code]
+      properties:
+        exchange: { type: string, description: "`KRX` or `HKEX`." }
+        currency: { type: string, description: "`KRW` or `HKD`." }
+        code: { type: string, description: "Home-market code without the exchange suffix." }
+
+    PublicTradfiReferenceInstrument:
+      type: object
+      required: [ticker, name, assetClass, unit, venueQuoteAsset, issuer, leverage, homeListing]
+      properties:
+        ticker: { type: string }
+        name: { type: string }
+        assetClass:
+          type: string
+          description: "Currently equity, etf, metal, commodity or fx."
+        unit: { $ref: "#/components/schemas/PublicTradfiReferenceUnit" }
+        venueQuoteAsset: { type: string, description: "Contract quote asset (`USDT`)." }
+        issuer:
+          type: [string, "null"]
+          description: "Fund issuer, set for leveraged or inverse ETFs."
+        leverage:
+          anyOf:
+            - $ref: "#/components/schemas/PublicTradfiReferenceLeverage"
+            - { type: "null" }
+        homeListing:
+          anyOf:
+            - $ref: "#/components/schemas/PublicTradfiReferenceHomeListing"
+            - { type: "null" }
+
+    PublicTradfiReferenceFreshness:
+      type: object
+      required: [status, basis, asOf, ageSeconds, staleAt]
+      properties:
+        status: { $ref: "#/components/schemas/PublicDataStatus" }
+        basis:
+          type: string
+          description: "`collection`: CoinRithm's batch collection time, not a venue quote time."
+        asOf: { type: [string, "null"], format: date-time }
+        ageSeconds: { type: [integer, "null"] }
+        staleAt: { type: [string, "null"], format: date-time }
+
+    PublicTradfiReferenceSnapshotSummary:
+      type: object
+      required: [bucketStart, fetchedAt, consensusPrice, minPrice, maxPrice, venueSpreadPct, venueCount]
+      properties:
+        bucketStart: { type: string, format: date-time, description: "Start of the 15-minute collection bucket." }
+        fetchedAt: { type: string, format: date-time, description: "Batch collection completion, not a venue quote time." }
+        consensusPrice: { type: number, description: "Median of the venue index prices, in USDT." }
+        minPrice: { type: number }
+        maxPrice: { type: number }
+        venueSpreadPct: { type: number, description: "Difference between venue index prices in percent, not a bid/ask spread." }
+        venueCount: { type: integer }
+
+    PublicTradfiReferenceVenueQuote:
+      type: object
+      required: [venue, symbol, label, assetClass, indexPrice, sourceObservedAt]
+      properties:
+        venue: { type: string, description: "`binance`, `bybit` or `gate`." }
+        symbol: { type: string }
+        label: { type: string, description: "The venue's own instrument label." }
+        assetClass: { type: string }
+        indexPrice: { type: number }
+        sourceObservedAt:
+          type: [string, "null"]
+          format: date-time
+          description: "Venue observation time; currently always null (not recorded)."
+
+    PublicTradfiReferenceSnapshot:
+      type: object
+      required: [bucketStart, fetchedAt, consensusPrice, minPrice, maxPrice, venueSpreadPct, venueCount, venues]
+      properties:
+        bucketStart: { type: string, format: date-time }
+        fetchedAt: { type: string, format: date-time }
+        consensusPrice: { type: number }
+        minPrice: { type: number }
+        maxPrice: { type: number }
+        venueSpreadPct: { type: number }
+        venueCount: { type: integer }
+        venues:
+          type: array
+          items: { $ref: "#/components/schemas/PublicTradfiReferenceVenueQuote" }
+
+    PublicTradfiReferenceChange:
+      type: object
+      description: "Change against a validated recorded snapshot at the comparison time (within 30 minutes); never interpolated."
+      required: [pct, referencePrice, referenceBucketStart]
+      properties:
+        pct: { type: number }
+        referencePrice: { type: number }
+        referenceBucketStart: { type: string, format: date-time }
+
+    PublicTradfiReferenceRange:
+      type: object
+      description: "Low and high of validated recorded medians in the 24 hours ending at `latest`."
+      required: [low, high, observations]
+      properties:
+        low: { type: number }
+        high: { type: number }
+        observations: { type: integer }
+
+    PublicTradfiReferenceLiveVenue:
+      type: object
+      required: [venue, indexPrice]
+      properties:
+        venue: { type: string }
+        indexPrice: { type: number }
+
+    PublicTradfiReferenceLive:
+      type: object
+      description: |
+        Near-real-time consensus with the same method as `latest`, republished
+        about every 10 seconds. Null when the overlay is off or unavailable,
+        fails validation, or is older than `liveMaxAgeSeconds`; `latest` and
+        every derived field are unaffected by it.
+      required: [price, minPrice, maxPrice, venueSpreadPct, venueCount, venues, sourceAt, ageSeconds, change24hPct]
+      properties:
+        price: { type: number }
+        minPrice: { type: number }
+        maxPrice: { type: number }
+        venueSpreadPct: { type: number }
+        venueCount: { type: integer }
+        venues:
+          type: array
+          items: { $ref: "#/components/schemas/PublicTradfiReferenceLiveVenue" }
+        sourceAt:
+          type: string
+          format: date-time
+          description: "Oldest venue read inside this consensus, the honest age of the price."
+        ageSeconds: { type: integer }
+        change24hPct:
+          type: [number, "null"]
+          description: "Live price against the same reference as `change24h`."
+
+    PublicTradfiReferenceCatalogItem:
+      type: object
+      required: [instrument, availability, freshness, latest, change24h, change7d, range24h, spark7d, latestVenues, live]
+      properties:
+        instrument: { $ref: "#/components/schemas/PublicTradfiReferenceInstrument" }
+        availability: { type: string, description: "`available` or `unavailable`." }
+        freshness: { $ref: "#/components/schemas/PublicTradfiReferenceFreshness" }
+        latest:
+          anyOf:
+            - $ref: "#/components/schemas/PublicTradfiReferenceSnapshotSummary"
+            - { type: "null" }
+        change24h:
+          anyOf:
+            - $ref: "#/components/schemas/PublicTradfiReferenceChange"
+            - { type: "null" }
+        change7d:
+          anyOf:
+            - $ref: "#/components/schemas/PublicTradfiReferenceChange"
+            - { type: "null" }
+        range24h:
+          anyOf:
+            - $ref: "#/components/schemas/PublicTradfiReferenceRange"
+            - { type: "null" }
+        spark7d:
+          type: array
+          description: |
+            Last validated median of each 3-hour UTC block over the 7 days
+            ending at `latest`, oldest first, rounded to 5 significant
+            digits; blocks without a validated row are skipped.
+          items: { type: number }
+        latestVenues:
+          type: array
+          description: "Venues that contributed to `latest`."
+          items: { type: string }
+        live:
+          anyOf:
+            - $ref: "#/components/schemas/PublicTradfiReferenceLive"
+            - { type: "null" }
+
+    PublicTradfiReferenceCatalog:
+      type: object
+      required: [version, generatedAt, methodology, count, items]
+      properties:
+        version: { type: integer }
+        generatedAt:
+          type: string
+          format: date-time
+          description: "Original payload creation time, retained on a cache hit."
+        methodology: { $ref: "#/components/schemas/PublicTradfiReferenceMethodology" }
+        count: { type: integer }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/PublicTradfiReferenceCatalogItem" }
+
+    PublicTradfiReferenceHistoryWindow:
+      type: object
+      required: [window, from, to, intervalSeconds]
+      properties:
+        window: { type: string, description: "`24h` or `7d`." }
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+        intervalSeconds: { type: integer }
+
+    PublicTradfiReferenceDetail:
+      type: object
+      required: [version, generatedAt, methodology, instrument, availability, freshness, latest, change24h, change7d, range24h, live, history, historyWindow]
+      properties:
+        version: { type: integer }
+        generatedAt: { type: string, format: date-time }
+        methodology: { $ref: "#/components/schemas/PublicTradfiReferenceMethodology" }
+        instrument: { $ref: "#/components/schemas/PublicTradfiReferenceInstrument" }
+        availability: { type: string, description: "`available` or `unavailable`." }
+        freshness: { $ref: "#/components/schemas/PublicTradfiReferenceFreshness" }
+        latest:
+          anyOf:
+            - $ref: "#/components/schemas/PublicTradfiReferenceSnapshot"
+            - { type: "null" }
+        change24h:
+          anyOf:
+            - $ref: "#/components/schemas/PublicTradfiReferenceChange"
+            - { type: "null" }
+        change7d:
+          anyOf:
+            - $ref: "#/components/schemas/PublicTradfiReferenceChange"
+            - { type: "null" }
+        range24h:
+          anyOf:
+            - $ref: "#/components/schemas/PublicTradfiReferenceRange"
+            - { type: "null" }
+        live:
+          anyOf:
+            - $ref: "#/components/schemas/PublicTradfiReferenceLive"
+            - { type: "null" }
+        history:
+          type: array
+          description: "Recorded 15-minute snapshots in the window, oldest first."
+          items: { $ref: "#/components/schemas/PublicTradfiReferenceSnapshot" }
+        historyWindow: { $ref: "#/components/schemas/PublicTradfiReferenceHistoryWindow" }
