@@ -32,7 +32,7 @@ import { tool } from "ai";
 import { z } from "zod";
 
 export interface CoinRithmToolOptions {
-  /** Personal API key, format crk_live_… (CoinRithm -> Profile -> API Keys). */
+  /** Personal API key, format crk_live_… (CoinRithm -> Settings -> API Keys). */
   apiKey: string;
   /** Allow the write tools (open/close/SL-TP) to actually call the API. Default false = dry run. */
   live?: boolean;

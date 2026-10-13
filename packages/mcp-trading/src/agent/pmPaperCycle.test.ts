@@ -7,6 +7,7 @@ import {
 } from "./pmPaperPolicy.js";
 import { parseDecisionForContract } from "./decision.js";
 import { buildChatBody, chatShapeFor } from "./providerCapabilities.js";
+import { PM_PAPER_DECISION_JSON_SCHEMA } from "./pmPaperDecision.js";
 import { newState } from "./state.js";
 import type { RunnerDeps } from "./runner.js";
 const scope = { userId: 1, apiKeyId: 2, walletId: 3, houseAgentId: 4 };
@@ -28,6 +29,7 @@ const action = {
   outcomeExternalMarketId: "native-YES",
   side: "no" as const,
   maxCashBudget: "10.01",
+  forecastProbability: "62.5",
 };
 const read = () => ({
   executionModel: "pm_paper_v2",
@@ -583,3 +585,82 @@ it("confirmed replay survives changed horizon and reuses exact prior receipt", a
   expect(f.provider.decide).not.toHaveBeenCalled();
   expect(result.planned[0]?.executed).toBe(true);
 });
+it("missing forecast fails closed locally before any checkpoint or request", async () => {
+  const f = setup();
+  const { forecastProbability: _omit, ...withoutForecast } = action;
+  void _omit;
+  for (const open of [
+    withoutForecast,
+    { ...withoutForecast, forecastProbability: null },
+  ]) {
+    f.provider.decide.mockResolvedValue({
+      ok: true,
+      text: JSON.stringify({ decision: "act", actions: [open] }),
+    });
+    const result = await runPmPaperCycle(f.deps, policy, f.checkpoint);
+    expect(result.skipReason).toBe("pm_v2_invalid_decision");
+  }
+  expect(f.checkpoint).not.toHaveBeenCalled();
+  expect(f.client.openPmPaperV2).not.toHaveBeenCalled();
+  expect(f.deps.state.pmPaperV2Pending).toBeUndefined();
+});
+it("structured-output schema requires a non-null forecast on v2 opens", () => {
+  const items = (
+    PM_PAPER_DECISION_JSON_SCHEMA.properties as {
+      actions: { items: { oneOf: Array<Record<string, unknown>> } };
+    }
+  ).actions.items.oneOf;
+  const open = items.find(
+    (item) =>
+      (item.properties as { type: { const: string } }).type.const ===
+      "pm_v2_open",
+  )!;
+  expect(open.required).toContain("forecastProbability");
+  expect(
+    JSON.stringify(
+      (open.properties as Record<string, unknown>).forecastProbability,
+    ),
+  ).not.toContain("null");
+});
+// backend-v2 normalizePmPaperEntryRequest: below 1 is a fraction, above 1 a
+// percent, exactly 1 (ambiguous), 0 and 100 are refused.
+it.each(["1", "1.0", "1.000000000000000000", "0", "100", "0.0"])(
+  "forecast %s is refused locally as the API would",
+  async (forecastProbability) => {
+    const f = setup();
+    f.provider.decide.mockResolvedValue({
+      ok: true,
+      text: JSON.stringify({
+        decision: "act",
+        actions: [{ ...action, forecastProbability }],
+      }),
+    });
+    const result = await runPmPaperCycle(f.deps, policy, f.checkpoint);
+    expect(result.skipReason).toBe("pm_v2_invalid_decision");
+    expect(f.client.openPmPaperV2).not.toHaveBeenCalled();
+  },
+);
+it.each([
+  "0.625",
+  "0.000000000000000001",
+  "1.000000000000000001",
+  "62.5",
+  "99.5",
+])(
+  "forecast %s is sent unchanged for the API to normalize",
+  async (forecastProbability) => {
+    const f = setup();
+    f.provider.decide.mockResolvedValue({
+      ok: true,
+      text: JSON.stringify({
+        decision: "act",
+        actions: [{ ...action, forecastProbability }],
+      }),
+    });
+    const result = await runPmPaperCycle(f.deps, policy, f.checkpoint);
+    expect(result.planned[0]).toMatchObject({ accepted: true, executed: true });
+    expect(f.client.openPmPaperV2.mock.calls[0][0]).toMatchObject({
+      forecastProbability,
+    });
+  },
+);

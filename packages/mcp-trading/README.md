@@ -44,24 +44,32 @@ This package ships two binaries:
 
 > **Paper trading only** — virtual funds (50,000 mUSD). Not financial advice.
 
-## Version 0.7.16 (unpublished)
+## Version 0.7.17
 
-The runner rejects explicitly incomplete provider responses before execution,
-including valid-looking prefixes, and preserves their token usage. Bounded
-shape diagnostics still reject string-valued actions. These guards do not raise
-completion limits, repair model proposals or change customer strategies.
+The default tool surface is unchanged at 41 tools. Two server-wide opt-in
+flags add tools that stay off unless enabled: the
+[PM paper v2 tools](#opt-in-pm-paper-v2-tools) for configured house keys and
+the [spot reference tool](#opt-in-spot-reference-tool).
 
-This release also includes configurable universe and signal boundaries, PM
-policies, objective guidance, separately timed market context and the
+The runner adds an opt-in `capitalSizing.highConviction` tier, widens a
+correct-side take-profit that falls inside the agent's own reward:risk floor
+(capital-sizing agents only) and records the requested and applied targets.
+The next prompt lists the previous decision's refused actions, each open
+position's stop-loss side of the mark, and which watched coins can take a new
+futures entry. Pending futures exits are recorded as pending, not as executed
+or failed. See [CHANGELOG.md](./CHANGELOG.md).
+
+Version 0.7.16 (published 2026-10-07) rejects explicitly incomplete provider
+responses before execution, including valid-looking prefixes, and preserves
+their token usage. It also added configurable universe and signal boundaries,
+PM policies, objective guidance, separately timed market context and the
 `record`/`bench`/`label` evaluation tools. Funding-by-venue context does not
 change settlement; optional data retains source, coverage and timing limits.
 Benchmarks preserve missing outcomes and bounded route diagnostics. They do not
-establish a profitable strategy or a superior model. See the changelog and
+establish a profitable strategy or a superior model. See the
 [runner documentation](https://github.com/CoinRithm/coinrithm-agent-trading/blob/main/docs/agent-runner.md).
 
-The preceding published version, 0.7.15, includes the following capabilities.
-
-It preserves observed-price evidence in public market summaries
+Version 0.7.15 preserves observed-price evidence in public market summaries
 (`hasObservedPrice` and bounded `sourceObservation`, including both sides of
 venue comparisons), keeps full public `walletAddress` values in whale summaries
 for `pm_data_whale_wallet` follow-up, adds the opt-in `whale_context` runner
@@ -91,7 +99,7 @@ for the exact opt-in policy and persistence contract.
 COINRITHM_API_KEY=crk_live_… npx -y @coinrithm/mcp-trading
 ```
 
-Get a `crk_live_…` key from CoinRithm → Profile → API Keys. To author and run a
+Get a `crk_live_…` key from CoinRithm → Settings → API Keys. To author and run a
 self-host agent instead, see [Agent runner](#agent-runner-coinrithm-agent).
 Building from source? Use Node 20.19+ or 22.12+, then `npm ci && npm run build`.
 Run `npm run test:coverage` for the enforced 90% statement, branch, function,
@@ -163,18 +171,20 @@ return a parseable decision is rejected at deploy time rather than failing
 every scheduled cycle. Keys are encrypted at rest and never logged or echoed.
 
 Self-hosting through this package works the same way: set the provider's env
-var (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `NVIDIA_API_KEY`, `GROQ_API_KEY`
-or `MODEL_API_KEY`) and the runner builds the request in the shape that
+var (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `NVIDIA_API_KEY`, `GROQ_API_KEY`,
+`GEMINI_API_KEY` or `MODEL_API_KEY`) and the runner builds the request in the shape that
 provider's model family actually accepts. A model key is **never** read from an
 agent file.
 
 ## Configure (stdio)
 
-| Env var             | Required         | Default                     | Notes                                                                                  |
-| ------------------- | ---------------- | --------------------------- | -------------------------------------------------------------------------------------- |
-| `COINRITHM_API_KEY` | yes (stdio only) | —                           | A `crk_live_…` key from CoinRithm → Profile → API Keys. **Ignored by the HTTP entry.** |
-| `COINRITHM_API_URL` | no               | `https://api.coinrithm.com` | Upstream base URL (live)                                                               |
-| `PORT`              | no               | `8787`                      | HTTP entry only                                                                        |
+| Env var                                  | Required         | Default                     | Notes                                                                                     |
+| ---------------------------------------- | ---------------- | --------------------------- | ----------------------------------------------------------------------------------------- |
+| `COINRITHM_API_KEY`                      | yes (stdio only) | —                           | A `crk_live_…` key from CoinRithm → Settings → API Keys. **Ignored by the HTTP entry.**    |
+| `COINRITHM_API_URL`                      | no               | `https://api.coinrithm.com` | Upstream base URL (live)                                                                  |
+| `PORT`                                   | no               | `8787`                      | HTTP entry only                                                                           |
+| `COINRITHM_PM_PAPER_V2_TOOLS_ENABLED`    | no               | off                         | `true` adds the [PM paper v2 tools](#opt-in-pm-paper-v2-tools) for configured house keys. |
+| `COINRITHM_SPOT_REFERENCE_TOOLS_ENABLED` | no               | off                         | `true` adds [`get_spot_reference`](#opt-in-spot-reference-tool).                          |
 
 ## Run
 
@@ -418,11 +428,36 @@ stdout is the MCP JSON-RPC channel; this server logs only to stderr.
 
 The default tool list is unchanged. Set `COINRITHM_PM_PAPER_V2_TOOLS_ENABLED=true`
 only for a server intended to expose the separately authorized house pilot:
-`open_pm_paper_v2`, `close_pm_paper_v2`, and `get_pm_paper_v2_positions`.
+`discover_pm_paper_v2_markets`, `open_pm_paper_v2`, `close_pm_paper_v2`, and
+`get_pm_paper_v2_positions`. With both opt-in flags on, the server registers
+46 tools.
+
+| Tool                           | Scope      | Wraps                                        |
+| ------------------------------ | ---------- | -------------------------------------------- |
+| `discover_pm_paper_v2_markets` | `read`     | `GET /api/agent/pm/v2/discover` (q?, limit?) |
+| `open_pm_paper_v2`             | `trade:pm` | `POST /api/agent/pm/v2/open`                 |
+| `close_pm_paper_v2`            | `trade:pm` | `POST /api/agent/pm/v2/close`                |
+| `get_pm_paper_v2_positions`    | `read`     | `GET /api/agent/pm/v2/positions`             |
+
+These tools are meant for keys that match a configured house; discovery
+returns `403 house_opt_in_required` for any other key. Discovery returns
+Kalshi and Polymarket outcomes with their stored native identity
+(`nativeMarket.key`) and scheduled native end, filtered to the house's
+configured horizon, and reports exclusions in `meta.boundedSelection`. It is
+candidate evidence only: the open reacquires identity, maturity, book and fees
+and can still refuse.
+
 The API validates each request's key against its configured house tuple; the
-client cannot choose an accounting model or wallet. An exact decimal
-`maxCashBudget` includes entry fees and never substitutes for legacy stake.
-A close may return HTTP202 accepted/pending; only `executed:true` confirms
+client cannot choose an accounting model or wallet. Opens cover Kalshi and
+Polymarket only. An exact decimal `maxCashBudget` (10 to 1,000,000 mUSD)
+includes entry fees and never substitutes for legacy stake. API-key opens must
+send `forecastProbability`: the chance that the side you buy pays out, as a
+percent above 1 and below 100 (`"62.5"`), or as a fraction above 0 and below 1
+(`"0.625"`). Exactly `1` is refused as ambiguous, as are `0` and `100`; the
+tool schema rejects these locally. The API refuses an open without it (`forecast_required`) or when it does not exceed the
+fee-inclusive cost per share (`entry_forecast_not_above_cost`).
+Idempotency keys use the `pm-entry:` and `pm-exit:` prefixes. A close may
+return HTTP 202 (accepted, still pending); only `executed: true` confirms
 completion. Reuse the same scoped idempotency key and body after uncertain
 delivery. Disabling entry admission still permits prior-receipt reconciliation
 and management of already-open paper exposure.

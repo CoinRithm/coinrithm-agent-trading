@@ -64,7 +64,7 @@ CoinRithm runner or automatically apply a local strategy's limits.
 ## 1. Create an API key
 
 1. Sign in to CoinRithm.
-2. Go to **Profile → API Keys**.
+2. Go to **Settings → API Keys**.
 3. Click **Generate**, give it a label (e.g. `claude-desktop`).
 4. **Copy the key now.** It looks like `crk_live_AbC…_1a2b3c` and is shown
    **once**. Lose it → revoke and mint a new one.
@@ -210,7 +210,7 @@ not expose the private ledger. Decisions default to settled rows;
 
 ## 6. Revoke anytime
 
-Profile → **API Keys → Revoke**. The key stops working on the **next request**.
+Settings → **API Keys → Revoke**. The key stops working on the **next request**.
 One key per agent makes this surgical — disconnect a single integration without
 touching the others.
 

@@ -59,7 +59,7 @@ export function loadConfig(): ClientConfig {
   const apiKey = process.env.COINRITHM_API_KEY?.trim();
   if (!apiKey) {
     throw new Error(
-      "COINRITHM_API_KEY is not set. Mint a key in CoinRithm → Profile → API Keys " +
+      "COINRITHM_API_KEY is not set. Mint a key in CoinRithm → Settings → API Keys " +
         "and expose it to this MCP server as the COINRITHM_API_KEY environment variable.",
     );
   }

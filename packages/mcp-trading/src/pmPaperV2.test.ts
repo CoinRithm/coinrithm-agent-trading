@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { pmPaperOpenSchema, pmPaperCloseSchema } from "./pmPaperV2.js";
+import {
+  pmPaperAgentOpenSchema,
+  pmPaperOpenSchema,
+  pmPaperCloseSchema,
+} from "./pmPaperV2.js";
 import { registerTools } from "./tools.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { CoinRithmClient } from "./client.js";
@@ -162,6 +166,26 @@ describe("explicit PM v2 consumer wire contract", () => {
         .success,
     ).toBe(false);
   });
+  it("agent opens require a forecast the API accepts; stored requests stay replayable", () => {
+    for (const forecastProbability of [
+      undefined,
+      null,
+      "1",
+      "1.00",
+      "0",
+      "100",
+    ])
+      expect(
+        pmPaperAgentOpenSchema.safeParse({ ...open, forecastProbability })
+          .success,
+      ).toBe(false);
+    for (const forecastProbability of ["0.625", "1.5", "62.5", "99.9"])
+      expect(
+        pmPaperAgentOpenSchema.safeParse({ ...open, forecastProbability })
+          .success,
+      ).toBe(true);
+    expect(pmPaperOpenSchema.safeParse(open).success).toBe(true);
+  });
   it.each([202, 200, 409])(
     "both clients retain actual execution result for HTTP %s",
     async (status) => {
@@ -220,6 +244,7 @@ it("registered tools pass per-request key and preserve pending receipt", async (
     },
   };
   const client = {
+    discoverPmPaperV2: vi.fn().mockResolvedValue(pending),
     openPmPaperV2: vi.fn().mockResolvedValue(pending),
     closePmPaperV2: vi.fn().mockResolvedValue(pending),
     pmPaperV2Positions: vi.fn().mockResolvedValue(pending),
@@ -241,8 +266,25 @@ it("registered tools pass per-request key and preserve pending receipt", async (
   const extra = {
     requestInfo: { headers: { authorization: "Bearer request-fixture" } },
   };
-  await handlers.get("open_pm_paper_v2")!(open, extra);
-  expect(client.openPmPaperV2).toHaveBeenCalledWith(open, "request-fixture");
+  const agentOpen = { ...open, forecastProbability: "62.5" };
+  await handlers.get("open_pm_paper_v2")!(agentOpen, extra);
+  expect(client.openPmPaperV2).toHaveBeenCalledWith(
+    agentOpen,
+    "request-fixture",
+  );
+  await expect(
+    handlers.get("open_pm_paper_v2")!(open, extra),
+  ).rejects.toThrow();
+  expect(client.openPmPaperV2).toHaveBeenCalledTimes(1);
+  await handlers.get("discover_pm_paper_v2_markets")!(
+    { q: "Bitcoin", limit: 20 },
+    extra,
+  );
+  expect(client.discoverPmPaperV2).toHaveBeenCalledWith(
+    { q: "Bitcoin", limit: 20 },
+    "request-fixture",
+    undefined,
+  );
   const close = { positionId: 1, idempotencyKey: "pm-exit:fixture" };
   const response = await handlers.get("close_pm_paper_v2")!(close, extra);
   expect(client.closePmPaperV2).toHaveBeenCalledWith(close, "request-fixture");
@@ -263,4 +305,5 @@ it("default tool list does not advertise PM v2", () => {
   expect(names).toContain("open_pm_position");
   expect(names).not.toContain("open_pm_paper_v2");
   expect(names).not.toContain("close_pm_paper_v2");
+  expect(names).not.toContain("discover_pm_paper_v2_markets");
 });

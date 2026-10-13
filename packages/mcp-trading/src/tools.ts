@@ -1,4 +1,4 @@
-import { pmPaperOpenSchema, pmPaperCloseSchema } from "./pmPaperV2.js";
+import { pmPaperAgentOpenSchema, pmPaperCloseSchema } from "./pmPaperV2.js";
 // Registers the CoinRithm trading tools on an MCP server instance.
 //
 // Every tool wraps exactly one /api/agent/* call. Tool results return the raw
@@ -2123,13 +2123,47 @@ export function registerTools(
 
   if (process.env.COINRITHM_PM_PAPER_V2_TOOLS_ENABLED === "true") {
     server.registerTool(
+      "discover_pm_paper_v2_markets",
+      {
+        title: "Discover PM paper v2 candidates",
+        description:
+          "For server-configured PM paper v2 house keys only (other keys get 403 house_opt_in_required). Returns Kalshi/Polymarket outcomes with exact stored native identity (nativeMarket.key) and scheduled native end, filtered to the house's configured horizon; meta.boundedSelection reports how many were excluded and why. Candidate evidence only: open_pm_paper_v2 reacquires native identity, maturity, book and fees, and may still refuse. nativeEndAt is a scheduled end, not a settlement-time guarantee. " +
+          PAPER_NOTE_SHORT,
+        inputSchema: {
+          q: z
+            .string()
+            .max(100)
+            .optional()
+            .describe("Optional search text (title, outcome, topic)."),
+          limit: z
+            .number()
+            .int()
+            .min(1)
+            .max(50)
+            .optional()
+            .describe("Max events before filtering (1-50, default 20)."),
+          agentTrace: AGENT_TRACE_SCHEMA,
+        },
+        outputSchema: API_RESULT_OUTPUT_SCHEMA,
+        annotations: readOnlyAnnotations("Discover PM paper v2 candidates"),
+      },
+      async ({ q, limit, agentTrace }, extra) =>
+        present(
+          await client.discoverPmPaperV2(
+            { q, limit },
+            requestKey(extra),
+            agentTrace,
+          ),
+        ),
+    );
+    server.registerTool(
       "open_pm_paper_v2",
       {
         title: "Open opted-in PM paper position",
         description:
-          "For server-configured PM paper v2 house keys only. Opens against freshly acquired native Kalshi/Polymarket depth. maxCashBudget is an explicit exact decimal TOTAL cash budget including fees, not legacy stakeMusd. Server admission defaults off. Reuse the identical pm-entry key and body after uncertain delivery. Existing legacy tools keep their behavior. " +
+          "For server-configured PM paper v2 house keys only. Opens against freshly acquired native Kalshi/Polymarket depth. maxCashBudget is an explicit exact decimal TOTAL cash budget including fees, not legacy stakeMusd. forecastProbability is required: the chance the side you buy pays out (percent above 1 and below 100, or a fraction above 0 and below 1; exactly 1 is refused as ambiguous); the API refuses an open whose forecast does not exceed the fee-inclusive cost per share. Server admission defaults off. Reuse the identical pm-entry key and body after uncertain delivery. Existing legacy tools keep their behavior. " +
           PAPER_NOTE_SHORT,
-        inputSchema: pmPaperOpenSchema.shape,
+        inputSchema: pmPaperAgentOpenSchema.shape,
         outputSchema: API_RESULT_OUTPUT_SCHEMA,
         annotations: mutatingAnnotations("Open opted-in PM paper position", {
           idempotent: true,
@@ -2138,7 +2172,7 @@ export function registerTools(
       async (body, extra) =>
         present(
           await client.openPmPaperV2(
-            pmPaperOpenSchema.parse(body),
+            pmPaperAgentOpenSchema.parse(body),
             requestKey(extra),
           ),
         ),

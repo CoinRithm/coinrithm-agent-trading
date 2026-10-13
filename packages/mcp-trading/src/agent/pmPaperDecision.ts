@@ -1,7 +1,9 @@
 import { z } from "zod";
-import { pmPaperOpenSchema, pmPaperCloseSchema } from "../pmPaperV2.js";
+import { pmPaperAgentOpenSchema, pmPaperCloseSchema } from "../pmPaperV2.js";
 import type { ActionsStringDiagnostic } from "./decision.js";
-export const pmV2OpenActionSchema = pmPaperOpenSchema
+// forecastProbability is required: a house open without it fails locally
+// instead of spending a write on the API's 422 forecast_required.
+export const pmV2OpenActionSchema = pmPaperAgentOpenSchema
   .omit({ idempotencyKey: true, minEntryProbabilityPct: true })
   .extend({ type: z.literal("pm_v2_open") })
   .strict();
@@ -77,6 +79,7 @@ export const PM_PAPER_DECISION_JSON_SCHEMA: Record<string, unknown> = {
               "outcomeExternalMarketId",
               "side",
               "maxCashBudget",
+              "forecastProbability",
             ],
             properties: {
               type: { const: "pm_v2_open" },
@@ -89,7 +92,7 @@ export const PM_PAPER_DECISION_JSON_SCHEMA: Record<string, unknown> = {
               },
               side: { type: "string", enum: ["yes", "no"] },
               maxCashBudget: decimal,
-              forecastProbability: { anyOf: [decimal, { type: "null" }] },
+              forecastProbability: decimal,
               thesis: { type: ["string", "null"], maxLength: 280 },
             },
           },

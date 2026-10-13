@@ -48,6 +48,20 @@ export const pmPaperCloseSchema = z
     detail: text(1024).nullable().optional(),
   })
   .strict();
+// Matches backend-v2 normalizePmPaperEntryRequest (acbf1cc): the chance that
+// the BOUGHT side pays out. Below 1 is read as a fraction (x100), above 1 as a
+// percent; exactly 1 is ambiguous and refused; 0 and 100 are refused.
+const exactlyOne = /^1(\.0{1,18})?$/;
+export const pmForecastProbabilitySchema = boundedDecimal(0, 100, true)
+  .refine((value) => !exactlyOne.test(value))
+  .describe(
+    "Required exact decimal string: chance that the side you buy pays out. Percent above 1 and below 100 (e.g. 62.5), or a fraction above 0 and below 1 (0.625 = 62.5%); exactly 1 is refused.",
+  );
+// API-key opens: the API answers 422 forecast_required without a forecast.
+// The base schema above stays optional so stored legacy requests can replay.
+export const pmPaperAgentOpenSchema = pmPaperOpenSchema
+  .extend({ forecastProbability: pmForecastProbabilitySchema })
+  .strict();
 export type PmPaperOpen = z.infer<typeof pmPaperOpenSchema>;
 export type PmPaperClose = z.infer<typeof pmPaperCloseSchema>;
 export const PM_PAPER_V2_BASE = "/api/agent/pm/v2";

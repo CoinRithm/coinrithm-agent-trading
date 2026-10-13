@@ -7,7 +7,7 @@ use the [MCP setup](./codex.md). Actions call the API directly.
 
 ## Steps
 
-1. **Mint a key** in CoinRithm → Profile → API Keys. Pick the scopes you want
+1. **Mint a key** in CoinRithm → Settings → API Keys. Pick the scopes you want
    (`read`, and any `trade:*` you intend to use). Copy the `crk_live_…` value —
    it is shown once.
 2. In ChatGPT, go to **Explore GPTs → Create** (or edit an existing GPT) →

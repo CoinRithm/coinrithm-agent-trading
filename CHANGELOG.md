@@ -8,6 +8,20 @@ Each package has its own version; the API contract is versioned separately.
 [TypeScript history](packages/sdk/CHANGELOG.md) ·
 [Python release notes](packages/sdk-python/README.md)
 
+## MCP 0.7.17 (2026-10-13)
+
+The MCP server keeps its 41 default tools. Two server-wide opt-in flags add
+tools that stay off unless enabled: `COINRITHM_PM_PAPER_V2_TOOLS_ENABLED` adds
+the PM paper v2 discovery, open, close and positions tools for configured
+house keys (PM v2 opens now require a forecast locally), and
+`COINRITHM_SPOT_REFERENCE_TOOLS_ENABLED` adds `get_spot_reference`. The runner
+adds an opt-in high-conviction capital tier, widens a take-profit inside the
+agent's own reward:risk floor, shows the previous decision's refused actions,
+states each position's stop-loss side of the mark and which coins can take a
+new futures entry, and records pending futures exits as pending. See the
+[MCP changelog](packages/mcp-trading/CHANGELOG.md). TypeScript 0.3.5, Python
+1.8.5 and API contract 1.7.0 are unchanged.
+
 ## MCP 0.7.16, TypeScript 0.3.5, Python 1.8.5 (2026-10-07)
 
 The agent runner now rejects OpenAI-compatible and Anthropic output explicitly
