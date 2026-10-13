@@ -35,7 +35,8 @@ info:
     decision. Availability and freshness vary by source; an event in the
     research catalog is not necessarily eligible for a paper trade.
 
-    The **public-pm-data** and **public-crypto-data** groups work anonymously.
+    The **public-pm-data**, **public-crypto-data** and **public-market-data**
+    groups work anonymously.
     Public Arena and competition reads also need no key. Each operation's
     authentication setting is authoritative; public operations declare
     `security: []` in the downloadable contract.
@@ -100,7 +101,8 @@ info:
 
     Agent keys have two server-tunable budgets: **120 requests/min** across
     agent endpoints and **20 trade-writes/min** for order placement/cancellation,
-    futures open/close and PM open. Prefer the live `RateLimit-Limit`,
+    futures open/close and PM open (including the `pm/v2` open, replay and
+    close writes). Prefer the live `RateLimit-Limit`,
     `RateLimit-Remaining` and `RateLimit-Reset` headers to these defaults.
     Public routes also have service/IP limits; anonymous access is not unlimited.
 
@@ -250,6 +252,15 @@ paths:
                     items:
                       type: string
                       enum: [read, "trade:spot", "trade:futures", "trade:pm"]
+                  usage:
+                    type: object
+                    description: Current-month request count for this key. Measurement only; no quota is enforced from it.
+                    properties:
+                      period: { type: string, description: "UTC month, `YYYY-MM`." }
+                      requests:
+                        type: [integer, "null"]
+                        description: Requests counted this period; null when metering is unavailable (unknown, not zero).
+                    required: [period, requests]
         "401": { $ref: "#/components/responses/Unauthorized" }
         "429": { $ref: "#/components/responses/TooManyRequests" }
 
@@ -661,7 +672,7 @@ paths:
         surface — call /api/agent/resolve first. `range` picks both the
         lookback and the per-candle resolution: 1H = 60×1-minute,
         1D = 288×5-minute, 1W = 672×15-minute, 1M = 720×1-hour,
-        3M = 540×4-hour candles. Candles are oldest→newest with `t` in unix
+        3M = 540×4-hour, 1Y = up to 366 daily candles. Candles are oldest→newest with `t` in unix
         SECONDS. o/h/l/c are converted to `fiat` (default USD) at the nearest
         stored rate; `v` stays USD regardless of fiat. These are sampled
         composite-price bars, not venue trade candles, and `v` is a rolling
@@ -677,8 +688,8 @@ paths:
         - name: range
           in: query
           required: false
-          schema: { type: string, enum: [1H, 1D, 1W, 1M, 3M], default: 1D }
-          description: Lookback window; also fixes the per-candle resolution.
+          schema: { type: string, enum: [1H, 1D, 1W, 1M, 3M, 1Y], default: 1D }
+          description: Lookback window; also fixes the per-candle resolution. Legacy aliases `1m` (as 1H) and `3m` (as 1D) are also accepted.
         - name: fiat
           in: query
           required: false
@@ -699,7 +710,7 @@ paths:
                       slug: { type: string }
                       symbol: { type: string }
                       name: { type: string }
-                  range: { type: string, enum: [1H, 1D, 1W, 1M, 3M] }
+                  range: { type: string, enum: [1H, 1D, 1W, 1M, 3M, 1Y] }
                   fiat: { type: string }
                   rateToUsd:
                     type: number
@@ -1427,7 +1438,8 @@ paths:
       tags: [reads]
       summary: Mock futures positions + unrealized PnL + liquidation distance
       description: |
-        Up to 200 positions (open and historical). Supports `updatedSince`
+        The 200 most recently updated positions plus every open position (up
+        to 1,000), open and historical. Supports `updatedSince`
         delta polling — open/close/liquidation all bump a position's row, so
         polling deltas tells you what changed between loops (use the
         response's `asOf` as the next cursor). Requires scope `read`.
@@ -1602,6 +1614,8 @@ paths:
         volume windows and completeness are disclosed in the response and at
         `/api/prediction-markets/sources/health`; do not assume every venue's
         number has the same basis. Cite CoinRithm when quoting these aggregates.
+        Open events of a paused venue are excluded from totals, breakdowns and
+        highlights.
       security: []
       parameters:
         - name: status
@@ -1629,10 +1643,25 @@ paths:
       summary: Search events across all prediction-market venues
       description: |
         Keyless event search across Polymarket, Kalshi, Rothera, Limitless,
-        Smarkets, Manifold, Metaculus, PredictIt, Futuur, Myriad and ForecastEx.
-        Results remain visible when quality-blocked; inspect `quality` and
-        `decisionSupport` before using a row for a decision. This research
-        endpoint is broader than the authenticated paper-trading discovery API.
+        Smarkets, Manifold, Metaculus, PredictIt, Futuur, Myriad, ForecastEx
+        and Gemini. Results remain visible when quality-blocked; inspect
+        `quality` and `decisionSupport` before using a row for a decision. This
+        research endpoint is broader than the authenticated paper-trading
+        discovery API.
+
+        Open events of a venue CoinRithm has paused (no longer collecting) are
+        left out of this list, the overview, expiring and matches surfaces;
+        their closed and resolved history stays available. `pagination` reports
+        `limit`, `offset` and `hasMore`.
+
+        Opt-ins (absent means the default shape): `view=compact` keeps each
+        event's top 3 outcomes by probability, adds `outcomesTotal` and drops
+        `description`; `lead=representative` (with `view=compact` only) adds
+        `representativeOutcome` on open events; `dedupe=matched` keeps only the
+        highest-ranked member of each approved cross-venue match group on the
+        page (a page can then hold fewer than `limit` rows); `minVolume24h`
+        keeps events with at least that 24h USD volume;
+        `includeQuoteEvidence=1` adds `quoteEvidence` to every outcome.
       security: []
       parameters:
         - name: limit
@@ -1669,10 +1698,30 @@ paths:
         - name: tradeable
           in: query
           schema: { type: boolean, default: false }
-          description: Restrict to plausibly mock-tradeable markets.
+          description: Restrict to plausibly mock-tradeable markets. Only the value `true` enables it.
         - name: fiat
           in: query
           schema: { type: string, default: USD }
+        - name: view
+          in: query
+          description: "`compact` returns each event's top 3 outcomes plus `outcomesTotal`, without `description`. Other values return the default shape."
+          schema: { type: string, enum: [compact] }
+        - name: lead
+          in: query
+          description: "`representative` adds `representativeOutcome` to open events. Applies only with `view=compact`."
+          schema: { type: string, enum: [representative] }
+        - name: dedupe
+          in: query
+          description: "`matched` keeps the highest-ranked member of each approved cross-venue match group on the page."
+          schema: { type: string, enum: [matched] }
+        - name: minVolume24h
+          in: query
+          description: Minimum 24h volume in USD. Ignored unless a finite number above 0.
+          schema: { type: number, exclusiveMinimum: 0 }
+        - name: includeQuoteEvidence
+          in: query
+          description: "`1` adds `quoteEvidence` to every outcome. Any other value returns 400."
+          schema: { type: string, enum: ["1"] }
       responses:
         "200":
           description: Paginated provider-rich event records
@@ -1692,6 +1741,14 @@ paths:
         provenance, related markets/news, recent large trades, volume history
         and approved cross-source matches when available. For bounded agent
         context use the MCP `pm_data_event` tool's default summary mode.
+
+        By default, matched and related events are trimmed: each
+        `crossSourceMatches[].event.outcomes` and `comparison.outcomes` keeps
+        only the shared outcomes (at most 60) with an `outcomesTotal`, and
+        `relatedEvents[].outcomes` keeps the compact 3-outcome shape. Send
+        `full=1` for untrimmed lists. `view=core` returns a cheaper first-paint
+        payload whose heavy sections are empty (`detailMode: core`). An open
+        event of a paused venue carries `availability.status: paused`.
       security: []
       parameters:
         - name: source
@@ -1705,9 +1762,25 @@ paths:
         - name: fiat
           in: query
           schema: { type: string, default: USD }
+        - name: view
+          in: query
+          description: "`core` returns the cheap core payload. Other values return the full detail."
+          schema: { type: string, enum: [core] }
+        - name: full
+          in: query
+          description: "`1`, `true` or `yes` disables trimming of matched and related event outcomes."
+          schema: { type: string, enum: ["1", "true", "yes"] }
+        - name: lang
+          in: query
+          description: Keep only this locale's `translations` (tr, es, fr, de, it, nl, pt); `en` or an unknown locale drops them.
+          schema: { type: string }
+        - name: includeQuoteEvidence
+          in: query
+          description: "`1` adds `quoteEvidence` to every outcome. Any other value returns 400."
+          schema: { type: string, enum: ["1"] }
       responses:
         "200":
-          description: Complete event research record
+          description: Event research record (matched and related outcomes trimmed unless `full=1`)
           content:
             application/json:
               schema: { $ref: "#/components/schemas/PublicPmEventDetailResponse" }
@@ -1728,11 +1801,17 @@ paths:
         For bounded agent context use the MCP `pm_data_disagreements` tool,
         which additionally bounds each event and comparison to its top-5
         highest-delta shared outcomes.
+
+        Pairs whose open side belongs to a paused venue are left out. With
+        `sort=divergence_desc` or `max_outcome_delta_desc`, pairs need verified
+        quotes for the exact compared legs and `meta.quoteEligibilityVersion`
+        is set. `meta.projection` is `compact` or `rich`.
       security: []
       parameters:
         - name: limit
           in: query
-          schema: { type: integer, minimum: 1, maximum: 25, default: 10 }
+          description: Clusters per page. Default view 1-25 (default 10); `view=compact` allows 1-50 (default 20).
+          schema: { type: integer, minimum: 1, maximum: 50, default: 10 }
         - name: offset
           in: query
           schema: { type: integer, minimum: 0, default: 0 }
@@ -1765,6 +1844,14 @@ paths:
         - name: fiat
           in: query
           schema: { type: string, default: USD }
+        - name: view
+          in: query
+          description: "`compact` returns the compact projection with a larger page size."
+          schema: { type: string, enum: [compact] }
+        - name: maxEndDateDifferenceDays
+          in: query
+          description: Drop pairs whose venue end dates differ by more than this many days.
+          schema: { type: number, minimum: 0 }
       responses:
         "200":
           description: Paginated disagreement clusters with pairwise comparisons
@@ -2188,6 +2275,14 @@ paths:
           required: false
           description: Trades to return, 1-50. Clamps rather than erroring.
           schema: { type: integer, minimum: 1, maximum: 50, default: 50 }
+        - name: minUsd
+          in: query
+          required: false
+          description: |
+            Fixed size tier: only trades of at least this USD value, with the
+            same 50-row cap. The response echoes `minUsd`. Any other value is
+            ignored and the default tape is served.
+          schema: { type: integer, enum: [25000, 50000, 100000] }
       responses:
         "200":
           description: Latest 50 accepted trades, aggregate statistics and venue coverage
@@ -2329,6 +2424,12 @@ paths:
         whether the supplied ask snapshot parsed as a valid non-empty book
         (`validated`) and when this server fetched it (`receivedAt`, its own
         acquisition time, not an upstream trade time). Kalshi books omit it.
+        Both venues' books carry `receivedAt` and `sideEvidence`.
+
+        `outcomeExternalMarketId` selects a different outcome of the event
+        instead (a Kalshi `No` side is complemented). That book must have been
+        received less than 10 seconds earlier, otherwise `orderBook` is null;
+        an outcome that is not on the event returns 404.
       security: []
       parameters:
         - name: source
@@ -2339,6 +2440,11 @@ paths:
           in: path
           required: true
           schema: { type: string, minLength: 1 }
+        - name: outcomeExternalMarketId
+          in: query
+          required: false
+          description: Venue market id of the outcome to read (1-200 characters after trimming).
+          schema: { type: string, minLength: 1, maxLength: 200 }
       responses:
         "200":
           description: Order book for one outcome (null when unsupported or empty)
@@ -2368,7 +2474,10 @@ paths:
         by `PublicPmOutcome.probability` elsewhere in this API. `usdValue` is
         `size * price`. `who` is a public trader handle only where the venue
         exposes one (Polymarket pseudonym); Kalshi trades always report
-        `who: null`.
+        `who: null`, and an empty Polymarket handle is also served as null.
+        When a Polymarket market's condition id is unavailable, the tape falls
+        back to the whole event's trades (every outcome), and a row whose
+        outcome cannot be identified carries `outcome: null`.
       security: []
       parameters:
         - name: source
@@ -2499,8 +2608,31 @@ paths:
                   recentFills:
                     type: array
                     items: { type: object, additionalProperties: true }
+                  asOf: { type: string, format: date-time }
+                  enrichment:
+                    type: [object, "null"]
+                    additionalProperties: true
+                    description: |
+                      Provider-reported wallet context; null for limitless and
+                      myriad. For polymarket: `{provider, asOf, profile, pnl,
+                      positions, closedPositions}`, where each section is either
+                      `{available: false, reason}` or `{available: true, ...}`.
+                      `pnl.allTime.pnlUsd` is realized-only lifetime PnL,
+                      `pnl.month.pnlUsd` is a mark-to-market change, ranks are
+                      PnL ranks (null when 0 or absent), and `volumeUsd` is null
+                      without a leaderboard standing. `positions.rows[].endDate`
+                      is a `YYYY-MM-DD` date. These are the provider's figures,
+                      not CoinRithm-derived holdings or PnL.
+                  meta:
+                    type: object
+                    additionalProperties: true
+                    description: Present only when enrichment hit its time budget; `freshUntil` is epoch milliseconds.
         "400": { $ref: "#/components/responses/BadRequest" }
-        "404": { $ref: "#/components/responses/NotFound" }
+        "404":
+          description: Unknown wallet, or an invalid source or wallet (the body lists `venues`)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
         "429":
           description: Public request rate limit exceeded; honor `Retry-After`.
         "500": { $ref: "#/components/responses/ServerError" }
@@ -2814,7 +2946,7 @@ paths:
                     type: array
                     items: { type: string }
         "409":
-          description: idempotencyKey already used (by a different intent/user)
+          description: idempotencyKey already used (by a different intent/user), or `hosted_agent_not_active` when the owner paused this hosted agent
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -2907,7 +3039,7 @@ paths:
               schema: { $ref: "#/components/schemas/Error" }
         "404": { $ref: "#/components/responses/WalletNotFound" }
         "409":
-          description: idempotencyKey already used (by a different intent/user)
+          description: idempotencyKey already used (by a different intent/user); `hosted_agent_not_active` when the owner paused this hosted agent; `funding_settlement_pending` (retry after `retryAfterSeconds`) or `position_liquidated_by_funding`
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -3069,7 +3201,7 @@ paths:
               schema: { $ref: "#/components/schemas/Error" }
         "404": { $ref: "#/components/responses/WalletNotFound" }
         "409":
-          description: idempotencyKey already used (by a different intent/user)
+          description: idempotencyKey already used (by a different intent/user), or `hosted_agent_not_active` when the owner paused this hosted agent
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -4204,6 +4336,19 @@ components:
               maximum: 9007199254740991
               description: Kalshi venue-published settlement timer in seconds; not a guaranteed deadline after close.
           required: [orderMinSize, tickSize, feesEnabled, canCloseEarly, settlementTimerSeconds]
+        quoteEvidence:
+          type: [object, "null"]
+          additionalProperties: true
+          description: |
+            Present only when the request sent `includeQuoteEvidence=1`. The
+            stored venue book observation for Polymarket and Kalshi outcomes on
+            a 0-100 scale (values outside 0-100 are served as null); null for
+            other venues or when none is stored. Not an executable quote.
+          properties:
+            version: { type: integer }
+            bid: { type: [number, "null"] }
+            ask: { type: [number, "null"] }
+            last: { type: [number, "null"] }
       required: [name]
 
     PublicPmEvent:
@@ -4289,6 +4434,20 @@ components:
           items:
             type: object
             additionalProperties: true
+        outcomesTotal:
+          type: integer
+          description: Full outcome count when the outcome list was trimmed (`view=compact`, or matched/related events without `full=1`).
+        availability:
+          type: object
+          additionalProperties: true
+          description: |
+            Event detail only, and only for an open event whose venue CoinRithm
+            has paused: its prices stopped updating at `lastCollectedAt`.
+            Absent otherwise.
+          properties:
+            status: { type: string, enum: [paused] }
+            lastCollectedAt: { type: [string, "null"], format: date-time }
+          required: [status, lastCollectedAt]
       required: [id, slug, title, status, source, outcomes]
 
     PublicPmEventsResponse:
@@ -4302,9 +4461,13 @@ components:
           type: object
           additionalProperties: true
           properties:
-            total: { type: integer }
+            total:
+              type: integer
+              deprecated: true
+              description: Never sent by the server; use `hasMore`.
             limit: { type: integer }
             offset: { type: integer }
+            hasMore: { type: boolean }
         meta:
           type: object
           additionalProperties: true
@@ -4490,6 +4653,20 @@ components:
           description: Ask levels, best (lowest price) first.
           items: { $ref: "#/components/schemas/PublicPmOrderBookLevel" }
         askEvidence: { $ref: "#/components/schemas/PublicPmOrderBookAskEvidence" }
+        receivedAt:
+          type: [string, "null"]
+          format: date-time
+          description: When this server acquired the book (its own time, not a venue trade time).
+        sideEvidence:
+          type: object
+          additionalProperties: true
+          description: |
+            True when that side's supplied levels validated completely and the
+            book is not crossed (an explicit empty side is valid). A dated
+            observation, not a fill or liquidity guarantee.
+          properties:
+            bid: { type: boolean }
+            ask: { type: boolean }
       required: [bid, ask, spread, midpoint, bids, asks]
 
     PublicPmOrderBookResponse:
@@ -4587,6 +4764,13 @@ components:
         recentWhaleTrades:
           type: array
           items: { $ref: "#/components/schemas/PublicPmWhaleTrade" }
+        detailMode:
+          type: string
+          enum: [full, core]
+          description: "`core` when `view=core` was requested; heavy sections are then empty."
+        liteFallback:
+          type: boolean
+          description: Present (true) when the server served a reduced payload under load; the `X-CoinRithm-Lite` header is also set.
       required: [event]
 
     PublicPmWhaleTrade:
@@ -4595,12 +4779,31 @@ components:
       properties:
         source: { $ref: "#/components/schemas/PublicPmSourceSlug" }
         sourceName: { type: string }
+        sourceIcon: { type: [string, "null"] }
         eventSlug: { type: string }
         eventTitle: { type: string }
+        wallet:
+          type: string
+          description: Shortened display form of the wallet, not an identifier.
+        walletAddress:
+          type: [string, "null"]
+          description: Full lower-cased public address; null on venues that anonymize traders.
+        traderName: { type: [string, "null"] }
         side: { type: string }
-        outcome: { type: string }
+        outcome:
+          type: [string, "null"]
+          description: Outcome label; null when the venue row carries none.
+        marketQuestion:
+          type: [string, "null"]
+          description: Nested market question on multi-market events; null on older rows.
         usdValue: { type: number }
         price: { type: number }
+        sourceMarketRef: { type: [string, "null"] }
+        nativeValue:
+          type: [number, "null"]
+          description: Trade value in the venue's own currency, when it is not USD.
+        nativeCurrency: { type: [string, "null"] }
+        valueBasis: { type: [string, "null"], description: "How `usdValue` was derived from the venue value." }
         evidenceType: { type: string }
         evidenceRef: { type: [string, "null"] }
         evidenceUrl: { type: [string, "null"], format: uri }
@@ -4608,7 +4811,57 @@ components:
         observedAt: { type: string, format: date-time }
         tradedAt: { type: [string, "null"], format: date-time }
         latencySeconds: { type: [number, "null"] }
+        event:
+          type: object
+          additionalProperties: true
+          description: The event this trade belongs to. Sent on `/whales` and SSE `whale` rows, not on event detail.
+          properties:
+            source: { type: string }
+            slug: { type: string }
+            title: { type: string }
+            image: { type: [string, "null"] }
+            sourceName: { type: string }
+            sourceIcon: { type: [string, "null"] }
+            marketOutcomes:
+              type: [object, "null"]
+              additionalProperties: true
+              description: Outcome count and the top outcomes by probability, for a market-split display.
+              properties:
+                total: { type: integer }
+                top:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: true
+                    properties:
+                      name: { type: string }
+                      probability: { type: number }
       required: [source, eventSlug, side, outcome, usdValue, price, evidenceType, availability, observedAt]
+
+    PublicPmWhaleStats24h:
+      type: object
+      additionalProperties: true
+      description: Trailing 24-hour aggregates over the full verified whale table, not only the 50-row tape.
+      properties:
+        count: { type: integer }
+        totalUsd: { type: number }
+        maxUsd: { type: number }
+        bySource:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+            properties:
+              source: { type: string }
+              count: { type: integer }
+              totalUsd: { type: number }
+              maxUsd: { type: number }
+              p99Usd30d: { type: number, description: "99th percentile trade size over 30 days." }
+        maxTrade:
+          type: [object, "null"]
+          additionalProperties: true
+          description: The largest matched print. Verify `usdValue` against `maxUsd` before calling it the maximum; an unmatched print can exceed it.
+      required: [count, totalUsd, maxUsd, bySource]
 
     PublicPmWhalesResponse:
       type: object
@@ -4618,9 +4871,13 @@ components:
           type: array
           maxItems: 50
           items: { $ref: "#/components/schemas/PublicPmWhaleTrade" }
+        minUsd:
+          type: integer
+          enum: [25000, 50000, 100000]
+          description: The size tier applied; present only when `minUsd` was requested.
         stats24h:
-          type: object
-          additionalProperties: true
+          $ref: "#/components/schemas/PublicPmWhaleStats24h"
+          description: Omitted when the aggregate is temporarily unavailable.
         coverage:
           type: array
           items:
@@ -4920,6 +5177,20 @@ components:
                     description: >-
                       Complete book, but the declared winner is not one of the
                       event's outcomes — a resolution-provenance defect.
+                  invalidLeadPoint:
+                    type: integer
+                    description: The lead-window capture failed validation.
+                  nonExclusiveBook:
+                    type: integer
+                    description: >-
+                      Complete lead book without a recorded single-winner
+                      structure, so one stored winner cannot score the other
+                      outcomes.
+                  unpricedMassBook:
+                    type: integer
+                    description: >-
+                      Complete single-winner book whose prices sum below the
+                      complete-book minimum (probability mass no outcome carries).
               reliability:
                 type: array
                 items:
@@ -4939,7 +5210,71 @@ components:
               source: { type: string }
               name: { type: string }
               reason: { type: string }
+              excluded:
+                type: object
+                additionalProperties: true
+                description: Same exclusion counts as on `scored` rows, when computed.
+        methodologyVersion:
+          type: string
+          description: Version of the calibration methodology that produced this payload.
+        finalPrice:
+          $ref: "#/components/schemas/PublicPmCalibrationSeries"
+          description: |
+            Optional second series scored on the venue-reported final
+            pre-resolution price (`basis: venue_final_preresolution_price`).
+            Lead time is unknown and not uniform, so it is not comparable with
+            `scored`. Absent on older snapshots.
+        ownCapture:
+          $ref: "#/components/schemas/PublicPmCalibrationSeries"
+          description: |
+            Optional third series scored on CoinRithm's own last capture before
+            resolution (`basis: own_last_preresolution_capture`). Its lead time
+            is typically minutes (see `medianLeadSeconds`), so it is a
+            near-final-price integrity check, not forecast skill. Absent on
+            older snapshots.
       required: [leadHours, minSample, scored, pending]
+
+    PublicPmCalibrationSeries:
+      type: object
+      additionalProperties: true
+      properties:
+        methodology: { type: string }
+        minSample: { type: integer }
+        scored:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+            properties:
+              source: { type: string }
+              name: { type: string }
+              basis: { type: string }
+              sampleSize: { type: integer }
+              calibrationError: { type: number, description: "Expected calibration error, 0-1 (lower is better)." }
+              meanWinnerConfidence: { type: number, description: "Mean probability assigned to the eventual winner, 0-1." }
+              medianLeadSeconds: { type: [number, "null"], description: "`ownCapture` only: median seconds between the scored capture and resolution." }
+              p90LeadSeconds: { type: [number, "null"], description: "`ownCapture` only: 90th percentile of that lead." }
+              reliability:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+                  properties:
+                    bucket: { type: string }
+                    predictedMean: { type: number }
+                    realizedRate: { type: number }
+                    pairs: { type: integer }
+              byYear:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+                  properties:
+                    year: { type: integer }
+                    sampleSize: { type: integer }
+                    calibrationError: { type: number }
+                    meanWinnerConfidence: { type: number }
+      required: [methodology, minSample, scored]
 
     PublicPmCanonicalListResponse:
       type: object
@@ -5110,6 +5445,19 @@ components:
           type: string
           description: Latest USD price as a decimal string.
           examples: ["0.0002226"]
+        priceUpdatedAt:
+          type: [string, "null"]
+          format: date-time
+          description: When the live price was last written; null when unknown.
+        priceAgeHours:
+          type: [number, "null"]
+          description: Hours since the live price was last written, one decimal; null when unknown.
+        priceStale:
+          type: boolean
+          description: True when the last live write is older than `priceStaleAfterHours`. The price stays in the row; treat it as a last known price.
+        priceStaleAfterHours:
+          type: number
+          description: Staleness threshold in hours (currently 72).
       required: [ucid, symbol, name, slug, change24h, currentPrice]
 
     PublicCryptoMoverList:
@@ -5280,11 +5628,13 @@ components:
           items: { $ref: "#/components/schemas/AgentActionEvent" }
         futures:
           type: array
-          description: Futures positions included in a filtered run export.
+          deprecated: true
+          description: Not emitted by this endpoint (the futures audit export is a separate signed-in surface); always absent.
           items: { $ref: "#/components/schemas/AuditFuturesPosition" }
         futuresEvents:
           type: array
-          description: Canonical futures mutation events for the exported positions.
+          deprecated: true
+          description: Not emitted by this endpoint; always absent.
           items: { $ref: "#/components/schemas/AuditFuturesEvent" }
 
     AuditFuturesPosition:
@@ -6356,7 +6706,7 @@ components:
           type: array
           items: { type: number }
           description: |
-            Daily cumulative realized PnL (mUSD) over the last 44 days — one
+            Daily cumulative realized PnL (mUSD) over the last 90 days, one
             point per day, oldest to newest; the LAST point always equals
             realizedPnlMusd. Empty for rows with no dated realizations in the
             window. On windowed boards (?window=7d|30d) the series covers
@@ -7007,11 +7357,11 @@ components:
             "24hUsd": { type: number }
             "7dUsd": { type: number }
             "30dUsd": { type: number }
-            allTimeUsd: { type: number }
+            allTimeUsd: { type: [number, "null"], description: "Null when no all-time baseline exists." }
             "24hPct": { type: number, description: "0..1 fraction" }
             "7dPct": { type: number }
             "30dPct": { type: number }
-            allTimePct: { type: number }
+            allTimePct: { type: [number, "null"], description: "0..1 fraction; null when no all-time baseline exists." }
         openOrders:
           type: array
           description: Open (resting) spot orders, same projection as the dashboard.
@@ -7680,7 +8030,8 @@ components:
         thesis:
           type: [string, "null"]
           maxLength: 280
-          description: Optional normalized one-line thesis attached to the opportunity.
+          deprecated: true
+          description: Not returned by this endpoint; always absent.
     PmPositionEnvelope:
       type: object
       properties:
