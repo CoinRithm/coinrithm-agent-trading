@@ -1,4 +1,4 @@
-import { pmPaperOpenSchema, pmPaperCloseSchema } from "./pmPaperV2.js";
+import { pmPaperAgentOpenSchema, pmPaperCloseSchema } from "./pmPaperV2.js";
 // Registers the CoinRithm trading tools on an MCP server instance.
 //
 // Every tool wraps exactly one /api/agent/* call. Tool results return the raw
@@ -2127,9 +2127,9 @@ export function registerTools(
       {
         title: "Open opted-in PM paper position",
         description:
-          "For server-configured PM paper v2 house keys only. Opens against freshly acquired native Kalshi/Polymarket depth. maxCashBudget is an explicit exact decimal TOTAL cash budget including fees, not legacy stakeMusd. forecastProbability is required for API-key opens: the chance the side you buy pays out (percent above 0 and below 100, or a fraction below 1); the API refuses an open whose forecast does not exceed the fee-inclusive cost per share. Server admission defaults off. Reuse the identical pm-entry key and body after uncertain delivery. Existing legacy tools keep their behavior. " +
+          "For server-configured PM paper v2 house keys only. Opens against freshly acquired native Kalshi/Polymarket depth. maxCashBudget is an explicit exact decimal TOTAL cash budget including fees, not legacy stakeMusd. forecastProbability is required: the chance the side you buy pays out (percent above 1 and below 100, or a fraction above 0 and below 1; exactly 1 is refused as ambiguous); the API refuses an open whose forecast does not exceed the fee-inclusive cost per share. Server admission defaults off. Reuse the identical pm-entry key and body after uncertain delivery. Existing legacy tools keep their behavior. " +
           PAPER_NOTE_SHORT,
-        inputSchema: pmPaperOpenSchema.shape,
+        inputSchema: pmPaperAgentOpenSchema.shape,
         outputSchema: API_RESULT_OUTPUT_SCHEMA,
         annotations: mutatingAnnotations("Open opted-in PM paper position", {
           idempotent: true,
@@ -2138,7 +2138,7 @@ export function registerTools(
       async (body, extra) =>
         present(
           await client.openPmPaperV2(
-            pmPaperOpenSchema.parse(body),
+            pmPaperAgentOpenSchema.parse(body),
             requestKey(extra),
           ),
         ),
