@@ -261,13 +261,13 @@ Base URL: `https://api.coinrithm.com` (live). Hosted MCP: `https://mcp.coinrithm
 ## Version clarity
 
 `info.version` in `openapi.yaml` (currently **1.7.0**) is the API contract
-version. The MCP package (`@coinrithm/mcp-trading`, currently **0.7.16**)
+version. The MCP package (`@coinrithm/mcp-trading`, currently **0.7.17**)
 is versioned separately from the SDKs. Registry publication was verified
 on **7 October 2026**:
 
 | Package | Published registry version | Source version |
 | --- | --- | --- |
-| `@coinrithm/mcp-trading` (MCP server and agent runner) | **0.7.16** | **0.7.16** |
+| `@coinrithm/mcp-trading` (MCP server and agent runner) | **0.7.16** | **0.7.17** |
 | `@coinrithm/sdk` (TypeScript) | **0.3.5** | **0.3.5** |
 | `coinrithm-sdk` (Python) | **1.8.5** | **1.8.5** |
 
@@ -296,6 +296,12 @@ preserved; permanent-error attribution followed the failing provider/model.
 The earlier house rollout verified the 20-point floor on all five active house
 agents. Hosted delivery does not publish the npm/PyPI archives; their status
 remains in the table above and the [changelog](./CHANGELOG.md).
+
+MCP source **0.7.17** keeps the 41 default tools and adds two opt-in tool sets
+(PM paper v2 for configured house keys, and a spot reference read) that stay off
+unless a server enables them, plus the runner changes in the
+[MCP changelog](./packages/mcp-trading/CHANGELOG.md#0717-2026-10-13). The
+registry column above changes only after npm delivery is verified.
 
 Published MCP **0.7.16** includes 41 tools, including 15 keyless data tools,
 compact event results with explicit full detail, scored-news reads, and the
