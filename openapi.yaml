@@ -3522,6 +3522,500 @@ paths:
         "429":
           description: "Public request rate limit exceeded; honor `Retry-After`."
 
+  /api/agent/spot/reference/{coinId}:
+    get:
+      operationId: getSpotReference
+      tags: [spot]
+      summary: Dated spot reference price for one coin (Binance stream or stored consensus)
+      description: |
+        Reference data only. Returns the Binance spot 24h-ticker last price
+        (USDT) for the coin's single verified Binance/USDT mapping when a
+        recent stream snapshot exists, plus the stored REST consensus price
+        (USD) as an individually dated fallback. Both values keep their own
+        units; `preferredSource` is not a USDT/USD conversion, an executable
+        price or a paper-fill promise. Spot quotes, orders and market context
+        never read this endpoint, so their prices are unchanged by it.
+
+        The stream observation is refused (with `stream.reason`) unless the
+        snapshot is connected, at most 10 s old, its universe metadata at
+        most 10 min old, and the coin's identity and source policy match.
+        `fallback.status` is `fresh` when the stored row was written at most
+        120 s ago. Requires scope `read`. Any query parameter returns 400.
+        Responses carry `Cache-Control: no-store`.
+      parameters:
+        - name: coinId
+          in: path
+          required: true
+          schema: { type: string, pattern: "^[a-zA-Z0-9_-]{1,64}$" }
+          description: Coin UCID (e.g. "1" = BTC). Use /api/agent/resolve to find it.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SpotReferenceResponse" }
+        "400":
+          description: Invalid coin id, or a query parameter was supplied.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: No coin with this UCID.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error, coinId]
+                properties:
+                  error: { type: string, examples: ["Coin not found"] }
+                  coinId: { type: string }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+        "503":
+          description: Database read failed; no fallback is guessed.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/agent/universe:
+    get:
+      operationId: getAgentUniverse
+      tags: [reads]
+      summary: Screen coins inside market boundaries (rank band, volume, sectors)
+      description: |
+        Returns up to `limit` active coins inside the caller's boundaries:
+        market-cap rank band, minimum 24h USD volume, optional stablecoin
+        exclusion and curated sectors in/out (ids from
+        /api/agent/universe/sectors). Coins flagged market-cap-suspect and
+        coins whose live price is older than 72 h are never included. Sorts
+        that need a change or volume value exclude coins where it is null.
+        Ties break on market-cap rank, then UCID, so equal data gives equal
+        order. A sector both included and excluded is excluded.
+
+        Pass `ucids` to check whether specific coins are inside the same
+        boundaries (membership check, at most 50 ids). Unknown query
+        parameters are ignored. Pure market data on a shared 60 s URL-keyed
+        cache, so `priceAgeHours` can lag the response time by up to a
+        minute. Requires scope `read`.
+      parameters:
+        - name: rankMin
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 10000, default: 1 }
+          description: Lowest market-cap rank included (inclusive). Must be <= rankMax.
+        - name: rankMax
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 10000, default: 100 }
+          description: Highest market-cap rank included (inclusive).
+        - name: minVolume24hUsd
+          in: query
+          required: false
+          schema: { type: number, minimum: 0, maximum: 10000000000000, default: 0 }
+          description: Minimum 24h volume in USD; a null volume counts as 0.
+        - name: excludeStablecoins
+          in: query
+          required: false
+          schema: { type: string, enum: ["true", "false", "1", "0"], default: "false" }
+          description: Excludes the `stablecoins` sector (same as listing it in excludeSectors).
+        - name: includeSectors
+          in: query
+          required: false
+          schema: { type: string, maxLength: 500 }
+          description: |
+            Comma-separated sector ids (case-insensitive); a coin must belong
+            to at least one. Unknown ids return 400.
+        - name: excludeSectors
+          in: query
+          required: false
+          schema: { type: string, maxLength: 500 }
+          description: Comma-separated sector ids to exclude. Unknown ids return 400.
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [gainers_24h, losers_24h, abs_change_24h, abs_change_1h, volume_24h, rank]
+            default: abs_change_24h
+        - name: ucids
+          in: query
+          required: false
+          schema: { type: string, maxLength: 2000 }
+          description: |
+            Optional comma-separated coin UCIDs (1-50 ids, each matching
+            `^[A-Za-z0-9_-]{1,64}$`) restricting the screen to these coins.
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AgentUniverseResponse" }
+        "400":
+          description: Invalid query (out-of-range number, unknown sector id, rankMin > rankMax, bad ucids, repeated parameter).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AgentUniverseValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /api/agent/universe/sectors:
+    get:
+      operationId: getAgentUniverseSectors
+      tags: [reads]
+      summary: Curated sector and ecosystem ids with live coin counts
+      description: |
+        The curated sector picker for /api/agent/universe: every sector and
+        chain ecosystem id with its label and the number of distinct coins
+        currently in it (active, not market-cap-suspect, live price at most
+        72 h old). Each id maps to an explicit list of CoinRithm category
+        names; ecosystem ids carry an `eco-` prefix. Takes no parameters.
+        Shared 60 s cache. Requires scope `read`.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AgentUniverseSectorsResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /api/agent/pm/v2/discover:
+    get:
+      operationId: discoverPmPaperV2
+      tags: [prediction-markets]
+      summary: Discover candidates for the acquired-book PM paper model (pm_paper_v2)
+      description: |
+        Candidate list for `pm_paper_v2`, the paper model that fills against
+        an order book acquired from the venue at entry time. Only keys
+        enrolled as a server-configured house agent may call it; any other
+        key receives 403 `house_opt_in_required`.
+
+        Built from the same cached discovery set as /api/agent/pm/discover
+        (all sources, `best` sort, offset 0), then filtered per request: an
+        outcome is kept only when its exact stored native identity resolves
+        (Polymarket condition + token, or Kalshi ticker + side), it is not a
+        Polymarket negative-risk contract, and, when the house has a
+        `maxEndDays` bound, its scheduled native end falls inside it. Events
+        left with no outcome are dropped; `meta.boundedSelection` counts
+        what was removed and why. Dates are stored provider fields, not a
+        settlement guarantee; entry re-acquires identity, maturity, book and
+        fees. Only `q` and `limit` are accepted; any other query parameter
+        returns 400. The legacy `quoteHint` on each market still points at
+        the v1 quote endpoint. Requires scope `read`.
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema: { type: string, maxLength: 100 }
+          description: Search text matched against event title, outcomes, topics, and related coins.
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+          description: Events requested before filtering (decimal, no leading zeros).
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PmPaperV2DiscoveryResponse" }
+        "400":
+          description: Unsupported or invalid query parameter (`invalid_discovery_query`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403":
+          description: Missing scope, or the key is not an enrolled house agent (`house_opt_in_required`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+        "503":
+          description: Native discovery read failed (`pm_native_discovery_unavailable`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/agent/pm/v2/positions:
+    get:
+      operationId: getPmPaperV2Positions
+      tags: [prediction-markets]
+      summary: List this key's pm_paper_v2 positions with exact accounting
+      description: |
+        Newest-first page of the calling key's `pm_paper_v2` positions (v1
+        positions stay on /api/agent/positions/pm), plus an unpaginated risk
+        summary, the key's house enrollment and whether entry is enabled.
+        Money and quantity are exact integer strings: `*Quanta6` values are
+        paper mUSD x 1,000,000 and `quantityUnits2` is shares x 100. Payout,
+        PnL and `terminal` stay null until the close or settlement is fully
+        recorded (`accountingStatus: settled`). Any key with scope `read` may
+        call it; a key that never opened a v2 position gets an empty page.
+        Responses carry `Cache-Control: private, no-store`.
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 50, default: 25 }
+        - name: beforeId
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 2147483647 }
+          description: Cursor; pass the previous page's `nextBeforeId`.
+        - name: status
+          in: query
+          required: false
+          schema: { type: string, enum: [open] }
+          description: Only `open` is accepted; omit for all statuses.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PmPaperV2PositionsResponse" }
+        "400":
+          description: Unknown query parameter or invalid page (`invalid_page`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+        "503":
+          description: Position read failed (`pm_positions_unavailable`).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [executionModel, error]
+                properties:
+                  executionModel: { type: string, const: pm_paper_v2 }
+                  error: { type: string, examples: ["pm_positions_unavailable"] }
+
+  /api/agent/pm/v2/open:
+    post:
+      operationId: openPmPaperV2
+      tags: [prediction-markets]
+      summary: Open a pm_paper_v2 position against an acquired venue book
+      description: |
+        Buys the selected side of one binary outcome on paper, priced from an
+        order book and fee schedule acquired from the venue during the
+        request. Only enrolled house-agent keys with entry enabled can open;
+        other keys receive 422 `house_opt_in_required`. Requires scope
+        `trade:pm` and counts against the trade-write limit.
+
+        `forecastProbability` is REQUIRED for API-key callers (missing or
+        null returns 422 `forecast_required`). It is your own probability
+        that the BOUGHT side pays out. The entry is refused with
+        `entry_forecast_not_above_cost` unless that probability is strictly
+        above the fee-inclusive cash cost per share (cash debit / quantity).
+        `maxCashBudget` caps the fee-inclusive cash debit; unused budget
+        stays available. Numeric fields are decimal STRINGS; a JSON number
+        is refused.
+
+        `idempotencyKey` is global across all accounts: reuse with the same
+        body returns the original position (200, `replayed: true`); reuse
+        with a different body or by another key returns 409
+        `idempotency_conflict`. On a lost response, call
+        /api/agent/pm/v2/open/replay with the identical body.
+
+        Every refusal returns HTTP 422 with `kind: refused` and a `reason`.
+        `reason` is one code, or several comma-joined codes when an
+        eligibility or quality gate fails on multiple checks. Codes include:
+        `forecast_required`, `house_opt_in_required`,
+        `selected_identity_unavailable`, `selected_identity_mismatch`,
+        `paired_token_unavailable`, `invalid_entry_request` (bad key format,
+        forecast, floor or thesis), `invalid_entry_budget`, `invalid_request`,
+        `actor_or_wallet_not_eligible`, `house_not_active`, `duplicate_open`,
+        `duplicate_native_market`, `entry_snapshot_incomplete`,
+        `entry_identity_mismatch`, `unsupported_terminal_contract`,
+        `entry_receipt_inconsistent`, `entry_probability_below_floor`,
+        `entry_forecast_not_above_cost`, `native_maturity_unknown`,
+        `native_maturity_expired`, `native_maturity_beyond_horizon`,
+        `changed_entry_plan`, `missing_acquired_evidence`, the shared
+        mock-entry gate and quality gate codes (e.g. `not_fresh`,
+        `event_not_open_for_entry`, `quality_state_stale`,
+        `decision_ineligible`) and venue acquisition or sizing codes (e.g.
+        `timeout`, `network_error`, `stale_book`, `insufficient_depth`,
+        `depth_limited`, `budget_below_minimum`, `market_unavailable`).
+        Treat unknown codes as refusals.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PmPaperV2OpenRequest" }
+      responses:
+        "200":
+          description: "Position opened, or idempotent replay of the same request (`replayed: true`)."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PmPaperV2Opened" }
+        "400":
+          description: |
+            Body failed the shape check (`reason: invalid_request`): not an
+            object, an unknown field (including `agentTrace`; send trace
+            headers instead), wrong `source`/`side`, or a missing or
+            over-long string field. Middleware errors use the `Error` shape.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - { $ref: "#/components/schemas/PmPaperV2Failure" }
+                  - { $ref: "#/components/schemas/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409":
+          description: idempotencyKey already used with a different request or by another key.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PmPaperV2Refused" }
+        "422":
+          description: Refused; see `reason`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PmPaperV2Refused" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+        "503":
+          description: "Runtime error (`reason: pm_runtime_unavailable`); the outcome may be unknown, so replay before retrying with a new key."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PmPaperV2Failure" }
+
+  /api/agent/pm/v2/open/replay:
+    post:
+      operationId: replayPmPaperV2Open
+      tags: [prediction-markets]
+      summary: Replay a pm_paper_v2 open by idempotency key without opening anything
+      description: |
+        Read-only recovery for a lost or timed-out open. Send the IDENTICAL
+        body of the original open (the canonical request is compared,
+        including `forecastProbability`). Never acquires a book or opens a
+        position. Returns 200 with the original position when the receipt
+        exists and matches, 404 with `replayMissing: true` when no position
+        holds this key (the original open did not commit; a new open with
+        the same key is safe), and 409 `idempotency_conflict` when the key
+        belongs to a different request or caller. `forecastProbability` is
+        not required here. Requires scope `trade:pm` and counts against the
+        trade-write limit.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PmPaperV2OpenReplayRequest" }
+      responses:
+        "200":
+          description: "The original open (`replayed: true`)."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PmPaperV2Opened" }
+        "400":
+          description: "Body failed the shape check (`reason: invalid_request`)."
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - { $ref: "#/components/schemas/PmPaperV2Failure" }
+                  - { $ref: "#/components/schemas/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: "No receipt for this idempotency key (`reason: no_existing_receipt`, `replayMissing: true`)."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PmPaperV2Refused" }
+        "409":
+          description: The key belongs to a different request or caller (`idempotency_conflict`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PmPaperV2Refused" }
+        "422":
+          description: Other refusal (e.g. `house_opt_in_required` for an invalid actor).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PmPaperV2Refused" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+        "503":
+          description: "Runtime error (`reason: pm_runtime_unavailable`)."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PmPaperV2Failure" }
+
+  /api/agent/pm/v2/close:
+    post:
+      operationId: closePmPaperV2
+      tags: [prediction-markets]
+      summary: Request a full close of a pm_paper_v2 position
+      description: |
+        Records a durable request to close the WHOLE position (no partial
+        close). The sale itself runs later on a server-side worker: it
+        settles at the venue's proven final payout if the market has
+        resolved, otherwise sells the exact held token against a freshly
+        acquired book. A new request therefore returns 202 (`accepted:
+        true`, `executed: false`); poll /api/agent/pm/v2/positions for
+        `exit` and `terminal`. Only positions owned by the calling key are
+        visible (others return 404). Entry flags and house enrollment do not
+        block a close.
+
+        `idempotencyKey` is global: the same key and body returns the
+        existing intent (`replayed: true`, 200 once filled); a different
+        body returns 409 `conflict`. If an exit intent is already active for
+        the position, the new request attaches to it. Requires scope
+        `trade:pm` and counts against the trade-write limit.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PmPaperV2CloseRequest" }
+      responses:
+        "200":
+          description: "Replay of an exit that has already filled (`executed: true`)."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PmPaperV2CloseResult" }
+        "202":
+          description: "Exit accepted and pending execution (`executed: false`)."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PmPaperV2CloseResult" }
+        "400":
+          description: Unknown field, invalid positionId, idempotencyKey or detail (`invalid_exit_request`).
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - { $ref: "#/components/schemas/Error" }
+                  - { $ref: "#/components/schemas/PmPaperV2CloseResult" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: "No position with this id for the calling key (`kind: not_found`)."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PmPaperV2CloseResult" }
+        "409":
+          description: |
+            `kind` is `not_v2` (a v1 position), `not_open`, `conflict` (key
+            reused with a different body) or `cancelled` (the replayed intent
+            was cancelled).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PmPaperV2CloseResult" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+        "503":
+          description: "Request could not be recorded (`reason: exit_request_unavailable`); retry with the same key."
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PmPaperV2Failure" }
+
 components:
   securitySchemes:
     bearerAuth:
@@ -8052,3 +8546,568 @@ components:
           description: "Recorded 15-minute snapshots in the window, oldest first."
           items: { $ref: "#/components/schemas/PublicTradfiReferenceSnapshot" }
         historyWindow: { $ref: "#/components/schemas/PublicTradfiReferenceHistoryWindow" }
+
+    # ---- spot reference ----
+    SpotReferenceResponse:
+      type: object
+      additionalProperties: true
+      required: [version, policyVersion, coin, evaluatedAt, referenceOnly, preferredSource, stream, fallback, verification]
+      properties:
+        version: { type: integer, const: 1 }
+        policyVersion: { type: string, examples: ["binance_spot_reference_v1"] }
+        coin:
+          type: object
+          required: [coinId, symbol, name]
+          properties:
+            coinId: { type: string }
+            symbol: { type: string }
+            name: { type: string }
+        evaluatedAt:
+          type: string
+          format: date-time
+          description: Server time at which ages and expiries were checked (after all I/O).
+        referenceOnly: { type: boolean, const: true }
+        preferredSource:
+          type: [string, "null"]
+          enum: [binance_stream, rest_consensus, null]
+          description: |
+            `binance_stream` when `stream.observation` is present, else
+            `rest_consensus` when a stored price exists, else null. A
+            preference between two values in different units, not a
+            conversion or an executable price.
+        stream: { $ref: "#/components/schemas/SpotReferenceStream" }
+        fallback: { $ref: "#/components/schemas/SpotReferenceFallback" }
+        verification:
+          type: object
+          required: [identityCheckedAt, mappingUpdatedAt, policyUpdatedAt, policyMode]
+          properties:
+            identityCheckedAt:
+              type: string
+              format: date-time
+              description: Database statement time of the coin/mapping/policy read.
+            mappingUpdatedAt: { type: [string, "null"], format: date-time }
+            policyUpdatedAt: { type: [string, "null"], format: date-time }
+            policyMode:
+              type: [string, "null"]
+              description: Enabled per-coin source policy mode (`allow` / `deny`), null when none.
+    SpotReferenceStream:
+      type: object
+      required: [status, reason, observation]
+      properties:
+        status: { type: string, enum: [available, unavailable] }
+        reason:
+          type: [string, "null"]
+          description: |
+            null when available. Otherwise one code: `inactive_coin`,
+            `mapping_unavailable`, `mapping_ambiguous`, `mapping_suppressed`,
+            `policy_denied`, `clock_regression`, `disabled`,
+            `redis_unavailable`, `missing`, `invalid_snapshot`,
+            `disconnected`, `expired_snapshot`, `expired_metadata`,
+            `symbol_not_captured`, `identity_mismatch`, `expired_observation`.
+            Treat unknown codes as unavailable.
+        observation:
+          anyOf:
+            - { $ref: "#/components/schemas/SpotReferenceObservation" }
+            - { type: "null" }
+    SpotReferenceObservation:
+      type: object
+      additionalProperties: true
+      required: [venue, market, basis, pair, base, quoteCurrency, price, quoteVolume24h, eventAt, statisticsCloseAt, receivedAt, lastTradeAt, localPriceChangedAt, capturedAt, expiresAt, universeVerifiedAt, universeRevision, connectionGeneration]
+      properties:
+        venue: { type: string, const: binance }
+        market: { type: string, const: spot }
+        basis:
+          type: string
+          const: 24h_ticker_last
+          description: Last price of Binance's rolling 24h ticker, not a last-trade receipt.
+        pair: { type: string, examples: ["BTCUSDT"] }
+        base: { type: string }
+        quoteCurrency: { type: string, const: USDT }
+        price: { type: number, description: "Price in USDT (not USD)." }
+        quoteVolume24h: { type: number, description: "24h quote volume in USDT." }
+        eventAt: { type: string, format: date-time, description: "Venue event time of the ticker." }
+        statisticsCloseAt: { type: string, format: date-time, description: "Close of the venue's 24h statistics window." }
+        receivedAt: { type: string, format: date-time, description: "When CoinRithm received the ticker." }
+        lastTradeAt: { type: "null", description: "Not available from this feed; always null." }
+        localPriceChangedAt: { type: string, format: date-time, description: "When CoinRithm last saw this price change." }
+        capturedAt: { type: string, format: date-time, description: "When the snapshot holding this ticker was written." }
+        expiresAt:
+          type: string
+          format: date-time
+          description: Earliest instant at which any input passes its age limit (10 s per stamp, 10 min for universe metadata).
+        universeVerifiedAt: { type: string, format: date-time }
+        universeRevision:
+          type: string
+          pattern: "^[a-f0-9]{64}$"
+          description: Provenance of the collector's pair cohort.
+        connectionGeneration: { type: integer, minimum: 0 }
+    SpotReferenceFallback:
+      type: object
+      required: [basis, currency, status, priceUsd, priceTiming, expiresAt]
+      properties:
+        basis: { type: string, const: stored_rest_consensus }
+        currency: { type: string, const: USD }
+        status:
+          type: string
+          enum: [fresh, stale, unavailable]
+          description: fresh = stored row written at most 120 s before evaluatedAt; unavailable = no positive stored price.
+        priceUsd: { type: [number, "null"] }
+        priceTiming: { $ref: "#/components/schemas/SpotPriceTiming" }
+        expiresAt:
+          type: [string, "null"]
+          format: date-time
+          description: Row write time + 120 s; null when there is no row.
+
+    # ---- agent universe ----
+    AgentUniverseRow:
+      type: object
+      additionalProperties: true
+      required: [ucid, symbol, name, slug, marketCapRank, priceUsd, change1h, change24h, change7d, volume24hUsd, marketCapUsd, priceUpdatedAt, sectors, priceAgeHours, priceStale, priceStaleAfterHours]
+      properties:
+        ucid: { type: string, description: "Coin UCID" }
+        symbol: { type: string }
+        name: { type: string }
+        slug: { type: string }
+        marketCapRank: { type: integer }
+        priceUsd: { type: number }
+        change1h: { type: [number, "null"], description: "Percent change." }
+        change24h: { type: [number, "null"], description: "Percent change." }
+        change7d: { type: [number, "null"], description: "Percent change." }
+        volume24hUsd: { type: number }
+        marketCapUsd: { type: [number, "null"] }
+        priceUpdatedAt:
+          type: string
+          format: date-time
+          description: Last write of the coin's live price row.
+        sectors:
+          type: array
+          items: { type: string }
+          description: Curated sector/ecosystem ids the coin belongs to (may be empty).
+        priceAgeHours:
+          type: [number, "null"]
+          description: Hours since priceUpdatedAt, one decimal, computed when the response was built.
+        priceStale: { type: boolean }
+        priceStaleAfterHours: { type: integer, examples: [72] }
+    AgentUniverseResponse:
+      type: object
+      additionalProperties: true
+      required: [rows, observation]
+      properties:
+        rows:
+          type: array
+          maxItems: 50
+          items: { $ref: "#/components/schemas/AgentUniverseRow" }
+        observation: { $ref: "#/components/schemas/AgentObservation" }
+    AgentUniverseValidationError:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string, examples: ["Invalid query parameters"] }
+        details:
+          type: array
+          description: Validation issues (path, message); informational.
+          items:
+            type: object
+            additionalProperties: true
+    AgentUniverseSector:
+      type: object
+      required: [id, label, kind, coinCount]
+      properties:
+        id: { type: string, examples: ["defi", "eco-solana"] }
+        label: { type: string }
+        kind: { type: string, enum: [sector, ecosystem] }
+        tier:
+          type: string
+          enum: [primary, secondary]
+          description: Ecosystems only; primary entries lead the picker.
+        coinCount: { type: integer, minimum: 0 }
+    AgentUniverseSectorsResponse:
+      type: object
+      additionalProperties: true
+      required: [sectors]
+      properties:
+        sectors:
+          type: array
+          items: { $ref: "#/components/schemas/AgentUniverseSector" }
+
+    # ---- pm_paper_v2 ----
+    PmPaperV2NativeMarket:
+      type: object
+      required: [venue, key]
+      properties:
+        venue: { type: string, enum: [polymarket, kalshi] }
+        key:
+          type: string
+          description: |
+            Venue market key independent of side and token: `polymarket:<conditionId,
+            lowercased>` or `kalshi:<ticker>`. One open v2 position per key
+            per wallet (`duplicate_native_market`).
+    PmPaperV2DiscoveryOutcome:
+      allOf:
+        - { $ref: "#/components/schemas/PmDiscoveryOutcome" }
+        - type: object
+          required: [nativeMarket, nativeEndAt, nativeEndBasis, settlementTimeKnown]
+          properties:
+            nativeMarket: { $ref: "#/components/schemas/PmPaperV2NativeMarket" }
+            nativeEndAt:
+              type: [string, "null"]
+              format: date-time
+              description: Stored venue scheduled end (UTC); null when absent or invalid.
+            nativeEndBasis: { type: string, enum: [gamma_market_endDate, kalshi_market_close_time] }
+            settlementTimeKnown:
+              type: boolean
+              const: false
+              description: A scheduled end is not an observed settlement time.
+    PmPaperV2DiscoveryMarket:
+      allOf:
+        - { $ref: "#/components/schemas/PmDiscoveryMarket" }
+        - type: object
+          properties:
+            outcomes:
+              type: array
+              minItems: 1
+              items: { $ref: "#/components/schemas/PmPaperV2DiscoveryOutcome" }
+    PmPaperV2DiscoveryResponse:
+      type: object
+      additionalProperties: true
+      required: [executionModel, data, pagination, meta]
+      properties:
+        executionModel: { type: string, const: pm_paper_v2 }
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/PmPaperV2DiscoveryMarket" }
+        pagination:
+          type: object
+          description: Page of the unfiltered event list (offset is always 0).
+          properties:
+            limit: { type: integer }
+            offset: { type: integer, const: 0 }
+            hasMore: { type: boolean }
+        meta:
+          type: object
+          additionalProperties: true
+          required: [maxEndDays, nativeIdentityBasis, horizonBasis, evaluatedAt, boundedSelection, note]
+          properties:
+            source: { type: string, const: all }
+            sources:
+              type: array
+              items: { type: string, enum: [kalshi, polymarket] }
+            sourceHealth:
+              type: array
+              items:
+                type: object
+                properties:
+                  slug: { type: string }
+                  lastIngestAt: { type: [string, "null"], format: date-time }
+                  ingestAgeSeconds: { type: [integer, "null"] }
+                  status: { type: string, enum: [fresh, stale, never_ingested] }
+            sort: { type: string, const: best }
+            q: { type: [string, "null"] }
+            maxEndDays:
+              type: [integer, "null"]
+              minimum: 1
+              maximum: 30
+              description: The house's scheduled-end horizon in days; null = no horizon filter.
+            nativeIdentityBasis: { type: string, const: stored_exact_selected_market }
+            horizonBasis: { type: string, const: scheduled_native_end_not_settlement_guarantee }
+            evaluatedAt: { type: string, format: date-time }
+            boundedSelection:
+              type: object
+              required: [requestedEventLimit, eventsBefore, outcomesBefore, eventsAfter, outcomesAfter, excluded, allMarketCoverage]
+              properties:
+                requestedEventLimit: { type: integer }
+                eventsBefore: { type: integer }
+                outcomesBefore: { type: integer }
+                eventsAfter: { type: integer }
+                outcomesAfter: { type: integer }
+                excluded:
+                  type: object
+                  description: |
+                    Outcomes removed, counted by reason:
+                    `native_identity_unavailable`, `unsupported_terminal_contract`,
+                    `native_maturity_unknown`, `native_maturity_expired`,
+                    `native_maturity_beyond_horizon`.
+                  additionalProperties: { type: integer }
+                allMarketCoverage:
+                  type: boolean
+                  const: false
+                  description: The list is a bounded sample, not every eligible market.
+            note: { type: string }
+    PmPaperV2OpenReplayRequest:
+      type: object
+      additionalProperties: false
+      required: [source, slug, outcomeExternalMarketId, side, maxCashBudget, idempotencyKey]
+      description: |
+        Any field not listed here (e.g. `stakeMusd`, `agentTrace`,
+        `provenance`) returns 400. Decimal fields are strings matching
+        `^(0|[1-9]\d*)(\.\d+)?$` (at most 40 characters, 18 decimals).
+      properties:
+        source: { type: string, enum: [polymarket, kalshi] }
+        slug: { type: string, minLength: 1, maxLength: 256, description: "Event slug (matched case-insensitively)." }
+        outcomeExternalMarketId: { type: string, minLength: 1, maxLength: 256, description: "Case-sensitive outcome id from v2 discovery." }
+        side:
+          type: string
+          enum: [yes, no]
+          description: |
+            Required. `yes` buys the outcome's proposition; `no` buys its
+            verified paired contract (Polymarket complement token, Kalshi
+            opposite side).
+        maxCashBudget:
+          type: string
+          maxLength: 40
+          pattern: "^(0|[1-9]\\d*)(\\.\\d+)?$"
+          description: Maximum fee-inclusive cash debit in paper mUSD, 10 to 1000000 inclusive. Unused budget stays available.
+        idempotencyKey:
+          type: string
+          maxLength: 120
+          pattern: "^pm-entry:[A-Za-z0-9:_-]{1,111}$"
+          description: Globally unique per entry intent (include a UUID). Other formats are refused with `invalid_entry_request`.
+        forecastProbability:
+          type: [string, "null"]
+          maxLength: 40
+          pattern: "^(0|[1-9]\\d*)(\\.\\d+)?$"
+          description: |
+            Your probability that the BOUGHT side pays out, as a decimal
+            string. A value below 1 is read as a fraction (`"0.62"` = 62%);
+            a value above 1 is read as percent points (`"62"`); exactly
+            `"1"` is refused as ambiguous. The resulting percent must be
+            strictly between 0 and 100. Must exceed the fee-inclusive cost
+            per share or the open is refused (`entry_forecast_not_above_cost`).
+        minEntryProbabilityPct:
+          type: [string, "null"]
+          maxLength: 40
+          pattern: "^(0|[1-9]\\d*)(\\.\\d+)?$"
+          description: |
+            Optional floor, in percentage points 0-100 inclusive (no
+            fraction reading), on the acquired pre-fee average price per
+            share; below it the open is refused (`entry_probability_below_floor`).
+        thesis:
+          type: [string, "null"]
+          maxLength: 280
+          description: Optional one-line thesis; no control characters.
+    PmPaperV2OpenRequest:
+      allOf:
+        - { $ref: "#/components/schemas/PmPaperV2OpenReplayRequest" }
+        - type: object
+          required: [forecastProbability]
+          properties:
+            forecastProbability: { type: string }
+    PmPaperV2Opened:
+      type: object
+      additionalProperties: true
+      required: [executionModel, accepted, executed, kind, positionId, replayed]
+      properties:
+        executionModel: { type: string, const: pm_paper_v2 }
+        accepted: { type: boolean, const: true }
+        executed: { type: boolean, const: true }
+        kind: { type: string, const: opened }
+        positionId: { type: integer }
+        replayed:
+          type: boolean
+          description: True when an existing position for this idempotencyKey was returned.
+    PmPaperV2Refused:
+      type: object
+      additionalProperties: true
+      required: [executionModel, accepted, executed, kind, reason]
+      properties:
+        executionModel: { type: string, const: pm_paper_v2 }
+        accepted: { type: boolean, const: false }
+        executed: { type: boolean, const: false }
+        kind: { type: string, const: refused }
+        reason:
+          type: string
+          description: One refusal code, or several comma-joined gate codes. See the operation description.
+        replayMissing:
+          type: boolean
+          const: true
+          description: "Replay endpoint only, with HTTP 404 and `reason: no_existing_receipt`."
+    PmPaperV2Failure:
+      type: object
+      additionalProperties: true
+      required: [executionModel, accepted, executed, reason]
+      description: Shape-check (400) or runtime (503) failure of a pm_paper_v2 write; no `kind` field.
+      properties:
+        executionModel: { type: string, const: pm_paper_v2 }
+        accepted: { type: boolean, const: false }
+        executed: { type: boolean, const: false }
+        reason:
+          type: string
+          examples: ["invalid_request", "pm_runtime_unavailable", "exit_request_unavailable"]
+    PmPaperV2CloseRequest:
+      type: object
+      additionalProperties: false
+      required: [positionId, idempotencyKey]
+      properties:
+        positionId:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+          description: A pm_paper_v2 position id owned by the calling key (JSON integer, not a string).
+        idempotencyKey:
+          type: string
+          maxLength: 120
+          pattern: "^pm-exit:[A-Za-z0-9:_-]{1,111}$"
+          description: Globally unique per close intent.
+        detail:
+          type: [string, "null"]
+          maxLength: 1024
+          description: Optional free-text note stored with the request; no control characters.
+    PmPaperV2ExitStatus:
+      type: string
+      enum: [pending, leased, retry, manual_attention, filled, cancelled]
+      description: |
+        pending/retry = waiting for the worker; leased = being executed;
+        manual_attention = held for operator review; filled = closed;
+        cancelled = withdrawn.
+    PmPaperV2CloseResult:
+      type: object
+      additionalProperties: true
+      required: [executionModel, accepted, executed, kind]
+      properties:
+        executionModel: { type: string, const: pm_paper_v2 }
+        accepted:
+          type: boolean
+          description: True when an active or filled exit intent exists for the request.
+        executed:
+          type: boolean
+          description: True only when the intent is `filled`.
+        kind:
+          type: string
+          enum: [accepted, cancelled, invalid, not_found, not_v2, not_open, conflict]
+        positionId: { type: integer, description: "accepted / cancelled only" }
+        intent:
+          type: object
+          description: accepted / cancelled only.
+          required: [id, status]
+          properties:
+            id: { type: string, format: uuid }
+            status: { $ref: "#/components/schemas/PmPaperV2ExitStatus" }
+        replayed:
+          type: boolean
+          description: accepted / cancelled only. True when this idempotencyKey was already recorded.
+    PmPaperV2NativeIdentity:
+      oneOf:
+        - type: object
+          required: [venue, market, tokenId]
+          properties:
+            venue: { type: string, const: polymarket }
+            market: { type: string, description: "Condition id." }
+            tokenId: { type: string, description: "The exact token bought." }
+        - type: object
+          required: [venue, requestedTicker, side]
+          properties:
+            venue: { type: string, const: kalshi }
+            requestedTicker: { type: string }
+            side: { type: string, enum: [yes, no], description: "Native Kalshi side bought." }
+    PmPaperV2Position:
+      type: object
+      additionalProperties: true
+      required: [id, apiKeyId, source, slug, title, outcomeExternalMarketId, side, status, openedAt, settledAt, accountingStatus, quantityUnits2, reservedCashQuanta6, payoutQuanta6, pnlQuanta6, entry, exit, terminal]
+      properties:
+        id: { type: integer }
+        apiKeyId: { type: integer }
+        source: { type: string, enum: [polymarket, kalshi] }
+        slug: { type: string }
+        title: { type: string }
+        outcomeExternalMarketId: { type: string }
+        side: { type: string, enum: [yes, no] }
+        status: { type: string, enum: [open, closed_sold, settled_win, settled_loss] }
+        openedAt: { type: string, format: date-time }
+        settledAt:
+          type: [string, "null"]
+          format: date-time
+          description: Set only when accountingStatus is `settled`.
+        accountingStatus:
+          type: string
+          enum: [open, pending, settled]
+          description: pending = status is no longer open but the terminal record is not yet complete.
+        quantityUnits2: { type: string, pattern: "^-?\\d+$", description: "Shares x 100." }
+        reservedCashQuanta6: { type: string, pattern: "^-?\\d+$", description: "Cash debited at entry, mUSD x 1,000,000." }
+        payoutQuanta6: { type: [string, "null"], description: "mUSD x 1,000,000; null until settled." }
+        pnlQuanta6: { type: [string, "null"], description: "Signed, mUSD x 1,000,000; null until settled." }
+        entry:
+          type: object
+          required: [nativeIdentity, quantity, notional, netFee, cashDebit, bookReceivedAt, bookProviderAt, feeBasis]
+          properties:
+            nativeIdentity: { $ref: "#/components/schemas/PmPaperV2NativeIdentity" }
+            quantity: { type: string, description: "Shares bought (decimal string)." }
+            notional: { type: string, description: "Pre-fee cost, mUSD (decimal string)." }
+            netFee: { type: string, description: "Fee, mUSD (decimal string)." }
+            cashDebit: { type: string, description: "Total cash debited, mUSD (decimal string)." }
+            bookReceivedAt: { type: [string, "null"], format: date-time, description: "When the entry book was received." }
+            bookProviderAt: { type: [string, "null"], format: date-time, description: "Venue timestamp of the entry book, when published." }
+            feeBasis: { type: [string, "null"], description: "Fee policy or fee document revision used." }
+        exit:
+          description: Latest exit intent; null when no close was requested.
+          anyOf:
+            - type: object
+              required: [id, status, accepted, executed, requestedAt, nextAttemptAt, lastError, attentionHeld]
+              properties:
+                id: { type: string, format: uuid }
+                status: { $ref: "#/components/schemas/PmPaperV2ExitStatus" }
+                accepted: { type: boolean }
+                executed: { type: boolean }
+                requestedAt: { type: string, format: date-time }
+                nextAttemptAt: { type: string, format: date-time }
+                lastError: { type: [string, "null"], description: "Last worker failure code (e.g. a venue acquisition code)." }
+                attentionHeld: { type: boolean }
+            - { type: "null" }
+        terminal:
+          description: Close or settlement evidence; null until accountingStatus is `settled`.
+          anyOf:
+            - type: object
+              required: [type, evidenceBasis, payoutQuanta6, pnlQuanta6, fee, acquiredAt]
+              properties:
+                type: { type: string, enum: [sell, resolve] }
+                evidenceBasis: { type: string, enum: [acquired_book_full_sell, provider_reported_final_binary_payout] }
+                payoutQuanta6: { type: string }
+                pnlQuanta6: { type: string }
+                fee: { type: [string, "null"], description: "Sell fee in mUSD; \"0\" for a resolution." }
+                acquiredAt: { type: [string, "null"], format: date-time }
+            - { type: "null" }
+    PmPaperV2Risk:
+      type: object
+      additionalProperties: true
+      required: [asOf, dayKey, totalOpen, openReservedCashQuanta6, openedToday, closedToday, realizedPnlTodayQuanta6, accountingComplete, legacyExposurePresent]
+      description: Unpaginated exact totals for the calling key's v2 positions; "today" is the UTC day.
+      properties:
+        asOf: { type: string, format: date-time }
+        dayKey: { type: string, format: date }
+        totalOpen: { type: integer }
+        openReservedCashQuanta6: { type: string }
+        openedToday: { type: integer }
+        closedToday: { type: integer }
+        realizedPnlTodayQuanta6: { type: string, description: "Signed, settled positions only." }
+        accountingComplete:
+          type: boolean
+          description: False when any non-open position lacks a complete terminal record.
+        legacyExposurePresent:
+          type: boolean
+          description: True when the key also holds v1 PM positions, frozen cash, or non-cash assets.
+    PmPaperV2PositionsResponse:
+      type: object
+      additionalProperties: true
+      required: [executionModel, positions, hasMore, nextBeforeId, risk, configuredHouse, entryEnabled]
+      properties:
+        executionModel: { type: string, const: pm_paper_v2 }
+        positions:
+          type: array
+          items: { $ref: "#/components/schemas/PmPaperV2Position" }
+        hasMore: { type: boolean }
+        nextBeforeId: { type: [integer, "null"] }
+        risk: { $ref: "#/components/schemas/PmPaperV2Risk" }
+        configuredHouse:
+          description: This key's house enrollment; null when the key is not an enrolled house agent.
+          anyOf:
+            - type: object
+              required: [userId, apiKeyId, walletId, houseAgentId]
+              properties:
+                userId: { type: integer }
+                apiKeyId: { type: integer }
+                walletId: { type: integer }
+                houseAgentId: { type: integer }
+                maxEndDays: { type: integer, minimum: 1, maximum: 30 }
+            - { type: "null" }
+        entryEnabled:
+          type: boolean
+          description: True when this key is enrolled and v2 entry is switched on.
