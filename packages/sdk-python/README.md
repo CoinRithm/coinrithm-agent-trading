@@ -1,13 +1,52 @@
 # coinrithm-sdk
 
-Python client for the CoinRithm Agent Trading API — paper trading, prediction-market
-data, futures simulation, and the public PM data surface, generated from the same
-OpenAPI contract that drives the hosted MCP at `mcp.coinrithm.com`.
+Python client for the CoinRithm Agent Trading API: paper trading, futures
+simulation, and keyless prediction-market, crypto and TradFi market data,
+generated from the same OpenAPI contract that drives the hosted MCP at
+`mcp.coinrithm.com`.
 
 - API base URL: `https://api.coinrithm.com`
 - Public data needs no authentication. Account and trading operations use a
   CoinRithm API key (`crk_live_…`), sent as a bearer token.
 - The API is paper-only: no real funds ever move.
+
+## 1.9.0
+
+Released on 2026-10-13, generated from API contract **1.8.0**.
+
+- **Keyless public market data** in the new `api.public_market_data` module:
+  TradFi reference catalog and detail with the near-real-time `live` overlay,
+  large perpetual-futures trades, 24-hour liquidations, CFTC positioning, SEC
+  Form 4 insider filings and public-company crypto treasuries. See
+  [Public market data](#public-market-data). Errors on these routes parse as
+  `PublicMessageError` (`message`), not `Error`.
+- **Agent operations** already served by the API: `get_agent_universe` and
+  `get_agent_universe_sectors` (market-boundary screener), `get_spot_reference`
+  (dated spot reference), and the house-agent `pm_paper_v2` lifecycle
+  (`discover_pm_paper_v2`, `get_pm_paper_v2_positions`, `open_pm_paper_v2`,
+  `replay_pm_paper_v2_open`, `close_pm_paper_v2`). PM v2 opens from an API key
+  must send `forecast_probability` (a decimal string); a missing forecast
+  returns 422 `forecast_required` and a forecast that does not beat the
+  fee-inclusive cost returns 422 `entry_forecast_not_above_cost`.
+- **New optional parameters**: `min_usd` tiers on the whale tape; `view`,
+  `lead`, `dedupe`, `min_volume_24h` and `include_quote_evidence` on event
+  search; `view`, `full`, `lang` and `include_quote_evidence` on event detail;
+  `outcome_external_market_id` on the order book; `view` and
+  `max_end_date_difference_days` on disagreements; candle range `1Y`.
+- **Newly typed fields** the API already returned: whale wallet, trader and
+  event fields plus `stats_24h`; event `availability` (paused venue),
+  `quote_evidence` and `outcomes_total`; order-book `received_at` and
+  `side_evidence`; calibration `methodology_version`, `final_price` and
+  `own_capture`; wallet `enrichment`; `whoami` `usage`; price freshness on top
+  gainers and losers. Values that previously landed in `additional_properties`
+  now have attributes.
+- **Corrections that can affect callers**: whale `outcome` can be `None`;
+  portfolio all-time PnL fields can be `None`; event-search pagination exposes
+  `has_more` and marks the never-sent `total` deprecated. The never-returned
+  ledger-export `futures`/`futures_events` and opportunity `thesis` are
+  deprecated.
+
+Runtime dependencies and Python 3.10+ support are unchanged from 1.8.5.
 
 ## 1.8.5
 
@@ -211,14 +250,76 @@ events = await search_public_prediction_market_events.asyncio(
 
 ## Endpoint groups
 
-| Module                   | What it covers                                                              |
-| ------------------------ | --------------------------------------------------------------------------- |
-| `api.public_pm_data`     | Public PM overview, event detail, search, whales, source health, SSE stream |
-| `api.prediction_markets` | Paper PM trading: discover, quote, open positions and report opportunities  |
-| `api.futures`            | Paper futures: quote, open/close, stop-loss/take-profit                     |
-| `api.reads`              | Portfolio, open orders, trade history (delta polling with `asOf`)           |
-| `api.ledger`             | Agent action ledger reads                                                   |
-| `api.identity`           | `whoami` key introspection                                                  |
+| Module                   | What it covers                                                                                  |
+| ------------------------ | ----------------------------------------------------------------------------------------------- |
+| `api.public_pm_data`     | Public PM overview, event detail, search, whales, source health, SSE stream                     |
+| `api.public_crypto_data` | Keyless top gainers and losers (universe scan)                                                  |
+| `api.public_market_data` | Keyless TradFi references, large trades, liquidations, CFTC positioning, SEC filings, treasuries |
+| `api.prediction_markets` | Paper PM trading: discover, quote, open, report opportunities, and the house `pm_paper_v2` flow |
+| `api.futures`            | Paper futures: quote, open/close, stop-loss/take-profit                                         |
+| `api.spot`               | Paper spot: quote, place and cancel orders, and the dated spot reference                        |
+| `api.reads`              | Portfolio, positions, trades, market context, candles, universe screener, Arena reads           |
+| `api.ledger`             | Agent action ledger reads                                                                       |
+| `api.identity`           | `whoami` key introspection                                                                      |
+
+## Public market data
+
+The `api.public_market_data` module needs no API key. Each response names its
+source; keep the CoinGecko attribution next to any display of treasury data.
+
+| Function                                  | Returns                                                                                  |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `list_public_tradfi_references`           | Every TradFi reference with latest consensus, 24h/7d change, range, sparkline and `live` |
+| `get_public_tradfi_reference`             | One reference with venue constituents and 15-minute history (`window` 24h or 7d)         |
+| `get_public_tradfi_reference_treasury`    | The listed company's BTC/ETH/SOL/BNB holdings, or `treasury=None`                        |
+| `get_public_tradfi_reference_filings`     | SEC Form 4 insider and open-market transactions with filing links                        |
+| `get_public_tradfi_reference_positioning` | Weekly CFTC Commitments of Traders for references with a US futures equivalent           |
+| `get_public_crypto_treasuries`            | Public companies holding `bitcoin`, `ethereum`, `solana` or `binancecoin`                |
+| `get_public_large_trades`                 | Large Binance USD-M and Hyperliquid perpetual prints, newest first                       |
+| `get_public_liquidations`                 | Last-24h liquidation totals and the biggest/latest events for one base                   |
+
+```python
+from coinrithm_sdk import Client
+from coinrithm_sdk.api.public_market_data import (
+    get_public_crypto_treasuries,
+    get_public_large_trades,
+    get_public_liquidations,
+    get_public_tradfi_reference,
+    get_public_tradfi_reference_filings,
+    get_public_tradfi_reference_positioning,
+    get_public_tradfi_reference_treasury,
+    list_public_tradfi_references,
+)
+from coinrithm_sdk.models import GetPublicLargeTradesAssetClass, GetPublicTradfiReferenceWindow
+
+with Client(base_url="https://api.coinrithm.com") as client:
+    catalog = list_public_tradfi_references.sync(client=client)
+    gold = get_public_tradfi_reference.sync("XAU", client=client, window=GetPublicTradfiReferenceWindow.VALUE_1)
+    holdings = get_public_tradfi_reference_treasury.sync("MSTR", client=client)
+    filings = get_public_tradfi_reference_filings.sync("HOOD", client=client)
+    cot = get_public_tradfi_reference_positioning.sync("XAU", client=client)
+    btc_treasuries = get_public_crypto_treasuries.sync("bitcoin", client=client)
+    prints = get_public_large_trades.sync(client=client, asset_class=GetPublicLargeTradesAssetClass.EQUITY, limit=20)
+    liquidations = get_public_liquidations.sync(client=client, base="BTC")
+```
+
+`GetPublicTradfiReferenceWindow.VALUE_0` is `24h` (the default) and `VALUE_1`
+is `7d`. What to keep in mind:
+
+- A reference price is the median of 2-3 derivatives-venue index prices in
+  USDT, not an exchange last trade. `live` is `None` whenever the overlay is
+  off, invalid or older than `methodology.live_max_age_seconds`; `latest` and
+  the derived fields never depend on it.
+- Large trades and liquidations cover only what CoinRithm's collectors saw while
+  connected. An empty list or a zero total is not proof that nothing happened,
+  and liquidation `captured_pct` measures capture uptime, not exchange
+  completeness.
+- Filings `coverage` is `not_applicable` for instruments that do not file Form 4
+  and `none_recorded` before the first collected transaction. Filing dates are
+  `YYYY-MM-DD` strings. Treasury and positioning reads report `status`
+  (`PublicDataStatus`) and still answer 200 when the upstream source fails.
+- Errors parse as `PublicMessageError`: 400 for an invalid or unknown query
+  parameter, 404 for a ticker outside the catalog or an unsupported coin.
 
 ## TLS / certificates
 

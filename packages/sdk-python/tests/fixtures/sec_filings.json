@@ -1,0 +1,108 @@
+{
+  "version": 1,
+  "generatedAt": "2026-10-13T22:47:10.451Z",
+  "ticker": "HOOD",
+  "name": "Robinhood Markets, Inc.",
+  "coverage": "available",
+  "insiderTransactions": [
+    {
+      "accessionNumber": "0001871006-26-000012",
+      "filingUrl": "https://www.sec.gov/Archives/edgar/data/1783879/000187100626000012/xslF345X06/wk-form4_1791405206.xml",
+      "filingIndexUrl": "https://www.sec.gov/Archives/edgar/data/1783879/000187100626000012/0001871006-26-000012-index.htm",
+      "filedAt": "2026-10-07",
+      "transactionDate": "2026-10-05",
+      "reporter": {
+        "name": "Tenev Vladimir",
+        "cik": 1871006,
+        "count": 1,
+        "relationship": "Director, Chief Executive Officer",
+        "isDirector": true,
+        "isOfficer": true,
+        "isTenPercentOwner": false,
+        "isOther": false,
+        "officerTitle": "Chief Executive Officer"
+      },
+      "securityTitle": "Class A Common Stock",
+      "code": "C",
+      "codeLabel": "Derivative conversion",
+      "isOpenMarket": false,
+      "acquiredDisposed": "A",
+      "shares": 375000,
+      "pricePerShare": null,
+      "valueUsd": null,
+      "sharesOwnedAfter": 375000,
+      "ownership": "direct",
+      "is10b5One": true
+    },
+    {
+      "accessionNumber": "0001871006-26-000012",
+      "filingUrl": "https://www.sec.gov/Archives/edgar/data/1783879/000187100626000012/xslF345X06/wk-form4_1791405206.xml",
+      "filingIndexUrl": "https://www.sec.gov/Archives/edgar/data/1783879/000187100626000012/0001871006-26-000012-index.htm",
+      "filedAt": "2026-10-07",
+      "transactionDate": "2026-10-05",
+      "reporter": {
+        "name": "Tenev Vladimir",
+        "cik": 1871006,
+        "count": 1,
+        "relationship": "Director, Chief Executive Officer",
+        "isDirector": true,
+        "isOfficer": true,
+        "isTenPercentOwner": false,
+        "isOther": false,
+        "officerTitle": "Chief Executive Officer"
+      },
+      "securityTitle": "Class A Common Stock",
+      "code": "S",
+      "codeLabel": "Open-market sale",
+      "isOpenMarket": true,
+      "acquiredDisposed": "D",
+      "shares": 158911,
+      "pricePerShare": 113.2356,
+      "valueUsd": 17994382.4316,
+      "sharesOwnedAfter": 216089,
+      "ownership": "direct",
+      "is10b5One": true
+    }
+  ],
+  "openMarketTransactions": [
+    {
+      "accessionNumber": "0001871006-26-000012",
+      "filingUrl": "https://www.sec.gov/Archives/edgar/data/1783879/000187100626000012/xslF345X06/wk-form4_1791405206.xml",
+      "filingIndexUrl": "https://www.sec.gov/Archives/edgar/data/1783879/000187100626000012/0001871006-26-000012-index.htm",
+      "filedAt": "2026-10-07",
+      "transactionDate": "2026-10-05",
+      "reporter": {
+        "name": "Tenev Vladimir",
+        "cik": 1871006,
+        "count": 1,
+        "relationship": "Director, Chief Executive Officer",
+        "isDirector": true,
+        "isOfficer": true,
+        "isTenPercentOwner": false,
+        "isOther": false,
+        "officerTitle": "Chief Executive Officer"
+      },
+      "securityTitle": "Class A Common Stock",
+      "code": "S",
+      "codeLabel": "Open-market sale",
+      "isOpenMarket": true,
+      "acquiredDisposed": "D",
+      "shares": 158911,
+      "pricePerShare": 113.2356,
+      "valueUsd": 17994382.4316,
+      "sharesOwnedAfter": 216089,
+      "ownership": "direct",
+      "is10b5One": true
+    }
+  ],
+  "source": {
+    "name": "SEC EDGAR",
+    "url": "https://www.sec.gov/edgar/search/",
+    "publisher": "U.S. Securities and Exchange Commission",
+    "forms": [
+      "4"
+    ],
+    "issuerFilingsUrl": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0001783879&type=4&owner=include&count=40",
+    "note": "Insider transactions as reported on SEC Form 4 (non-derivative table). Filings are due within two business days of the trade."
+  }
+}

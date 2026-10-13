@@ -11,6 +11,7 @@ from ..models.public_pm_event_representative_outcome_basis import PublicPmEventR
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
+    from ..models.public_pm_event_availability import PublicPmEventAvailability
     from ..models.public_pm_event_cross_platform_item import PublicPmEventCrossPlatformItem
     from ..models.public_pm_event_decision_support_type_0 import PublicPmEventDecisionSupportType0
     from ..models.public_pm_event_freshness import PublicPmEventFreshness
@@ -84,6 +85,12 @@ class PublicPmEvent:
         quality (None | PublicPmEventQualityType0 | Unset): Persisted truth-engine decision eligibility and reason
             codes.
         cross_platform (list[PublicPmEventCrossPlatformItem] | Unset):
+        outcomes_total (int | Unset): Full outcome count when the outcome list was trimmed (`view=compact`, or
+            matched/related events without `full=1`).
+        availability (PublicPmEventAvailability | Unset): Event detail only, and only for an open event whose venue
+            CoinRithm
+            has paused: its prices stopped updating at `lastCollectedAt`.
+            Absent otherwise.
     """
 
     id: str
@@ -115,6 +122,8 @@ class PublicPmEvent:
     decision_support: None | PublicPmEventDecisionSupportType0 | Unset = UNSET
     quality: None | PublicPmEventQualityType0 | Unset = UNSET
     cross_platform: list[PublicPmEventCrossPlatformItem] | Unset = UNSET
+    outcomes_total: int | Unset = UNSET
+    availability: PublicPmEventAvailability | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -286,6 +295,12 @@ class PublicPmEvent:
                 cross_platform_item = cross_platform_item_data.to_dict()
                 cross_platform.append(cross_platform_item)
 
+        outcomes_total = self.outcomes_total
+
+        availability: dict[str, Any] | Unset = UNSET
+        if not isinstance(self.availability, Unset):
+            availability = self.availability.to_dict()
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -344,11 +359,16 @@ class PublicPmEvent:
             field_dict["quality"] = quality
         if cross_platform is not UNSET:
             field_dict["crossPlatform"] = cross_platform
+        if outcomes_total is not UNSET:
+            field_dict["outcomesTotal"] = outcomes_total
+        if availability is not UNSET:
+            field_dict["availability"] = availability
 
         return field_dict
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        from ..models.public_pm_event_availability import PublicPmEventAvailability
         from ..models.public_pm_event_cross_platform_item import PublicPmEventCrossPlatformItem
         from ..models.public_pm_event_decision_support_type_0 import PublicPmEventDecisionSupportType0
         from ..models.public_pm_event_freshness import PublicPmEventFreshness
@@ -638,6 +658,15 @@ class PublicPmEvent:
 
                 cross_platform.append(cross_platform_item)
 
+        outcomes_total = d.pop("outcomesTotal", UNSET)
+
+        _availability = d.pop("availability", UNSET)
+        availability: PublicPmEventAvailability | Unset
+        if isinstance(_availability, Unset):
+            availability = UNSET
+        else:
+            availability = PublicPmEventAvailability.from_dict(_availability)
+
         public_pm_event = cls(
             id=id,
             slug=slug,
@@ -668,6 +697,8 @@ class PublicPmEvent:
             decision_support=decision_support,
             quality=quality,
             cross_platform=cross_platform,
+            outcomes_total=outcomes_total,
+            availability=availability,
         )
 
         public_pm_event.additional_properties = d

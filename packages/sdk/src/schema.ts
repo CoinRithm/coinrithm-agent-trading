@@ -188,7 +188,7 @@ export interface paths {
          *     surface — call /api/agent/resolve first. `range` picks both the
          *     lookback and the per-candle resolution: 1H = 60×1-minute,
          *     1D = 288×5-minute, 1W = 672×15-minute, 1M = 720×1-hour,
-         *     3M = 540×4-hour candles. Candles are oldest→newest with `t` in unix
+         *     3M = 540×4-hour, 1Y = up to 366 daily candles. Candles are oldest→newest with `t` in unix
          *     SECONDS. o/h/l/c are converted to `fiat` (default USD) at the nearest
          *     stored rate; `v` stays USD regardless of fiat. These are sampled
          *     composite-price bars, not venue trade candles, and `v` is a rolling
@@ -594,7 +594,8 @@ export interface paths {
         };
         /**
          * Mock futures positions + unrealized PnL + liquidation distance
-         * @description Up to 200 positions (open and historical). Supports `updatedSince`
+         * @description The 200 most recently updated positions plus every open position (up
+         *     to 1,000), open and historical. Supports `updatedSince`
          *     delta polling — open/close/liquidation all bump a position's row, so
          *     polling deltas tells you what changed between loops (use the
          *     response's `asOf` as the next cursor). Requires scope `read`.
@@ -691,6 +692,8 @@ export interface paths {
          *     volume windows and completeness are disclosed in the response and at
          *     `/api/prediction-markets/sources/health`; do not assume every venue's
          *     number has the same basis. Cite CoinRithm when quoting these aggregates.
+         *     Open events of a paused venue are excluded from totals, breakdowns and
+         *     highlights.
          */
         get: operations["getPublicPredictionMarketOverview"];
         put?: never;
@@ -711,10 +714,25 @@ export interface paths {
         /**
          * Search events across all prediction-market venues
          * @description Keyless event search across Polymarket, Kalshi, Rothera, Limitless,
-         *     Smarkets, Manifold, Metaculus, PredictIt, Futuur, Myriad and ForecastEx.
-         *     Results remain visible when quality-blocked; inspect `quality` and
-         *     `decisionSupport` before using a row for a decision. This research
-         *     endpoint is broader than the authenticated paper-trading discovery API.
+         *     Smarkets, Manifold, Metaculus, PredictIt, Futuur, Myriad, ForecastEx
+         *     and Gemini. Results remain visible when quality-blocked; inspect
+         *     `quality` and `decisionSupport` before using a row for a decision. This
+         *     research endpoint is broader than the authenticated paper-trading
+         *     discovery API.
+         *
+         *     Open events of a venue CoinRithm has paused (no longer collecting) are
+         *     left out of this list, the overview, expiring and matches surfaces;
+         *     their closed and resolved history stays available. `pagination` reports
+         *     `limit`, `offset` and `hasMore`.
+         *
+         *     Opt-ins (absent means the default shape): `view=compact` keeps each
+         *     event's top 3 outcomes by probability, adds `outcomesTotal` and drops
+         *     `description`; `lead=representative` (with `view=compact` only) adds
+         *     `representativeOutcome` on open events; `dedupe=matched` keeps only the
+         *     highest-ranked member of each approved cross-venue match group on the
+         *     page (a page can then hold fewer than `limit` rows); `minVolume24h`
+         *     keeps events with at least that 24h USD volume;
+         *     `includeQuoteEvidence=1` adds `quoteEvidence` to every outcome.
          */
         get: operations["searchPublicPredictionMarketEvents"];
         put?: never;
@@ -738,6 +756,14 @@ export interface paths {
          *     provenance, related markets/news, recent large trades, volume history
          *     and approved cross-source matches when available. For bounded agent
          *     context use the MCP `pm_data_event` tool's default summary mode.
+         *
+         *     By default, matched and related events are trimmed: each
+         *     `crossSourceMatches[].event.outcomes` and `comparison.outcomes` keeps
+         *     only the shared outcomes (at most 60) with an `outcomesTotal`, and
+         *     `relatedEvents[].outcomes` keeps the compact 3-outcome shape. Send
+         *     `full=1` for untrimmed lists. `view=core` returns a cheaper first-paint
+         *     payload whose heavy sections are empty (`detailMode: core`). An open
+         *     event of a paused venue carries `availability.status: paused`.
          */
         get: operations["getPublicPredictionMarketEvent"];
         put?: never;
@@ -764,6 +790,11 @@ export interface paths {
          *     For bounded agent context use the MCP `pm_data_disagreements` tool,
          *     which additionally bounds each event and comparison to its top-5
          *     highest-delta shared outcomes.
+         *
+         *     Pairs whose open side belongs to a paused venue are left out. With
+         *     `sort=divergence_desc` or `max_outcome_delta_desc`, pairs need verified
+         *     quotes for the exact compared legs and `meta.quoteEligibilityVersion`
+         *     is set. `meta.projection` is `compact` or `rich`.
          */
         get: operations["getPublicPredictionMarketDisagreements"];
         put?: never;
@@ -1230,6 +1261,12 @@ export interface paths {
          *     whether the supplied ask snapshot parsed as a valid non-empty book
          *     (`validated`) and when this server fetched it (`receivedAt`, its own
          *     acquisition time, not an upstream trade time). Kalshi books omit it.
+         *     Both venues' books carry `receivedAt` and `sideEvidence`.
+         *
+         *     `outcomeExternalMarketId` selects a different outcome of the event
+         *     instead (a Kalshi `No` side is complemented). That book must have been
+         *     received less than 10 seconds earlier, otherwise `orderBook` is null;
+         *     an outcome that is not on the event returns 404.
          */
         get: operations["getPublicPredictionMarketOrderBook"];
         put?: never;
@@ -1262,7 +1299,10 @@ export interface paths {
          *     by `PublicPmOutcome.probability` elsewhere in this API. `usdValue` is
          *     `size * price`. `who` is a public trader handle only where the venue
          *     exposes one (Polymarket pseudonym); Kalshi trades always report
-         *     `who: null`.
+         *     `who: null`, and an empty Polymarket handle is also served as null.
+         *     When a Polymarket market's condition id is unavailable, the tape falls
+         *     back to the whole event's trades (every outcome), and a row whose
+         *     outcome cannot be identified carries `outcome: null`.
          */
         get: operations["getPublicPredictionMarketTrades"];
         put?: never;
@@ -1715,6 +1755,544 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/market/large-trades": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Large perpetual-futures trades (whale prints)
+         * @description Keyless tape of large perpetual-futures prints on Binance USD-M and
+         *     Hyperliquid, covering crypto perpetuals and the TradFi perpetuals
+         *     those venues list (equities, commodities, FX, indices). Newest first.
+         *
+         *     A row is one taker order (Binance: consecutive fills at the same
+         *     trade time) or one transaction (Hyperliquid) at or above a
+         *     per-market USD notional floor. `thresholdUsd` on each row is the
+         *     floor that row had to reach; `side` is the taker side. Notional is
+         *     in the venue's quote stablecoin (USDT/USDC). `assetClass` is a
+         *     best-effort label. Rows exist only while the collector's
+         *     connection is live, so gaps are possible and an empty list is not
+         *     proof that no large trade happened. Hyperliquid rows may carry the
+         *     buyer/seller address and explorer links; Binance publishes no
+         *     per-trade page or address.
+         *
+         *     `symbol` matches an exact venue symbol when it contains `:` (a
+         *     Hyperliquid HIP-3 market such as `xyz:TSLA`) or ends in `USDT`
+         *     (`BTCUSDT`); any other value matches the base across venues (`TSLA`
+         *     returns `TSLAUSDT` and `xyz:TSLA`). Unknown query parameters return
+         *     400. The response is shared-cached for about 15 seconds.
+         */
+        get: operations["getPublicLargeTrades"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/market/liquidations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Last-24h liquidations for one base symbol
+         * @description Keyless 24-hour liquidation summary for one base symbol (a coin such
+         *     as `BTC`, or a TradFi perpetual base such as `XAU` or `NVDA`) across
+         *     the Binance USD-M forced-order stream and the OKX liquidation-orders
+         *     channel: long/short totals, per-venue totals, and the biggest and
+         *     latest events.
+         *
+         *     Sums cover only what CoinRithm's capture saw while running.
+         *     `capturedPct` is a lower bound of capture uptime for the window, not
+         *     exchange completeness, and is null when no capture was recorded (a
+         *     gap, never "no liquidations"). Binance publishes at most the latest
+         *     liquidation per symbol per second. `long` means a long position was
+         *     liquidated (a forced sell). The base is the venue's own base symbol,
+         *     so two assets that share a ticker share a row set; for a stock ticker
+         *     pass `venue=okx`, because Binance's feed carries crypto contracts
+         *     only. `truncated` is true when the row cap was reached and totals are
+         *     then a lower bound. An unknown base returns 200 with zero totals.
+         *     The response is shared-cached for about 60 seconds.
+         */
+        get: operations["getPublicLiquidations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/market/treasuries/{coin}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Public companies holding a coin in treasury
+         * @description Keyless list of public companies holding `bitcoin`, `ethereum`,
+         *     `solana` or `binancecoin` (`bnb` is accepted as an alias), largest
+         *     holding first, with the coin-wide totals. Data provided by CoinGecko:
+         *     keep the `source` attribution next to any display of these values.
+         *     The upstream list is read at most every 12 hours and never served
+         *     older than 24 hours. `status` is `fresh` within 12 hours, `stale`
+         *     up to 24 hours, and `unavailable` (null totals, no companies) when
+         *     no usable copy exists; an upstream failure still answers 200.
+         *     `tradfiTicker` links a US-listed company to its
+         *     `/api/market/references/{ticker}` reference when one exists.
+         *     Other coins return 404; any query parameter returns 400.
+         */
+        get: operations["getPublicCryptoTreasuries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/market/references": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * TradFi reference catalog with latest consensus prices
+         * @description Keyless catalog of every approved TradFi reference instrument
+         *     (equities, ETFs, metals, commodities and FX) with its latest
+         *     validated consensus, derived 24h/7d change, 24h range, a 7-day
+         *     sparkline and the optional near-real-time `live` overlay.
+         *
+         *     A reference price is the median of 2-3 derivatives-venue index
+         *     prices (Binance, Bybit, Gate) that agree within 5%, recorded every
+         *     15 minutes. It is a venue index in the contract's quote asset
+         *     (USDT), not an exchange last trade, and the instrument `unit` is
+         *     deliberately unverified. `latest` and the derived fields come from
+         *     recorded snapshots; `live` republishes the same median about every
+         *     10 seconds and is null when the overlay is off, unavailable,
+         *     invalid, or older than `methodology.liveMaxAgeSeconds`. Freshness
+         *     is collection time, not a venue quote time. Change and range
+         *     values are null when no validated reference snapshot exists for
+         *     the comparison time. Query parameters return 400.
+         */
+        get: operations["listPublicTradfiReferences"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/market/references/{ticker}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One TradFi reference with venue constituents and history
+         * @description Keyless detail for one catalog ticker: the latest validated
+         *     consensus with each contributing venue's index price, derived
+         *     change and range, the optional `live` overlay, and recorded
+         *     15-minute history over `window` (24 hours or 7 days, oldest
+         *     first). Same methodology and caveats as the catalog. A ticker
+         *     outside the catalog returns 404.
+         */
+        get: operations["getPublicTradfiReference"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/market/references/{ticker}/treasury": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A listed company's crypto treasury
+         * @description Keyless crypto holdings (BTC, ETH, SOL, BNB) of the company behind a
+         *     catalog ticker, from the same CoinGecko data as
+         *     `/api/market/treasuries/{coin}`. Only plain US-listed equities in
+         *     the catalog can match. `treasury` is null when the company holds
+         *     none of the four coins (or is not matched); `status` combines the
+         *     four coin datasets (`fresh` when all are fresh, `unavailable` when
+         *     none is usable, otherwise `stale`), and `asOf` is the oldest
+         *     dataset read. Keep the `source` attribution next to any display.
+         *     A ticker outside the catalog returns 404.
+         */
+        get: operations["getPublicTradfiReferenceTreasury"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/market/references/{ticker}/filings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * SEC Form 4 insider transactions for a reference
+         * @description Keyless SEC EDGAR Form 4 insider transactions (non-derivative table)
+         *     for one catalog ticker: up to 50 latest transactions of every code
+         *     and up to 20 latest open-market purchases and sales (codes `P` and
+         *     `S`), newest filing first. Every row links to its original filing
+         *     on sec.gov. Form 4 is due within two business days of the trade, so
+         *     `filedAt` can trail `transactionDate`.
+         *
+         *     `coverage` is `not_applicable` for instruments that do not file
+         *     Form 4 (metals, commodities, FX, non-US home listings),
+         *     `none_recorded` when no transaction has been collected yet, and
+         *     `available` otherwise. Dates are `YYYY-MM-DD` strings. Shares,
+         *     prices and values are null when the filing omits them. A ticker
+         *     outside the catalog returns 404. The response is shared-cached for
+         *     about 10 minutes.
+         */
+        get: operations["getPublicTradfiReferenceFilings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/market/references/{ticker}/positioning": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * CFTC Commitments of Traders positioning for a reference
+         * @description Keyless weekly CFTC Commitments of Traders positioning (legacy
+         *     report, futures only) for a catalog ticker with a listed US futures
+         *     equivalent: gold, silver, platinum, palladium, WTI and Brent crude,
+         *     EUR/USD, GBP/USD, and the S&P 500 and Nasdaq-100 e-mini futures for
+         *     `SPY` and `QQQ`. Up to 12 reports, newest first.
+         *
+         *     Positions are as of each Tuesday (`reportDate`) and published the
+         *     following Friday. Values are in contracts; net is long minus short.
+         *     Non-commercial traders are mostly speculators, commercial traders
+         *     hedge a business exposure. Week-over-week changes are CFTC's own
+         *     and null when not published. Other catalog tickers answer 200 with
+         *     `coverage: not_applicable`. `status` is `fresh` within 12 hours of
+         *     CoinRithm's last read, `stale` up to 8 days, then `unavailable`
+         *     with no reports; an upstream failure still answers 200. A ticker
+         *     outside the catalog returns 404.
+         */
+        get: operations["getPublicTradfiReferencePositioning"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/agent/spot/reference/{coinId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Dated spot reference price for one coin (Binance stream or stored consensus)
+         * @description Reference data only. Returns the Binance spot 24h-ticker last price
+         *     (USDT) for the coin's single verified Binance/USDT mapping when a
+         *     recent stream snapshot exists, plus the stored REST consensus price
+         *     (USD) as an individually dated fallback. Both values keep their own
+         *     units; `preferredSource` is not a USDT/USD conversion, an executable
+         *     price or a paper-fill promise. Spot quotes, orders and market context
+         *     never read this endpoint, so their prices are unchanged by it.
+         *
+         *     The stream observation is refused (with `stream.reason`) unless the
+         *     snapshot is connected, at most 10 s old, its universe metadata at
+         *     most 10 min old, and the coin's identity and source policy match.
+         *     `fallback.status` is `fresh` when the stored row was written at most
+         *     120 s ago. Requires scope `read`. Any query parameter returns 400.
+         *     Responses carry `Cache-Control: no-store`.
+         */
+        get: operations["getSpotReference"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/agent/universe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Screen coins inside market boundaries (rank band, volume, sectors)
+         * @description Returns up to `limit` active coins inside the caller's boundaries:
+         *     market-cap rank band, minimum 24h USD volume, optional stablecoin
+         *     exclusion and curated sectors in/out (ids from
+         *     /api/agent/universe/sectors). Coins flagged market-cap-suspect and
+         *     coins whose live price is older than 72 h are never included. Sorts
+         *     that need a change or volume value exclude coins where it is null.
+         *     Ties break on market-cap rank, then UCID, so equal data gives equal
+         *     order. A sector both included and excluded is excluded.
+         *
+         *     Pass `ucids` to check whether specific coins are inside the same
+         *     boundaries (membership check, at most 50 ids). Unknown query
+         *     parameters are ignored. Pure market data on a shared 60 s URL-keyed
+         *     cache, so `priceAgeHours` can lag the response time by up to a
+         *     minute. Requires scope `read`.
+         */
+        get: operations["getAgentUniverse"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/agent/universe/sectors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Curated sector and ecosystem ids with live coin counts
+         * @description The curated sector picker for /api/agent/universe: every sector and
+         *     chain ecosystem id with its label and the number of distinct coins
+         *     currently in it (active, not market-cap-suspect, live price at most
+         *     72 h old). Each id maps to an explicit list of CoinRithm category
+         *     names; ecosystem ids carry an `eco-` prefix. Takes no parameters.
+         *     Shared 60 s cache. Requires scope `read`.
+         */
+        get: operations["getAgentUniverseSectors"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/agent/pm/v2/discover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Discover candidates for the acquired-book PM paper model (pm_paper_v2)
+         * @description Candidate list for `pm_paper_v2`, the paper model that fills against
+         *     an order book acquired from the venue at entry time. Only keys
+         *     enrolled as a server-configured house agent may call it; any other
+         *     key receives 403 `house_opt_in_required`.
+         *
+         *     Built from the same cached discovery set as /api/agent/pm/discover
+         *     (all sources, `best` sort, offset 0), then filtered per request: an
+         *     outcome is kept only when its exact stored native identity resolves
+         *     (Polymarket condition + token, or Kalshi ticker + side), it is not a
+         *     Polymarket negative-risk contract, and, when the house has a
+         *     `maxEndDays` bound, its scheduled native end falls inside it. Events
+         *     left with no outcome are dropped; `meta.boundedSelection` counts
+         *     what was removed and why. Dates are stored provider fields, not a
+         *     settlement guarantee; entry re-acquires identity, maturity, book and
+         *     fees. Only `q` and `limit` are accepted; any other query parameter
+         *     returns 400. The legacy `quoteHint` on each market still points at
+         *     the v1 quote endpoint. Requires scope `read`.
+         */
+        get: operations["discoverPmPaperV2"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/agent/pm/v2/positions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List this key's pm_paper_v2 positions with exact accounting
+         * @description Newest-first page of the calling key's `pm_paper_v2` positions (v1
+         *     positions stay on /api/agent/positions/pm), plus an unpaginated risk
+         *     summary, the key's house enrollment and whether entry is enabled.
+         *     Money and quantity are exact integer strings: `*Quanta6` values are
+         *     paper mUSD x 1,000,000 and `quantityUnits2` is shares x 100. Payout,
+         *     PnL and `terminal` stay null until the close or settlement is fully
+         *     recorded (`accountingStatus: settled`). Any key with scope `read` may
+         *     call it; a key that never opened a v2 position gets an empty page.
+         *     Responses carry `Cache-Control: private, no-store`.
+         */
+        get: operations["getPmPaperV2Positions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/agent/pm/v2/open": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Open a pm_paper_v2 position against an acquired venue book
+         * @description Buys the selected side of one binary outcome on paper, priced from an
+         *     order book and fee schedule acquired from the venue during the
+         *     request. Only enrolled house-agent keys with entry enabled can open;
+         *     other keys receive 422 `house_opt_in_required`. Requires scope
+         *     `trade:pm` and counts against the trade-write limit.
+         *
+         *     `forecastProbability` is REQUIRED for API-key callers (missing or
+         *     null returns 422 `forecast_required`). It is your own probability
+         *     that the BOUGHT side pays out. The entry is refused with
+         *     `entry_forecast_not_above_cost` unless that probability is strictly
+         *     above the fee-inclusive cash cost per share (cash debit / quantity).
+         *     `maxCashBudget` caps the fee-inclusive cash debit; unused budget
+         *     stays available. Numeric fields are decimal STRINGS; a JSON number
+         *     is refused.
+         *
+         *     `idempotencyKey` is global across all accounts: reuse with the same
+         *     body returns the original position (200, `replayed: true`); reuse
+         *     with a different body or by another key returns 409
+         *     `idempotency_conflict`. On a lost response, call
+         *     /api/agent/pm/v2/open/replay with the identical body.
+         *
+         *     Every refusal returns HTTP 422 with `kind: refused` and a `reason`.
+         *     `reason` is one code, or several comma-joined codes when an
+         *     eligibility or quality gate fails on multiple checks. Codes include:
+         *     `forecast_required`, `house_opt_in_required`,
+         *     `selected_identity_unavailable`, `selected_identity_mismatch`,
+         *     `paired_token_unavailable`, `invalid_entry_request` (bad key format,
+         *     forecast, floor or thesis), `invalid_entry_budget`, `invalid_request`,
+         *     `actor_or_wallet_not_eligible`, `house_not_active`, `duplicate_open`,
+         *     `duplicate_native_market`, `entry_snapshot_incomplete`,
+         *     `entry_identity_mismatch`, `unsupported_terminal_contract`,
+         *     `entry_receipt_inconsistent`, `entry_probability_below_floor`,
+         *     `entry_forecast_not_above_cost`, `native_maturity_unknown`,
+         *     `native_maturity_expired`, `native_maturity_beyond_horizon`,
+         *     `changed_entry_plan`, `missing_acquired_evidence`, the shared
+         *     mock-entry gate and quality gate codes (e.g. `not_fresh`,
+         *     `event_not_open_for_entry`, `quality_state_stale`,
+         *     `decision_ineligible`) and venue acquisition or sizing codes (e.g.
+         *     `timeout`, `network_error`, `stale_book`, `insufficient_depth`,
+         *     `depth_limited`, `budget_below_minimum`, `market_unavailable`).
+         *     Treat unknown codes as refusals.
+         */
+        post: operations["openPmPaperV2"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/agent/pm/v2/open/replay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replay a pm_paper_v2 open by idempotency key without opening anything
+         * @description Read-only recovery for a lost or timed-out open. Send the IDENTICAL
+         *     body of the original open (the canonical request is compared,
+         *     including `forecastProbability`). Never acquires a book or opens a
+         *     position. Returns 200 with the original position when the receipt
+         *     exists and matches, 404 with `replayMissing: true` when no position
+         *     holds this key (the original open did not commit; a new open with
+         *     the same key is safe), and 409 `idempotency_conflict` when the key
+         *     belongs to a different request or caller. `forecastProbability` is
+         *     not required here. Requires scope `trade:pm` and counts against the
+         *     trade-write limit.
+         */
+        post: operations["replayPmPaperV2Open"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/agent/pm/v2/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request a full close of a pm_paper_v2 position
+         * @description Records a durable request to close the WHOLE position (no partial
+         *     close). The sale itself runs later on a server-side worker: it
+         *     settles at the venue's proven final payout if the market has
+         *     resolved, otherwise sells the exact held token against a freshly
+         *     acquired book. A new request therefore returns 202 (`accepted:
+         *     true`, `executed: false`); poll /api/agent/pm/v2/positions for
+         *     `exit` and `terminal`. Only positions owned by the calling key are
+         *     visible (others return 404). Entry flags and house enrollment do not
+         *     block a close.
+         *
+         *     `idempotencyKey` is global: the same key and body returns the
+         *     existing intent (`replayed: true`, 200 once filled); a different
+         *     body returns 409 `conflict`. If an exit intent is already active for
+         *     the position, the new request attaches to it. Requires scope
+         *     `trade:pm` and counts against the trade-write limit.
+         */
+        post: operations["closePmPaperV2"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1814,6 +2392,20 @@ export interface components {
                 /** @description Kalshi venue-published settlement timer in seconds; not a guaranteed deadline after close. */
                 settlementTimerSeconds: number | null;
             };
+            /**
+             * @description Present only when the request sent `includeQuoteEvidence=1`. The
+             *     stored venue book observation for Polymarket and Kalshi outcomes on
+             *     a 0-100 scale (values outside 0-100 are served as null); null for
+             *     other venues or when none is stored. Not an executable quote.
+             */
+            quoteEvidence?: ({
+                version?: number;
+                bid?: number | null;
+                ask?: number | null;
+                last?: number | null;
+            } & {
+                [key: string]: unknown;
+            }) | null;
         } & {
             [key: string]: unknown;
         };
@@ -1892,15 +2484,35 @@ export interface components {
             crossPlatform?: {
                 [key: string]: unknown;
             }[];
+            /** @description Full outcome count when the outcome list was trimmed (`view=compact`, or matched/related events without `full=1`). */
+            outcomesTotal?: number;
+            /**
+             * @description Event detail only, and only for an open event whose venue CoinRithm
+             *     has paused: its prices stopped updating at `lastCollectedAt`.
+             *     Absent otherwise.
+             */
+            availability?: {
+                /** @enum {string} */
+                status: "paused";
+                /** Format: date-time */
+                lastCollectedAt: string | null;
+            } & {
+                [key: string]: unknown;
+            };
         } & {
             [key: string]: unknown;
         };
         PublicPmEventsResponse: {
             data: components["schemas"]["PublicPmEvent"][];
             pagination: {
+                /**
+                 * @deprecated
+                 * @description Never sent by the server; use `hasMore`.
+                 */
                 total?: number;
                 limit?: number;
                 offset?: number;
+                hasMore?: boolean;
             } & {
                 [key: string]: unknown;
             };
@@ -2026,6 +2638,17 @@ export interface components {
              */
             receivedAt: string;
         };
+        /**
+         * @description True when that side's supplied levels validated completely and the
+         *     book is not crossed (an explicit empty side is valid). A dated
+         *     observation, not a fill or liquidity guarantee.
+         */
+        PublicPmOrderBookSideEvidence: {
+            bid?: boolean;
+            ask?: boolean;
+        } & {
+            [key: string]: unknown;
+        };
         /** @description Null when the source has no book endpoint or none is currently resting — a valid empty shape, not an error. */
         PublicPmOrderBook: ({
             bid: number | null;
@@ -2037,6 +2660,12 @@ export interface components {
             /** @description Ask levels, best (lowest price) first. */
             asks: components["schemas"]["PublicPmOrderBookLevel"][];
             askEvidence?: components["schemas"]["PublicPmOrderBookAskEvidence"];
+            /**
+             * Format: date-time
+             * @description When this server acquired the book (its own time, not a venue trade time).
+             */
+            receivedAt?: string | null;
+            sideEvidence?: components["schemas"]["PublicPmOrderBookSideEvidence"];
         } & {
             [key: string]: unknown;
         }) | null;
@@ -2107,18 +2736,40 @@ export interface components {
                 [key: string]: unknown;
             }[];
             recentWhaleTrades?: components["schemas"]["PublicPmWhaleTrade"][];
+            /**
+             * @description `core` when `view=core` was requested; heavy sections are then empty.
+             * @enum {string}
+             */
+            detailMode?: "full" | "core";
+            /** @description Present (true) when the server served a reduced payload under load; the `X-CoinRithm-Lite` header is also set. */
+            liteFallback?: boolean;
         } & {
             [key: string]: unknown;
         };
         PublicPmWhaleTrade: {
             source: components["schemas"]["PublicPmSourceSlug"];
             sourceName?: string;
+            sourceIcon?: string | null;
             eventSlug: string;
             eventTitle?: string;
+            /** @description Shortened display form of the wallet, not an identifier. */
+            wallet?: string;
+            /** @description Full lower-cased public address; null on venues that anonymize traders. */
+            walletAddress?: string | null;
+            traderName?: string | null;
             side: string;
-            outcome: string;
+            /** @description Outcome label; null when the venue row carries none. */
+            outcome: string | null;
+            /** @description Nested market question on multi-market events; null on older rows. */
+            marketQuestion?: string | null;
             usdValue: number;
             price: number;
+            sourceMarketRef?: string | null;
+            /** @description Trade value in the venue's own currency, when it is not USD. */
+            nativeValue?: number | null;
+            nativeCurrency?: string | null;
+            /** @description How `usdValue` was derived from the venue value. */
+            valueBasis?: string | null;
             evidenceType: string;
             evidenceRef?: string | null;
             /** Format: uri */
@@ -2130,14 +2781,63 @@ export interface components {
             /** Format: date-time */
             tradedAt?: string | null;
             latencySeconds?: number | null;
+            /** @description The event this trade belongs to. Sent on `/whales` and SSE `whale` rows, not on event detail. */
+            event?: {
+                source?: string;
+                slug?: string;
+                title?: string;
+                image?: string | null;
+                sourceName?: string;
+                sourceIcon?: string | null;
+                /** @description Outcome count and the top outcomes by probability, for a market-split display. */
+                marketOutcomes?: ({
+                    total?: number;
+                    top?: ({
+                        name?: string;
+                        probability?: number;
+                    } & {
+                        [key: string]: unknown;
+                    })[];
+                } & {
+                    [key: string]: unknown;
+                }) | null;
+            } & {
+                [key: string]: unknown;
+            };
+        } & {
+            [key: string]: unknown;
+        };
+        /** @description Trailing 24-hour aggregates over the full verified whale table, not only the 50-row tape. */
+        PublicPmWhaleStats24h: {
+            count: number;
+            totalUsd: number;
+            maxUsd: number;
+            bySource: ({
+                source?: string;
+                count?: number;
+                totalUsd?: number;
+                maxUsd?: number;
+                /** @description 99th percentile trade size over 30 days. */
+                p99Usd30d?: number;
+            } & {
+                [key: string]: unknown;
+            })[];
+            /** @description The largest matched print. Verify `usdValue` against `maxUsd` before calling it the maximum; an unmatched print can exceed it. */
+            maxTrade?: {
+                [key: string]: unknown;
+            } | null;
         } & {
             [key: string]: unknown;
         };
         PublicPmWhalesResponse: {
             trades: components["schemas"]["PublicPmWhaleTrade"][];
-            stats24h?: {
-                [key: string]: unknown;
-            };
+            /**
+             * @description The size tier applied; present only when `minUsd` was requested.
+             * @enum {integer}
+             */
+            minUsd?: 25000 | 50000 | 100000;
+            /** @description Omitted when the aggregate is temporarily unavailable. */
+            stats24h?: components["schemas"]["PublicPmWhaleStats24h"];
             coverage: {
                 [key: string]: unknown;
             }[];
@@ -2389,6 +3089,12 @@ export interface components {
                     partialBookAtLead?: number;
                     /** @description Complete book, but the declared winner is not one of the event's outcomes — a resolution-provenance defect. */
                     winnerNotAnOutcome?: number;
+                    /** @description The lead-window capture failed validation. */
+                    invalidLeadPoint?: number;
+                    /** @description Complete lead book without a recorded single-winner structure, so one stored winner cannot score the other outcomes. */
+                    nonExclusiveBook?: number;
+                    /** @description Complete single-winner book whose prices sum below the complete-book minimum (probability mass no outcome carries). */
+                    unpricedMassBook?: number;
                 } & {
                     [key: string]: unknown;
                 };
@@ -2407,9 +3113,68 @@ export interface components {
                 source?: string;
                 name?: string;
                 reason?: string;
+                /** @description Same exclusion counts as on `scored` rows, when computed. */
+                excluded?: {
+                    [key: string]: unknown;
+                };
             } & {
                 [key: string]: unknown;
             })[];
+            /** @description Version of the calibration methodology that produced this payload. */
+            methodologyVersion?: string;
+            /**
+             * @description Optional second series scored on the venue-reported final
+             *     pre-resolution price (`basis: venue_final_preresolution_price`).
+             *     Lead time is unknown and not uniform, so it is not comparable with
+             *     `scored`. Absent on older snapshots.
+             */
+            finalPrice?: components["schemas"]["PublicPmCalibrationSeries"];
+            /**
+             * @description Optional third series scored on CoinRithm's own last capture before
+             *     resolution (`basis: own_last_preresolution_capture`). Its lead time
+             *     is typically minutes (see `medianLeadSeconds`), so it is a
+             *     near-final-price integrity check, not forecast skill. Absent on
+             *     older snapshots.
+             */
+            ownCapture?: components["schemas"]["PublicPmCalibrationSeries"];
+        };
+        PublicPmCalibrationSeries: {
+            methodology: string;
+            minSample: number;
+            scored: ({
+                source?: string;
+                name?: string;
+                basis?: string;
+                sampleSize?: number;
+                /** @description Expected calibration error, 0-1 (lower is better). */
+                calibrationError?: number;
+                /** @description Mean probability assigned to the eventual winner, 0-1. */
+                meanWinnerConfidence?: number;
+                /** @description `ownCapture` only: median seconds between the scored capture and resolution. */
+                medianLeadSeconds?: number | null;
+                /** @description `ownCapture` only: 90th percentile of that lead. */
+                p90LeadSeconds?: number | null;
+                reliability?: ({
+                    bucket?: string;
+                    predictedMean?: number;
+                    realizedRate?: number;
+                    pairs?: number;
+                } & {
+                    [key: string]: unknown;
+                })[];
+                byYear?: ({
+                    year?: number;
+                    sampleSize?: number;
+                    calibrationError?: number;
+                    meanWinnerConfidence?: number;
+                } & {
+                    [key: string]: unknown;
+                })[];
+            } & {
+                [key: string]: unknown;
+            })[];
+        } & {
+            [key: string]: unknown;
         };
         PublicPmCanonicalListResponse: {
             data: ({
@@ -2551,6 +3316,17 @@ export interface components {
              * @example 0.0002226
              */
             currentPrice: string;
+            /**
+             * Format: date-time
+             * @description When the live price was last written; null when unknown.
+             */
+            priceUpdatedAt?: string | null;
+            /** @description Hours since the live price was last written, one decimal; null when unknown. */
+            priceAgeHours?: number | null;
+            /** @description True when the last live write is older than `priceStaleAfterHours`. The price stays in the row; treat it as a last known price. */
+            priceStale?: boolean;
+            /** @description Staleness threshold in hours (currently 72). */
+            priceStaleAfterHours?: number;
         };
         /** @description Bare array — this endpoint has no envelope, no pagination block. */
         PublicCryptoMoverList: components["schemas"]["PublicCryptoMover"][];
@@ -2674,9 +3450,15 @@ export interface components {
             /** @description Present when exporting with a runId filter. */
             run?: components["schemas"]["AgentRunEvidenceManifest"] | null;
             data?: components["schemas"]["AgentActionEvent"][];
-            /** @description Futures positions included in a filtered run export. */
+            /**
+             * @deprecated
+             * @description Not emitted by this endpoint (the futures audit export is a separate signed-in surface); always absent.
+             */
             futures?: components["schemas"]["AuditFuturesPosition"][];
-            /** @description Canonical futures mutation events for the exported positions. */
+            /**
+             * @deprecated
+             * @description Not emitted by this endpoint; always absent.
+             */
             futuresEvents?: components["schemas"]["AuditFuturesEvent"][];
         };
         AuditFuturesPosition: {
@@ -3631,7 +4413,7 @@ export interface components {
             /** @description Largest single positive realization across venues (mUSD). */
             biggestWinMusd?: number;
             /**
-             * @description Daily cumulative realized PnL (mUSD) over the last 44 days — one
+             * @description Daily cumulative realized PnL (mUSD) over the last 90 days, one
              *     point per day, oldest to newest; the LAST point always equals
              *     realizedPnlMusd. Empty for rows with no dated realizations in the
              *     window. On windowed boards (?window=7d|30d) the series covers
@@ -4296,12 +5078,14 @@ export interface components {
                 "24hUsd"?: number;
                 "7dUsd"?: number;
                 "30dUsd"?: number;
-                allTimeUsd?: number;
+                /** @description Null when no all-time baseline exists. */
+                allTimeUsd?: number | null;
                 /** @description 0..1 fraction */
                 "24hPct"?: number;
                 "7dPct"?: number;
                 "30dPct"?: number;
-                allTimePct?: number;
+                /** @description 0..1 fraction; null when no all-time baseline exists. */
+                allTimePct?: number | null;
             };
             /** @description Open (resting) spot orders, same projection as the dashboard. */
             openOrders?: {
@@ -4882,7 +5666,10 @@ export interface components {
             result?: "abstained" | "quoted" | "rejected";
             /** @description Present and true only when an existing (apiKey, decisionId) artifact was returned instead of a new insert. */
             idempotentReplay?: boolean;
-            /** @description Optional normalized one-line thesis attached to the opportunity. */
+            /**
+             * @deprecated
+             * @description Not returned by this endpoint; always absent.
+             */
             thesis?: string | null;
         };
         PmPositionEnvelope: {
@@ -5039,6 +5826,1176 @@ export interface components {
                 nearResolution?: boolean;
             };
         };
+        /** @description Error body of the keyless `/api/market/*` reads. */
+        PublicMessageError: {
+            message: string;
+        };
+        /**
+         * @description Freshness of an upstream dataset CoinRithm re-reads on a schedule.
+         *     `stale` data is still served inside its documented maximum age;
+         *     `unavailable` means no usable copy, never zero or empty truth.
+         * @enum {string}
+         */
+        PublicDataStatus: "fresh" | "stale" | "unavailable";
+        PublicFreshUntilMeta: {
+            /**
+             * Format: date-time
+             * @description Instant until which shared caches may reuse this response.
+             */
+            freshUntil: string;
+        };
+        PublicMarketFeedVenue: {
+            venue: string;
+            name: string;
+            /** Format: uri */
+            url: string;
+            /** @description The venue's public feed the collector reads. */
+            feed: string;
+            /** @description Venue-specific coverage limitation, when published. */
+            note?: string;
+        };
+        PublicMarketFeedSource: {
+            provider: string;
+            venues: components["schemas"]["PublicMarketFeedVenue"][];
+            /** @description How rows are selected and valued. */
+            method: string;
+            /** @description Which markets are collected, and the gap caveat. */
+            coverage?: string;
+        };
+        PublicLargeTradesFilters: {
+            /** @description Canonical symbol or base filter applied, or null. */
+            symbol: string | null;
+            venue: string | null;
+            assetClass: string | null;
+            limit: number;
+        };
+        PublicLargeTradeLinks: {
+            /**
+             * Format: uri
+             * @description The venue's market page.
+             */
+            market: string;
+            /** @description Explorer page of the buyer address (Hyperliquid only). */
+            buyer: string | null;
+            /** @description Explorer page of the seller address (Hyperliquid only). */
+            seller: string | null;
+            /** @description Explorer page of the transaction (Hyperliquid only). */
+            tx: string | null;
+        };
+        PublicLargeTrade: {
+            /** @description Opaque stable row id (`venue:symbol:tradeId`). */
+            id: string;
+            /** @description `binance` or `hyperliquid`. */
+            venue: string;
+            /** @description Venue symbol, e.g. `BTCUSDT` or the Hyperliquid HIP-3 market `xyz:TSLA`. */
+            symbol: string;
+            base: string;
+            /** @description Best-effort label; currently crypto, equity, commodity, fx or index. */
+            assetClass: string;
+            /** @description Taker side: `buy` or `sell`. */
+            side: string;
+            /** @description Average fill price in the quote stablecoin. */
+            price: number;
+            /** @description Size in base units. */
+            qty: number;
+            /** @description Notional in the venue's quote stablecoin (USDT/USDC). */
+            notionalUsd: number;
+            /** @description Venue fills merged into this row. */
+            fills: number;
+            /** @description The notional floor this market's prints must reach to be listed. */
+            thresholdUsd: number;
+            /**
+             * Format: date-time
+             * @description Venue trade time.
+             */
+            tradeTime: string;
+            /**
+             * Format: date-time
+             * @description When CoinRithm stored the row.
+             */
+            ingestedAt: string;
+            /** @description Buyer address when the venue publishes it (Hyperliquid), else null. */
+            buyer: string | null;
+            /** @description Seller address when the venue publishes it (Hyperliquid), else null. */
+            seller: string | null;
+            links: components["schemas"]["PublicLargeTradeLinks"];
+        };
+        PublicLargeTradesResponse: {
+            /** @description Response schema version (1). */
+            version: number;
+            /** Format: date-time */
+            generatedAt: string;
+            filters: components["schemas"]["PublicLargeTradesFilters"];
+            count: number;
+            /** @description Newest first. */
+            items: components["schemas"]["PublicLargeTrade"][];
+            source: components["schemas"]["PublicMarketFeedSource"];
+        };
+        PublicLiquidationsWindow: {
+            /** Format: date-time */
+            from: string;
+            /** Format: date-time */
+            to: string;
+            hours: number;
+        };
+        /** @description Captured liquidation sums in USD (rounded to whole dollars) and event counts. */
+        PublicLiquidationTotals: {
+            longUsd: number;
+            shortUsd: number;
+            totalUsd: number;
+            longEvents: number;
+            shortEvents: number;
+            events: number;
+        };
+        PublicLiquidationVenueSummary: {
+            /** @description `binance` or `okx`. */
+            venue: string;
+            longUsd: number;
+            shortUsd: number;
+            totalUsd: number;
+            longEvents: number;
+            shortEvents: number;
+            events: number;
+            instIds: string[];
+            /**
+             * @description Lower bound of capture uptime for the window, 0-100. Null when no
+             *     capture was recorded: a gap, never evidence of no liquidations.
+             */
+            capturedPct: number | null;
+            /** Format: date-time */
+            lastEventAt: string | null;
+        };
+        PublicLiquidationEvent: {
+            venue: string;
+            /** @description Venue instrument id, e.g. `BTCUSDT` or `XAU-USDT-SWAP`. */
+            instId: string;
+            /** Format: date-time */
+            eventAt: string;
+            /** @description `long` (a long was liquidated, a forced sell) or `short`. */
+            liquidatedSide: string;
+            /** @description Size in venue contract units. */
+            contracts: number;
+            /** @description OKX bankruptcy price; Binance liquidation order price. */
+            price: number;
+            /** @description Notional in USDT, rounded to cents. */
+            notionalUsd: number;
+            /** Format: uri */
+            marketUrl: string;
+        };
+        PublicLiquidationsResponse: {
+            version: number;
+            /** Format: date-time */
+            generatedAt: string;
+            base: string;
+            /** @description The venue filter applied, or null for every captured venue. */
+            venue: string | null;
+            window: components["schemas"]["PublicLiquidationsWindow"];
+            totals: components["schemas"]["PublicLiquidationTotals"];
+            /** @description One entry per venue with captured events in the window. */
+            venues: components["schemas"]["PublicLiquidationVenueSummary"][];
+            /** @description Largest events by notional. */
+            biggest: components["schemas"]["PublicLiquidationEvent"][];
+            /** @description Most recent events. */
+            latest: components["schemas"]["PublicLiquidationEvent"][];
+            /** @description True when the row cap was reached; totals are then a lower bound. */
+            truncated: boolean;
+            source: components["schemas"]["PublicMarketFeedSource"];
+        };
+        /** @description Keep this attribution next to any display of the data. */
+        PublicCoinGeckoAttribution: {
+            name: string;
+            /** Format: uri */
+            url: string;
+            attribution: string;
+        };
+        PublicCryptoTreasuryCompany: {
+            name: string;
+            /** @description Upstream listing symbol such as `MSTR.US` or `3350.T`; null when unlisted upstream. */
+            symbol: string | null;
+            /** @description ISO 3166-1 alpha-2 code, or null. */
+            country: string | null;
+            /** @description Coins held. */
+            holdings: number;
+            /** @description Current value of the holding in USD. */
+            valueUsd: number;
+            /** @description Percent of the coin's total supply. */
+            pctOfSupply: number;
+            /** @description CoinRithm TradFi reference ticker for US listings in the catalog, else null. */
+            tradfiTicker: string | null;
+        };
+        PublicCryptoTreasuryResponse: {
+            /** @description Canonical coin id (`bitcoin`, `ethereum`, `solana`, `binancecoin`). */
+            coin: string;
+            status: components["schemas"]["PublicDataStatus"];
+            totalHoldings: number | null;
+            totalValueUsd: number | null;
+            /** @description Largest holding first; former holders with zero balance are excluded. */
+            companies: components["schemas"]["PublicCryptoTreasuryCompany"][];
+            /**
+             * Format: date-time
+             * @description When CoinRithm read the upstream list.
+             */
+            asOf: string | null;
+            source: components["schemas"]["PublicCoinGeckoAttribution"];
+            meta: components["schemas"]["PublicFreshUntilMeta"];
+        };
+        PublicTickerTreasuryHolding: {
+            coin: string;
+            holdings: number;
+            valueUsd: number;
+            pctOfSupply: number;
+        };
+        PublicTickerTreasury: {
+            name: string;
+            symbol: string | null;
+            country: string | null;
+            holdings: components["schemas"]["PublicTickerTreasuryHolding"][];
+        };
+        PublicTickerTreasuryResponse: {
+            ticker: string;
+            status: components["schemas"]["PublicDataStatus"];
+            treasury: components["schemas"]["PublicTickerTreasury"] | null;
+            /**
+             * Format: date-time
+             * @description Oldest upstream read among the coin datasets used.
+             */
+            asOf: string | null;
+            source: components["schemas"]["PublicCoinGeckoAttribution"];
+            meta: components["schemas"]["PublicFreshUntilMeta"];
+        };
+        PublicSecInsiderReporter: {
+            /** @description First reporting person on the form. */
+            name: string;
+            cik: number | null;
+            /** @description Joint filers on the same Form 4. */
+            count: number;
+            /** @description Display summary such as `Director, Chief Executive Officer`. */
+            relationship: string;
+            isDirector: boolean;
+            isOfficer: boolean;
+            isTenPercentOwner: boolean;
+            isOther: boolean;
+            officerTitle: string | null;
+        };
+        PublicSecInsiderTransaction: {
+            accessionNumber: string;
+            /**
+             * Format: uri
+             * @description SEC rendering of the original Form 4.
+             */
+            filingUrl: string;
+            /**
+             * Format: uri
+             * @description EDGAR filing index.
+             */
+            filingIndexUrl: string;
+            /** @description EDGAR filing date, `YYYY-MM-DD`. */
+            filedAt: string;
+            /** @description Trade date, `YYYY-MM-DD`. */
+            transactionDate: string;
+            reporter: components["schemas"]["PublicSecInsiderReporter"];
+            securityTitle: string;
+            /** @description Form 4 transaction code, e.g. `P`, `S`, `A`, `M`. */
+            code: string;
+            codeLabel: string;
+            /** @description Code `P` or `S`. */
+            isOpenMarket: boolean;
+            /** @description `A` (acquired) or `D` (disposed), or null. */
+            acquiredDisposed: string | null;
+            shares: number | null;
+            pricePerShare: number | null;
+            valueUsd: number | null;
+            sharesOwnedAfter: number | null;
+            /** @description `direct` or `indirect`, or null. */
+            ownership: string | null;
+            /** @description Reported under a Rule 10b5-1 plan; null when the form predates that checkbox. */
+            is10b5One: boolean | null;
+        };
+        PublicSecFilingsSource: {
+            name: string;
+            /** Format: uri */
+            url: string;
+            publisher: string;
+            forms: string[];
+            /** @description EDGAR list of this issuer's Form 4 filings, when known. */
+            issuerFilingsUrl: string | null;
+            note: string;
+        };
+        PublicSecFilingsResponse: {
+            version: number;
+            /** Format: date-time */
+            generatedAt: string;
+            ticker: string;
+            name: string;
+            /** @enum {string} */
+            coverage: "available" | "none_recorded" | "not_applicable";
+            /** @description Up to 50 latest non-derivative transactions of every code. */
+            insiderTransactions: components["schemas"]["PublicSecInsiderTransaction"][];
+            /** @description Up to 20 latest open-market purchases and sales. */
+            openMarketTransactions: components["schemas"]["PublicSecInsiderTransaction"][];
+            source: components["schemas"]["PublicSecFilingsSource"];
+        };
+        PublicCftcContract: {
+            /** @description CFTC contract market code. */
+            code: string;
+            /** @description Market and exchange name as CFTC publishes it. */
+            market: string;
+            exchange: string;
+            /** @description Contract units as CFTC publishes them. */
+            units: string | null;
+        };
+        PublicCftcSide: {
+            long: number;
+            short: number;
+            /** @description Long minus short, in contracts. */
+            net: number;
+        };
+        PublicCftcNonCommercialSide: {
+            long: number;
+            short: number;
+            net: number;
+            spreading: number | null;
+        };
+        /** @description Week-over-week changes as computed by CFTC; null when not published. */
+        PublicCftcChange: {
+            openInterest: number | null;
+            nonCommercialNet: number | null;
+            commercialNet: number | null;
+        };
+        PublicCftcReport: {
+            /** @description Tuesday the positions are as of, `YYYY-MM-DD`. */
+            reportDate: string;
+            openInterest: number;
+            nonCommercial: components["schemas"]["PublicCftcNonCommercialSide"];
+            commercial: components["schemas"]["PublicCftcSide"];
+            nonReportable: components["schemas"]["PublicCftcSide"] | null;
+            change: components["schemas"]["PublicCftcChange"];
+        };
+        PublicCftcSource: {
+            name: string;
+            /** Format: uri */
+            url: string;
+            publisher: string;
+            dataset: string;
+            /** Format: uri */
+            datasetUrl: string;
+            note: string;
+        };
+        PublicCftcPositioningResponse: {
+            ticker: string;
+            /** @enum {string} */
+            coverage: "available" | "not_applicable";
+            status: components["schemas"]["PublicDataStatus"];
+            contract: components["schemas"]["PublicCftcContract"] | null;
+            /** @description Up to 12 weekly reports, newest first. */
+            reports: components["schemas"]["PublicCftcReport"][];
+            /**
+             * Format: date-time
+             * @description When CoinRithm last read the report from CFTC.
+             */
+            asOf: string | null;
+            source: components["schemas"]["PublicCftcSource"];
+            meta: components["schemas"]["PublicFreshUntilMeta"];
+        };
+        PublicTradfiReferenceMethodology: {
+            basis: string;
+            aggregation: string;
+            minimumVenueCount: number;
+            maxVenueSpreadPct: number;
+            collectionIntervalSeconds: number;
+            freshnessThresholdSeconds: number;
+            retentionDays: number;
+            /** @description A `live` value older than this is not served. */
+            liveMaxAgeSeconds: number;
+        };
+        /** @description The index denomination is deliberately not inferred; `status` is `unverified`. */
+        PublicTradfiReferenceUnit: {
+            status: string;
+            currency: string | null;
+            per: string | null;
+        };
+        PublicTradfiReferenceLeverage: {
+            /** @description Daily target multiple of the underlying's return; negative means inverse. */
+            factor: number;
+            underlying: string;
+        };
+        /** @description Home-market listing of an instrument quoted outside the US. */
+        PublicTradfiReferenceHomeListing: {
+            /** @description `KRX` or `HKEX`. */
+            exchange: string;
+            /** @description `KRW` or `HKD`. */
+            currency: string;
+            /** @description Home-market code without the exchange suffix. */
+            code: string;
+        };
+        PublicTradfiReferenceInstrument: {
+            ticker: string;
+            name: string;
+            /** @description Currently equity, etf, metal, commodity or fx. */
+            assetClass: string;
+            unit: components["schemas"]["PublicTradfiReferenceUnit"];
+            /** @description Contract quote asset (`USDT`). */
+            venueQuoteAsset: string;
+            /** @description Fund issuer, set for leveraged or inverse ETFs. */
+            issuer: string | null;
+            leverage: components["schemas"]["PublicTradfiReferenceLeverage"] | null;
+            homeListing: components["schemas"]["PublicTradfiReferenceHomeListing"] | null;
+        };
+        PublicTradfiReferenceFreshness: {
+            status: components["schemas"]["PublicDataStatus"];
+            /** @description `collection`: CoinRithm's batch collection time, not a venue quote time. */
+            basis: string;
+            /** Format: date-time */
+            asOf: string | null;
+            ageSeconds: number | null;
+            /** Format: date-time */
+            staleAt: string | null;
+        };
+        PublicTradfiReferenceSnapshotSummary: {
+            /**
+             * Format: date-time
+             * @description Start of the 15-minute collection bucket.
+             */
+            bucketStart: string;
+            /**
+             * Format: date-time
+             * @description Batch collection completion, not a venue quote time.
+             */
+            fetchedAt: string;
+            /** @description Median of the venue index prices, in USDT. */
+            consensusPrice: number;
+            minPrice: number;
+            maxPrice: number;
+            /** @description Difference between venue index prices in percent, not a bid/ask spread. */
+            venueSpreadPct: number;
+            venueCount: number;
+        };
+        PublicTradfiReferenceVenueQuote: {
+            /** @description `binance`, `bybit` or `gate`. */
+            venue: string;
+            symbol: string;
+            /** @description The venue's own instrument label. */
+            label: string;
+            assetClass: string;
+            indexPrice: number;
+            /**
+             * Format: date-time
+             * @description Venue observation time; currently always null (not recorded).
+             */
+            sourceObservedAt: string | null;
+        };
+        PublicTradfiReferenceSnapshot: {
+            /** Format: date-time */
+            bucketStart: string;
+            /** Format: date-time */
+            fetchedAt: string;
+            consensusPrice: number;
+            minPrice: number;
+            maxPrice: number;
+            venueSpreadPct: number;
+            venueCount: number;
+            venues: components["schemas"]["PublicTradfiReferenceVenueQuote"][];
+        };
+        /** @description Change against a validated recorded snapshot at the comparison time (within 30 minutes); never interpolated. */
+        PublicTradfiReferenceChange: {
+            pct: number;
+            referencePrice: number;
+            /** Format: date-time */
+            referenceBucketStart: string;
+        };
+        /** @description Low and high of validated recorded medians in the 24 hours ending at `latest`. */
+        PublicTradfiReferenceRange: {
+            low: number;
+            high: number;
+            observations: number;
+        };
+        PublicTradfiReferenceLiveVenue: {
+            venue: string;
+            indexPrice: number;
+        };
+        /**
+         * @description Near-real-time consensus with the same method as `latest`, republished
+         *     about every 10 seconds. Null when the overlay is off or unavailable,
+         *     fails validation, or is older than `liveMaxAgeSeconds`; `latest` and
+         *     every derived field are unaffected by it.
+         */
+        PublicTradfiReferenceLive: {
+            price: number;
+            minPrice: number;
+            maxPrice: number;
+            venueSpreadPct: number;
+            venueCount: number;
+            venues: components["schemas"]["PublicTradfiReferenceLiveVenue"][];
+            /**
+             * Format: date-time
+             * @description Oldest venue read inside this consensus, the honest age of the price.
+             */
+            sourceAt: string;
+            ageSeconds: number;
+            /** @description Live price against the same reference as `change24h`. */
+            change24hPct: number | null;
+        };
+        PublicTradfiReferenceCatalogItem: {
+            instrument: components["schemas"]["PublicTradfiReferenceInstrument"];
+            /** @description `available` or `unavailable`. */
+            availability: string;
+            freshness: components["schemas"]["PublicTradfiReferenceFreshness"];
+            latest: components["schemas"]["PublicTradfiReferenceSnapshotSummary"] | null;
+            change24h: components["schemas"]["PublicTradfiReferenceChange"] | null;
+            change7d: components["schemas"]["PublicTradfiReferenceChange"] | null;
+            range24h: components["schemas"]["PublicTradfiReferenceRange"] | null;
+            /**
+             * @description Last validated median of each 3-hour UTC block over the 7 days
+             *     ending at `latest`, oldest first, rounded to 5 significant
+             *     digits; blocks without a validated row are skipped.
+             */
+            spark7d: number[];
+            /** @description Venues that contributed to `latest`. */
+            latestVenues: string[];
+            live: components["schemas"]["PublicTradfiReferenceLive"] | null;
+        };
+        PublicTradfiReferenceCatalog: {
+            version: number;
+            /**
+             * Format: date-time
+             * @description Original payload creation time, retained on a cache hit.
+             */
+            generatedAt: string;
+            methodology: components["schemas"]["PublicTradfiReferenceMethodology"];
+            count: number;
+            items: components["schemas"]["PublicTradfiReferenceCatalogItem"][];
+        };
+        PublicTradfiReferenceHistoryWindow: {
+            /** @description `24h` or `7d`. */
+            window: string;
+            /** Format: date-time */
+            from: string;
+            /** Format: date-time */
+            to: string;
+            intervalSeconds: number;
+        };
+        PublicTradfiReferenceDetail: {
+            version: number;
+            /** Format: date-time */
+            generatedAt: string;
+            methodology: components["schemas"]["PublicTradfiReferenceMethodology"];
+            instrument: components["schemas"]["PublicTradfiReferenceInstrument"];
+            /** @description `available` or `unavailable`. */
+            availability: string;
+            freshness: components["schemas"]["PublicTradfiReferenceFreshness"];
+            latest: components["schemas"]["PublicTradfiReferenceSnapshot"] | null;
+            change24h: components["schemas"]["PublicTradfiReferenceChange"] | null;
+            change7d: components["schemas"]["PublicTradfiReferenceChange"] | null;
+            range24h: components["schemas"]["PublicTradfiReferenceRange"] | null;
+            live: components["schemas"]["PublicTradfiReferenceLive"] | null;
+            /** @description Recorded 15-minute snapshots in the window, oldest first. */
+            history: components["schemas"]["PublicTradfiReferenceSnapshot"][];
+            historyWindow: components["schemas"]["PublicTradfiReferenceHistoryWindow"];
+        };
+        SpotReferenceResponse: {
+            /** @constant */
+            version: 1;
+            /** @example binance_spot_reference_v1 */
+            policyVersion: string;
+            coin: {
+                coinId: string;
+                symbol: string;
+                name: string;
+            };
+            /**
+             * Format: date-time
+             * @description Server time at which ages and expiries were checked (after all I/O).
+             */
+            evaluatedAt: string;
+            /** @constant */
+            referenceOnly: true;
+            /**
+             * @description `binance_stream` when `stream.observation` is present, else
+             *     `rest_consensus` when a stored price exists, else null. A
+             *     preference between two values in different units, not a
+             *     conversion or an executable price.
+             * @enum {string|null}
+             */
+            preferredSource: "binance_stream" | "rest_consensus" | null;
+            stream: components["schemas"]["SpotReferenceStream"];
+            fallback: components["schemas"]["SpotReferenceFallback"];
+            verification: {
+                /**
+                 * Format: date-time
+                 * @description Database statement time of the coin/mapping/policy read.
+                 */
+                identityCheckedAt: string;
+                /** Format: date-time */
+                mappingUpdatedAt: string | null;
+                /** Format: date-time */
+                policyUpdatedAt: string | null;
+                /** @description Enabled per-coin source policy mode (`allow` / `deny`), null when none. */
+                policyMode: string | null;
+            };
+        } & {
+            [key: string]: unknown;
+        };
+        SpotReferenceStream: {
+            /** @enum {string} */
+            status: "available" | "unavailable";
+            /**
+             * @description null when available. Otherwise one code: `inactive_coin`,
+             *     `mapping_unavailable`, `mapping_ambiguous`, `mapping_suppressed`,
+             *     `policy_denied`, `clock_regression`, `disabled`,
+             *     `redis_unavailable`, `missing`, `invalid_snapshot`,
+             *     `disconnected`, `expired_snapshot`, `expired_metadata`,
+             *     `symbol_not_captured`, `identity_mismatch`, `expired_observation`.
+             *     Treat unknown codes as unavailable.
+             */
+            reason: string | null;
+            observation: components["schemas"]["SpotReferenceObservation"] | null;
+        };
+        SpotReferenceObservation: {
+            /** @constant */
+            venue: "binance";
+            /** @constant */
+            market: "spot";
+            /**
+             * @description Last price of Binance's rolling 24h ticker, not a last-trade receipt.
+             * @constant
+             */
+            basis: "24h_ticker_last";
+            /** @example BTCUSDT */
+            pair: string;
+            base: string;
+            /** @constant */
+            quoteCurrency: "USDT";
+            /** @description Price in USDT (not USD). */
+            price: number;
+            /** @description 24h quote volume in USDT. */
+            quoteVolume24h: number;
+            /**
+             * Format: date-time
+             * @description Venue event time of the ticker.
+             */
+            eventAt: string;
+            /**
+             * Format: date-time
+             * @description Close of the venue's 24h statistics window.
+             */
+            statisticsCloseAt: string;
+            /**
+             * Format: date-time
+             * @description When CoinRithm received the ticker.
+             */
+            receivedAt: string;
+            /** @description Not available from this feed; always null. */
+            lastTradeAt: null;
+            /**
+             * Format: date-time
+             * @description When CoinRithm last saw this price change.
+             */
+            localPriceChangedAt: string;
+            /**
+             * Format: date-time
+             * @description When the snapshot holding this ticker was written.
+             */
+            capturedAt: string;
+            /**
+             * Format: date-time
+             * @description Earliest instant at which any input passes its age limit (10 s per stamp, 10 min for universe metadata).
+             */
+            expiresAt: string;
+            /** Format: date-time */
+            universeVerifiedAt: string;
+            /** @description Provenance of the collector's pair cohort. */
+            universeRevision: string;
+            connectionGeneration: number;
+        } & {
+            [key: string]: unknown;
+        };
+        SpotReferenceFallback: {
+            /** @constant */
+            basis: "stored_rest_consensus";
+            /** @constant */
+            currency: "USD";
+            /**
+             * @description fresh = stored row written at most 120 s before evaluatedAt; unavailable = no positive stored price.
+             * @enum {string}
+             */
+            status: "fresh" | "stale" | "unavailable";
+            priceUsd: number | null;
+            priceTiming: components["schemas"]["SpotPriceTiming"];
+            /**
+             * Format: date-time
+             * @description Row write time + 120 s; null when there is no row.
+             */
+            expiresAt: string | null;
+        };
+        AgentUniverseRow: {
+            /** @description Coin UCID */
+            ucid: string;
+            symbol: string;
+            name: string;
+            slug: string;
+            marketCapRank: number;
+            priceUsd: number;
+            /** @description Percent change. */
+            change1h: number | null;
+            /** @description Percent change. */
+            change24h: number | null;
+            /** @description Percent change. */
+            change7d: number | null;
+            volume24hUsd: number;
+            marketCapUsd: number | null;
+            /**
+             * Format: date-time
+             * @description Last write of the coin's live price row.
+             */
+            priceUpdatedAt: string;
+            /** @description Curated sector/ecosystem ids the coin belongs to (may be empty). */
+            sectors: string[];
+            /** @description Hours since priceUpdatedAt, one decimal, computed when the response was built. */
+            priceAgeHours: number | null;
+            priceStale: boolean;
+            /** @example 72 */
+            priceStaleAfterHours: number;
+        } & {
+            [key: string]: unknown;
+        };
+        AgentUniverseResponse: {
+            rows: components["schemas"]["AgentUniverseRow"][];
+            observation: components["schemas"]["AgentObservation"];
+        } & {
+            [key: string]: unknown;
+        };
+        AgentUniverseValidationError: {
+            /** @example Invalid query parameters */
+            error: string;
+            /** @description Validation issues (path, message); informational. */
+            details?: {
+                [key: string]: unknown;
+            }[];
+        };
+        AgentUniverseSector: {
+            /**
+             * @example defi
+             * @example eco-solana
+             */
+            id: string;
+            label: string;
+            /** @enum {string} */
+            kind: "sector" | "ecosystem";
+            /**
+             * @description Ecosystems only; primary entries lead the picker.
+             * @enum {string}
+             */
+            tier?: "primary" | "secondary";
+            coinCount: number;
+        };
+        AgentUniverseSectorsResponse: {
+            sectors: components["schemas"]["AgentUniverseSector"][];
+        } & {
+            [key: string]: unknown;
+        };
+        PmPaperV2NativeMarket: {
+            /** @enum {string} */
+            venue: "polymarket" | "kalshi";
+            /**
+             * @description Venue market key independent of side and token: `polymarket:<conditionId,
+             *     lowercased>` or `kalshi:<ticker>`. One open v2 position per key
+             *     per wallet (`duplicate_native_market`).
+             */
+            key: string;
+        };
+        PmPaperV2DiscoveryOutcome: components["schemas"]["PmDiscoveryOutcome"] & {
+            nativeMarket: components["schemas"]["PmPaperV2NativeMarket"];
+            /**
+             * Format: date-time
+             * @description Stored venue scheduled end (UTC); null when absent or invalid.
+             */
+            nativeEndAt: string | null;
+            /** @enum {string} */
+            nativeEndBasis: "gamma_market_endDate" | "kalshi_market_close_time";
+            /**
+             * @description A scheduled end is not an observed settlement time.
+             * @constant
+             */
+            settlementTimeKnown: false;
+        };
+        PmPaperV2DiscoveryMarket: components["schemas"]["PmDiscoveryMarket"] & {
+            outcomes?: components["schemas"]["PmPaperV2DiscoveryOutcome"][];
+        };
+        PmPaperV2DiscoveryResponse: {
+            /** @constant */
+            executionModel: "pm_paper_v2";
+            data: components["schemas"]["PmPaperV2DiscoveryMarket"][];
+            /** @description Page of the unfiltered event list (offset is always 0). */
+            pagination: {
+                limit?: number;
+                /** @constant */
+                offset?: 0;
+                hasMore?: boolean;
+            };
+            meta: {
+                /** @constant */
+                source?: "all";
+                sources?: ("kalshi" | "polymarket")[];
+                sourceHealth?: {
+                    slug?: string;
+                    /** Format: date-time */
+                    lastIngestAt?: string | null;
+                    ingestAgeSeconds?: number | null;
+                    /** @enum {string} */
+                    status?: "fresh" | "stale" | "never_ingested";
+                }[];
+                /** @constant */
+                sort?: "best";
+                q?: string | null;
+                /** @description The house's scheduled-end horizon in days; null = no horizon filter. */
+                maxEndDays: number | null;
+                /** @constant */
+                nativeIdentityBasis: "stored_exact_selected_market";
+                /** @constant */
+                horizonBasis: "scheduled_native_end_not_settlement_guarantee";
+                /** Format: date-time */
+                evaluatedAt: string;
+                boundedSelection: {
+                    requestedEventLimit: number;
+                    eventsBefore: number;
+                    outcomesBefore: number;
+                    eventsAfter: number;
+                    outcomesAfter: number;
+                    /**
+                     * @description Outcomes removed, counted by reason:
+                     *     `native_identity_unavailable`, `unsupported_terminal_contract`,
+                     *     `native_maturity_unknown`, `native_maturity_expired`,
+                     *     `native_maturity_beyond_horizon`.
+                     */
+                    excluded: {
+                        [key: string]: number;
+                    };
+                    /**
+                     * @description The list is a bounded sample, not every eligible market.
+                     * @constant
+                     */
+                    allMarketCoverage: false;
+                };
+                note: string;
+            } & {
+                [key: string]: unknown;
+            };
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * @description Any field not listed here (e.g. `stakeMusd`, `agentTrace`,
+         *     `provenance`) returns 400. Decimal fields are strings matching
+         *     `^(0|[1-9]\d*)(\.\d+)?$` (at most 40 characters, 18 decimals).
+         */
+        PmPaperV2OpenReplayRequest: {
+            /** @enum {string} */
+            source: "polymarket" | "kalshi";
+            /** @description Event slug (matched case-insensitively). */
+            slug: string;
+            /** @description Case-sensitive outcome id from v2 discovery. */
+            outcomeExternalMarketId: string;
+            /**
+             * @description Required. `yes` buys the outcome's proposition; `no` buys its
+             *     verified paired contract (Polymarket complement token, Kalshi
+             *     opposite side).
+             * @enum {string}
+             */
+            side: "yes" | "no";
+            /** @description Maximum fee-inclusive cash debit in paper mUSD, 10 to 1000000 inclusive. Unused budget stays available. */
+            maxCashBudget: string;
+            /** @description Globally unique per entry intent (include a UUID). Other formats are refused with `invalid_entry_request`. */
+            idempotencyKey: string;
+            /**
+             * @description Your probability that the BOUGHT side pays out, as a decimal
+             *     string. A value below 1 is read as a fraction (`"0.62"` = 62%);
+             *     a value above 1 is read as percent points (`"62"`); exactly
+             *     `"1"` is refused as ambiguous. The resulting percent must be
+             *     strictly between 0 and 100. Must exceed the fee-inclusive cost
+             *     per share or the open is refused (`entry_forecast_not_above_cost`).
+             */
+            forecastProbability?: string | null;
+            /**
+             * @description Optional floor, in percentage points 0-100 inclusive (no
+             *     fraction reading), on the acquired pre-fee average price per
+             *     share; below it the open is refused (`entry_probability_below_floor`).
+             */
+            minEntryProbabilityPct?: string | null;
+            /** @description Optional one-line thesis; no control characters. */
+            thesis?: string | null;
+        };
+        /**
+         * @description Any field not listed here (e.g. `stakeMusd`, `agentTrace`,
+         *     `provenance`) returns 400. Decimal fields are strings matching
+         *     `^(0|[1-9]\d*)(\.\d+)?$` (at most 40 characters, 18 decimals).
+         */
+        PmPaperV2OpenRequest: {
+            /** @enum {string} */
+            source: "polymarket" | "kalshi";
+            /** @description Event slug (matched case-insensitively). */
+            slug: string;
+            /** @description Case-sensitive outcome id from v2 discovery. */
+            outcomeExternalMarketId: string;
+            /**
+             * @description Required. `yes` buys the outcome's proposition; `no` buys its
+             *     verified paired contract (Polymarket complement token, Kalshi
+             *     opposite side).
+             * @enum {string}
+             */
+            side: "yes" | "no";
+            /** @description Maximum fee-inclusive cash debit in paper mUSD, 10 to 1000000 inclusive. Unused budget stays available. */
+            maxCashBudget: string;
+            /** @description Globally unique per entry intent (include a UUID). Other formats are refused with `invalid_entry_request`. */
+            idempotencyKey: string;
+            /**
+             * @description Required on API-key opens (missing returns 422
+             *     `forecast_required`). Your probability that the BOUGHT side
+             *     pays out, as a decimal string. A value below 1 is read as a fraction (`"0.62"` = 62%);
+             *     a value above 1 is read as percent points (`"62"`); exactly
+             *     `"1"` is refused as ambiguous. The resulting percent must be
+             *     strictly between 0 and 100. Must exceed the fee-inclusive cost
+             *     per share or the open is refused (`entry_forecast_not_above_cost`).
+             */
+            forecastProbability: string;
+            /**
+             * @description Optional floor, in percentage points 0-100 inclusive (no
+             *     fraction reading), on the acquired pre-fee average price per
+             *     share; below it the open is refused (`entry_probability_below_floor`).
+             */
+            minEntryProbabilityPct?: string | null;
+            /** @description Optional one-line thesis; no control characters. */
+            thesis?: string | null;
+        };
+        PmPaperV2Opened: {
+            /** @constant */
+            executionModel: "pm_paper_v2";
+            /** @constant */
+            accepted: true;
+            /** @constant */
+            executed: true;
+            /** @constant */
+            kind: "opened";
+            positionId: number;
+            /** @description True when an existing position for this idempotencyKey was returned. */
+            replayed: boolean;
+        } & {
+            [key: string]: unknown;
+        };
+        PmPaperV2Refused: {
+            /** @constant */
+            executionModel: "pm_paper_v2";
+            /** @constant */
+            accepted: false;
+            /** @constant */
+            executed: false;
+            /** @constant */
+            kind: "refused";
+            /** @description One refusal code, or several comma-joined gate codes. See the operation description. */
+            reason: string;
+            /**
+             * @description Replay endpoint only, with HTTP 404 and `reason: no_existing_receipt`.
+             * @constant
+             */
+            replayMissing?: true;
+        } & {
+            [key: string]: unknown;
+        };
+        /** @description Shape-check (400) or runtime (503) failure of a pm_paper_v2 write; no `kind` field. */
+        PmPaperV2Failure: {
+            /** @constant */
+            executionModel: "pm_paper_v2";
+            /** @constant */
+            accepted: false;
+            /** @constant */
+            executed: false;
+            /**
+             * @example invalid_request
+             * @example pm_runtime_unavailable
+             * @example exit_request_unavailable
+             */
+            reason: string;
+        } & {
+            [key: string]: unknown;
+        };
+        PmPaperV2CloseRequest: {
+            /** @description A pm_paper_v2 position id owned by the calling key (JSON integer, not a string). */
+            positionId: number;
+            /** @description Globally unique per close intent. */
+            idempotencyKey: string;
+            /** @description Optional free-text note stored with the request; no control characters. */
+            detail?: string | null;
+        };
+        /**
+         * @description pending/retry = waiting for the worker; leased = being executed;
+         *     manual_attention = held for operator review; filled = closed;
+         *     cancelled = withdrawn.
+         * @enum {string}
+         */
+        PmPaperV2ExitStatus: "pending" | "leased" | "retry" | "manual_attention" | "filled" | "cancelled";
+        PmPaperV2CloseResult: {
+            /** @constant */
+            executionModel: "pm_paper_v2";
+            /** @description True when an active or filled exit intent exists for the request. */
+            accepted: boolean;
+            /** @description True only when the intent is `filled`. */
+            executed: boolean;
+            /** @enum {string} */
+            kind: "accepted" | "cancelled" | "invalid" | "not_found" | "not_v2" | "not_open" | "conflict";
+            /** @description accepted / cancelled only */
+            positionId?: number;
+            /** @description accepted / cancelled only. */
+            intent?: {
+                /** Format: uuid */
+                id: string;
+                status: components["schemas"]["PmPaperV2ExitStatus"];
+            };
+            /** @description accepted / cancelled only. True when this idempotencyKey was already recorded. */
+            replayed?: boolean;
+        } & {
+            [key: string]: unknown;
+        };
+        PmPaperV2NativeIdentity: {
+            /** @constant */
+            venue: "polymarket";
+            /** @description Condition id. */
+            market: string;
+            /** @description The exact token bought. */
+            tokenId: string;
+        } | {
+            /** @constant */
+            venue: "kalshi";
+            requestedTicker: string;
+            /**
+             * @description Native Kalshi side bought.
+             * @enum {string}
+             */
+            side: "yes" | "no";
+        };
+        PmPaperV2Position: {
+            id: number;
+            apiKeyId: number;
+            /** @enum {string} */
+            source: "polymarket" | "kalshi";
+            slug: string;
+            title: string;
+            outcomeExternalMarketId: string;
+            /** @enum {string} */
+            side: "yes" | "no";
+            /** @enum {string} */
+            status: "open" | "closed_sold" | "settled_win" | "settled_loss";
+            /** Format: date-time */
+            openedAt: string;
+            /**
+             * Format: date-time
+             * @description Set only when accountingStatus is `settled`.
+             */
+            settledAt: string | null;
+            /**
+             * @description pending = status is no longer open but the terminal record is not yet complete.
+             * @enum {string}
+             */
+            accountingStatus: "open" | "pending" | "settled";
+            /** @description Shares x 100. */
+            quantityUnits2: string;
+            /** @description Cash debited at entry, mUSD x 1,000,000. */
+            reservedCashQuanta6: string;
+            /** @description mUSD x 1,000,000; null until settled. */
+            payoutQuanta6: string | null;
+            /** @description Signed, mUSD x 1,000,000; null until settled. */
+            pnlQuanta6: string | null;
+            entry: {
+                nativeIdentity: components["schemas"]["PmPaperV2NativeIdentity"];
+                /** @description Shares bought (decimal string). */
+                quantity: string;
+                /** @description Pre-fee cost, mUSD (decimal string). */
+                notional: string;
+                /** @description Fee, mUSD (decimal string). */
+                netFee: string;
+                /** @description Total cash debited, mUSD (decimal string). */
+                cashDebit: string;
+                /**
+                 * Format: date-time
+                 * @description When the entry book was received.
+                 */
+                bookReceivedAt: string | null;
+                /**
+                 * Format: date-time
+                 * @description Venue timestamp of the entry book, when published.
+                 */
+                bookProviderAt: string | null;
+                /** @description Fee policy or fee document revision used. */
+                feeBasis: string | null;
+            };
+            /** @description Latest exit intent; null when no close was requested. */
+            exit: {
+                /** Format: uuid */
+                id: string;
+                status: components["schemas"]["PmPaperV2ExitStatus"];
+                accepted: boolean;
+                executed: boolean;
+                /** Format: date-time */
+                requestedAt: string;
+                /** Format: date-time */
+                nextAttemptAt: string;
+                /** @description Last worker failure code (e.g. a venue acquisition code). */
+                lastError: string | null;
+                attentionHeld: boolean;
+            } | null;
+            /** @description Close or settlement evidence; null until accountingStatus is `settled`. */
+            terminal: {
+                /** @enum {string} */
+                type: "sell" | "resolve";
+                /** @enum {string} */
+                evidenceBasis: "acquired_book_full_sell" | "provider_reported_final_binary_payout";
+                payoutQuanta6: string;
+                pnlQuanta6: string;
+                /** @description Sell fee in mUSD; "0" for a resolution. */
+                fee: string | null;
+                /** Format: date-time */
+                acquiredAt: string | null;
+            } | null;
+        } & {
+            [key: string]: unknown;
+        };
+        /** @description Unpaginated exact totals for the calling key's v2 positions; "today" is the UTC day. */
+        PmPaperV2Risk: {
+            /** Format: date-time */
+            asOf: string;
+            /** Format: date */
+            dayKey: string;
+            totalOpen: number;
+            openReservedCashQuanta6: string;
+            openedToday: number;
+            closedToday: number;
+            /** @description Signed, settled positions only. */
+            realizedPnlTodayQuanta6: string;
+            /** @description False when any non-open position lacks a complete terminal record. */
+            accountingComplete: boolean;
+            /** @description True when the key also holds v1 PM positions, frozen cash, or non-cash assets. */
+            legacyExposurePresent: boolean;
+        } & {
+            [key: string]: unknown;
+        };
+        PmPaperV2PositionsResponse: {
+            /** @constant */
+            executionModel: "pm_paper_v2";
+            positions: components["schemas"]["PmPaperV2Position"][];
+            hasMore: boolean;
+            nextBeforeId: number | null;
+            risk: components["schemas"]["PmPaperV2Risk"];
+            /** @description This key's house enrollment; null when the key is not an enrolled house agent. */
+            configuredHouse: {
+                userId: number;
+                apiKeyId: number;
+                walletId: number;
+                houseAgentId: number;
+                maxEndDays?: number;
+            } | null;
+            /** @description True when this key is enrolled and v2 entry is switched on. */
+            entryEnabled: boolean;
+        } & {
+            [key: string]: unknown;
+        };
     };
     responses: {
         /** @description Missing/malformed or invalid/revoked API key */
@@ -5164,12 +7121,19 @@ export interface operations {
                         agentName?: string | null;
                         /**
                          * @description Self-reported model/runtime label set by the key owner in
-                         *     Profile -> API Keys (e.g. "Claude", "GPT-4o"). Shown on
+                         *     Settings -> API Keys (e.g. "Claude", "GPT-4o"). Shown on
                          *     the public Agent Arena when the key opts in. Null if
                          *     unset.
                          */
                         agentModel?: string | null;
                         scopes?: ("read" | "trade:spot" | "trade:futures" | "trade:pm")[];
+                        /** @description Current-month request count for this key. Measurement only; no quota is enforced from it. */
+                        usage?: {
+                            /** @description UTC month, `YYYY-MM`. */
+                            period: string;
+                            /** @description Requests counted this period; null when metering is unavailable (unknown, not zero). */
+                            requests: number | null;
+                        };
                     };
                 };
             };
@@ -5526,8 +7490,8 @@ export interface operations {
     getCandles: {
         parameters: {
             query?: {
-                /** @description Lookback window; also fixes the per-candle resolution. */
-                range?: "1H" | "1D" | "1W" | "1M" | "3M";
+                /** @description Lookback window; also fixes the per-candle resolution. Legacy aliases `1m` (as 1H) and `3m` (as 1D) are also accepted. */
+                range?: "1H" | "1D" | "1W" | "1M" | "3M" | "1Y";
                 /** @description Quote currency for o/h/l/c (e.g. EUR). Default USD. */
                 fiat?: string;
             };
@@ -5554,7 +7518,7 @@ export interface operations {
                             name?: string;
                         };
                         /** @enum {string} */
-                        range?: "1H" | "1D" | "1W" | "1M" | "3M";
+                        range?: "1H" | "1D" | "1W" | "1M" | "3M" | "1Y";
                         fiat?: string;
                         /** @description Latest fiat-per-USD rate applied (1 for USD). */
                         rateToUsd?: number;
@@ -6272,9 +8236,19 @@ export interface operations {
                 status?: string;
                 source?: components["schemas"]["PublicPmSourceSlug"];
                 sort?: "best" | "volume24h_desc" | "priceChange24h_desc" | "priceChange24h_asc" | "endDate_desc" | "trending";
-                /** @description Restrict to plausibly mock-tradeable markets. */
+                /** @description Restrict to plausibly mock-tradeable markets. Only the value `true` enables it. */
                 tradeable?: boolean;
                 fiat?: string;
+                /** @description `compact` returns each event's top 3 outcomes plus `outcomesTotal`, without `description`. Other values return the default shape. */
+                view?: "compact";
+                /** @description `representative` adds `representativeOutcome` to open events. Applies only with `view=compact`. */
+                lead?: "representative";
+                /** @description `matched` keeps the highest-ranked member of each approved cross-venue match group on the page. */
+                dedupe?: "matched";
+                /** @description Minimum 24h volume in USD. Ignored unless a finite number above 0. */
+                minVolume24h?: number;
+                /** @description `1` adds `quoteEvidence` to every outcome. Any other value returns 400. */
+                includeQuoteEvidence?: "1";
             };
             header?: never;
             path?: never;
@@ -6299,6 +8273,14 @@ export interface operations {
         parameters: {
             query?: {
                 fiat?: string;
+                /** @description `core` returns the cheap core payload. Other values return the full detail. */
+                view?: "core";
+                /** @description `1`, `true` or `yes` disables trimming of matched and related event outcomes. */
+                full?: "1" | "true" | "yes";
+                /** @description Keep only this locale's `translations` (tr, es, fr, de, it, nl, pt); `en` or an unknown locale drops them. */
+                lang?: string;
+                /** @description `1` adds `quoteEvidence` to every outcome. Any other value returns 400. */
+                includeQuoteEvidence?: "1";
             };
             header?: never;
             path: {
@@ -6309,7 +8291,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Complete event research record */
+            /** @description Event research record (matched and related outcomes trimmed unless `full=1`) */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -6326,6 +8308,7 @@ export interface operations {
     getPublicPredictionMarketDisagreements: {
         parameters: {
             query?: {
+                /** @description Clusters per page. Default view 1-25 (default 10); `view=compact` allows 1-50 (default 20). */
                 limit?: number;
                 offset?: number;
                 sort?: "confidence_desc" | "divergence_desc" | "max_outcome_delta_desc";
@@ -6341,6 +8324,10 @@ export interface operations {
                  */
                 requirePriced?: boolean;
                 fiat?: string;
+                /** @description `compact` returns the compact projection with a larger page size. */
+                view?: "compact";
+                /** @description Drop pairs whose venue end dates differ by more than this many days. */
+                maxEndDateDifferenceDays?: number;
             };
             header?: never;
             path?: never;
@@ -6653,6 +8640,12 @@ export interface operations {
             query?: {
                 /** @description Trades to return, 1-50. Clamps rather than erroring. */
                 limit?: number;
+                /**
+                 * @description Fixed size tier: only trades of at least this USD value, with the
+                 *     same 50-row cap. The response echoes `minUsd`. Any other value is
+                 *     ignored and the default tape is served.
+                 */
+                minUsd?: 25000 | 50000 | 100000;
             };
             header?: never;
             path?: never;
@@ -6766,7 +8759,10 @@ export interface operations {
     };
     getPublicPredictionMarketOrderBook: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Venue market id of the outcome to read (1-200 characters after trimming). */
+                outcomeExternalMarketId?: string;
+            };
             header?: never;
             path: {
                 source: components["schemas"]["PublicPmSourceSlug"];
@@ -6914,13 +8910,42 @@ export interface operations {
                         recentFills?: {
                             [key: string]: unknown;
                         }[];
+                        /** Format: date-time */
+                        asOf?: string;
+                        /**
+                         * @description Provider-reported wallet context; null for limitless and
+                         *     myriad. For polymarket: `{provider, asOf, profile, pnl,
+                         *     positions, closedPositions}`, where each section is either
+                         *     `{available: false, reason}` or `{available: true, ...}`.
+                         *     `pnl.allTime.pnlUsd` is realized-only lifetime PnL,
+                         *     `pnl.month.pnlUsd` is a mark-to-market change, ranks are
+                         *     PnL ranks (null when 0 or absent), and `volumeUsd` is null
+                         *     without a leaderboard standing. `positions.rows[].endDate`
+                         *     is a `YYYY-MM-DD` date. These are the provider's figures,
+                         *     not CoinRithm-derived holdings or PnL.
+                         */
+                        enrichment?: {
+                            [key: string]: unknown;
+                        } | null;
+                        /** @description Present only when enrichment hit its time budget; `freshUntil` is epoch milliseconds. */
+                        meta?: {
+                            [key: string]: unknown;
+                        };
                     } & {
                         [key: string]: unknown;
                     };
                 };
             };
             400: components["responses"]["BadRequest"];
-            404: components["responses"]["NotFound"];
+            /** @description Unknown wallet, or an invalid source or wallet (the body lists `venues`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
             /** @description Public request rate limit exceeded; honor `Retry-After`. */
             429: {
                 headers: {
@@ -7180,7 +9205,7 @@ export interface operations {
                     };
                 };
             };
-            /** @description idempotencyKey already used (by a different intent/user) */
+            /** @description idempotencyKey already used (by a different intent/user), or `hosted_agent_not_active` when the owner paused this hosted agent */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -7278,7 +9303,7 @@ export interface operations {
                 };
             };
             404: components["responses"]["WalletNotFound"];
-            /** @description idempotencyKey already used (by a different intent/user) */
+            /** @description idempotencyKey already used (by a different intent/user); `hosted_agent_not_active` when the owner paused this hosted agent; `funding_settlement_pending` (retry after `retryAfterSeconds`) or `position_liquidated_by_funding` */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -7467,7 +9492,7 @@ export interface operations {
                 };
             };
             404: components["responses"]["WalletNotFound"];
-            /** @description idempotencyKey already used (by a different intent/user) */
+            /** @description idempotencyKey already used (by a different intent/user), or `hosted_agent_not_active` when the owner paused this hosted agent */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -7524,6 +9549,875 @@ export interface operations {
             };
             429: components["responses"]["TooManyRequests"];
             500: components["responses"]["ServerError"];
+        };
+    };
+    getPublicLargeTrades: {
+        parameters: {
+            query?: {
+                /** @description Exact venue symbol (`BTCUSDT`, `xyz:TSLA`) or a base (`BTC`, `TSLA`). */
+                symbol?: string;
+                venue?: "binance" | "hyperliquid";
+                assetClass?: "crypto" | "equity" | "commodity" | "fx" | "index";
+                /** @description Rows to return, 1-200 (default 50). Out of range returns 400. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Newest large prints, the applied filters and source attribution */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicLargeTradesResponse"];
+                };
+            };
+            /** @description Invalid or unknown query parameter */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicMessageError"];
+                };
+            };
+            /** @description Public request rate limit exceeded; honor `Retry-After`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Large trades temporarily unavailable */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicMessageError"];
+                };
+            };
+        };
+    };
+    getPublicLiquidations: {
+        parameters: {
+            query: {
+                /** @description Base symbol, case-insensitive (`BTC`, `XAU`). */
+                base: string;
+                /** @description Events in each of `biggest` and `latest`, 1-50 (default 10). */
+                limit?: number;
+                /** @description Restrict to one venue; omit for every captured venue. */
+                venue?: "binance" | "okx";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 24h totals, per-venue coverage and the biggest/latest events */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicLiquidationsResponse"];
+                };
+            };
+            /** @description Missing `base`, invalid value or unknown query parameter */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicMessageError"];
+                };
+            };
+            /** @description Public request rate limit exceeded; honor `Retry-After`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Liquidations temporarily unavailable */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicMessageError"];
+                };
+            };
+        };
+    };
+    getPublicCryptoTreasuries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description `bitcoin`, `ethereum`, `solana`, `binancecoin` or `bnb` (case-insensitive). */
+                coin: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Company holdings, totals, freshness and attribution */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicCryptoTreasuryResponse"];
+                };
+            };
+            /** @description Query parameters are not accepted */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicMessageError"];
+                };
+            };
+            /** @description Treasury data is not available for this coin */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicMessageError"];
+                };
+            };
+            /** @description Public request rate limit exceeded; honor `Retry-After`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listPublicTradfiReferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Methodology and one item per reference instrument */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicTradfiReferenceCatalog"];
+                };
+            };
+            /** @description Query parameters are not accepted */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicMessageError"];
+                };
+            };
+            /** @description Public request rate limit exceeded; honor `Retry-After`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Reference data temporarily unavailable */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicMessageError"];
+                };
+            };
+        };
+    };
+    getPublicTradfiReference: {
+        parameters: {
+            query?: {
+                /** @description History window. Any other query parameter returns 400. */
+                window?: "24h" | "7d";
+            };
+            header?: never;
+            path: {
+                /** @description Catalog ticker, case-insensitive (`AAPL`, `XAU`). */
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Latest snapshot with venues, live overlay and history */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicTradfiReferenceDetail"];
+                };
+            };
+            /** @description Invalid ticker, window or query parameter */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicMessageError"];
+                };
+            };
+            /** @description Reference instrument not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicMessageError"];
+                };
+            };
+            /** @description Public request rate limit exceeded; honor `Retry-After`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Reference data temporarily unavailable */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicMessageError"];
+                };
+            };
+        };
+    };
+    getPublicTradfiReferenceTreasury: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Catalog ticker, case-insensitive (`MSTR`). */
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Company holdings per coin, or a null treasury */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicTickerTreasuryResponse"];
+                };
+            };
+            /** @description Invalid ticker or query parameter */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicMessageError"];
+                };
+            };
+            /** @description Reference instrument not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicMessageError"];
+                };
+            };
+            /** @description Public request rate limit exceeded; honor `Retry-After`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getPublicTradfiReferenceFilings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Catalog ticker, case-insensitive (`MSTR`). */
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Insider and open-market transactions with source attribution */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicSecFilingsResponse"];
+                };
+            };
+            /** @description Invalid ticker or query parameter */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicMessageError"];
+                };
+            };
+            /** @description Reference instrument not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicMessageError"];
+                };
+            };
+            /** @description Public request rate limit exceeded; honor `Retry-After`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Filings temporarily unavailable */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicMessageError"];
+                };
+            };
+        };
+    };
+    getPublicTradfiReferencePositioning: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Catalog ticker, case-insensitive (`XAU`, `SPY`). */
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Contract, weekly reports, freshness and attribution */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicCftcPositioningResponse"];
+                };
+            };
+            /** @description Invalid ticker or query parameter */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicMessageError"];
+                };
+            };
+            /** @description Reference instrument not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicMessageError"];
+                };
+            };
+            /** @description Public request rate limit exceeded; honor `Retry-After`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getSpotReference: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Coin UCID (e.g. "1" = BTC). Use /api/agent/resolve to find it. */
+                coinId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpotReferenceResponse"];
+                };
+            };
+            /** @description Invalid coin id, or a query parameter was supplied. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description No coin with this UCID. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @example Coin not found */
+                        error: string;
+                        coinId: string;
+                    };
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            /** @description Database read failed; no fallback is guessed. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getAgentUniverse: {
+        parameters: {
+            query?: {
+                /** @description Lowest market-cap rank included (inclusive). Must be <= rankMax. */
+                rankMin?: number;
+                /** @description Highest market-cap rank included (inclusive). */
+                rankMax?: number;
+                /** @description Minimum 24h volume in USD; a null volume counts as 0. */
+                minVolume24hUsd?: number;
+                /** @description Excludes the `stablecoins` sector (same as listing it in excludeSectors). */
+                excludeStablecoins?: "true" | "false" | "1" | "0";
+                /**
+                 * @description Comma-separated sector ids (case-insensitive); a coin must belong
+                 *     to at least one. Unknown ids return 400.
+                 */
+                includeSectors?: string;
+                /** @description Comma-separated sector ids to exclude. Unknown ids return 400. */
+                excludeSectors?: string;
+                sort?: "gainers_24h" | "losers_24h" | "abs_change_24h" | "abs_change_1h" | "volume_24h" | "rank";
+                /**
+                 * @description Optional comma-separated coin UCIDs (1-50 ids, each matching
+                 *     `^[A-Za-z0-9_-]{1,64}$`) restricting the screen to these coins.
+                 */
+                ucids?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentUniverseResponse"];
+                };
+            };
+            /** @description Invalid query (out-of-range number, unknown sector id, rankMin > rankMax, bad ucids, repeated parameter). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentUniverseValidationError"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    getAgentUniverseSectors: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentUniverseSectorsResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["TooManyRequests"];
+            500: components["responses"]["ServerError"];
+        };
+    };
+    discoverPmPaperV2: {
+        parameters: {
+            query?: {
+                /** @description Search text matched against event title, outcomes, topics, and related coins. */
+                q?: string;
+                /** @description Events requested before filtering (decimal, no leading zeros). */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PmPaperV2DiscoveryResponse"];
+                };
+            };
+            /** @description Unsupported or invalid query parameter (`invalid_discovery_query`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description Missing scope, or the key is not an enrolled house agent (`house_opt_in_required`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            /** @description Native discovery read failed (`pm_native_discovery_unavailable`). */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getPmPaperV2Positions: {
+        parameters: {
+            query?: {
+                limit?: number;
+                /** @description Cursor; pass the previous page's `nextBeforeId`. */
+                beforeId?: number;
+                /** @description Only `open` is accepted; omit for all statuses. */
+                status?: "open";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PmPaperV2PositionsResponse"];
+                };
+            };
+            /** @description Unknown query parameter or invalid page (`invalid_page`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["TooManyRequests"];
+            /** @description Position read failed (`pm_positions_unavailable`). */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @constant */
+                        executionModel: "pm_paper_v2";
+                        /** @example pm_positions_unavailable */
+                        error: string;
+                    };
+                };
+            };
+        };
+    };
+    openPmPaperV2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PmPaperV2OpenRequest"];
+            };
+        };
+        responses: {
+            /** @description Position opened, or idempotent replay of the same request (`replayed: true`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PmPaperV2Opened"];
+                };
+            };
+            /**
+             * @description Body failed the shape check (`reason: invalid_request`): not an
+             *     object, an unknown field (including `agentTrace`; send trace
+             *     headers instead), wrong `source`/`side`, or a missing or
+             *     over-long string field. Middleware errors use the `Error` shape.
+             */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PmPaperV2Failure"] | components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description idempotencyKey already used with a different request or by another key. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PmPaperV2Refused"];
+                };
+            };
+            /** @description Refused; see `reason`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PmPaperV2Refused"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            /** @description Runtime error (`reason: pm_runtime_unavailable`); the outcome may be unknown, so replay before retrying with a new key. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PmPaperV2Failure"];
+                };
+            };
+        };
+    };
+    replayPmPaperV2Open: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PmPaperV2OpenReplayRequest"];
+            };
+        };
+        responses: {
+            /** @description The original open (`replayed: true`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PmPaperV2Opened"];
+                };
+            };
+            /** @description Body failed the shape check (`reason: invalid_request`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PmPaperV2Failure"] | components["schemas"]["Error"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description No receipt for this idempotency key (`reason: no_existing_receipt`, `replayMissing: true`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PmPaperV2Refused"];
+                };
+            };
+            /** @description The key belongs to a different request or caller (`idempotency_conflict`). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PmPaperV2Refused"];
+                };
+            };
+            /** @description Other refusal (e.g. `house_opt_in_required` for an invalid actor). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PmPaperV2Refused"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            /** @description Runtime error (`reason: pm_runtime_unavailable`). */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PmPaperV2Failure"];
+                };
+            };
+        };
+    };
+    closePmPaperV2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PmPaperV2CloseRequest"];
+            };
+        };
+        responses: {
+            /** @description Replay of an exit that has already filled (`executed: true`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PmPaperV2CloseResult"];
+                };
+            };
+            /** @description Exit accepted and pending execution (`executed: false`). */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PmPaperV2CloseResult"];
+                };
+            };
+            /** @description Unknown field, invalid positionId, idempotencyKey or detail (`invalid_exit_request`). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"] | components["schemas"]["PmPaperV2CloseResult"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description No position with this id for the calling key (`kind: not_found`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PmPaperV2CloseResult"];
+                };
+            };
+            /**
+             * @description `kind` is `not_v2` (a v1 position), `not_open`, `conflict` (key
+             *     reused with a different body) or `cancelled` (the replayed intent
+             *     was cancelled).
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PmPaperV2CloseResult"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            /** @description Request could not be recorded (`reason: exit_request_unavailable`); retry with the same key. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PmPaperV2Failure"];
+                };
+            };
         };
     };
 }

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, TypeVar, cast
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
+from ..models.public_pm_event_detail_response_detail_mode import PublicPmEventDetailResponseDetailMode
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
@@ -37,6 +38,10 @@ class PublicPmEventDetailResponse:
         volume_history (list[PublicPmEventDetailResponseVolumeHistoryItem] | Unset):
         related_news (list[PublicPmEventDetailResponseRelatedNewsItem] | Unset):
         recent_whale_trades (list[PublicPmWhaleTrade] | Unset):
+        detail_mode (PublicPmEventDetailResponseDetailMode | Unset): `core` when `view=core` was requested; heavy
+            sections are then empty.
+        lite_fallback (bool | Unset): Present (true) when the server served a reduced payload under load; the
+            `X-CoinRithm-Lite` header is also set.
     """
 
     event: PublicPmEvent
@@ -47,6 +52,8 @@ class PublicPmEventDetailResponse:
     volume_history: list[PublicPmEventDetailResponseVolumeHistoryItem] | Unset = UNSET
     related_news: list[PublicPmEventDetailResponseRelatedNewsItem] | Unset = UNSET
     recent_whale_trades: list[PublicPmWhaleTrade] | Unset = UNSET
+    detail_mode: PublicPmEventDetailResponseDetailMode | Unset = UNSET
+    lite_fallback: bool | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -106,6 +113,12 @@ class PublicPmEventDetailResponse:
                 recent_whale_trades_item = recent_whale_trades_item_data.to_dict()
                 recent_whale_trades.append(recent_whale_trades_item)
 
+        detail_mode: str | Unset = UNSET
+        if not isinstance(self.detail_mode, Unset):
+            detail_mode = self.detail_mode.value
+
+        lite_fallback = self.lite_fallback
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -127,6 +140,10 @@ class PublicPmEventDetailResponse:
             field_dict["relatedNews"] = related_news
         if recent_whale_trades is not UNSET:
             field_dict["recentWhaleTrades"] = recent_whale_trades
+        if detail_mode is not UNSET:
+            field_dict["detailMode"] = detail_mode
+        if lite_fallback is not UNSET:
+            field_dict["liteFallback"] = lite_fallback
 
         return field_dict
 
@@ -224,6 +241,15 @@ class PublicPmEventDetailResponse:
 
                 recent_whale_trades.append(recent_whale_trades_item)
 
+        _detail_mode = d.pop("detailMode", UNSET)
+        detail_mode: PublicPmEventDetailResponseDetailMode | Unset
+        if isinstance(_detail_mode, Unset):
+            detail_mode = UNSET
+        else:
+            detail_mode = PublicPmEventDetailResponseDetailMode(_detail_mode)
+
+        lite_fallback = d.pop("liteFallback", UNSET)
+
         public_pm_event_detail_response = cls(
             event=event,
             snapshots=snapshots,
@@ -233,6 +259,8 @@ class PublicPmEventDetailResponse:
             volume_history=volume_history,
             related_news=related_news,
             recent_whale_trades=recent_whale_trades,
+            detail_mode=detail_mode,
+            lite_fallback=lite_fallback,
         )
 
         public_pm_event_detail_response.additional_properties = d

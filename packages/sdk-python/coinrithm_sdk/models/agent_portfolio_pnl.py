@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
@@ -18,21 +18,21 @@ class AgentPortfolioPnl:
         field_24_h_usd (float | Unset):
         field_7_d_usd (float | Unset):
         field_30_d_usd (float | Unset):
-        all_time_usd (float | Unset):
+        all_time_usd (float | None | Unset): Null when no all-time baseline exists.
         field_24_h_pct (float | Unset): 0..1 fraction
         field_7_d_pct (float | Unset):
         field_30_d_pct (float | Unset):
-        all_time_pct (float | Unset):
+        all_time_pct (float | None | Unset): 0..1 fraction; null when no all-time baseline exists.
     """
 
     field_24_h_usd: float | Unset = UNSET
     field_7_d_usd: float | Unset = UNSET
     field_30_d_usd: float | Unset = UNSET
-    all_time_usd: float | Unset = UNSET
+    all_time_usd: float | None | Unset = UNSET
     field_24_h_pct: float | Unset = UNSET
     field_7_d_pct: float | Unset = UNSET
     field_30_d_pct: float | Unset = UNSET
-    all_time_pct: float | Unset = UNSET
+    all_time_pct: float | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -42,7 +42,11 @@ class AgentPortfolioPnl:
 
         field_30_d_usd = self.field_30_d_usd
 
-        all_time_usd = self.all_time_usd
+        all_time_usd: float | None | Unset
+        if isinstance(self.all_time_usd, Unset):
+            all_time_usd = UNSET
+        else:
+            all_time_usd = self.all_time_usd
 
         field_24_h_pct = self.field_24_h_pct
 
@@ -50,7 +54,11 @@ class AgentPortfolioPnl:
 
         field_30_d_pct = self.field_30_d_pct
 
-        all_time_pct = self.all_time_pct
+        all_time_pct: float | None | Unset
+        if isinstance(self.all_time_pct, Unset):
+            all_time_pct = UNSET
+        else:
+            all_time_pct = self.all_time_pct
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -83,7 +91,14 @@ class AgentPortfolioPnl:
 
         field_30_d_usd = d.pop("30dUsd", UNSET)
 
-        all_time_usd = d.pop("allTimeUsd", UNSET)
+        def _parse_all_time_usd(data: object) -> float | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(float | None | Unset, data)
+
+        all_time_usd = _parse_all_time_usd(d.pop("allTimeUsd", UNSET))
 
         field_24_h_pct = d.pop("24hPct", UNSET)
 
@@ -91,7 +106,14 @@ class AgentPortfolioPnl:
 
         field_30_d_pct = d.pop("30dPct", UNSET)
 
-        all_time_pct = d.pop("allTimePct", UNSET)
+        def _parse_all_time_pct(data: object) -> float | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(float | None | Unset, data)
+
+        all_time_pct = _parse_all_time_pct(d.pop("allTimePct", UNSET))
 
         agent_portfolio_pnl = cls(
             field_24_h_usd=field_24_h_usd,

@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar, cast
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
 from ..models.whoami_response_200_scopes_item import WhoamiResponse200ScopesItem
 from ..types import UNSET, Unset
+
+if TYPE_CHECKING:
+    from ..models.whoami_response_200_usage import WhoamiResponse200Usage
+
 
 T = TypeVar("T", bound="WhoamiResponse200")
 
@@ -21,10 +25,12 @@ class WhoamiResponse200:
         agent_name (None | str | Unset): The key's optional label (lets an agent confirm which key it is acting as).
             Null if unset.
         agent_model (None | str | Unset): Self-reported model/runtime label set by the key owner in
-            Profile -> API Keys (e.g. "Claude", "GPT-4o"). Shown on
+            Settings -> API Keys (e.g. "Claude", "GPT-4o"). Shown on
             the public Agent Arena when the key opts in. Null if
             unset.
         scopes (list[WhoamiResponse200ScopesItem] | Unset):
+        usage (WhoamiResponse200Usage | Unset): Current-month request count for this key. Measurement only; no quota is
+            enforced from it.
     """
 
     user_id: str | Unset = UNSET
@@ -32,6 +38,7 @@ class WhoamiResponse200:
     agent_name: None | str | Unset = UNSET
     agent_model: None | str | Unset = UNSET
     scopes: list[WhoamiResponse200ScopesItem] | Unset = UNSET
+    usage: WhoamiResponse200Usage | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -58,6 +65,10 @@ class WhoamiResponse200:
                 scopes_item = scopes_item_data.value
                 scopes.append(scopes_item)
 
+        usage: dict[str, Any] | Unset = UNSET
+        if not isinstance(self.usage, Unset):
+            usage = self.usage.to_dict()
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update({})
@@ -71,11 +82,15 @@ class WhoamiResponse200:
             field_dict["agentModel"] = agent_model
         if scopes is not UNSET:
             field_dict["scopes"] = scopes
+        if usage is not UNSET:
+            field_dict["usage"] = usage
 
         return field_dict
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        from ..models.whoami_response_200_usage import WhoamiResponse200Usage
+
         d = dict(src_dict)
         user_id = d.pop("userId", UNSET)
 
@@ -108,12 +123,20 @@ class WhoamiResponse200:
 
                 scopes.append(scopes_item)
 
+        _usage = d.pop("usage", UNSET)
+        usage: WhoamiResponse200Usage | Unset
+        if isinstance(_usage, Unset):
+            usage = UNSET
+        else:
+            usage = WhoamiResponse200Usage.from_dict(_usage)
+
         whoami_response_200 = cls(
             user_id=user_id,
             key_id=key_id,
             agent_name=agent_name,
             agent_model=agent_model,
             scopes=scopes,
+            usage=usage,
         )
 
         whoami_response_200.additional_properties = d

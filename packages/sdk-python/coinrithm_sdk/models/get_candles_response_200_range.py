@@ -7,6 +7,7 @@ class GetCandlesResponse200Range(str, Enum):
     VALUE_2 = "1W"
     VALUE_3 = "1M"
     VALUE_4 = "3M"
+    VALUE_5 = "1Y"
 
     def __str__(self) -> str:
         return str(self.value)

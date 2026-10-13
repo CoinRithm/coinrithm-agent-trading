@@ -6,29 +6,60 @@ from typing import Any, TypeVar
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-T = TypeVar("T", bound="PublicPmWhalesResponseStats24H")
+T = TypeVar("T", bound="PublicCoinGeckoAttribution")
 
 
 @_attrs_define
-class PublicPmWhalesResponseStats24H:
-    """ """
+class PublicCoinGeckoAttribution:
+    """Keep this attribution next to any display of the data.
 
+    Attributes:
+        name (str):
+        url (str):
+        attribution (str):
+    """
+
+    name: str
+    url: str
+    attribution: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        name = self.name
+
+        url = self.url
+
+        attribution = self.attribution
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
+        field_dict.update(
+            {
+                "name": name,
+                "url": url,
+                "attribution": attribution,
+            }
+        )
 
         return field_dict
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         d = dict(src_dict)
-        public_pm_whales_response_stats_24h = cls()
+        name = d.pop("name")
 
-        public_pm_whales_response_stats_24h.additional_properties = d
-        return public_pm_whales_response_stats_24h
+        url = d.pop("url")
+
+        attribution = d.pop("attribution")
+
+        public_coin_gecko_attribution = cls(
+            name=name,
+            url=url,
+            attribution=attribution,
+        )
+
+        public_coin_gecko_attribution.additional_properties = d
+        return public_coin_gecko_attribution
 
     @property
     def additional_keys(self) -> list[str]:

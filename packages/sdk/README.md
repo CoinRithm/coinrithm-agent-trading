@@ -9,6 +9,42 @@ via [`openapi-typescript`](https://github.com/openapi-ts/openapi-typescript) +
 All trading on this surface is **paper only** (virtual mUSD). Nothing touches
 real money. Not financial advice.
 
+## 0.4.0
+
+Released on 2026-10-13, generated from API contract **1.8.0**.
+
+- **Keyless public market data** (`public-market-data`): the TradFi reference
+  catalog and detail (equities, ETFs, metals, commodities, FX) with the
+  near-real-time `live` overlay, large perpetual-futures trades, 24-hour
+  liquidations, CFTC positioning, SEC Form 4 insider filings and public-company
+  crypto treasuries. See [Public market data](#public-market-data). Errors on
+  these routes are `{ message }` bodies (`PublicMessageError`), not `{ error }`.
+- **Agent operations** already served by the API: `/api/agent/universe` and
+  `/universe/sectors` (market-boundary screener), `/api/agent/spot/reference/{coinId}`
+  (dated spot reference), and the house-agent `pm_paper_v2` lifecycle under
+  `/api/agent/pm/v2/*`. PM v2 opens from an API key must send
+  `forecastProbability` (422 `forecast_required` otherwise) and are refused with
+  `entry_forecast_not_above_cost` when the forecast does not beat the
+  fee-inclusive cost.
+- **New optional parameters**: `minUsd` tiers on `/whales`; `view`, `lead`,
+  `dedupe`, `minVolume24h` and `includeQuoteEvidence` on `/events`; `view`,
+  `full`, `lang` and `includeQuoteEvidence` on event detail;
+  `outcomeExternalMarketId` on the order book; `view` and
+  `maxEndDateDifferenceDays` on `/matches/public`; candle range `1Y`.
+- **New response fields**: whale wallet, trader and event fields plus typed
+  `stats24h`; paused-venue `availability`, `quoteEvidence` and `outcomesTotal`
+  on events; order-book `receivedAt` and `sideEvidence`; calibration
+  `methodologyVersion`, `finalPrice` and `ownCapture`; wallet `enrichment`;
+  `/api/agent/me` `usage`; price freshness on top gainers and losers.
+- **Corrections that can affect typed callers**: whale `outcome` is
+  `string | null`; portfolio `pnl.allTimeUsd` and `allTimePct` can be `null`;
+  `/events` pagination carries `hasMore` (the never-sent `total` is deprecated).
+  `AgentLedgerExport.futures`/`futuresEvents` and `PmOpportunityResponse.thesis`
+  were never returned and are now marked deprecated.
+
+The TypeScript runtime wrapper and its dependencies are unchanged from 0.3.5.
+See the [changelog](./CHANGELOG.md).
+
 ## 0.3.5
 
 Published on npm and verified on 2026-10-07. This version adds optional typed
@@ -75,23 +111,18 @@ npm install @coinrithm/sdk
 ```
 
 Published on npm as [`@coinrithm/sdk`](https://www.npmjs.com/package/@coinrithm/sdk).
-This package documents version **0.3.5**. See the
+This package documents version **0.4.0**. See the
 [release status](https://github.com/CoinRithm/coinrithm-agent-trading#version-clarity)
 for registry availability.
 Check `npm view @coinrithm/sdk version` for
 the latest published version. The package version is independent of the
-OpenAPI contract version, which remains **1.7.0**.
+OpenAPI contract version, which is **1.8.0**.
 
-Version 0.3.3 added the optional `minEntryProbabilityPct` field on PM quote and
-open requests; see the [changelog](./CHANGELOG.md). The cancellation type
-correction for optional `alreadyClosed` and `500` errors shipped in 0.3.2; the
-published 0.3.1 package still exposes the original wire response at runtime.
-
-This patch corrects the generated candle documentation: `v` is a mean
-rolling 24-hour quote-volume observation in USD, not per-candle traded volume.
-Do not sum it across bars or difference bars as interval turnover. Prediction
-market outcome names are display labels that may be enriched; retain source,
-event and outcome identifiers instead of treating matching names as identity.
+Candle `v` is a mean rolling 24-hour quote-volume observation in USD, not
+per-candle traded volume. Do not sum it across bars or difference bars as
+interval turnover. Prediction market outcome names are display labels that may
+be enriched; retain source, event and outcome identifiers instead of treating
+matching names as identity.
 
 Installing from a clone still works if you want to track `main`:
 
@@ -148,6 +179,67 @@ const movers = await client.GET("/api/coins/top-gainers", {
 Mint a personal API key (`crk_live_…`) in your CoinRithm profile. Scopes:
 `read`, `trade:spot`, `trade:futures`, `trade:pm`. Rate limits: 120 req/min
 per key, 20 trade-writes/min.
+
+## Public market data
+
+Keyless reads under `/api/market/*`, generated from the `public-market-data`
+contract group. They need no API key. Each response names its source; keep the
+CoinGecko attribution next to any display of treasury data.
+
+| Path | What it returns |
+| --- | --- |
+| `GET /api/market/references` | Every TradFi reference instrument with its latest validated consensus, 24h/7d change, 24h range, 7-day sparkline and `live` overlay |
+| `GET /api/market/references/{ticker}` | One reference with venue constituents and 15-minute history (`window` `24h` or `7d`) |
+| `GET /api/market/references/{ticker}/treasury` | The listed company's BTC/ETH/SOL/BNB holdings, or `treasury: null` |
+| `GET /api/market/references/{ticker}/filings` | SEC Form 4 insider and open-market transactions with filing links |
+| `GET /api/market/references/{ticker}/positioning` | Weekly CFTC Commitments of Traders for references with a US futures equivalent |
+| `GET /api/market/treasuries/{coin}` | Public companies holding `bitcoin`, `ethereum`, `solana` or `binancecoin` |
+| `GET /api/market/large-trades` | Large Binance USD-M and Hyperliquid perpetual prints, newest first |
+| `GET /api/market/liquidations` | Last-24h liquidation totals and the biggest/latest events for one base |
+
+```ts
+const market = createClient();
+
+const catalog = await market.GET("/api/market/references");
+const gold = await market.GET("/api/market/references/{ticker}", {
+  params: { path: { ticker: "XAU" }, query: { window: "7d" } },
+});
+const holdings = await market.GET("/api/market/references/{ticker}/treasury", {
+  params: { path: { ticker: "MSTR" } },
+});
+const filings = await market.GET("/api/market/references/{ticker}/filings", {
+  params: { path: { ticker: "HOOD" } },
+});
+const cot = await market.GET("/api/market/references/{ticker}/positioning", {
+  params: { path: { ticker: "XAU" } },
+});
+const btcTreasuries = await market.GET("/api/market/treasuries/{coin}", {
+  params: { path: { coin: "bitcoin" } },
+});
+const prints = await market.GET("/api/market/large-trades", {
+  params: { query: { assetClass: "equity", limit: 20 } },
+});
+const liquidations = await market.GET("/api/market/liquidations", {
+  params: { query: { base: "BTC" } },
+});
+```
+
+What to keep in mind:
+
+- A reference price is the median of 2-3 derivatives-venue index prices in
+  USDT, not an exchange last trade. `live` is null whenever the overlay is off,
+  invalid or older than `methodology.liveMaxAgeSeconds`; `latest` and the
+  derived fields never depend on it.
+- Large trades and liquidations cover only what CoinRithm's collectors saw while
+  connected. An empty list or a zero total is not proof that nothing happened,
+  and liquidation `capturedPct` measures capture uptime, not exchange
+  completeness.
+- Filings `coverage` is `not_applicable` for instruments that do not file
+  Form 4 and `none_recorded` before the first collected transaction. Treasury
+  and positioning reads report `status` (`fresh`, `stale` or `unavailable`) and
+  still answer 200 when the upstream source fails.
+- Errors are `{ message }` bodies: 400 for an invalid or unknown query
+  parameter, 404 for a ticker outside the catalog or an unsupported coin.
 
 ## Streaming (Server-Sent Events)
 

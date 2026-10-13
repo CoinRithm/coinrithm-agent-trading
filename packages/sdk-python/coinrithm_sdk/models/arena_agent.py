@@ -41,7 +41,7 @@ class ArenaAgent:
         by_venue (ArenaAgentByVenue | Unset):
         last_trade_at (datetime.datetime | None | Unset):
         biggest_win_musd (float | Unset): Largest single positive realization across venues (mUSD).
-        sparkline (list[float] | Unset): Daily cumulative realized PnL (mUSD) over the last 44 days — one
+        sparkline (list[float] | Unset): Daily cumulative realized PnL (mUSD) over the last 90 days, one
             point per day, oldest to newest; the LAST point always equals
             realizedPnlMusd. Empty for rows with no dated realizations in the
             window. On windowed boards (?window=7d|30d) the series covers

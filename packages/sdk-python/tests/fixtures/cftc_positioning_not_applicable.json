@@ -1,0 +1,19 @@
+{
+  "ticker": "MSTR",
+  "coverage": "not_applicable",
+  "status": "fresh",
+  "contract": null,
+  "reports": [],
+  "asOf": null,
+  "source": {
+    "name": "CFTC Commitments of Traders",
+    "url": "https://www.cftc.gov/MarketReports/CommitmentsofTraders/index.htm",
+    "publisher": "U.S. Commodity Futures Trading Commission",
+    "dataset": "Legacy report, futures only",
+    "datasetUrl": "https://publicreporting.cftc.gov/Commitments-of-Traders/Legacy-Futures-Only/6dca-aqww",
+    "note": "Positions as of each Tuesday, published the following Friday. Non-commercial traders are mostly speculators (funds); commercial traders hedge a business exposure. Net = long minus short, in contracts."
+  },
+  "meta": {
+    "freshUntil": "2026-10-14T10:32:55.494Z"
+  }
+}

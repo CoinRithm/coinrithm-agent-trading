@@ -1,0 +1,184 @@
+{
+  "version": 1,
+  "generatedAt": "2026-10-13T22:46:25.793Z",
+  "methodology": {
+    "basis": "derivatives_venue_index",
+    "aggregation": "median",
+    "minimumVenueCount": 2,
+    "maxVenueSpreadPct": 5,
+    "collectionIntervalSeconds": 900,
+    "freshnessThresholdSeconds": 1800,
+    "retentionDays": 14,
+    "liveMaxAgeSeconds": 90
+  },
+  "instrument": {
+    "ticker": "XAU",
+    "name": "Gold",
+    "assetClass": "metal",
+    "unit": {
+      "status": "unverified",
+      "currency": null,
+      "per": null
+    },
+    "venueQuoteAsset": "USDT",
+    "issuer": null,
+    "leverage": null,
+    "homeListing": null
+  },
+  "availability": "available",
+  "freshness": {
+    "status": "fresh",
+    "basis": "collection",
+    "asOf": "2026-10-13T22:32:18.072Z",
+    "ageSeconds": 847,
+    "staleAt": "2026-10-13T23:02:18.072Z"
+  },
+  "latest": {
+    "bucketStart": "2026-10-13T22:30:00.000Z",
+    "fetchedAt": "2026-10-13T22:32:18.072Z",
+    "consensusPrice": 4166.05,
+    "minPrice": 4164.99145935,
+    "maxPrice": 4166.09,
+    "venueSpreadPct": 0.02637557989546568,
+    "venueCount": 3,
+    "venues": [
+      {
+        "venue": "binance",
+        "symbol": "XAUUSDT",
+        "label": "COMMODITY",
+        "assetClass": "commodity",
+        "indexPrice": 4164.99145935,
+        "sourceObservedAt": null
+      },
+      {
+        "venue": "bybit",
+        "symbol": "XAUUSDT",
+        "label": "commodity",
+        "assetClass": "commodity",
+        "indexPrice": 4166.09,
+        "sourceObservedAt": null
+      },
+      {
+        "venue": "gate",
+        "symbol": "XAU_USDT",
+        "label": "metals",
+        "assetClass": "metal",
+        "indexPrice": 4166.05,
+        "sourceObservedAt": null
+      }
+    ]
+  },
+  "change24h": {
+    "pct": -0.2898405039538865,
+    "referencePrice": 4178.16,
+    "referenceBucketStart": "2026-10-12T22:30:00.000Z"
+  },
+  "change7d": null,
+  "range24h": {
+    "low": 4155.65,
+    "high": 4204.32,
+    "observations": 96
+  },
+  "live": {
+    "price": 4166.07,
+    "minPrice": 4164.89328601,
+    "maxPrice": 4166.19,
+    "venueSpreadPct": 0.031134386908671097,
+    "venueCount": 3,
+    "venues": [
+      {
+        "venue": "binance",
+        "indexPrice": 4164.89328601
+      },
+      {
+        "venue": "bybit",
+        "indexPrice": 4166.07
+      },
+      {
+        "venue": "gate",
+        "indexPrice": 4166.19
+      }
+    ],
+    "sourceAt": "2026-10-13T22:46:20.273Z",
+    "ageSeconds": 5,
+    "change24hPct": -0.2893618243437368
+  },
+  "history": [
+    {
+      "bucketStart": "2026-10-08T14:15:00.000Z",
+      "fetchedAt": "2026-10-08T14:17:19.653Z",
+      "consensusPrice": 4128.23,
+      "minPrice": 4126.9278535,
+      "maxPrice": 4128.74,
+      "venueSpreadPct": 0.04391030239268012,
+      "venueCount": 3,
+      "venues": [
+        {
+          "venue": "binance",
+          "symbol": "XAUUSDT",
+          "label": "COMMODITY",
+          "assetClass": "commodity",
+          "indexPrice": 4126.9278535,
+          "sourceObservedAt": null
+        },
+        {
+          "venue": "bybit",
+          "symbol": "XAUUSDT",
+          "label": "commodity",
+          "assetClass": "commodity",
+          "indexPrice": 4128.23,
+          "sourceObservedAt": null
+        },
+        {
+          "venue": "gate",
+          "symbol": "XAU_USDT",
+          "label": "metals",
+          "assetClass": "metal",
+          "indexPrice": 4128.74,
+          "sourceObservedAt": null
+        }
+      ]
+    },
+    {
+      "bucketStart": "2026-10-08T14:30:00.000Z",
+      "fetchedAt": "2026-10-08T14:32:20.935Z",
+      "consensusPrice": 4140.62,
+      "minPrice": 4139.4429643,
+      "maxPrice": 4140.95,
+      "venueSpreadPct": 0.03640672701608061,
+      "venueCount": 3,
+      "venues": [
+        {
+          "venue": "binance",
+          "symbol": "XAUUSDT",
+          "label": "COMMODITY",
+          "assetClass": "commodity",
+          "indexPrice": 4139.4429643,
+          "sourceObservedAt": null
+        },
+        {
+          "venue": "bybit",
+          "symbol": "XAUUSDT",
+          "label": "commodity",
+          "assetClass": "commodity",
+          "indexPrice": 4140.62,
+          "sourceObservedAt": null
+        },
+        {
+          "venue": "gate",
+          "symbol": "XAU_USDT",
+          "label": "metals",
+          "assetClass": "metal",
+          "indexPrice": 4140.95,
+          "sourceObservedAt": null
+        }
+      ]
+    }
+  ],
+  "historyWindow": {
+    "window": "7d",
+    "from": "2026-10-06T22:46:25.793Z",
+    "to": "2026-10-13T22:46:25.793Z",
+    "intervalSeconds": 900
+  }
+}

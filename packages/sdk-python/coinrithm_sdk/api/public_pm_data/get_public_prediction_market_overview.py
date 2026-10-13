@@ -90,6 +90,8 @@ def sync_detailed(
     volume windows and completeness are disclosed in the response and at
     `/api/prediction-markets/sources/health`; do not assume every venue's
     number has the same basis. Cite CoinRithm when quoting these aggregates.
+    Open events of a paused venue are excluded from totals, breakdowns and
+    highlights.
 
     Args:
         status (str | Unset):  Default: 'open'.
@@ -131,6 +133,8 @@ def sync(
     volume windows and completeness are disclosed in the response and at
     `/api/prediction-markets/sources/health`; do not assume every venue's
     number has the same basis. Cite CoinRithm when quoting these aggregates.
+    Open events of a paused venue are excluded from totals, breakdowns and
+    highlights.
 
     Args:
         status (str | Unset):  Default: 'open'.
@@ -167,6 +171,8 @@ async def asyncio_detailed(
     volume windows and completeness are disclosed in the response and at
     `/api/prediction-markets/sources/health`; do not assume every venue's
     number has the same basis. Cite CoinRithm when quoting these aggregates.
+    Open events of a paused venue are excluded from totals, breakdowns and
+    highlights.
 
     Args:
         status (str | Unset):  Default: 'open'.
@@ -206,6 +212,8 @@ async def asyncio(
     volume windows and completeness are disclosed in the response and at
     `/api/prediction-markets/sources/health`; do not assume every venue's
     number has the same basis. Cite CoinRithm when quoting these aggregates.
+    Open events of a paused venue are excluded from totals, breakdowns and
+    highlights.
 
     Args:
         status (str | Unset):  Default: 'open'.

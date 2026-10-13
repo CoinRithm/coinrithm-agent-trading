@@ -89,7 +89,10 @@ def sync_detailed(
     by `PublicPmOutcome.probability` elsewhere in this API. `usdValue` is
     `size * price`. `who` is a public trader handle only where the venue
     exposes one (Polymarket pseudonym); Kalshi trades always report
-    `who: null`.
+    `who: null`, and an empty Polymarket handle is also served as null.
+    When a Polymarket market's condition id is unavailable, the tape falls
+    back to the whole event's trades (every outcome), and a row whose
+    outcome cannot be identified carries `outcome: null`.
 
     Args:
         source (PublicPmSourceSlug):
@@ -136,7 +139,10 @@ def sync(
     by `PublicPmOutcome.probability` elsewhere in this API. `usdValue` is
     `size * price`. `who` is a public trader handle only where the venue
     exposes one (Polymarket pseudonym); Kalshi trades always report
-    `who: null`.
+    `who: null`, and an empty Polymarket handle is also served as null.
+    When a Polymarket market's condition id is unavailable, the tape falls
+    back to the whole event's trades (every outcome), and a row whose
+    outcome cannot be identified carries `outcome: null`.
 
     Args:
         source (PublicPmSourceSlug):
@@ -178,7 +184,10 @@ async def asyncio_detailed(
     by `PublicPmOutcome.probability` elsewhere in this API. `usdValue` is
     `size * price`. `who` is a public trader handle only where the venue
     exposes one (Polymarket pseudonym); Kalshi trades always report
-    `who: null`.
+    `who: null`, and an empty Polymarket handle is also served as null.
+    When a Polymarket market's condition id is unavailable, the tape falls
+    back to the whole event's trades (every outcome), and a row whose
+    outcome cannot be identified carries `outcome: null`.
 
     Args:
         source (PublicPmSourceSlug):
@@ -223,7 +232,10 @@ async def asyncio(
     by `PublicPmOutcome.probability` elsewhere in this API. `usdValue` is
     `size * price`. `who` is a public trader handle only where the venue
     exposes one (Polymarket pseudonym); Kalshi trades always report
-    `who: null`.
+    `who: null`, and an empty Polymarket handle is also served as null.
+    When a Polymarket market's condition id is unavailable, the tape falls
+    back to the whole event's trades (every outcome), and a row whose
+    outcome cannot be identified carries `outcome: null`.
 
     Args:
         source (PublicPmSourceSlug):

@@ -35,3 +35,30 @@ const stream = await client.GET("/api/prediction-markets/stream", {
   parseAs: "stream",
 });
 void stream;
+
+// --- "Public market data" block ---
+const market = createClient();
+
+const catalog = await market.GET("/api/market/references");
+const gold = await market.GET("/api/market/references/{ticker}", {
+  params: { path: { ticker: "XAU" }, query: { window: "7d" } },
+});
+const holdings = await market.GET("/api/market/references/{ticker}/treasury", {
+  params: { path: { ticker: "MSTR" } },
+});
+const filings = await market.GET("/api/market/references/{ticker}/filings", {
+  params: { path: { ticker: "HOOD" } },
+});
+const cot = await market.GET("/api/market/references/{ticker}/positioning", {
+  params: { path: { ticker: "XAU" } },
+});
+const btcTreasuries = await market.GET("/api/market/treasuries/{coin}", {
+  params: { path: { coin: "bitcoin" } },
+});
+const prints = await market.GET("/api/market/large-trades", {
+  params: { query: { assetClass: "equity", limit: 20 } },
+});
+const liquidations = await market.GET("/api/market/liquidations", {
+  params: { query: { base: "BTC" } },
+});
+void [catalog, gold, holdings, filings, cot, btcTreasuries, prints, liquidations];

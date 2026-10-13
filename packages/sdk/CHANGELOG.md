@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.4.0 (2026-10-13)
+
+Generated from API contract 1.8.0. The runtime wrapper and its dependencies are
+unchanged.
+
+- Adds the keyless `public-market-data` paths: `/api/market/references`
+  (catalog), `/api/market/references/{ticker}` (detail with `window` and the
+  `live` overlay), `/references/{ticker}/treasury`, `/references/{ticker}/filings`
+  (SEC Form 4), `/references/{ticker}/positioning` (CFTC Commitments of Traders),
+  `/api/market/treasuries/{coin}`, `/api/market/large-trades` and
+  `/api/market/liquidations`. Their errors are typed as `PublicMessageError`
+  (`{ message }`). Coverage, freshness and attribution stay per source: an
+  empty tape or zero total is not proof of no activity, and liquidation
+  `capturedPct` is capture uptime, not exchange completeness.
+- Adds the agent operations the API already served: `/api/agent/universe`,
+  `/api/agent/universe/sectors`, `/api/agent/spot/reference/{coinId}` and the
+  house-agent `pm_paper_v2` lifecycle (`/api/agent/pm/v2/discover`,
+  `/positions`, `/open`, `/open/replay`, `/close`). PM v2 opens from an API key
+  require `forecastProbability` (a decimal string); a missing forecast returns
+  422 `forecast_required` and a forecast that does not beat the fee-inclusive
+  cost returns 422 `entry_forecast_not_above_cost`.
+- Types newly documented optional parameters: `minUsd` on `/whales`; `view`,
+  `lead`, `dedupe`, `minVolume24h` and `includeQuoteEvidence` on `/events`;
+  `view`, `full`, `lang` and `includeQuoteEvidence` on event detail;
+  `outcomeExternalMarketId` on the order book; `view` and
+  `maxEndDateDifferenceDays` on `/matches/public`; candle range `1Y`.
+- Types fields the API already returned: whale wallet, trader and event fields
+  and `stats24h`; event `availability` (paused venue), `quoteEvidence` and
+  `outcomesTotal`; event detail `detailMode` and `liteFallback`; order-book
+  `receivedAt` and `sideEvidence`; calibration `methodologyVersion`,
+  `finalPrice` and `ownCapture`; wallet `enrichment`; `/api/agent/me` `usage`;
+  top gainers/losers price freshness.
+- Corrections that can require typed-caller changes: whale `outcome` is
+  `string | null`; portfolio `pnl.allTimeUsd`/`allTimePct` can be `null`;
+  `/events` pagination exposes `hasMore` and marks the never-sent `total`
+  deprecated; `AgentLedgerExport.futures`/`futuresEvents` and
+  `PmOpportunityResponse.thesis` were never returned and are deprecated.
+
 ## 0.3.5 (published 2026-10-07)
 
 - Types optional market-context `priceTiming`, `funding`, `derivatives`,

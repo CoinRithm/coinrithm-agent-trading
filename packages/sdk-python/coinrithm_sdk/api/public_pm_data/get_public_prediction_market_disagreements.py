@@ -11,6 +11,7 @@ from ...models.get_public_prediction_market_disagreements_source_kind import (
     GetPublicPredictionMarketDisagreementsSourceKind,
 )
 from ...models.get_public_prediction_market_disagreements_status import GetPublicPredictionMarketDisagreementsStatus
+from ...models.get_public_prediction_market_disagreements_view import GetPublicPredictionMarketDisagreementsView
 from ...models.public_pm_disagreements_response import PublicPmDisagreementsResponse
 from ...types import UNSET, Response, Unset
 
@@ -27,6 +28,8 @@ def _get_kwargs(
     max_snapshot_age_minutes: float | Unset = UNSET,
     require_priced: bool | Unset = True,
     fiat: str | Unset = "USD",
+    view: GetPublicPredictionMarketDisagreementsView | Unset = UNSET,
+    max_end_date_difference_days: float | Unset = UNSET,
 ) -> dict[str, Any]:
 
     params: dict[str, Any] = {}
@@ -60,6 +63,14 @@ def _get_kwargs(
     params["requirePriced"] = require_priced
 
     params["fiat"] = fiat
+
+    json_view: str | Unset = UNSET
+    if not isinstance(view, Unset):
+        json_view = view.value
+
+    params["view"] = json_view
+
+    params["maxEndDateDifferenceDays"] = max_end_date_difference_days
 
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
 
@@ -115,6 +126,8 @@ def sync_detailed(
     max_snapshot_age_minutes: float | Unset = UNSET,
     require_priced: bool | Unset = True,
     fiat: str | Unset = "USD",
+    view: GetPublicPredictionMarketDisagreementsView | Unset = UNSET,
+    max_end_date_difference_days: float | Unset = UNSET,
 ) -> Response[Error | PublicPmDisagreementsResponse]:
     """Cross-venue disagreement clusters (approved matches)
 
@@ -125,6 +138,11 @@ def sync_detailed(
     For bounded agent context use the MCP `pm_data_disagreements` tool,
     which additionally bounds each event and comparison to its top-5
     highest-delta shared outcomes.
+
+    Pairs whose open side belongs to a paused venue are left out. With
+    `sort=divergence_desc` or `max_outcome_delta_desc`, pairs need verified
+    quotes for the exact compared legs and `meta.quoteEligibilityVersion`
+    is set. `meta.projection` is `compact` or `rich`.
 
     Args:
         limit (int | Unset):  Default: 10.
@@ -137,6 +155,8 @@ def sync_detailed(
         max_snapshot_age_minutes (float | Unset):
         require_priced (bool | Unset):  Default: True.
         fiat (str | Unset):  Default: 'USD'.
+        view (GetPublicPredictionMarketDisagreementsView | Unset):
+        max_end_date_difference_days (float | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -156,6 +176,8 @@ def sync_detailed(
         max_snapshot_age_minutes=max_snapshot_age_minutes,
         require_priced=require_priced,
         fiat=fiat,
+        view=view,
+        max_end_date_difference_days=max_end_date_difference_days,
     )
 
     response = client.get_httpx_client().request(
@@ -178,6 +200,8 @@ def sync(
     max_snapshot_age_minutes: float | Unset = UNSET,
     require_priced: bool | Unset = True,
     fiat: str | Unset = "USD",
+    view: GetPublicPredictionMarketDisagreementsView | Unset = UNSET,
+    max_end_date_difference_days: float | Unset = UNSET,
 ) -> Error | PublicPmDisagreementsResponse | None:
     """Cross-venue disagreement clusters (approved matches)
 
@@ -188,6 +212,11 @@ def sync(
     For bounded agent context use the MCP `pm_data_disagreements` tool,
     which additionally bounds each event and comparison to its top-5
     highest-delta shared outcomes.
+
+    Pairs whose open side belongs to a paused venue are left out. With
+    `sort=divergence_desc` or `max_outcome_delta_desc`, pairs need verified
+    quotes for the exact compared legs and `meta.quoteEligibilityVersion`
+    is set. `meta.projection` is `compact` or `rich`.
 
     Args:
         limit (int | Unset):  Default: 10.
@@ -200,6 +229,8 @@ def sync(
         max_snapshot_age_minutes (float | Unset):
         require_priced (bool | Unset):  Default: True.
         fiat (str | Unset):  Default: 'USD'.
+        view (GetPublicPredictionMarketDisagreementsView | Unset):
+        max_end_date_difference_days (float | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -220,6 +251,8 @@ def sync(
         max_snapshot_age_minutes=max_snapshot_age_minutes,
         require_priced=require_priced,
         fiat=fiat,
+        view=view,
+        max_end_date_difference_days=max_end_date_difference_days,
     ).parsed
 
 
@@ -236,6 +269,8 @@ async def asyncio_detailed(
     max_snapshot_age_minutes: float | Unset = UNSET,
     require_priced: bool | Unset = True,
     fiat: str | Unset = "USD",
+    view: GetPublicPredictionMarketDisagreementsView | Unset = UNSET,
+    max_end_date_difference_days: float | Unset = UNSET,
 ) -> Response[Error | PublicPmDisagreementsResponse]:
     """Cross-venue disagreement clusters (approved matches)
 
@@ -246,6 +281,11 @@ async def asyncio_detailed(
     For bounded agent context use the MCP `pm_data_disagreements` tool,
     which additionally bounds each event and comparison to its top-5
     highest-delta shared outcomes.
+
+    Pairs whose open side belongs to a paused venue are left out. With
+    `sort=divergence_desc` or `max_outcome_delta_desc`, pairs need verified
+    quotes for the exact compared legs and `meta.quoteEligibilityVersion`
+    is set. `meta.projection` is `compact` or `rich`.
 
     Args:
         limit (int | Unset):  Default: 10.
@@ -258,6 +298,8 @@ async def asyncio_detailed(
         max_snapshot_age_minutes (float | Unset):
         require_priced (bool | Unset):  Default: True.
         fiat (str | Unset):  Default: 'USD'.
+        view (GetPublicPredictionMarketDisagreementsView | Unset):
+        max_end_date_difference_days (float | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -277,6 +319,8 @@ async def asyncio_detailed(
         max_snapshot_age_minutes=max_snapshot_age_minutes,
         require_priced=require_priced,
         fiat=fiat,
+        view=view,
+        max_end_date_difference_days=max_end_date_difference_days,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -297,6 +341,8 @@ async def asyncio(
     max_snapshot_age_minutes: float | Unset = UNSET,
     require_priced: bool | Unset = True,
     fiat: str | Unset = "USD",
+    view: GetPublicPredictionMarketDisagreementsView | Unset = UNSET,
+    max_end_date_difference_days: float | Unset = UNSET,
 ) -> Error | PublicPmDisagreementsResponse | None:
     """Cross-venue disagreement clusters (approved matches)
 
@@ -307,6 +353,11 @@ async def asyncio(
     For bounded agent context use the MCP `pm_data_disagreements` tool,
     which additionally bounds each event and comparison to its top-5
     highest-delta shared outcomes.
+
+    Pairs whose open side belongs to a paused venue are left out. With
+    `sort=divergence_desc` or `max_outcome_delta_desc`, pairs need verified
+    quotes for the exact compared legs and `meta.quoteEligibilityVersion`
+    is set. `meta.projection` is `compact` or `rich`.
 
     Args:
         limit (int | Unset):  Default: 10.
@@ -319,6 +370,8 @@ async def asyncio(
         max_snapshot_age_minutes (float | Unset):
         require_priced (bool | Unset):  Default: True.
         fiat (str | Unset):  Default: 'USD'.
+        view (GetPublicPredictionMarketDisagreementsView | Unset):
+        max_end_date_difference_days (float | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -340,5 +393,7 @@ async def asyncio(
             max_snapshot_age_minutes=max_snapshot_age_minutes,
             require_priced=require_priced,
             fiat=fiat,
+            view=view,
+            max_end_date_difference_days=max_end_date_difference_days,
         )
     ).parsed

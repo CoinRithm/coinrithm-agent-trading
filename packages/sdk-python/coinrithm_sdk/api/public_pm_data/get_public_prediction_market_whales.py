@@ -6,6 +6,7 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.error import Error
+from ...models.get_public_prediction_market_whales_min_usd import GetPublicPredictionMarketWhalesMinUsd
 from ...models.public_pm_whales_response import PublicPmWhalesResponse
 from ...types import UNSET, Response, Unset
 
@@ -13,11 +14,18 @@ from ...types import UNSET, Response, Unset
 def _get_kwargs(
     *,
     limit: int | Unset = 50,
+    min_usd: GetPublicPredictionMarketWhalesMinUsd | Unset = UNSET,
 ) -> dict[str, Any]:
 
     params: dict[str, Any] = {}
 
     params["limit"] = limit
+
+    json_min_usd: int | Unset = UNSET
+    if not isinstance(min_usd, Unset):
+        json_min_usd = min_usd.value
+
+    params["minUsd"] = json_min_usd
 
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
 
@@ -68,6 +76,7 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
     limit: int | Unset = 50,
+    min_usd: GetPublicPredictionMarketWhalesMinUsd | Unset = UNSET,
 ) -> Response[Any | Error | PublicPmWhalesResponse]:
     """Latest verified large prediction-market trades
 
@@ -84,6 +93,7 @@ def sync_detailed(
 
     Args:
         limit (int | Unset):  Default: 50.
+        min_usd (GetPublicPredictionMarketWhalesMinUsd | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -95,6 +105,7 @@ def sync_detailed(
 
     kwargs = _get_kwargs(
         limit=limit,
+        min_usd=min_usd,
     )
 
     response = client.get_httpx_client().request(
@@ -108,6 +119,7 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
     limit: int | Unset = 50,
+    min_usd: GetPublicPredictionMarketWhalesMinUsd | Unset = UNSET,
 ) -> Any | Error | PublicPmWhalesResponse | None:
     """Latest verified large prediction-market trades
 
@@ -124,6 +136,7 @@ def sync(
 
     Args:
         limit (int | Unset):  Default: 50.
+        min_usd (GetPublicPredictionMarketWhalesMinUsd | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -136,6 +149,7 @@ def sync(
     return sync_detailed(
         client=client,
         limit=limit,
+        min_usd=min_usd,
     ).parsed
 
 
@@ -143,6 +157,7 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
     limit: int | Unset = 50,
+    min_usd: GetPublicPredictionMarketWhalesMinUsd | Unset = UNSET,
 ) -> Response[Any | Error | PublicPmWhalesResponse]:
     """Latest verified large prediction-market trades
 
@@ -159,6 +174,7 @@ async def asyncio_detailed(
 
     Args:
         limit (int | Unset):  Default: 50.
+        min_usd (GetPublicPredictionMarketWhalesMinUsd | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -170,6 +186,7 @@ async def asyncio_detailed(
 
     kwargs = _get_kwargs(
         limit=limit,
+        min_usd=min_usd,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -181,6 +198,7 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
     limit: int | Unset = 50,
+    min_usd: GetPublicPredictionMarketWhalesMinUsd | Unset = UNSET,
 ) -> Any | Error | PublicPmWhalesResponse | None:
     """Latest verified large prediction-market trades
 
@@ -197,6 +215,7 @@ async def asyncio(
 
     Args:
         limit (int | Unset):  Default: 50.
+        min_usd (GetPublicPredictionMarketWhalesMinUsd | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -210,5 +229,6 @@ async def asyncio(
         await asyncio_detailed(
             client=client,
             limit=limit,
+            min_usd=min_usd,
         )
     ).parsed

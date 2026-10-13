@@ -8,7 +8,13 @@ from ...client import AuthenticatedClient, Client
 from ...models.error import Error
 from ...models.public_pm_events_response import PublicPmEventsResponse
 from ...models.public_pm_source_slug import PublicPmSourceSlug
+from ...models.search_public_prediction_market_events_dedupe import SearchPublicPredictionMarketEventsDedupe
+from ...models.search_public_prediction_market_events_include_quote_evidence import (
+    SearchPublicPredictionMarketEventsIncludeQuoteEvidence,
+)
+from ...models.search_public_prediction_market_events_lead import SearchPublicPredictionMarketEventsLead
 from ...models.search_public_prediction_market_events_sort import SearchPublicPredictionMarketEventsSort
+from ...models.search_public_prediction_market_events_view import SearchPublicPredictionMarketEventsView
 from ...types import UNSET, Response, Unset
 
 
@@ -23,6 +29,11 @@ def _get_kwargs(
     sort: SearchPublicPredictionMarketEventsSort | Unset = SearchPublicPredictionMarketEventsSort.BEST,
     tradeable: bool | Unset = False,
     fiat: str | Unset = "USD",
+    view: SearchPublicPredictionMarketEventsView | Unset = UNSET,
+    lead: SearchPublicPredictionMarketEventsLead | Unset = UNSET,
+    dedupe: SearchPublicPredictionMarketEventsDedupe | Unset = UNSET,
+    min_volume_24_h: float | Unset = UNSET,
+    include_quote_evidence: SearchPublicPredictionMarketEventsIncludeQuoteEvidence | Unset = UNSET,
 ) -> dict[str, Any]:
 
     params: dict[str, Any] = {}
@@ -52,6 +63,32 @@ def _get_kwargs(
     params["tradeable"] = tradeable
 
     params["fiat"] = fiat
+
+    json_view: str | Unset = UNSET
+    if not isinstance(view, Unset):
+        json_view = view.value
+
+    params["view"] = json_view
+
+    json_lead: str | Unset = UNSET
+    if not isinstance(lead, Unset):
+        json_lead = lead.value
+
+    params["lead"] = json_lead
+
+    json_dedupe: str | Unset = UNSET
+    if not isinstance(dedupe, Unset):
+        json_dedupe = dedupe.value
+
+    params["dedupe"] = json_dedupe
+
+    params["minVolume24h"] = min_volume_24_h
+
+    json_include_quote_evidence: str | Unset = UNSET
+    if not isinstance(include_quote_evidence, Unset):
+        json_include_quote_evidence = include_quote_evidence.value
+
+    params["includeQuoteEvidence"] = json_include_quote_evidence
 
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
 
@@ -111,14 +148,34 @@ def sync_detailed(
     sort: SearchPublicPredictionMarketEventsSort | Unset = SearchPublicPredictionMarketEventsSort.BEST,
     tradeable: bool | Unset = False,
     fiat: str | Unset = "USD",
+    view: SearchPublicPredictionMarketEventsView | Unset = UNSET,
+    lead: SearchPublicPredictionMarketEventsLead | Unset = UNSET,
+    dedupe: SearchPublicPredictionMarketEventsDedupe | Unset = UNSET,
+    min_volume_24_h: float | Unset = UNSET,
+    include_quote_evidence: SearchPublicPredictionMarketEventsIncludeQuoteEvidence | Unset = UNSET,
 ) -> Response[Error | PublicPmEventsResponse]:
     """Search events across all prediction-market venues
 
      Keyless event search across Polymarket, Kalshi, Rothera, Limitless,
-    Smarkets, Manifold, Metaculus, PredictIt, Futuur, Myriad and ForecastEx.
-    Results remain visible when quality-blocked; inspect `quality` and
-    `decisionSupport` before using a row for a decision. This research
-    endpoint is broader than the authenticated paper-trading discovery API.
+    Smarkets, Manifold, Metaculus, PredictIt, Futuur, Myriad, ForecastEx
+    and Gemini. Results remain visible when quality-blocked; inspect
+    `quality` and `decisionSupport` before using a row for a decision. This
+    research endpoint is broader than the authenticated paper-trading
+    discovery API.
+
+    Open events of a venue CoinRithm has paused (no longer collecting) are
+    left out of this list, the overview, expiring and matches surfaces;
+    their closed and resolved history stays available. `pagination` reports
+    `limit`, `offset` and `hasMore`.
+
+    Opt-ins (absent means the default shape): `view=compact` keeps each
+    event's top 3 outcomes by probability, adds `outcomesTotal` and drops
+    `description`; `lead=representative` (with `view=compact` only) adds
+    `representativeOutcome` on open events; `dedupe=matched` keeps only the
+    highest-ranked member of each approved cross-venue match group on the
+    page (a page can then hold fewer than `limit` rows); `minVolume24h`
+    keeps events with at least that 24h USD volume;
+    `includeQuoteEvidence=1` adds `quoteEvidence` to every outcome.
 
     Args:
         limit (int | Unset):  Default: 20.
@@ -131,6 +188,11 @@ def sync_detailed(
             SearchPublicPredictionMarketEventsSort.BEST.
         tradeable (bool | Unset):  Default: False.
         fiat (str | Unset):  Default: 'USD'.
+        view (SearchPublicPredictionMarketEventsView | Unset):
+        lead (SearchPublicPredictionMarketEventsLead | Unset):
+        dedupe (SearchPublicPredictionMarketEventsDedupe | Unset):
+        min_volume_24_h (float | Unset):
+        include_quote_evidence (SearchPublicPredictionMarketEventsIncludeQuoteEvidence | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -150,6 +212,11 @@ def sync_detailed(
         sort=sort,
         tradeable=tradeable,
         fiat=fiat,
+        view=view,
+        lead=lead,
+        dedupe=dedupe,
+        min_volume_24_h=min_volume_24_h,
+        include_quote_evidence=include_quote_evidence,
     )
 
     response = client.get_httpx_client().request(
@@ -171,14 +238,34 @@ def sync(
     sort: SearchPublicPredictionMarketEventsSort | Unset = SearchPublicPredictionMarketEventsSort.BEST,
     tradeable: bool | Unset = False,
     fiat: str | Unset = "USD",
+    view: SearchPublicPredictionMarketEventsView | Unset = UNSET,
+    lead: SearchPublicPredictionMarketEventsLead | Unset = UNSET,
+    dedupe: SearchPublicPredictionMarketEventsDedupe | Unset = UNSET,
+    min_volume_24_h: float | Unset = UNSET,
+    include_quote_evidence: SearchPublicPredictionMarketEventsIncludeQuoteEvidence | Unset = UNSET,
 ) -> Error | PublicPmEventsResponse | None:
     """Search events across all prediction-market venues
 
      Keyless event search across Polymarket, Kalshi, Rothera, Limitless,
-    Smarkets, Manifold, Metaculus, PredictIt, Futuur, Myriad and ForecastEx.
-    Results remain visible when quality-blocked; inspect `quality` and
-    `decisionSupport` before using a row for a decision. This research
-    endpoint is broader than the authenticated paper-trading discovery API.
+    Smarkets, Manifold, Metaculus, PredictIt, Futuur, Myriad, ForecastEx
+    and Gemini. Results remain visible when quality-blocked; inspect
+    `quality` and `decisionSupport` before using a row for a decision. This
+    research endpoint is broader than the authenticated paper-trading
+    discovery API.
+
+    Open events of a venue CoinRithm has paused (no longer collecting) are
+    left out of this list, the overview, expiring and matches surfaces;
+    their closed and resolved history stays available. `pagination` reports
+    `limit`, `offset` and `hasMore`.
+
+    Opt-ins (absent means the default shape): `view=compact` keeps each
+    event's top 3 outcomes by probability, adds `outcomesTotal` and drops
+    `description`; `lead=representative` (with `view=compact` only) adds
+    `representativeOutcome` on open events; `dedupe=matched` keeps only the
+    highest-ranked member of each approved cross-venue match group on the
+    page (a page can then hold fewer than `limit` rows); `minVolume24h`
+    keeps events with at least that 24h USD volume;
+    `includeQuoteEvidence=1` adds `quoteEvidence` to every outcome.
 
     Args:
         limit (int | Unset):  Default: 20.
@@ -191,6 +278,11 @@ def sync(
             SearchPublicPredictionMarketEventsSort.BEST.
         tradeable (bool | Unset):  Default: False.
         fiat (str | Unset):  Default: 'USD'.
+        view (SearchPublicPredictionMarketEventsView | Unset):
+        lead (SearchPublicPredictionMarketEventsLead | Unset):
+        dedupe (SearchPublicPredictionMarketEventsDedupe | Unset):
+        min_volume_24_h (float | Unset):
+        include_quote_evidence (SearchPublicPredictionMarketEventsIncludeQuoteEvidence | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -211,6 +303,11 @@ def sync(
         sort=sort,
         tradeable=tradeable,
         fiat=fiat,
+        view=view,
+        lead=lead,
+        dedupe=dedupe,
+        min_volume_24_h=min_volume_24_h,
+        include_quote_evidence=include_quote_evidence,
     ).parsed
 
 
@@ -226,14 +323,34 @@ async def asyncio_detailed(
     sort: SearchPublicPredictionMarketEventsSort | Unset = SearchPublicPredictionMarketEventsSort.BEST,
     tradeable: bool | Unset = False,
     fiat: str | Unset = "USD",
+    view: SearchPublicPredictionMarketEventsView | Unset = UNSET,
+    lead: SearchPublicPredictionMarketEventsLead | Unset = UNSET,
+    dedupe: SearchPublicPredictionMarketEventsDedupe | Unset = UNSET,
+    min_volume_24_h: float | Unset = UNSET,
+    include_quote_evidence: SearchPublicPredictionMarketEventsIncludeQuoteEvidence | Unset = UNSET,
 ) -> Response[Error | PublicPmEventsResponse]:
     """Search events across all prediction-market venues
 
      Keyless event search across Polymarket, Kalshi, Rothera, Limitless,
-    Smarkets, Manifold, Metaculus, PredictIt, Futuur, Myriad and ForecastEx.
-    Results remain visible when quality-blocked; inspect `quality` and
-    `decisionSupport` before using a row for a decision. This research
-    endpoint is broader than the authenticated paper-trading discovery API.
+    Smarkets, Manifold, Metaculus, PredictIt, Futuur, Myriad, ForecastEx
+    and Gemini. Results remain visible when quality-blocked; inspect
+    `quality` and `decisionSupport` before using a row for a decision. This
+    research endpoint is broader than the authenticated paper-trading
+    discovery API.
+
+    Open events of a venue CoinRithm has paused (no longer collecting) are
+    left out of this list, the overview, expiring and matches surfaces;
+    their closed and resolved history stays available. `pagination` reports
+    `limit`, `offset` and `hasMore`.
+
+    Opt-ins (absent means the default shape): `view=compact` keeps each
+    event's top 3 outcomes by probability, adds `outcomesTotal` and drops
+    `description`; `lead=representative` (with `view=compact` only) adds
+    `representativeOutcome` on open events; `dedupe=matched` keeps only the
+    highest-ranked member of each approved cross-venue match group on the
+    page (a page can then hold fewer than `limit` rows); `minVolume24h`
+    keeps events with at least that 24h USD volume;
+    `includeQuoteEvidence=1` adds `quoteEvidence` to every outcome.
 
     Args:
         limit (int | Unset):  Default: 20.
@@ -246,6 +363,11 @@ async def asyncio_detailed(
             SearchPublicPredictionMarketEventsSort.BEST.
         tradeable (bool | Unset):  Default: False.
         fiat (str | Unset):  Default: 'USD'.
+        view (SearchPublicPredictionMarketEventsView | Unset):
+        lead (SearchPublicPredictionMarketEventsLead | Unset):
+        dedupe (SearchPublicPredictionMarketEventsDedupe | Unset):
+        min_volume_24_h (float | Unset):
+        include_quote_evidence (SearchPublicPredictionMarketEventsIncludeQuoteEvidence | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -265,6 +387,11 @@ async def asyncio_detailed(
         sort=sort,
         tradeable=tradeable,
         fiat=fiat,
+        view=view,
+        lead=lead,
+        dedupe=dedupe,
+        min_volume_24_h=min_volume_24_h,
+        include_quote_evidence=include_quote_evidence,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -284,14 +411,34 @@ async def asyncio(
     sort: SearchPublicPredictionMarketEventsSort | Unset = SearchPublicPredictionMarketEventsSort.BEST,
     tradeable: bool | Unset = False,
     fiat: str | Unset = "USD",
+    view: SearchPublicPredictionMarketEventsView | Unset = UNSET,
+    lead: SearchPublicPredictionMarketEventsLead | Unset = UNSET,
+    dedupe: SearchPublicPredictionMarketEventsDedupe | Unset = UNSET,
+    min_volume_24_h: float | Unset = UNSET,
+    include_quote_evidence: SearchPublicPredictionMarketEventsIncludeQuoteEvidence | Unset = UNSET,
 ) -> Error | PublicPmEventsResponse | None:
     """Search events across all prediction-market venues
 
      Keyless event search across Polymarket, Kalshi, Rothera, Limitless,
-    Smarkets, Manifold, Metaculus, PredictIt, Futuur, Myriad and ForecastEx.
-    Results remain visible when quality-blocked; inspect `quality` and
-    `decisionSupport` before using a row for a decision. This research
-    endpoint is broader than the authenticated paper-trading discovery API.
+    Smarkets, Manifold, Metaculus, PredictIt, Futuur, Myriad, ForecastEx
+    and Gemini. Results remain visible when quality-blocked; inspect
+    `quality` and `decisionSupport` before using a row for a decision. This
+    research endpoint is broader than the authenticated paper-trading
+    discovery API.
+
+    Open events of a venue CoinRithm has paused (no longer collecting) are
+    left out of this list, the overview, expiring and matches surfaces;
+    their closed and resolved history stays available. `pagination` reports
+    `limit`, `offset` and `hasMore`.
+
+    Opt-ins (absent means the default shape): `view=compact` keeps each
+    event's top 3 outcomes by probability, adds `outcomesTotal` and drops
+    `description`; `lead=representative` (with `view=compact` only) adds
+    `representativeOutcome` on open events; `dedupe=matched` keeps only the
+    highest-ranked member of each approved cross-venue match group on the
+    page (a page can then hold fewer than `limit` rows); `minVolume24h`
+    keeps events with at least that 24h USD volume;
+    `includeQuoteEvidence=1` adds `quoteEvidence` to every outcome.
 
     Args:
         limit (int | Unset):  Default: 20.
@@ -304,6 +451,11 @@ async def asyncio(
             SearchPublicPredictionMarketEventsSort.BEST.
         tradeable (bool | Unset):  Default: False.
         fiat (str | Unset):  Default: 'USD'.
+        view (SearchPublicPredictionMarketEventsView | Unset):
+        lead (SearchPublicPredictionMarketEventsLead | Unset):
+        dedupe (SearchPublicPredictionMarketEventsDedupe | Unset):
+        min_volume_24_h (float | Unset):
+        include_quote_evidence (SearchPublicPredictionMarketEventsIncludeQuoteEvidence | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -325,5 +477,10 @@ async def asyncio(
             sort=sort,
             tradeable=tradeable,
             fiat=fiat,
+            view=view,
+            lead=lead,
+            dedupe=dedupe,
+            min_volume_24_h=min_volume_24_h,
+            include_quote_evidence=include_quote_evidence,
         )
     ).parsed

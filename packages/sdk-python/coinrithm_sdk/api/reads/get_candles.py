@@ -105,7 +105,7 @@ def sync_detailed(
     surface — call /api/agent/resolve first. `range` picks both the
     lookback and the per-candle resolution: 1H = 60×1-minute,
     1D = 288×5-minute, 1W = 672×15-minute, 1M = 720×1-hour,
-    3M = 540×4-hour candles. Candles are oldest→newest with `t` in unix
+    3M = 540×4-hour, 1Y = up to 366 daily candles. Candles are oldest→newest with `t` in unix
     SECONDS. o/h/l/c are converted to `fiat` (default USD) at the nearest
     stored rate; `v` stays USD regardless of fiat. These are sampled
     composite-price bars, not venue trade candles, and `v` is a rolling
@@ -153,7 +153,7 @@ def sync(
     surface — call /api/agent/resolve first. `range` picks both the
     lookback and the per-candle resolution: 1H = 60×1-minute,
     1D = 288×5-minute, 1W = 672×15-minute, 1M = 720×1-hour,
-    3M = 540×4-hour candles. Candles are oldest→newest with `t` in unix
+    3M = 540×4-hour, 1Y = up to 366 daily candles. Candles are oldest→newest with `t` in unix
     SECONDS. o/h/l/c are converted to `fiat` (default USD) at the nearest
     stored rate; `v` stays USD regardless of fiat. These are sampled
     composite-price bars, not venue trade candles, and `v` is a rolling
@@ -196,7 +196,7 @@ async def asyncio_detailed(
     surface — call /api/agent/resolve first. `range` picks both the
     lookback and the per-candle resolution: 1H = 60×1-minute,
     1D = 288×5-minute, 1W = 672×15-minute, 1M = 720×1-hour,
-    3M = 540×4-hour candles. Candles are oldest→newest with `t` in unix
+    3M = 540×4-hour, 1Y = up to 366 daily candles. Candles are oldest→newest with `t` in unix
     SECONDS. o/h/l/c are converted to `fiat` (default USD) at the nearest
     stored rate; `v` stays USD regardless of fiat. These are sampled
     composite-price bars, not venue trade candles, and `v` is a rolling
@@ -242,7 +242,7 @@ async def asyncio(
     surface — call /api/agent/resolve first. `range` picks both the
     lookback and the per-candle resolution: 1H = 60×1-minute,
     1D = 288×5-minute, 1W = 672×15-minute, 1M = 720×1-hour,
-    3M = 540×4-hour candles. Candles are oldest→newest with `t` in unix
+    3M = 540×4-hour, 1Y = up to 366 daily candles. Candles are oldest→newest with `t` in unix
     SECONDS. o/h/l/c are converted to `fiat` (default USD) at the nearest
     stored rate; `v` stays USD regardless of fiat. These are sampled
     composite-price bars, not venue trade candles, and `v` is a rolling

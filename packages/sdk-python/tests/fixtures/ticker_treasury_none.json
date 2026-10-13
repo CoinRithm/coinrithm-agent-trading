@@ -1,0 +1,14 @@
+{
+  "ticker": "AAPL",
+  "status": "fresh",
+  "treasury": null,
+  "asOf": "2026-10-13T20:12:08.858Z",
+  "source": {
+    "name": "CoinGecko",
+    "url": "https://www.coingecko.com",
+    "attribution": "Data provided by CoinGecko"
+  },
+  "meta": {
+    "freshUntil": "2026-10-14T08:12:08.858Z"
+  }
+}
