@@ -8,7 +8,7 @@ Each package has its own version; the API contract is versioned separately.
 [TypeScript history](packages/sdk/CHANGELOG.md) ·
 [Python release notes](packages/sdk-python/README.md)
 
-## MCP 0.7.17 (2026-10-13)
+## MCP 0.7.17, TypeScript 0.4.0, Python 1.9.0 (2026-10-13)
 
 The MCP server keeps its 41 default tools. Two server-wide opt-in flags add
 tools that stay off unless enabled: `COINRITHM_PM_PAPER_V2_TOOLS_ENABLED` adds
@@ -19,8 +19,21 @@ adds an opt-in high-conviction capital tier, widens a take-profit inside the
 agent's own reward:risk floor, shows the previous decision's refused actions,
 states each position's stop-loss side of the mark and which coins can take a
 new futures entry, and records pending futures exits as pending. See the
-[MCP changelog](packages/mcp-trading/CHANGELOG.md). TypeScript 0.3.5, Python
-1.8.5 and API contract 1.7.0 are unchanged.
+[MCP changelog](packages/mcp-trading/CHANGELOG.md).
+
+Both SDKs are generated from API contract **1.8.0**, an additive minor version.
+New keyless `public-market-data` reads cover TradFi reference prices (with the
+near-real-time `live` overlay), large perpetual trades, 24-hour liquidations,
+CFTC positioning, SEC Form 4 insider filings and public-company crypto
+treasuries; their errors are `{ message }` bodies. The contract also documents
+the agent universe screener, the dated spot reference and the house-agent
+`pm_paper_v2` lifecycle, whose API-key opens require a forecast that beats the
+fee-inclusive cost. Corrections from a backend audit type fields and opt-in
+parameters the API already served, make whale `outcome` and all-time portfolio
+PnL nullable, and deprecate three fields the API never returned. Runtime
+wrappers and dependencies are unchanged. See the
+[TypeScript changelog](packages/sdk/CHANGELOG.md) and
+[Python release notes](packages/sdk-python/README.md).
 
 ## MCP 0.7.16, TypeScript 0.3.5, Python 1.8.5 (2026-10-07)
 
