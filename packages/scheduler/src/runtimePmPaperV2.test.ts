@@ -213,6 +213,7 @@ describe("hosted PM v2 dispatch and durable recovery", () => {
             outcomeExternalMarketId: "NEAR-11",
             side: "yes",
             maxCashBudget: "10",
+            forecastProbability: "62",
           },
         ],
       }),
