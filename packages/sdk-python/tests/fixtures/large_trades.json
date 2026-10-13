@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "generatedAt": "2026-10-13T22:46:24.888Z",
+  "filters": {
+    "symbol": null,
+    "venue": null,
+    "assetClass": null,
+    "limit": 200
+  },
+  "count": 2,
+  "items": [
+    {
+      "id": "binance:OPUSDT:355292310",
+      "venue": "binance",
+      "symbol": "OPUSDT",
+      "base": "OP",
+      "assetClass": "crypto",
+      "side": "buy",
+      "price": 0.1576775946221724,
+      "qty": 950041.5999999999,
+      "notionalUsd": 149800.274279,
+      "fills": 274,
+      "thresholdUsd": 50000,
+      "tradeTime": "2026-10-13T22:46:10.543Z",
+      "ingestedAt": "2026-10-13T22:46:11.340Z",
+      "buyer": null,
+      "seller": null,
+      "links": {
+        "market": "https://www.binance.com/en/futures/OPUSDT",
+        "buyer": null,
+        "seller": null,
+        "tx": null
+      }
+    },
+    {
+      "id": "hyperliquid:xyz:XYZ100:0x15a1196c4b18add4171a0446803cf702039e0051e61bcca6b969c4bf0a1c87be:sell",
+      "venue": "hyperliquid",
+      "symbol": "xyz:XYZ100",
+      "base": "XYZ100",
+      "assetClass": "index",
+      "side": "sell",
+      "price": 30609,
+      "qty": 2.2179,
+      "notionalUsd": 67887.7011,
+      "fills": 1,
+      "thresholdUsd": 50000,
+      "tradeTime": "2026-10-13T22:46:05.015Z",
+      "ingestedAt": "2026-10-13T22:46:07.319Z",
+      "buyer": "0x6ba51c6b1c5fef215014e5e3ca22f333894a3759",
+      "seller": "0x46921f6961bdb411b756c9712f6bdb58fbd9164f",
+      "links": {
+        "market": "https://app.hyperliquid.xyz/trade/xyz:XYZ100",
+        "buyer": "https://app.hyperliquid.xyz/explorer/address/0x6ba51c6b1c5fef215014e5e3ca22f333894a3759",
+        "seller": "https://app.hyperliquid.xyz/explorer/address/0x46921f6961bdb411b756c9712f6bdb58fbd9164f",
+        "tx": "https://app.hyperliquid.xyz/explorer/tx/0x15a1196c4b18add4171a0446803cf702039e0051e61bcca6b969c4bf0a1c87be"
+      }
+    }
+  ],
+  "source": {
+    "provider": "CoinRithm large-trade collector",
+    "venues": [
+      {
+        "venue": "binance",
+        "name": "Binance USD-M Futures",
+        "url": "https://www.binance.com/en/futures",
+        "feed": "public aggTrade stream"
+      },
+      {
+        "venue": "hyperliquid",
+        "name": "Hyperliquid",
+        "url": "https://app.hyperliquid.xyz",
+        "feed": "public trades stream"
+      }
+    ],
+    "method": "Prints at or above a per-market USD notional floor (thresholdUsd on each item): crypto by asset (BTC/ETH $500k, large alts $150k, others $50k), non-crypto by the market's 24h venue volume tier ($250k down to $5k). Binance rows merge one taker order's consecutive fills at the same trade time; Hyperliquid rows merge the fills of one transaction. Side is the taker side. Notional is in the venue's quote stablecoin (USDT/USDC). assetClass is a best-effort label.",
+    "coverage": "Top Binance USD-M crypto perpetuals by volume and every Binance TradFi perpetual; top Hyperliquid crypto perpetuals and HIP-3 xyz markets. Collected while our connection is live; gaps are possible."
+  }
+}

@@ -1,0 +1,100 @@
+{
+  "version": 1,
+  "generatedAt": "2026-10-13T22:32:55.855Z",
+  "base": "XAU",
+  "venue": "okx",
+  "window": {
+    "from": "2026-10-12T22:32:55.855Z",
+    "to": "2026-10-13T22:32:55.855Z",
+    "hours": 24
+  },
+  "totals": {
+    "longUsd": 210869,
+    "shortUsd": 18473,
+    "totalUsd": 229342,
+    "longEvents": 70,
+    "shortEvents": 30,
+    "events": 100
+  },
+  "venues": [
+    {
+      "venue": "okx",
+      "longUsd": 210869,
+      "shortUsd": 18473,
+      "totalUsd": 229342,
+      "longEvents": 70,
+      "shortEvents": 30,
+      "events": 100,
+      "instIds": [
+        "XAU-USDT-SWAP"
+      ],
+      "capturedPct": 99.4,
+      "lastEventAt": "2026-10-13T19:16:07.900Z"
+    }
+  ],
+  "biggest": [
+    {
+      "venue": "okx",
+      "instId": "XAU-USDT-SWAP",
+      "eventAt": "2026-10-13T15:28:54.091Z",
+      "liquidatedSide": "long",
+      "contracts": 10076,
+      "price": 4169.1,
+      "notionalUsd": 42007.85,
+      "marketUrl": "https://www.okx.com/trade-swap/xau-usdt-swap"
+    },
+    {
+      "venue": "okx",
+      "instId": "XAU-USDT-SWAP",
+      "eventAt": "2026-10-13T13:06:15.652Z",
+      "liquidatedSide": "long",
+      "contracts": 6395,
+      "price": 4180.1,
+      "notionalUsd": 26731.74,
+      "marketUrl": "https://www.okx.com/trade-swap/xau-usdt-swap"
+    }
+  ],
+  "latest": [
+    {
+      "venue": "okx",
+      "instId": "XAU-USDT-SWAP",
+      "eventAt": "2026-10-13T19:16:07.900Z",
+      "liquidatedSide": "long",
+      "contracts": 10,
+      "price": 4169.1,
+      "notionalUsd": 41.69,
+      "marketUrl": "https://www.okx.com/trade-swap/xau-usdt-swap"
+    },
+    {
+      "venue": "okx",
+      "instId": "XAU-USDT-SWAP",
+      "eventAt": "2026-10-13T17:52:56.241Z",
+      "liquidatedSide": "long",
+      "contracts": 111,
+      "price": 4153.5,
+      "notionalUsd": 461.04,
+      "marketUrl": "https://www.okx.com/trade-swap/xau-usdt-swap"
+    }
+  ],
+  "truncated": false,
+  "source": {
+    "provider": "CoinRithm liquidation collector",
+    "venues": [
+      {
+        "venue": "binance",
+        "name": "Binance USD-M Futures",
+        "url": "https://www.binance.com/en/futures",
+        "feed": "public forced-order stream",
+        "note": "Binance USDT-margined futures liquidation snapshots only. The venue publishes at most the latest liquidation order per symbol per second. Values describe captured snapshots, not total exchange liquidations; capturedPct measures our capture uptime, not exchange completeness."
+      },
+      {
+        "venue": "okx",
+        "name": "OKX Perpetual Swaps",
+        "url": "https://www.okx.com/trade-swap",
+        "feed": "public liquidation-orders channel",
+        "note": "OKX USDT-margined swaps only. Sums of liquidations OKX pushed while our capture was running; capturedPct is a lower bound of our capture uptime for the window, not exchange completeness."
+      }
+    ],
+    "method": "Liquidation orders the venues published while our capture was running, last 24 hours, matched by the venue's base symbol. Notional in USDT: OKX size x bankruptcy price; Binance filled size x average fill price (price is the liquidation order price). 'long' means a long position was liquidated (a forced sell). capturedPct is a lower bound of our capture uptime for the window, not exchange completeness."
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "coin": "bitcoin",
+  "status": "fresh",
+  "totalHoldings": 1305109.2192943657,
+  "totalValueUsd": 109063400235.33372,
+  "companies": [
+    {
+      "name": "Strategy",
+      "symbol": "MSTR.US",
+      "country": "US",
+      "holdings": 848250,
+      "valueUsd": 70885277555.26921,
+      "pctOfSupply": 4.039,
+      "tradfiTicker": "MSTR"
+    },
+    {
+      "name": "Metaplanet",
+      "symbol": "3350.T",
+      "country": "JP",
+      "holdings": 44000,
+      "valueUsd": 3676925685.153959,
+      "pctOfSupply": 0.21,
+      "tradfiTicker": null
+    },
+    {
+      "name": "Planet Ventures",
+      "symbol": null,
+      "country": "CA",
+      "holdings": 28.88613453,
+      "valueUsd": 2413912.954503856,
+      "pctOfSupply": 0,
+      "tradfiTicker": null
+    }
+  ],
+  "asOf": "2026-10-13T15:17:08.836Z",
+  "source": {
+    "name": "CoinGecko",
+    "url": "https://www.coingecko.com",
+    "attribution": "Data provided by CoinGecko"
+  },
+  "meta": {
+    "freshUntil": "2026-10-14T03:17:08.836Z"
+  }
+}

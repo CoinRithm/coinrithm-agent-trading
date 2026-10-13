@@ -1,0 +1,75 @@
+{
+  "ticker": "XAU",
+  "coverage": "available",
+  "status": "fresh",
+  "contract": {
+    "code": "088691",
+    "market": "GOLD - COMMODITY EXCHANGE INC.",
+    "exchange": "COMEX",
+    "units": "(CONTRACTS OF 100 TROY OUNCES)"
+  },
+  "reports": [
+    {
+      "reportDate": "2026-10-06",
+      "openInterest": 396109,
+      "nonCommercial": {
+        "long": 245403,
+        "short": 35068,
+        "net": 210335,
+        "spreading": 44440
+      },
+      "commercial": {
+        "long": 55802,
+        "short": 300329,
+        "net": -244527
+      },
+      "nonReportable": {
+        "long": 50464,
+        "short": 16272,
+        "net": 34192
+      },
+      "change": {
+        "openInterest": -10347,
+        "nonCommercialNet": -8297,
+        "commercialNet": 6440
+      }
+    },
+    {
+      "reportDate": "2026-09-29",
+      "openInterest": 406456,
+      "nonCommercial": {
+        "long": 249736,
+        "short": 31104,
+        "net": 218632,
+        "spreading": 49105
+      },
+      "commercial": {
+        "long": 58831,
+        "short": 309798,
+        "net": -250967
+      },
+      "nonReportable": {
+        "long": 48784,
+        "short": 16449,
+        "net": 32335
+      },
+      "change": {
+        "openInterest": -6344,
+        "nonCommercialNet": -7221,
+        "commercialNet": 11936
+      }
+    }
+  ],
+  "asOf": "2026-10-13T17:10:55.886Z",
+  "source": {
+    "name": "CFTC Commitments of Traders",
+    "url": "https://www.cftc.gov/MarketReports/CommitmentsofTraders/index.htm",
+    "publisher": "U.S. Commodity Futures Trading Commission",
+    "dataset": "Legacy report, futures only",
+    "datasetUrl": "https://publicreporting.cftc.gov/Commitments-of-Traders/Legacy-Futures-Only/6dca-aqww",
+    "note": "Positions as of each Tuesday, published the following Friday. Non-commercial traders are mostly speculators (funds); commercial traders hedge a business exposure. Net = long minus short, in contracts."
+  },
+  "meta": {
+    "freshUntil": "2026-10-14T05:10:55.886Z"
+  }
+}
