@@ -2,13 +2,13 @@
 name = "coinrithm-sdk"
 # PyPI distribution version. The generated API contract version remains the
 # canonical openapi.yaml info.version and can advance independently.
-version = "1.8.5"
-description = "Typed Python client for the CoinRithm Agent Trading API — paper trading only, generated from the OpenAPI 3.1 contract."
+version = "1.9.0"
+description = "Typed Python client for the CoinRithm Agent Trading API: paper trading plus keyless prediction-market, crypto and TradFi market data, generated from the OpenAPI 3.1 contract."
 authors = [{ name = "CoinRithm", email = "support@coinrithm.com" }]
 license = "MIT"
 readme = "README.md"
 requires-python = ">=3.10,<4.0"
-keywords = ["coinrithm", "prediction-markets", "paper-trading", "openapi", "mcp"]
+keywords = ["coinrithm", "prediction-markets", "paper-trading", "openapi", "mcp", "market-data", "crypto", "tradfi"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
