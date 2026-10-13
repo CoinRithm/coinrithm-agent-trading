@@ -10,6 +10,9 @@ not financial advice.
 `exits.md`, `sizing.md` and `research.md` sections and uses earlier hosted
 zero-cap validation. See the [version status](../../README.md#version-clarity)
 before running these bundles locally. The hosted Arena update is deployed separately.
+Leo and Mia also set `capitalSizing.highConviction`, which needs runner version
+**0.7.17** or this checkout; **0.7.16** and earlier reject it as an unknown
+`capitalSizing` key.
 
 > **Forking warning:** `character/thesis.md`, `character/skills/*.md`, and
 > `journal/notes.md` carry LOAD-BEARING strategy doctrine that keeps steering
@@ -54,22 +57,23 @@ the research behind its edge and the evidence from its own record, and its
 Checked against the runner source on 2026-09-24. Some zeros switch a limit off;
 others block every trade.
 
-| Knob                                     | File                        | 0 means                                                                                     | Hosted rule        |
-| ---------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------- | ------------------ |
-| `killSwitch.maxDrawdownMusd`             | `safety/killSwitch.yaml`    | off                                                                                         | 0 or more          |
-| `killSwitch.maxConsecutiveRejects`       | `safety/killSwitch.yaml`    | off                                                                                         | 0 or more          |
-| `killSwitch.maxConsecutiveModelFailures` | `safety/killSwitch.yaml`    | off (a positive value is floored at 10)                                                     | 0 or more          |
-| `killSwitch.onRateLimitPressure`         | `safety/killSwitch.yaml`    | `false` is off                                                                              | true or false      |
-| `limits.maxTradesPerDay`                 | `character/limits.yaml`     | unlimited entries per UTC day                                                               | 0 or more          |
-| `limits.maxDailyLossMusd`                | `character/limits.yaml`     | no daily loss cap                                                                           | 0 or more          |
-| `limits.maxWritesPerCycle`               | `character/limits.yaml`     | **blocks every entry** (it counts entries and adds; closes and stop moves are never capped) | above 0            |
-| `limits.maxOpenMarginMusd`               | `character/limits.yaml`     | **blocks every futures entry**                                                              | above 0            |
-| `risk.perTradeMarginMusd`                | `character/risk.yaml`       | **blocks every entry**                                                                      | above 0            |
-| `risk.maxConcurrentPositions`            | `character/risk.yaml`       | **blocks every futures entry**                                                              | above 0            |
-| `abstention.minConfidence`               | `character/abstention.yaml` | no confidence floor                                                                         | 0 to 1             |
-| `capitalSizing.cashReservePct`           | `agent.md`                  | no cash reserve                                                                             | 0 to under 100     |
-| `capitalSizing.minRewardRisk`            | `agent.md`                  | not allowed                                                                                 | 1 or more          |
-| other `capitalSizing` percentages        | `agent.md`                  | not allowed                                                                                 | above 0, up to 100 |
+| Knob                                         | File                        | 0 means                                                                                     | Hosted rule        |
+| -------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------- | ------------------ |
+| `killSwitch.maxDrawdownMusd`                 | `safety/killSwitch.yaml`    | off                                                                                         | 0 or more          |
+| `killSwitch.maxConsecutiveRejects`           | `safety/killSwitch.yaml`    | off                                                                                         | 0 or more          |
+| `killSwitch.maxConsecutiveModelFailures`     | `safety/killSwitch.yaml`    | off (a positive value is floored at 10)                                                     | 0 or more          |
+| `killSwitch.onRateLimitPressure`             | `safety/killSwitch.yaml`    | `false` is off                                                                              | true or false      |
+| `limits.maxTradesPerDay`                     | `character/limits.yaml`     | unlimited entries per UTC day                                                               | 0 or more          |
+| `limits.maxDailyLossMusd`                    | `character/limits.yaml`     | no daily loss cap                                                                           | 0 or more          |
+| `limits.maxWritesPerCycle`                   | `character/limits.yaml`     | **blocks every entry** (it counts entries and adds; closes and stop moves are never capped) | above 0            |
+| `limits.maxOpenMarginMusd`                   | `character/limits.yaml`     | **blocks every futures entry**                                                              | above 0            |
+| `risk.perTradeMarginMusd`                    | `character/risk.yaml`       | **blocks every entry**                                                                      | above 0            |
+| `risk.maxConcurrentPositions`                | `character/risk.yaml`       | **blocks every futures entry**                                                              | above 0            |
+| `abstention.minConfidence`                   | `character/abstention.yaml` | no confidence floor                                                                         | 0 to 1             |
+| `capitalSizing.cashReservePct`               | `agent.md`                  | no cash reserve                                                                             | 0 to under 100     |
+| `capitalSizing.minRewardRisk`                | `agent.md`                  | not allowed                                                                                 | 1 or more          |
+| other `capitalSizing` percentages            | `agent.md`                  | not allowed                                                                                 | above 0, up to 100 |
+| `capitalSizing.highConviction.minConfidence` | `agent.md`                  | not allowed                                                                                 | above 0, up to 1   |
 
 `character/sizing.yaml` holds notes for people; the runner never reads it. The
 enforced sizing is `capitalSizing` in `agent.md`: the runner targets a modeled
@@ -79,6 +83,14 @@ exposure and cash caps can lower the position or stake. A wider stop reduces the
 modeled position; costs, gaps and liquidation can change the actual loss. Leverage
 changes margin use and liquidation exposure, so the modeled risk-at-stop target
 is not a guaranteed loss limit.
+
+The optional `capitalSizing.highConviction` block (`minConfidence`,
+`perTicketCapitalPct`, `futuresRiskPct`) applies only to a `futures_open` whose
+confidence is at or above `minConfidence`: that entry uses the block's ticket
+and stop-risk percentages instead of the base ones. Its `perTicketCapitalPct`
+cannot exceed `totalCapitalPct`. Total allocation, cash reserve, open-margin and
+reward:risk caps still apply, and prediction-market and spot sizing never read
+confidence.
 
 ## Starter examples
 

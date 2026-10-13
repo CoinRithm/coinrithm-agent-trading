@@ -102,11 +102,12 @@ COINRITHM_API_KEY=crk_live_… ANTHROPIC_API_KEY=sk-ant-… \
 
 ## Environment
 
-| Var                                                     | Required        | What                                                                                                           |
-| ------------------------------------------------------- | --------------- | -------------------------------------------------------------------------------------------------------------- |
-| `COINRITHM_API_KEY`                                     | yes (for `run`) | your `crk_live_…` paper key. Used for reads + paper writes.                                                    |
-| `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GROQ_API_KEY` | yes (for `run`) | the model key for the provider named in the agent. **Keys come from the env only — never from an agent file.** |
-| `COINRITHM_API_URL`                                     | no              | override the API base URL (defaults to production).                                                            |
+| Var                                                     | Required            | What                                                                                                                                                                         |
+| ------------------------------------------------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `COINRITHM_API_KEY`                                     | yes (for `run`)     | your `crk_live_…` paper key. Used for reads + paper writes.                                                                                                                  |
+| `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GROQ_API_KEY` | yes (for `run`)     | the model key for the provider named in the agent. **Keys come from the env only — never from an agent file.**                                                               |
+| `NVIDIA_API_KEY` / `GEMINI_API_KEY` / `MODEL_API_KEY`   | for those providers | `nvidia` reads `NVIDIA_API_KEY` and `gemini` reads `GEMINI_API_KEY`, each falling back to `MODEL_API_KEY`; `openai-compatible` reads `MODEL_API_KEY`, then `OPENAI_API_KEY`. |
+| `COINRITHM_API_URL`                                     | no                  | override the API base URL (defaults to production).                                                                                                                          |
 
 `new` / `validate` / `inspect` / `lock` / `eject` need **no keys** — they only
 touch local files.
@@ -189,6 +190,16 @@ decisions. Model-reported confidence is not independent evidence of correctness.
   identity before execution; a corrupt state file refuses to run, and a per-agent
   CLI lock prevents two runners racing one file. Deduplication also depends on
   the execution service honoring the key. This is not an exactly-once guarantee.
+- **Refusal feedback (0.7.17 and later).** The next prompt lists up to five
+  actions refused in the previous validated decision, with the rejection code
+  and a short reason, so the model fixes the cause instead of resubmitting. An
+  explicit server refusal of a stop/target update is included; timeouts and
+  server errors are not, because they do not prove that nothing happened.
+- **Take-profit repair.** A missing or wrong-side futures take-profit is
+  replaced with a target off the stop. Under `capitalSizing`, a correct-side
+  target inside `minRewardRisk` is widened to that floor (0.7.17 and later),
+  never narrowed. The requested and applied targets are kept in the cycle
+  record as `takeProfitRepair`.
 
 ## Opportunity-report outcomes
 
@@ -456,6 +467,13 @@ This is the supported engine entry point. The previous
 The scheduler uses the same engine. Database hosts must persist state themselves
 when they omit `stateFile`; the file-backed restart check does not establish
 durability for an arbitrary external host.
+
+From package version 0.7.17 the engine also exports `runPmPaperCycle`,
+`readPmHousePolicies`, `selectPmHousePolicy` and `parseDecisionForContract`.
+The hosted scheduler uses them only for explicitly enrolled PM paper v2 house
+agents whose API key matches a configured house policy. The `coinrithm-agent`
+CLI does not run that cycle, and every other agent keeps the existing decision
+contract.
 
 ## Market boundaries (`universe`)
 

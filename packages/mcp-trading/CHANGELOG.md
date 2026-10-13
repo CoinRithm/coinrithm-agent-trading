@@ -5,13 +5,37 @@ ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (t
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
 versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 
-## Unreleased
+## 0.7.17 (2026-10-13)
+
+MCP server:
+
+- Opt-in PM paper v2 tools. `COINRITHM_PM_PAPER_V2_TOOLS_ENABLED=true` adds
+  `open_pm_paper_v2` (`POST /api/agent/pm/v2/open`, scope `trade:pm`),
+  `close_pm_paper_v2` (`POST /api/agent/pm/v2/close`, scope `trade:pm`) and
+  `get_pm_paper_v2_positions` (`GET /api/agent/pm/v2/positions`, scope `read`).
+  They serve separately configured house keys only. `maxCashBudget` is an exact
+  decimal total that includes entry fees. API-key opens must send
+  `forecastProbability` for the bought side. A close can return HTTP 202
+  (accepted, still pending); only `executed: true` confirms the exit.
+- Opt-in spot reference tool. `COINRITHM_SPOT_REFERENCE_TOOLS_ENABLED=true` adds
+  `get_spot_reference` (`GET /api/agent/spot/reference/:coinId`, scope `read`):
+  a Binance spot last-ticker reference (USDT) with a stored REST consensus
+  fallback (USD), each with its own status and expiry. It is not an executable
+  quote and does not change market context, quotes or fills.
+- Both flags are off by default. The default surface stays at 41 tools.
+- API clients add `discoverPmPaperV2`, `openPmPaperV2`, `replayPmPaperV2Open`,
+  `closePmPaperV2`, `pmPaperV2Positions` and `getSpotReference`.
+
+Agent runner and engine:
 
 - Capital-sizing agents: a correct-side futures take-profit that sits inside
   the agent's own `capitalSizing.minRewardRisk` floor is widened to that floor
   (fees included) instead of the open being refused as
   `capital_quote_reward_risk_too_low`. A target at or beyond the floor is never
-  changed; agents without a capital policy are unaffected.
+  changed; agents without a capital policy are unaffected. Each repair is
+  logged and persisted as `takeProfitRepair` (requested target, applied target
+  and reason: `missing`, `wrong_side` or `below_reward_risk_floor`). Economics
+  that cannot produce a finite target fail closed.
 - `capitalSizing.highConviction` (opt-in, `equity_fraction_v1`): a
   `futures_open` whose confidence is at or above `minConfidence` is sized and
   rechecked with its own `perTicketCapitalPct` and `futuresRiskPct` instead of
@@ -26,6 +50,23 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
   Explicit server refusals of stop/target updates are included when the mark
   moves after local validation. Network and server failures remain uncertain
   outcomes; they are not described as confirmed refusals.
+- Prompts list each open futures position's stop-loss side of the observed mark
+  for `futures_set_sltp`, including whether a stop at the entry price would be
+  refused.
+- Prompts mark watched coins whose perpetual reference is stale or unavailable
+  as blocked for a NEW `futures_open` and give the remaining
+  `futuresEntryChoices`. When no candidate remains, the prompt does not offer
+  `futures_open` for that cycle. Runner validation, existing positions, closes
+  and stop/target updates keep their rules.
+- Futures closes answered with the `hl_paper_v2` execution model: an accepted
+  but unfilled exit (HTTP 202) is recorded as pending, not as executed or
+  failed, and does not advance the reject or failure kill-switch counters.
+  Replayed responses do not consume write budget or repeat journal entries.
+  Legacy responses keep their existing meaning.
+- Engine exports for hosted, explicitly enrolled PM paper v2 houses:
+  `runPmPaperCycle`, `readPmHousePolicies`, `selectPmHousePolicy` and
+  `parseDecisionForContract`. The `coinrithm-agent` CLI does not run this
+  cycle, and existing agents keep the legacy decision contract.
 
 ## 0.7.16 (published 2026-10-07)
 

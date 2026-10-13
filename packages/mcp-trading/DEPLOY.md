@@ -30,11 +30,13 @@ the `Authorization` header. There is no shared default API key.
 
 ## Environment
 
-| Var                 | Value                                           | Required                                          | Notes                                                                                                                                        |
-| ------------------- | ----------------------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PORT`              | `8787`                                          | no (default `8787`)                               | Port the HTTP server listens on; Coolify routes the domain here.                                                                             |
-| `COINRITHM_API_URL` | `http://api:4000` on our shared Coolify network | no (external default `https://api.coinrithm.com`) | Our hosted service calls the API internally, without exiting through Cloudflare. External/self-hosted clients keep the public HTTPS default. |
-| `COINRITHM_API_KEY` | —                                               | **no**                                            | **Do NOT set.** Ignored by the HTTP entry; keys arrive per request.                                                                          |
+| Var                                      | Value                                           | Required                                          | Notes                                                                                                                                        |
+| ---------------------------------------- | ----------------------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PORT`                                   | `8787`                                          | no (default `8787`)                               | Port the HTTP server listens on; Coolify routes the domain here.                                                                             |
+| `COINRITHM_API_URL`                      | `http://api:4000` on our shared Coolify network | no (external default `https://api.coinrithm.com`) | Our hosted service calls the API internally, without exiting through Cloudflare. External/self-hosted clients keep the public HTTPS default. |
+| `COINRITHM_API_KEY`                      | —                                               | **no**                                            | **Do NOT set.** Ignored by the HTTP entry; keys arrive per request.                                                                          |
+| `COINRITHM_PM_PAPER_V2_TOOLS_ENABLED`    | unset                                           | no (default off)                                  | Leave unset on the shared host. `true` advertises the PM paper v2 tools to every client of the server.                                       |
+| `COINRITHM_SPOT_REFERENCE_TOOLS_ENABLED` | unset                                           | no (default off)                                  | Leave unset on the shared host. `true` advertises `get_spot_reference` to every client of the server.                                        |
 
 ## Build the image
 
