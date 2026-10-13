@@ -428,21 +428,33 @@ stdout is the MCP JSON-RPC channel; this server logs only to stderr.
 
 The default tool list is unchanged. Set `COINRITHM_PM_PAPER_V2_TOOLS_ENABLED=true`
 only for a server intended to expose the separately authorized house pilot:
-`open_pm_paper_v2`, `close_pm_paper_v2`, and `get_pm_paper_v2_positions`.
+`discover_pm_paper_v2_markets`, `open_pm_paper_v2`, `close_pm_paper_v2`, and
+`get_pm_paper_v2_positions`. With both opt-in flags on, the server registers
+46 tools.
 
-| Tool                        | Scope      | Wraps                             |
-| --------------------------- | ---------- | --------------------------------- |
-| `open_pm_paper_v2`          | `trade:pm` | `POST /api/agent/pm/v2/open`      |
-| `close_pm_paper_v2`         | `trade:pm` | `POST /api/agent/pm/v2/close`     |
-| `get_pm_paper_v2_positions` | `read`     | `GET /api/agent/pm/v2/positions`  |
+| Tool                           | Scope      | Wraps                                        |
+| ------------------------------ | ---------- | -------------------------------------------- |
+| `discover_pm_paper_v2_markets` | `read`     | `GET /api/agent/pm/v2/discover` (q?, limit?) |
+| `open_pm_paper_v2`             | `trade:pm` | `POST /api/agent/pm/v2/open`                 |
+| `close_pm_paper_v2`            | `trade:pm` | `POST /api/agent/pm/v2/close`                |
+| `get_pm_paper_v2_positions`    | `read`     | `GET /api/agent/pm/v2/positions`             |
+
+These tools are meant for keys that match a configured house; discovery
+returns `403 house_opt_in_required` for any other key. Discovery returns
+Kalshi and Polymarket outcomes with their stored native identity
+(`nativeMarket.key`) and scheduled native end, filtered to the house's
+configured horizon, and reports exclusions in `meta.boundedSelection`. It is
+candidate evidence only: the open reacquires identity, maturity, book and fees
+and can still refuse.
 
 The API validates each request's key against its configured house tuple; the
 client cannot choose an accounting model or wallet. Opens cover Kalshi and
 Polymarket only. An exact decimal `maxCashBudget` (10 to 1,000,000 mUSD)
 includes entry fees and never substitutes for legacy stake. API-key opens must
 send `forecastProbability`: the chance that the side you buy pays out, as a
-percent above 0 and below 100, or as a fraction below 1. The API refuses an
-open without it (`forecast_required`) or when it does not exceed the
+percent above 1 and below 100 (`"62.5"`), or as a fraction above 0 and below 1
+(`"0.625"`). Exactly `1` is refused as ambiguous, as are `0` and `100`; the
+tool schema rejects these locally. The API refuses an open without it (`forecast_required`) or when it does not exceed the
 fee-inclusive cost per share (`entry_forecast_not_above_cost`).
 Idempotency keys use the `pm-entry:` and `pm-exit:` prefixes. A close may
 return HTTP 202 (accepted, still pending); only `executed: true` confirms

@@ -244,6 +244,7 @@ it("registered tools pass per-request key and preserve pending receipt", async (
     },
   };
   const client = {
+    discoverPmPaperV2: vi.fn().mockResolvedValue(pending),
     openPmPaperV2: vi.fn().mockResolvedValue(pending),
     closePmPaperV2: vi.fn().mockResolvedValue(pending),
     pmPaperV2Positions: vi.fn().mockResolvedValue(pending),
@@ -275,6 +276,15 @@ it("registered tools pass per-request key and preserve pending receipt", async (
     handlers.get("open_pm_paper_v2")!(open, extra),
   ).rejects.toThrow();
   expect(client.openPmPaperV2).toHaveBeenCalledTimes(1);
+  await handlers.get("discover_pm_paper_v2_markets")!(
+    { q: "Bitcoin", limit: 20 },
+    extra,
+  );
+  expect(client.discoverPmPaperV2).toHaveBeenCalledWith(
+    { q: "Bitcoin", limit: 20 },
+    "request-fixture",
+    undefined,
+  );
   const close = { positionId: 1, idempotencyKey: "pm-exit:fixture" };
   const response = await handlers.get("close_pm_paper_v2")!(close, extra);
   expect(client.closePmPaperV2).toHaveBeenCalledWith(close, "request-fixture");
@@ -295,4 +305,5 @@ it("default tool list does not advertise PM v2", () => {
   expect(names).toContain("open_pm_position");
   expect(names).not.toContain("open_pm_paper_v2");
   expect(names).not.toContain("close_pm_paper_v2");
+  expect(names).not.toContain("discover_pm_paper_v2_markets");
 });

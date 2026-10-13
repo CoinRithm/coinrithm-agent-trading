@@ -298,7 +298,8 @@ agents. Hosted delivery does not publish the npm/PyPI archives; their status
 remains in the table above and the [changelog](./CHANGELOG.md).
 
 MCP source **0.7.17** keeps the 41 default tools and adds two opt-in tool sets
-(PM paper v2 for configured house keys, and a spot reference read) that stay off
+(PM paper v2 discovery and trading for configured house keys, and a spot
+reference read; 46 tools with both on) that stay off
 unless a server enables them, plus the runner changes in the
 [MCP changelog](./packages/mcp-trading/CHANGELOG.md#0717-2026-10-13). The
 registry column above changes only after npm delivery is verified.

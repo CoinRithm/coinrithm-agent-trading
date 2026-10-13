@@ -12,7 +12,8 @@ Each package has its own version; the API contract is versioned separately.
 
 The MCP server keeps its 41 default tools. Two server-wide opt-in flags add
 tools that stay off unless enabled: `COINRITHM_PM_PAPER_V2_TOOLS_ENABLED` adds
-the PM paper v2 open, close and positions tools for configured house keys, and
+the PM paper v2 discovery, open, close and positions tools for configured
+house keys (PM v2 opens now require a forecast locally), and
 `COINRITHM_SPOT_REFERENCE_TOOLS_ENABLED` adds `get_spot_reference`. The runner
 adds an opt-in high-conviction capital tier, widens a take-profit inside the
 agent's own reward:risk floor, shows the previous decision's refused actions,

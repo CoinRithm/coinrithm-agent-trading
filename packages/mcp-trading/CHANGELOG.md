@@ -10,19 +10,23 @@ versioned separately (see `openapi.yaml` `info.version`, currently `1.7.0`).
 MCP server:
 
 - Opt-in PM paper v2 tools. `COINRITHM_PM_PAPER_V2_TOOLS_ENABLED=true` adds
-  `open_pm_paper_v2` (`POST /api/agent/pm/v2/open`, scope `trade:pm`),
+  `discover_pm_paper_v2_markets` (`GET /api/agent/pm/v2/discover`, scope
+  `read`), `open_pm_paper_v2` (`POST /api/agent/pm/v2/open`, scope `trade:pm`),
   `close_pm_paper_v2` (`POST /api/agent/pm/v2/close`, scope `trade:pm`) and
   `get_pm_paper_v2_positions` (`GET /api/agent/pm/v2/positions`, scope `read`).
   They serve separately configured house keys only. `maxCashBudget` is an exact
-  decimal total that includes entry fees. API-key opens must send
-  `forecastProbability` for the bought side. A close can return HTTP 202
+  decimal total that includes entry fees. `open_pm_paper_v2` requires
+  `forecastProbability` for the bought side (percent above 1 and below 100, or
+  a fraction below 1; exactly 1 is refused, matching the API). A close can
+  return HTTP 202
   (accepted, still pending); only `executed: true` confirms the exit.
 - Opt-in spot reference tool. `COINRITHM_SPOT_REFERENCE_TOOLS_ENABLED=true` adds
   `get_spot_reference` (`GET /api/agent/spot/reference/:coinId`, scope `read`):
   a Binance spot last-ticker reference (USDT) with a stored REST consensus
   fallback (USD), each with its own status and expiry. It is not an executable
   quote and does not change market context, quotes or fills.
-- Both flags are off by default. The default surface stays at 41 tools.
+- Both flags are off by default. The default surface stays at 41 tools; with
+  both flags on it is 46.
 - API clients add `discoverPmPaperV2`, `openPmPaperV2`, `replayPmPaperV2Open`,
   `closePmPaperV2`, `pmPaperV2Positions` and `getSpotReference`.
 
@@ -63,6 +67,13 @@ Agent runner and engine:
   failed, and does not advance the reject or failure kill-switch counters.
   Replayed responses do not consume write budget or repeat journal entries.
   Legacy responses keep their existing meaning.
+- PM paper v2 houses now fail closed locally on a missing or invalid
+  `forecastProbability`: the decision schema and the structured-output JSON
+  schema require it, so such a decision is rejected (`pm_v2_invalid_decision`)
+  before any checkpoint or API request, instead of reaching the API's
+  `forecast_required` refusal. The prompt states the accepted range. Stored
+  pending requests from earlier versions still replay unchanged. The hosted
+  scheduler picks this up through its `../mcp-trading` dependency.
 - Engine exports for hosted, explicitly enrolled PM paper v2 houses:
   `runPmPaperCycle`, `readPmHousePolicies`, `selectPmHousePolicy` and
   `parseDecisionForContract`. The `coinrithm-agent` CLI does not run this

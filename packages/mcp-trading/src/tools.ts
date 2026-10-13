@@ -2123,6 +2123,40 @@ export function registerTools(
 
   if (process.env.COINRITHM_PM_PAPER_V2_TOOLS_ENABLED === "true") {
     server.registerTool(
+      "discover_pm_paper_v2_markets",
+      {
+        title: "Discover PM paper v2 candidates",
+        description:
+          "For server-configured PM paper v2 house keys only (other keys get 403 house_opt_in_required). Returns Kalshi/Polymarket outcomes with exact stored native identity (nativeMarket.key) and scheduled native end, filtered to the house's configured horizon; meta.boundedSelection reports how many were excluded and why. Candidate evidence only: open_pm_paper_v2 reacquires native identity, maturity, book and fees, and may still refuse. nativeEndAt is a scheduled end, not a settlement-time guarantee. " +
+          PAPER_NOTE_SHORT,
+        inputSchema: {
+          q: z
+            .string()
+            .max(100)
+            .optional()
+            .describe("Optional search text (title, outcome, topic)."),
+          limit: z
+            .number()
+            .int()
+            .min(1)
+            .max(50)
+            .optional()
+            .describe("Max events before filtering (1-50, default 20)."),
+          agentTrace: AGENT_TRACE_SCHEMA,
+        },
+        outputSchema: API_RESULT_OUTPUT_SCHEMA,
+        annotations: readOnlyAnnotations("Discover PM paper v2 candidates"),
+      },
+      async ({ q, limit, agentTrace }, extra) =>
+        present(
+          await client.discoverPmPaperV2(
+            { q, limit },
+            requestKey(extra),
+            agentTrace,
+          ),
+        ),
+    );
+    server.registerTool(
       "open_pm_paper_v2",
       {
         title: "Open opted-in PM paper position",
