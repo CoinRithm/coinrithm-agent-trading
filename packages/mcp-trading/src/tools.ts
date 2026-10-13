@@ -2127,7 +2127,7 @@ export function registerTools(
       {
         title: "Open opted-in PM paper position",
         description:
-          "For server-configured PM paper v2 house keys only. Opens against freshly acquired native Kalshi/Polymarket depth. maxCashBudget is an explicit exact decimal TOTAL cash budget including fees, not legacy stakeMusd. Server admission defaults off. Reuse the identical pm-entry key and body after uncertain delivery. Existing legacy tools keep their behavior. " +
+          "For server-configured PM paper v2 house keys only. Opens against freshly acquired native Kalshi/Polymarket depth. maxCashBudget is an explicit exact decimal TOTAL cash budget including fees, not legacy stakeMusd. forecastProbability is required for API-key opens: the chance the side you buy pays out (percent above 0 and below 100, or a fraction below 1); the API refuses an open whose forecast does not exceed the fee-inclusive cost per share. Server admission defaults off. Reuse the identical pm-entry key and body after uncertain delivery. Existing legacy tools keep their behavior. " +
           PAPER_NOTE_SHORT,
         inputSchema: pmPaperOpenSchema.shape,
         outputSchema: API_RESULT_OUTPUT_SCHEMA,

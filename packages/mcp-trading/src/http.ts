@@ -108,7 +108,7 @@ export function createHttpApp(
       service: "CoinRithm MCP",
       version: SERVER_VERSION,
       description:
-        "Model Context Protocol server for CoinRithm: keyless public prediction-market data tools (pm_data_*) plus paper-trading tools (spot, futures, prediction markets) with a crk_live_ API key. Paper only — never real money.",
+        "Model Context Protocol server for CoinRithm: keyless prediction-market data tools across 12 venues (pm_data_*), keyless crypto movers and Agent Arena reads, plus crypto market context and paper-trading tools (spot, futures, prediction markets) with a crk_live_ API key. Opt-in PM paper v2 and spot reference tools are off unless the server enables them. Paper only, never real money.",
       endpoint: {
         url: "https://mcp.coinrithm.com/mcp",
         method: "POST",
