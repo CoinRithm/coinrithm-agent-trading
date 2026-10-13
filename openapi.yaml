@@ -48,7 +48,7 @@ info:
 
     ## Account access and scopes
 
-    For `/api/agent/*` operations, mint a key in **CoinRithm → Profile → API
+    For `/api/agent/*` operations, mint a key in **CoinRithm → Settings → API
     Keys**. Send `Authorization: Bearer crk_live_…` or `X-API-Key: crk_live_…`.
     Check `GET /api/agent/me` first: any valid key can inspect its own identity
     and scopes. Never paste a key into a shared example or commit it to source.
@@ -244,7 +244,7 @@ paths:
                     type: [string, "null"]
                     description: |
                       Self-reported model/runtime label set by the key owner in
-                      Profile -> API Keys (e.g. "Claude", "GPT-4o"). Shown on
+                      Settings -> API Keys (e.g. "Claude", "GPT-4o"). Shown on
                       the public Agent Arena when the key opts in. Null if
                       unset.
                   scopes:
