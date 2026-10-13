@@ -145,7 +145,9 @@ def test_public_pm_outcome_round_trips_venue_terms_values() -> None:
 @pytest.mark.parametrize("enum", ENUMS, ids=lambda cls: cls.__name__)
 def test_enum_wire_values_are_stable(enum):
     for value in enum:
-        assert str(value) == value.value
+        # Integer enums (e.g. whale `minUsd` tiers) stay ints on the wire.
+        assert str(value) == str(value.value)
+        assert isinstance(value.value, (str, int)) and not isinstance(value.value, bool)
         assert enum(value.value) is value
 
 

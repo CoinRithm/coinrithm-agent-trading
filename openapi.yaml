@@ -4635,6 +4635,17 @@ components:
           description: This server's acquisition time, not an upstream trade time.
       required: [validated, receivedAt]
 
+    PublicPmOrderBookSideEvidence:
+      type: object
+      additionalProperties: true
+      description: |
+        True when that side's supplied levels validated completely and the
+        book is not crossed (an explicit empty side is valid). A dated
+        observation, not a fill or liquidity guarantee.
+      properties:
+        bid: { type: boolean }
+        ask: { type: boolean }
+
     PublicPmOrderBook:
       type: [object, "null"]
       additionalProperties: true
@@ -4657,16 +4668,7 @@ components:
           type: [string, "null"]
           format: date-time
           description: When this server acquired the book (its own time, not a venue trade time).
-        sideEvidence:
-          type: object
-          additionalProperties: true
-          description: |
-            True when that side's supplied levels validated completely and the
-            book is not crossed (an explicit empty side is valid). A dated
-            observation, not a fill or liquidity guarantee.
-          properties:
-            bid: { type: boolean }
-            ask: { type: boolean }
+        sideEvidence: { $ref: "#/components/schemas/PublicPmOrderBookSideEvidence" }
       required: [bid, ask, spread, midpoint, bids, asks]
 
     PublicPmOrderBookResponse:
@@ -9237,12 +9239,58 @@ components:
           maxLength: 280
           description: Optional one-line thesis; no control characters.
     PmPaperV2OpenRequest:
-      allOf:
-        - { $ref: "#/components/schemas/PmPaperV2OpenReplayRequest" }
-        - type: object
-          required: [forecastProbability]
-          properties:
-            forecastProbability: { type: string }
+      type: object
+      additionalProperties: false
+      required: [source, slug, outcomeExternalMarketId, side, maxCashBudget, idempotencyKey, forecastProbability]
+      description: |
+        Any field not listed here (e.g. `stakeMusd`, `agentTrace`,
+        `provenance`) returns 400. Decimal fields are strings matching
+        `^(0|[1-9]\d*)(\.\d+)?$` (at most 40 characters, 18 decimals).
+      properties:
+        source: { type: string, enum: [polymarket, kalshi] }
+        slug: { type: string, minLength: 1, maxLength: 256, description: "Event slug (matched case-insensitively)." }
+        outcomeExternalMarketId: { type: string, minLength: 1, maxLength: 256, description: "Case-sensitive outcome id from v2 discovery." }
+        side:
+          type: string
+          enum: [yes, no]
+          description: |
+            Required. `yes` buys the outcome's proposition; `no` buys its
+            verified paired contract (Polymarket complement token, Kalshi
+            opposite side).
+        maxCashBudget:
+          type: string
+          maxLength: 40
+          pattern: "^(0|[1-9]\\d*)(\\.\\d+)?$"
+          description: Maximum fee-inclusive cash debit in paper mUSD, 10 to 1000000 inclusive. Unused budget stays available.
+        idempotencyKey:
+          type: string
+          maxLength: 120
+          pattern: "^pm-entry:[A-Za-z0-9:_-]{1,111}$"
+          description: Globally unique per entry intent (include a UUID). Other formats are refused with `invalid_entry_request`.
+        forecastProbability:
+          type: string
+          maxLength: 40
+          pattern: "^(0|[1-9]\\d*)(\\.\\d+)?$"
+          description: |
+            Required on API-key opens (missing returns 422
+            `forecast_required`). Your probability that the BOUGHT side
+            pays out, as a decimal string. A value below 1 is read as a fraction (`"0.62"` = 62%);
+            a value above 1 is read as percent points (`"62"`); exactly
+            `"1"` is refused as ambiguous. The resulting percent must be
+            strictly between 0 and 100. Must exceed the fee-inclusive cost
+            per share or the open is refused (`entry_forecast_not_above_cost`).
+        minEntryProbabilityPct:
+          type: [string, "null"]
+          maxLength: 40
+          pattern: "^(0|[1-9]\\d*)(\\.\\d+)?$"
+          description: |
+            Optional floor, in percentage points 0-100 inclusive (no
+            fraction reading), on the acquired pre-fee average price per
+            share; below it the open is refused (`entry_probability_below_floor`).
+        thesis:
+          type: [string, "null"]
+          maxLength: 280
+          description: Optional one-line thesis; no control characters.
     PmPaperV2Opened:
       type: object
       additionalProperties: true
