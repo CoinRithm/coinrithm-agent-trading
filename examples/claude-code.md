@@ -7,7 +7,7 @@ Add the CoinRithm trading MCP server to Claude Code.
 ## 1. Add the MCP server
 
 **Primary — hosted (nothing to install).** One command, key as a header
-(minted in CoinRithm → Profile → API Keys):
+(minted in CoinRithm → Settings → API Keys):
 
 ```bash
 claude mcp add coinrithm-trading \

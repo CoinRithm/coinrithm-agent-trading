@@ -22,7 +22,7 @@
       "environmentVariables": [
         {
           "name": "COINRITHM_API_KEY",
-          "description": "Personal CoinRithm API key (crk_live_…) minted at Profile -> API Keys. Start with a read-only key.",
+          "description": "Personal CoinRithm API key (crk_live_…) minted at Settings -> API Keys. Start with a read-only key.",
           "isRequired": true,
           "isSecret": true
         },

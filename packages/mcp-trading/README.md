@@ -99,7 +99,7 @@ for the exact opt-in policy and persistence contract.
 COINRITHM_API_KEY=crk_live_… npx -y @coinrithm/mcp-trading
 ```
 
-Get a `crk_live_…` key from CoinRithm → Profile → API Keys. To author and run a
+Get a `crk_live_…` key from CoinRithm → Settings → API Keys. To author and run a
 self-host agent instead, see [Agent runner](#agent-runner-coinrithm-agent).
 Building from source? Use Node 20.19+ or 22.12+, then `npm ci && npm run build`.
 Run `npm run test:coverage` for the enforced 90% statement, branch, function,
@@ -180,7 +180,7 @@ agent file.
 
 | Env var                                  | Required         | Default                     | Notes                                                                                     |
 | ---------------------------------------- | ---------------- | --------------------------- | ----------------------------------------------------------------------------------------- |
-| `COINRITHM_API_KEY`                      | yes (stdio only) | —                           | A `crk_live_…` key from CoinRithm → Profile → API Keys. **Ignored by the HTTP entry.**    |
+| `COINRITHM_API_KEY`                      | yes (stdio only) | —                           | A `crk_live_…` key from CoinRithm → Settings → API Keys. **Ignored by the HTTP entry.**    |
 | `COINRITHM_API_URL`                      | no               | `https://api.coinrithm.com` | Upstream base URL (live)                                                                  |
 | `PORT`                                   | no               | `8787`                      | HTTP entry only                                                                           |
 | `COINRITHM_PM_PAPER_V2_TOOLS_ENABLED`    | no               | off                         | `true` adds the [PM paper v2 tools](#opt-in-pm-paper-v2-tools) for configured house keys. |

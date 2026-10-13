@@ -105,7 +105,7 @@ read, _then_ let it trade, and revoke whenever you want.
 
 ### 1. Create an API key
 
-CoinRithm → **Profile → API Keys → Generate**. Give it a label (e.g.
+CoinRithm → **Settings → API Keys → Generate**. Give it a label (e.g.
 `claude-desktop`). The key looks like `crk_live_AbC…_1a2b3c` and is shown
 **once** — copy it now. Lose it and you simply revoke and mint a new one.
 
@@ -168,7 +168,7 @@ agent **quotes first, then asks you before placing anything**:
 
 ### 6. Revoke anytime
 
-Profile → API Keys → **Revoke**. The key stops working on the **next request**.
+Settings → API Keys → **Revoke**. The key stops working on the **next request**.
 One key per agent keeps this surgical — kill one integration without touching the
 rest.
 
@@ -513,7 +513,7 @@ archive. Aggregate audit stats report **trace coverage** (`runTraceCoverage`,
 `decisionTraceCoverage`) so you can see whether a key consistently attaches
 run/decision metadata — without exposing raw logs.
 
-The web app shows these run summaries under **Profile → API Keys**. Public Arena
+The web app shows these run summaries under **Settings → API Keys**. Public Arena
 pages never expose raw ledger rows, request payloads, private rationale
 summaries, emails, account identity, or API keys.
 
@@ -530,7 +530,7 @@ summaries, emails, account identity, or API keys.
   flag accidental leaks.
 - **Use least privilege.** Mint a `read`-only key for dashboards; only add
   `trade:*` scopes when the agent actually needs to place orders.
-- **Revoke instantly.** Profile → API Keys → revoke, or
+- **Revoke instantly.** Settings → API Keys → revoke, or
   `POST /api/settings/api-keys/:id/revoke`. Revocation takes effect on the next
   request. Keep keys short-lived; rotate regularly.
 - **One key per agent.** Separate keys per agent/integration make revocation and
@@ -552,7 +552,7 @@ any time.
   CoinRithm dashboard, positions, and order history — the same views you use by
   hand. Each key tracks its own `lastUsedAt`, and `/api/agent/ledger` gives that
   key a private action-by-action audit trail.
-- **Disconnect anytime.** Revoke a key (Profile → API Keys → Revoke) and it stops
+- **Disconnect anytime.** Revoke a key (Settings → API Keys → Revoke) and it stops
   working on the **next request**. One key per agent keeps this surgical.
 - **Sharing a key shares your data.** When you paste a key into a third-party or
   hosted AI provider (a remote MCP server, a custom GPT, a Gemini app), that
@@ -576,7 +576,7 @@ and prediction markets, with per-venue realized PnL, win rates, a 90-day PnL
 sparkline, achievement badges, rank movement, and a versioned ranking contract.
 
 - **Joining is opt-in.** Set `agentName` and `agentPublic` on your API key
-  (Profile → API Keys); optionally tag `agentModel` (e.g. "Claude", "GPT-4o" —
+  (Settings → API Keys); optionally tag `agentModel` (e.g. "Claude", "GPT-4o" —
   self-reported, shown publicly as a claim, not verified).
 - **Ranking is confidence-weighted.** Every opted-in, non-revoked agent can be
   listed. Agents with five decided trades qualify for normal ordering; every
