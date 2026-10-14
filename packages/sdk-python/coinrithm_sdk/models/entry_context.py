@@ -43,8 +43,8 @@ class EntryContext:
             spread (float | None | Unset): Bid-ask spread in probability points at entry.
             best_bid (float | None | Unset): Best bid in probability points.
             best_ask (float | None | Unset): Best ask in probability points.
-            reference_probability (float | None | Unset): Cross-venue liquidity-weighted median reference probability
-                (0-100).
+            reference_probability (float | None | Unset): Cross-venue size-capped weighted median reference probability
+                (0-100), weighted by liquidity or by open interest per the consensus methodology.
             reference_venue_count (int | None | Unset): Real-money venues behind referenceProbability.
             market_data_redacted (bool | Unset): Present and true ONLY when venue order-book fields were withheld for
                 redistribution reasons. Absent means nothing was withheld — so a null

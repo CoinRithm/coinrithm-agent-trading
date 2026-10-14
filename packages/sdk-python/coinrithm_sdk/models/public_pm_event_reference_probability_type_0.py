@@ -11,7 +11,14 @@ T = TypeVar("T", bound="PublicPmEventReferenceProbabilityType0")
 
 @_attrs_define
 class PublicPmEventReferenceProbabilityType0:
-    """Canonical matched-venue reference with venue count and spread."""
+    """Canonical matched-venue reference with venue count and spread. Also
+    carries `methodologyVersion` (the row's own writer version:
+    `consensus_probability_v2` or `consensus_probability_v3`) and
+    `weightBasis` (`open_interest` | `liquidity`, null for a v3 row
+    without a recognised basis); see the consensus-methodology
+    endpoint.
+
+    """
 
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 

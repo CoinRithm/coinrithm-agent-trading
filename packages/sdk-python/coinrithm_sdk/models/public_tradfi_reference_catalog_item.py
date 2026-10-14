@@ -6,9 +6,12 @@ from typing import TYPE_CHECKING, Any, TypeVar, cast
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
+from ..types import UNSET, Unset
+
 if TYPE_CHECKING:
     from ..models.public_tradfi_reference_change import PublicTradfiReferenceChange
     from ..models.public_tradfi_reference_freshness import PublicTradfiReferenceFreshness
+    from ..models.public_tradfi_reference_fundamentals import PublicTradfiReferenceFundamentals
     from ..models.public_tradfi_reference_instrument import PublicTradfiReferenceInstrument
     from ..models.public_tradfi_reference_live import PublicTradfiReferenceLive
     from ..models.public_tradfi_reference_range import PublicTradfiReferenceRange
@@ -34,6 +37,10 @@ class PublicTradfiReferenceCatalogItem:
             digits; blocks without a validated row are skipped.
         latest_venues (list[str]): Venues that contributed to `latest`.
         live (None | PublicTradfiReferenceLive):
+        fundamentals (None | PublicTradfiReferenceFundamentals | Unset): Additive (2026-10-14). SEC EDGAR company data
+            for US-listed stocks.
+            Null for ETFs, metals, FX, home listings and issuers without SEC
+            data. Refreshed weekly per issuer.
     """
 
     instrument: PublicTradfiReferenceInstrument
@@ -46,10 +53,12 @@ class PublicTradfiReferenceCatalogItem:
     spark7d: list[float]
     latest_venues: list[str]
     live: None | PublicTradfiReferenceLive
+    fundamentals: None | PublicTradfiReferenceFundamentals | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         from ..models.public_tradfi_reference_change import PublicTradfiReferenceChange
+        from ..models.public_tradfi_reference_fundamentals import PublicTradfiReferenceFundamentals
         from ..models.public_tradfi_reference_live import PublicTradfiReferenceLive
         from ..models.public_tradfi_reference_range import PublicTradfiReferenceRange
         from ..models.public_tradfi_reference_snapshot_summary import PublicTradfiReferenceSnapshotSummary
@@ -94,6 +103,14 @@ class PublicTradfiReferenceCatalogItem:
         else:
             live = self.live
 
+        fundamentals: dict[str, Any] | None | Unset
+        if isinstance(self.fundamentals, Unset):
+            fundamentals = UNSET
+        elif isinstance(self.fundamentals, PublicTradfiReferenceFundamentals):
+            fundamentals = self.fundamentals.to_dict()
+        else:
+            fundamentals = self.fundamentals
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -110,6 +127,8 @@ class PublicTradfiReferenceCatalogItem:
                 "live": live,
             }
         )
+        if fundamentals is not UNSET:
+            field_dict["fundamentals"] = fundamentals
 
         return field_dict
 
@@ -117,6 +136,7 @@ class PublicTradfiReferenceCatalogItem:
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.public_tradfi_reference_change import PublicTradfiReferenceChange
         from ..models.public_tradfi_reference_freshness import PublicTradfiReferenceFreshness
+        from ..models.public_tradfi_reference_fundamentals import PublicTradfiReferenceFundamentals
         from ..models.public_tradfi_reference_instrument import PublicTradfiReferenceInstrument
         from ..models.public_tradfi_reference_live import PublicTradfiReferenceLive
         from ..models.public_tradfi_reference_range import PublicTradfiReferenceRange
@@ -208,6 +228,23 @@ class PublicTradfiReferenceCatalogItem:
 
         live = _parse_live(d.pop("live"))
 
+        def _parse_fundamentals(data: object) -> None | PublicTradfiReferenceFundamentals | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                fundamentals_type_0 = PublicTradfiReferenceFundamentals.from_dict(data)
+
+                return fundamentals_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(None | PublicTradfiReferenceFundamentals | Unset, data)
+
+        fundamentals = _parse_fundamentals(d.pop("fundamentals", UNSET))
+
         public_tradfi_reference_catalog_item = cls(
             instrument=instrument,
             availability=availability,
@@ -219,6 +256,7 @@ class PublicTradfiReferenceCatalogItem:
             spark7d=spark7d,
             latest_venues=latest_venues,
             live=live,
+            fundamentals=fundamentals,
         )
 
         public_tradfi_reference_catalog_item.additional_properties = d

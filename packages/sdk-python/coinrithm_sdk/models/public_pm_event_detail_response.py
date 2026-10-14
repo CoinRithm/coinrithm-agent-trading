@@ -33,9 +33,22 @@ class PublicPmEventDetailResponse:
         event (PublicPmEvent):
         snapshots (list[PublicPmEventDetailResponseSnapshotsItem] | Unset):
         related_events (list[PublicPmEvent] | Unset):
-        cross_source_matches (list[PublicPmEventDetailResponseCrossSourceMatchesItem] | Unset):
+        cross_source_matches (list[PublicPmEventDetailResponseCrossSourceMatchesItem] | Unset): Approved cross-source
+            matches. Each `comparison` has a `summary`
+            and per-outcome rows (`eventAProbability`, `eventBProbability`,
+            `deltaPoints`, `presentInA`, `presentInB`, `isShared`). A row the
+            two venues name differently ("San Francisco" / "San Francisco
+            49ers") carries `pairing` {`method`, `confidence`, `reason`,
+            `eventAName`, `eventBName`}; `label` stays event A's name. Every
+            row both venues list may carry `bothSidesTraded` (present while
+            the server's trading-evidence rule is on): false means at least
+            one leg shows no real trading, so the row stays listed but never
+            sets the `maxSharedOutcome*` headline. `summary.evidencedSharedOutcomeCount`
+            counts the shared rows with `bothSidesTraded: true`. Absent fields
+            mean an older server; do not infer false.
         resolution (None | PublicPmEventDetailResponseResolutionType0 | Unset):
-        volume_history (list[PublicPmEventDetailResponseVolumeHistoryItem] | Unset):
+        volume_history (list[PublicPmEventDetailResponseVolumeHistoryItem] | Unset): Daily volume points (one per UTC
+            day) for the newest 90 days with data, oldest first.
         related_news (list[PublicPmEventDetailResponseRelatedNewsItem] | Unset):
         recent_whale_trades (list[PublicPmWhaleTrade] | Unset):
         detail_mode (PublicPmEventDetailResponseDetailMode | Unset): `core` when `view=core` was requested; heavy

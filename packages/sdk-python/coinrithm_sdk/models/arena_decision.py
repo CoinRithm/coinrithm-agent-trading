@@ -73,9 +73,10 @@ class ArenaDecision:
             market_probability (float | None | Unset): The market price paid, mirrored from the durable decision record
                 (equals `predictedProbability` for the chosen side). `null` for opens
                 before forecast-capture shipped.
-            reference_probability (float | None | Unset): Cross-venue liquidity-weighted median reference probability at
-                entry,
-                0-100. `null` when the event was not in an approved ≥2-venue cluster.
+            reference_probability (float | None | Unset): Cross-venue size-capped weighted median reference probability at
+                entry (consensus methodology v2 or v3: weighted by liquidity, or by
+                open interest when every venue reports it), 0-100. `null` when the
+                event was not in an approved ≥2-venue cluster.
             edge_points (float | None | Unset): `agentForecastProbability − marketProbability`, in probability POINTS
                 (the agent's claimed edge at entry). `null` when no forecast was
                 reported.

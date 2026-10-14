@@ -313,6 +313,150 @@ describe("compact market evidence preserves missing and malformed values", () =>
   });
 });
 
+describe("compact comparisons follow the API headline's trading evidence", () => {
+  // Shapes observed on the API after backend aeca8e3 (2026-10-14): every row
+  // both venues list carries bothSidesTraded; an aliased row carries pairing.
+  const untradedAlias = {
+    key: "san-francisco",
+    label: "San Francisco",
+    eventAProbability: 3,
+    eventBProbability: 63,
+    deltaPoints: 60,
+    presentInA: true,
+    presentInB: true,
+    isShared: true,
+    pairing: {
+      method: "token_containment",
+      confidence: 0.85,
+      reason: "token containment",
+      eventAName: "San Francisco",
+      eventBName: "San Francisco 49ers",
+    },
+    bothSidesTraded: false,
+  };
+  const tradedWide = {
+    key: "kansas-city",
+    label: "Kansas City",
+    eventAProbability: 30,
+    eventBProbability: 10,
+    deltaPoints: 20,
+    presentInA: true,
+    presentInB: true,
+    isShared: true,
+    bothSidesTraded: true,
+  };
+  const tradedNarrow = {
+    key: "buffalo",
+    label: "Buffalo",
+    eventAProbability: 12,
+    eventBProbability: 7,
+    deltaPoints: -5,
+    presentInA: true,
+    presentInB: true,
+    isShared: true,
+    bothSidesTraded: true,
+  };
+  const summary = {
+    maxSharedOutcomeDeltaPoints: 20,
+    maxSharedOutcomeLabel: "Kansas City",
+    evidencedSharedOutcomeCount: 2,
+  };
+
+  it("never leads with a row whose legs are not both traded, but still lists it", () => {
+    const compact = compactPublicPmEvent({
+      crossSourceMatches: [
+        {
+          comparison: {
+            summary,
+            outcomes: [untradedAlias, tradedNarrow, tradedWide],
+          },
+        },
+      ],
+    }) as { crossSourceMatches: Array<{ comparison: unknown }> };
+
+    expect(compact.crossSourceMatches[0].comparison).toEqual({
+      summary,
+      outcomeCount: 3,
+      outcomes: [tradedWide, tradedNarrow, untradedAlias],
+    });
+  });
+
+  it("applies the same rule to disagreement cluster comparisons", () => {
+    expect(
+      compactPublicPmDisagreements({
+        data: [
+          {
+            events: [],
+            comparisons: [
+              {
+                eventId: "kalshi:x",
+                pair: {
+                  comparison: {
+                    summary,
+                    outcomes: [untradedAlias, tradedWide],
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    ).toMatchObject({
+      data: [
+        {
+          comparisons: [
+            {
+              pair: { comparison: { outcomes: [tradedWide, untradedAlias] } },
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("keeps unevidenced rows ranked by gap among themselves when none is traded", () => {
+    const small = { ...untradedAlias, key: "small", deltaPoints: 4 };
+    const compact = compactPublicPmEvent({
+      crossSourceMatches: [
+        { comparison: { outcomes: [small, untradedAlias] } },
+      ],
+    }) as {
+      crossSourceMatches: Array<{ comparison: { outcomes: unknown[] } }>;
+    };
+
+    expect(compact.crossSourceMatches[0].comparison.outcomes).toEqual([
+      untradedAlias,
+      small,
+    ]);
+  });
+
+  it("ranks purely by gap when an older API omits bothSidesTraded", () => {
+    const legacy = [
+      { ...tradedNarrow, bothSidesTraded: undefined },
+      { ...untradedAlias, pairing: undefined, bothSidesTraded: undefined },
+      { ...tradedWide, bothSidesTraded: undefined },
+    ];
+    const compact = compactPublicPmEvent({
+      crossSourceMatches: [{ comparison: { outcomes: legacy } }],
+    }) as {
+      crossSourceMatches: Array<{
+        comparison: { outcomes: Array<Record<string, unknown>> };
+      }>;
+    };
+    const ranked = compact.crossSourceMatches[0].comparison.outcomes;
+
+    expect(ranked.map((row) => row.key)).toEqual([
+      "san-francisco",
+      "kansas-city",
+      "buffalo",
+    ]);
+    for (const row of ranked) {
+      expect(row).not.toHaveProperty("bothSidesTraded");
+      expect(row).not.toHaveProperty("pairing");
+    }
+  });
+});
+
 type Registered = {
   schema: Record<string, z.ZodTypeAny>;
   handler: (

@@ -777,6 +777,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/prediction-markets/events/{source}/{slug}/holders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Top holders per outcome of an event (Polymarket)
+         * @description Keyless top holders of each outcome, read from Polymarket's public
+         *     holder data on demand and never stored. Top 10 wallets per outcome by
+         *     shares held, with average price (a probability 0-1), current value and
+         *     realized/unrealized P&L in USD as Polymarket reports them. At most 10
+         *     markets per event are covered (live outcomes first, then by
+         *     probability); `marketsCovered < marketsTotal` means a partial list.
+         *     Cached 10 minutes.
+         *
+         *     The route takes NO query parameters: any query key answers 400.
+         *     Every other venue answers 200 with `available: false` and a `reason`:
+         *     `venue_has_no_public_holders` (Kalshi), `venue_not_supported`,
+         *     `market_ids_unavailable` (market ids pruned, e.g. some time after
+         *     resolution), or the transient `venue_unavailable` / `busy` (retry
+         *     later). A single outcome whose venue call failed has
+         *     `available: false` while the rest are served.
+         *
+         *     `walletPagePath` is the unlocalized path of CoinRithm's whale wallet
+         *     page (`/prediction-markets/whales/polymarket/<wallet>`), set only when
+         *     that page exists; otherwise null.
+         */
+        get: operations["getPublicPredictionMarketEventHolders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/prediction-markets/matches/public": {
         parameters: {
             query?: never;
@@ -971,13 +1009,23 @@ export interface paths {
          * The versioned methodology behind Consensus Probability
          * @description Keyless, DB-free disclosure of exactly how the cross-venue Consensus
          *     Probability is computed: venue eligibility, one-voice-per-venue
-         *     weighting, the liquidity-capped weighted MEDIAN estimator, the spread
-         *     rule, the binary/leader kinds, and the stated limitations.
+         *     weighting, the size-capped weighted MEDIAN estimator, the spread rule,
+         *     the binary/leader kinds, and the stated limitations.
          *
-         *     Every served `referenceProbability` carries `methodologyVersion` and
-         *     `methodologyUrl`; this endpoint is what that URL resolves to. Pin the
-         *     version alongside any number you store — it is what lets you tell
-         *     whether a probability you cached was produced the same way as today's.
+         *     Current version `consensus_probability_v3` (since 2026-10-14): each
+         *     venue's weight is clamp(openInterest, 1000, 50000) when every venue in
+         *     the comparison reports USD open interest, otherwise
+         *     clamp(liquidity, 1000, 50000) exactly as v2. `acceptedVersions` lists
+         *     every writer version still served (v2 and v3 during the transition);
+         *     `previousVersions` states each earlier version's weight rule.
+         *
+         *     Every served `referenceProbability` carries `methodologyVersion` (the
+         *     version that ROW was written with, never relabelled) and
+         *     `methodologyUrl`; this endpoint is what that URL resolves to. It also
+         *     carries `weightBasis` (`open_interest` | `liquidity`; every v2 row is
+         *     `liquidity`). Pin the version alongside any number you store — it is
+         *     what lets you tell whether a probability you cached was produced the
+         *     same way as today's.
          *
          *     A published version's terms never change. If the computation changes,
          *     the version changes with it.
@@ -1217,8 +1265,9 @@ export interface paths {
         /**
          * Probability history for one outcome of an event
          * @description Native venue price history for ONE outcome of the event: the Yes leg
-         *     of a binary market, else the first outcome in venue order. `outcome`
-         *     names it; on a multi-outcome event, use event detail for the others.
+         *     of a binary market, else the first live outcome by sort order (not
+         *     resolved, voided or closed), else the first outcome. `outcome` names
+         *     it; on a multi-outcome event, use event detail for the others.
          *
          *     Polymarket and Kalshi only. Other venues answer 200 with `points: []`,
          *     which means "not served here", not "no trading".
@@ -1247,8 +1296,9 @@ export interface paths {
         /**
          * Live order book for one outcome of an event
          * @description Keyless live order book for the SAME single outcome `price-history`
-         *     describes (the Yes leg of a binary market, else the first outcome in
-         *     venue order). Polymarket and Kalshi only; other sources answer 200
+         *     describes (the Yes leg of a binary market, else the first live outcome
+         *     by sort order, else the first outcome). Polymarket and Kalshi only;
+         *     other sources answer 200
          *     with `orderBook: null`, which means "not served here", not "no
          *     market". A thin or near-expiry market with no resting orders on
          *     either side also answers 200 with `orderBook: null` — a valid empty
@@ -2316,6 +2366,8 @@ export interface components {
         PublicPmOutcome: {
             externalMarketId?: string;
             name: string;
+            /** @description Event detail, Kalshi multi-market events only (also on `representativeOutcome`). This contract's open interest in USD (open contracts times USD notional). Omitted elsewhere. */
+            openInterestUsd?: number;
             /** @description Provider-implied probability on a 0–100 scale (raw venue input; may include vig, so a book's outcomes can sum above 100). Execution eligibility and a usable quote are reported by the quote endpoint, not inferred from this field alone. */
             probability?: number | null;
             /** @description Vig-removed display probability on a 0–100 scale, proportionally normalized so a complete exclusive book sums to ~100. Null when the book is not a complete exclusive book (threshold ladders, partial catalogs, non-market sources). This is display context, not an execution quote. */
@@ -2441,6 +2493,23 @@ export interface components {
             volume?: number | null;
             volume24h?: number | null;
             liquidity?: number | null;
+            /**
+             * @description Event detail only (full and `view=core`): open interest in USD,
+             *     whatever `fiat` was requested. Omitted when the venue publishes
+             *     none; never a fabricated 0. On Kalshi it is the same amount the
+             *     venue's `liquidity` carries.
+             */
+            openInterestUsd?: number;
+            /**
+             * @description How `openInterestUsd` was measured. `venue_reported_usd`: the
+             *     venue's own event figure (Polymarket, Rothera).
+             *     `contracts_x_notional_usd`: open contracts times each contract's
+             *     USD notional, summed over the event's markets (Kalshi).
+             * @enum {string}
+             */
+            openInterestBasis?: "venue_reported_usd" | "contracts_x_notional_usd";
+            /** @description Short human-readable description of `openInterestBasis`. */
+            openInterestBasisNote?: string;
             bestBid?: number | null;
             bestAsk?: number | null;
             spread?: number | null;
@@ -2473,7 +2542,14 @@ export interface components {
              * @enum {string}
              */
             representativeOutcomeBasis?: "threshold_ladder_line" | "informative_leader";
-            /** @description Canonical matched-venue reference with venue count and spread. */
+            /**
+             * @description Canonical matched-venue reference with venue count and spread. Also
+             *     carries `methodologyVersion` (the row's own writer version:
+             *     `consensus_probability_v2` or `consensus_probability_v3`) and
+             *     `weightBasis` (`open_interest` | `liquidity`, null for a v3 row
+             *     without a recognised basis); see the consensus-methodology
+             *     endpoint.
+             */
             referenceProbability?: {
                 [key: string]: unknown;
             } | null;
@@ -2726,12 +2802,27 @@ export interface components {
                 [key: string]: unknown;
             }[];
             relatedEvents?: components["schemas"]["PublicPmEvent"][];
+            /**
+             * @description Approved cross-source matches. Each `comparison` has a `summary`
+             *     and per-outcome rows (`eventAProbability`, `eventBProbability`,
+             *     `deltaPoints`, `presentInA`, `presentInB`, `isShared`). A row the
+             *     two venues name differently ("San Francisco" / "San Francisco
+             *     49ers") carries `pairing` {`method`, `confidence`, `reason`,
+             *     `eventAName`, `eventBName`}; `label` stays event A's name. Every
+             *     row both venues list may carry `bothSidesTraded` (present while
+             *     the server's trading-evidence rule is on): false means at least
+             *     one leg shows no real trading, so the row stays listed but never
+             *     sets the `maxSharedOutcome*` headline. `summary.evidencedSharedOutcomeCount`
+             *     counts the shared rows with `bothSidesTraded: true`. Absent fields
+             *     mean an older server; do not infer false.
+             */
             crossSourceMatches?: {
                 [key: string]: unknown;
             }[];
             resolution?: {
                 [key: string]: unknown;
             } | null;
+            /** @description Daily volume points (one per UTC day) for the newest 90 days with data, oldest first. */
             volumeHistory?: {
                 [key: string]: unknown;
             }[];
@@ -2746,6 +2837,53 @@ export interface components {
             detailMode?: "full" | "core";
             /** @description Present (true) when the server served a reduced payload under load; the `X-CoinRithm-Lite` header is also set. */
             liteFallback?: boolean;
+        } & {
+            [key: string]: unknown;
+        };
+        PublicPmEventHolder: {
+            /** @description Full proxy wallet, lower-case. */
+            wallet: string;
+            walletShort: string;
+            /** @description Public display name; null when hidden or absent. */
+            name?: string | null;
+            pseudonym?: string | null;
+            shares: number;
+            /** @description Average entry price as a probability 0-1. */
+            avgPrice?: number | null;
+            currentValueUsd?: number | null;
+            realizedPnlUsd?: number | null;
+            unrealizedPnlUsd?: number | null;
+            /** @description Unlocalized CoinRithm wallet page path, only when that page exists. */
+            walletPagePath?: string | null;
+        } & {
+            [key: string]: unknown;
+        };
+        PublicPmEventHoldersResponse: {
+            source: string;
+            slug: string;
+            available: boolean;
+            /**
+             * @description Present only when `available` is false.
+             * @enum {string}
+             */
+            reason?: "venue_has_no_public_holders" | "venue_not_supported" | "market_ids_unavailable" | "venue_unavailable" | "busy";
+            /** @enum {string} */
+            provider?: "polymarket_data_api_v2";
+            /** Format: date-time */
+            asOf?: string;
+            cacheTtlSeconds?: number;
+            holdersPerOutcome?: number;
+            marketsCovered?: number;
+            marketsTotal?: number;
+            outcomes?: ({
+                name?: string;
+                externalMarketId?: string;
+                tokenId?: string;
+                available?: boolean;
+                holders?: components["schemas"]["PublicPmEventHolder"][];
+            } & {
+                [key: string]: unknown;
+            })[];
         } & {
             [key: string]: unknown;
         };
@@ -3055,7 +3193,11 @@ export interface components {
              *     (per-pair matchId/confidence/matchMethod/divergence + a comparison
              *     with per-outcome eventAProbability/eventBProbability/deltaPoints),
              *     maxOverallGap, maxOutcomeGap, maxConfidence, and referenceProbability
-             *     when available.
+             *     when available. Comparison rows and summaries carry the same
+             *     `pairing`, `bothSidesTraded` and `evidencedSharedOutcomeCount`
+             *     fields as event detail `crossSourceMatches`. With the evidence
+             *     rule on, a pair counts toward the cluster's `maxOverallGap` only
+             *     when one of its shared rows has `bothSidesTraded: true`.
              */
             data: {
                 [key: string]: unknown;
@@ -3242,7 +3384,9 @@ export interface components {
         /**
          * @description The cross-venue reference probability for one canonical question. Every
          *     open member holding a current reference must agree on the full tuple
-         *     (cluster, kind, outcome, probability, venueCount, spread); a binary
+         *     (cluster, kind, outcome, probability, venueCount, spread, writer
+         *     version, weight basis); rows of different versions or bases are never
+         *     merged. A binary
          *     reference additionally needs every holder aligned with the canonical
          *     anchor. Any disagreement yields null instead of a pick.
          */
@@ -3265,8 +3409,13 @@ export interface components {
              * @description Validated computation (heartbeat) time, not a quote or trade time.
              */
             computedAt: string;
-            /** @example consensus_probability_v2 */
+            /**
+             * @description The version this reference was written with (v2 and v3 are both served during the 2026-10-14 transition).
+             * @example consensus_probability_v3
+             */
             methodologyVersion: string;
+            /** @description Unit the venues were weighted in. Every v2 row is `liquidity`; null for a v3 row without a recognised basis. */
+            weightBasis?: ("open_interest" | "liquidity") | null;
             /**
              * @description Public listings of member events that hold this reference. May be a
              *     subset of the contributing venues and may include several listings
@@ -3287,6 +3436,10 @@ export interface components {
             probability: number;
             venueCount: number;
             spreadPoints: number;
+            /** @description Writer version of this day's row; a day is grouped per (version, weight basis). */
+            methodologyVersion?: string;
+            /** @description Unit the venues were weighted in; every v2 row is `liquidity`. */
+            weightBasis?: ("open_interest" | "liquidity") | null;
         };
         /**
          * @description One row of the top-gainers / top-losers universe scan. `change24h` and
@@ -3722,8 +3875,10 @@ export interface components {
              */
             marketProbability?: number | null;
             /**
-             * @description Cross-venue liquidity-weighted median reference probability at entry,
-             *     0-100. `null` when the event was not in an approved ≥2-venue cluster.
+             * @description Cross-venue size-capped weighted median reference probability at
+             *     entry (consensus methodology v2 or v3: weighted by liquidity, or by
+             *     open interest when every venue reports it), 0-100. `null` when the
+             *     event was not in an approved ≥2-venue cluster.
              */
             referenceProbability?: number | null;
             /**
@@ -3838,7 +3993,7 @@ export interface components {
             bestBid?: number | null;
             /** @description Best ask in probability points. */
             bestAsk?: number | null;
-            /** @description Cross-venue liquidity-weighted median reference probability (0-100). */
+            /** @description Cross-venue size-capped weighted median reference probability (0-100), weighted by liquidity or by open interest per the consensus methodology. */
             referenceProbability?: number | null;
             /** @description Real-money venues behind referenceProbability. */
             referenceVenueCount?: number | null;
@@ -6371,6 +6526,12 @@ export interface components {
             /** @description Venues that contributed to `latest`. */
             latestVenues: string[];
             live: components["schemas"]["PublicTradfiReferenceLive"] | null;
+            /**
+             * @description Additive (2026-10-14). SEC EDGAR company data for US-listed stocks.
+             *     Null for ETFs, metals, FX, home listings and issuers without SEC
+             *     data. Refreshed weekly per issuer.
+             */
+            fundamentals?: components["schemas"]["PublicTradfiReferenceFundamentals"] | null;
         };
         PublicTradfiReferenceCatalog: {
             version: number;
@@ -6409,6 +6570,165 @@ export interface components {
             /** @description Recorded 15-minute snapshots in the window, oldest first. */
             history: components["schemas"]["PublicTradfiReferenceSnapshot"][];
             historyWindow: components["schemas"]["PublicTradfiReferenceHistoryWindow"];
+            /**
+             * @description Additive (2026-10-14). SEC EDGAR company data for US-listed stocks.
+             *     Null for ETFs, metals, FX, home listings and issuers without SEC
+             *     data. Refreshed weekly per issuer.
+             */
+            fundamentals?: components["schemas"]["PublicTradfiReferenceFundamentals"] | null;
+            /**
+             * @description Additive (2026-10-14). High and low over the last 365 UTC days of
+             *     CoinRithm's own daily reference OHLC (rolled up from the 15-minute
+             *     consensus; history starts 2026-10-08). Null under 5 days of data.
+             */
+            week52?: components["schemas"]["PublicTradfiReferenceWeek52"] | null;
+            /**
+             * @description Additive (2026-10-14). Earnings and dividend dates from SEC EDGAR
+             *     8-K filings for US-listed stocks. Null for ETFs, metals, FX, home
+             *     listings, issuers without SEC data, or when no event was found.
+             *     Read nightly.
+             */
+            corporateEvents?: components["schemas"]["PublicTradfiReferenceCorporateEvents"] | null;
+        };
+        /**
+         * @description Company-reported SEC XBRL data. Each value is null when SEC data
+         *     cannot give it without guessing. Market cap, dividend yield and P/E
+         *     use the CoinRithm reference price (USDT perp index median, treated as
+         *     USD), not an exchange quote.
+         */
+        PublicTradfiReferenceFundamentals: {
+            /** @description sharesOutstanding x referencePrice. */
+            marketCapUsd: number | null;
+            /** @enum {string} */
+            marketCapBasis: "shares x reference price";
+            /** @description The live consensus when present, else the latest stored consensus. */
+            referencePrice: number | null;
+            sharesOutstanding: number | null;
+            /** Format: date */
+            sharesAsOf: string | null;
+            /** @description `dei_cover`: filing cover page; `balance_sheet`: all classes at quarter end. */
+            sharesSource: ("dei_cover" | "balance_sheet") | null;
+            /** @description Dividends declared per share over the trailing twelve months, USD. */
+            dividendPerShareTtm: number | null;
+            dividendTtmBasis: components["schemas"]["PublicTradfiReferenceTtmBasis"] | null;
+            /** Format: date */
+            dividendTtmPeriodEnd: string | null;
+            /** @description dividendPerShareTtm / referencePrice x 100. */
+            dividendYieldPct: number | null;
+            /** @description Declared in the latest reported quarter. */
+            lastDividendPerShare: number | null;
+            /** Format: date */
+            lastDividendPeriodEnd: string | null;
+            revenueTtmUsd: number | null;
+            netIncomeTtmUsd: number | null;
+            epsDilutedTtm: number | null;
+            /** @description referencePrice / epsDilutedTtm; null when EPS <= 0. */
+            peRatio: number | null;
+            /** @description `quarters`: last four reported quarters; `annual`: latest fiscal year. */
+            ttmBasis: components["schemas"]["PublicTradfiReferenceTtmBasis"] | null;
+            /**
+             * Format: date
+             * @description End of the twelve months behind revenue, net income and EPS.
+             */
+            ttmPeriodEnd: string | null;
+            /** @description SEC SIC industry description, e.g. Electronic Computers. */
+            sector: string | null;
+            /** @description MM-DD, e.g. 09-26. */
+            fiscalYearEnd: string | null;
+            latestFiling: {
+                /** @example 10-Q */
+                form: string;
+                /** Format: date */
+                date: string;
+            } | null;
+            /**
+             * Format: date-time
+             * @description When the aggregator last read SEC.
+             */
+            fetchedAt: string;
+            source: {
+                /** @enum {string} */
+                name: "SEC EDGAR";
+                publisher: string;
+                /** @description EDGAR filing list of the issuer. */
+                url: string;
+                /** @description The XBRL companyfacts JSON the values were derived from. */
+                dataUrl: string;
+                note: string;
+            };
+        };
+        /** @enum {string} */
+        PublicTradfiReferenceTtmBasis: "quarters" | "annual";
+        PublicTradfiReferenceWeek52: {
+            high: number;
+            low: number;
+            /**
+             * Format: date
+             * @description Latest UTC day included.
+             */
+            asOf: string;
+            /** @description Days with data in the window (not 365 while history is short). */
+            days: number;
+        };
+        PublicTradfiReferenceCorporateEvents: {
+            /** @description Latest Item 2.02 earnings release 8-K, or null. */
+            lastEarnings: {
+                /**
+                 * Format: date
+                 * @description US Eastern date of EDGAR acceptance.
+                 */
+                date: string;
+                /** @description Acceptance time against the 09:30-16:00 ET session; null when unknown. */
+                timing: ("before_open" | "after_close" | "during_market") | null;
+                /** @description The SEC filing. */
+                url: string;
+            } | null;
+            /**
+             * @description An ESTIMATE, never an announced date: the last release plus the
+             *     median gap, only with at least 3 consecutive releases 80-100 days
+             *     apart and while the date is not past. Otherwise null.
+             */
+            nextEarningsEstimate: {
+                /** Format: date */
+                date: string;
+                /** @enum {string} */
+                basis: "quarterly_cadence";
+                /** @description Releases the cadence was measured from. */
+                fromReleases: number;
+            } | null;
+            /**
+             * @description Up to 4 dividend declarations found in 8-K text, newest first.
+             *     Issuers that announce dividends only by press release (e.g. KO,
+             *     MSFT, JPM) have an empty list.
+             */
+            dividends: components["schemas"]["PublicTradfiReferenceDividendEvent"][];
+            /** @description The newest declaration whose `payableDate` is today or later, else null. */
+            upcomingDividend: components["schemas"]["PublicTradfiReferenceDividendEvent"] | null;
+            source: {
+                /** @enum {string} */
+                name: "SEC EDGAR";
+                /** @description The issuer's 8-K filing list. */
+                url: string;
+            };
+        };
+        PublicTradfiReferenceDividendEvent: {
+            /**
+             * Format: date
+             * @description Announcement date stated in the filing, else the SEC filing date.
+             */
+            declaredDate: string | null;
+            /** @description USD per common share. */
+            dividendPerShare: number;
+            /** Format: date */
+            recordDate: string | null;
+            /** Format: date */
+            exDate: string | null;
+            /** @description true when `exDate` is the record date under T+1 settlement (not stated by the company). */
+            exDateDerived: boolean;
+            /** Format: date */
+            payableDate: string | null;
+            /** @description The SEC document the dates were read from. */
+            url: string;
         };
         SpotReferenceResponse: {
             /** @constant */
@@ -8323,6 +8643,32 @@ export interface operations {
             500: components["responses"]["ServerError"];
         };
     };
+    getPublicPredictionMarketEventHolders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source: components["schemas"]["PublicPmSourceSlug"];
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Holders per outcome, or `available:false` with a reason */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPmEventHoldersResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["ServerError"];
+        };
+    };
     getPublicPredictionMarketDisagreements: {
         parameters: {
             query?: {
@@ -8516,9 +8862,52 @@ export interface operations {
                     "application/json": {
                         /** @enum {string} */
                         schema?: "coinrithm.consensusMethodology.v1";
-                        /** @description e.g. consensus_probability_v1. Pin this next to any stored number. */
+                        /**
+                         * @description The current writer version, e.g. consensus_probability_v3. Pin a row's own methodologyVersion next to any stored number.
+                         * @example consensus_probability_v3
+                         */
                         version?: string;
                         methodology?: {
+                            version?: string;
+                            /**
+                             * @description Writer versions currently served; each reference row carries its own.
+                             * @example [
+                             *       "consensus_probability_v2",
+                             *       "consensus_probability_v3"
+                             *     ]
+                             */
+                            acceptedVersions?: string[];
+                            summary?: string;
+                            weighting?: {
+                                /** @description The weight expression. */
+                                weight?: string;
+                                floor?: number;
+                                cap?: number;
+                                /** @description When each `weightBasis` applies. */
+                                basis?: {
+                                    open_interest?: string;
+                                    liquidity?: string;
+                                } & {
+                                    [key: string]: unknown;
+                                };
+                            } & {
+                                [key: string]: unknown;
+                            };
+                            estimator?: {
+                                /** @example size_capped_weighted_median */
+                                kind?: string;
+                                why?: string;
+                            } & {
+                                [key: string]: unknown;
+                            };
+                            /** @description Earlier versions still served, with the weight each used. */
+                            previousVersions?: ({
+                                version?: string;
+                                weight?: string;
+                            } & {
+                                [key: string]: unknown;
+                            })[];
+                        } & {
                             [key: string]: unknown;
                         };
                         licence?: string;

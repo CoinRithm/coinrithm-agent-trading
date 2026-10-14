@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, TypeVar, cast
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
+from ..models.public_pm_event_open_interest_basis import PublicPmEventOpenInterestBasis
 from ..models.public_pm_event_representative_outcome_basis import PublicPmEventRepresentativeOutcomeBasis
 from ..types import UNSET, Unset
 
@@ -50,6 +51,16 @@ class PublicPmEvent:
         volume (float | None | Unset):
         volume24h (float | None | Unset):
         liquidity (float | None | Unset):
+        open_interest_usd (float | Unset): Event detail only (full and `view=core`): open interest in USD,
+            whatever `fiat` was requested. Omitted when the venue publishes
+            none; never a fabricated 0. On Kalshi it is the same amount the
+            venue's `liquidity` carries.
+        open_interest_basis (PublicPmEventOpenInterestBasis | Unset): How `openInterestUsd` was measured.
+            `venue_reported_usd`: the
+            venue's own event figure (Polymarket, Rothera).
+            `contracts_x_notional_usd`: open contracts times each contract's
+            USD notional, summed over the event's markets (Kalshi).
+        open_interest_basis_note (str | Unset): Short human-readable description of `openInterestBasis`.
         best_bid (float | None | Unset):
         best_ask (float | None | Unset):
         spread (float | None | Unset):
@@ -80,7 +91,12 @@ class PublicPmEvent:
             `informative_leader` is the highest current outcome strictly inside
             5-95, else the highest; it is not necessarily the leading outcome.
         reference_probability (None | PublicPmEventReferenceProbabilityType0 | Unset): Canonical matched-venue reference
-            with venue count and spread.
+            with venue count and spread. Also
+            carries `methodologyVersion` (the row's own writer version:
+            `consensus_probability_v2` or `consensus_probability_v3`) and
+            `weightBasis` (`open_interest` | `liquidity`, null for a v3 row
+            without a recognised basis); see the consensus-methodology
+            endpoint.
         decision_support (None | PublicPmEventDecisionSupportType0 | Unset):
         quality (None | PublicPmEventQualityType0 | Unset): Persisted truth-engine decision eligibility and reason
             codes.
@@ -110,6 +126,9 @@ class PublicPmEvent:
     volume: float | None | Unset = UNSET
     volume24h: float | None | Unset = UNSET
     liquidity: float | None | Unset = UNSET
+    open_interest_usd: float | Unset = UNSET
+    open_interest_basis: PublicPmEventOpenInterestBasis | Unset = UNSET
+    open_interest_basis_note: str | Unset = UNSET
     best_bid: float | None | Unset = UNSET
     best_ask: float | None | Unset = UNSET
     spread: float | None | Unset = UNSET
@@ -213,6 +232,14 @@ class PublicPmEvent:
             liquidity = UNSET
         else:
             liquidity = self.liquidity
+
+        open_interest_usd = self.open_interest_usd
+
+        open_interest_basis: str | Unset = UNSET
+        if not isinstance(self.open_interest_basis, Unset):
+            open_interest_basis = self.open_interest_basis.value
+
+        open_interest_basis_note = self.open_interest_basis_note
 
         best_bid: float | None | Unset
         if isinstance(self.best_bid, Unset):
@@ -335,6 +362,12 @@ class PublicPmEvent:
             field_dict["volume24h"] = volume24h
         if liquidity is not UNSET:
             field_dict["liquidity"] = liquidity
+        if open_interest_usd is not UNSET:
+            field_dict["openInterestUsd"] = open_interest_usd
+        if open_interest_basis is not UNSET:
+            field_dict["openInterestBasis"] = open_interest_basis
+        if open_interest_basis_note is not UNSET:
+            field_dict["openInterestBasisNote"] = open_interest_basis_note
         if best_bid is not UNSET:
             field_dict["bestBid"] = best_bid
         if best_ask is not UNSET:
@@ -512,6 +545,17 @@ class PublicPmEvent:
 
         liquidity = _parse_liquidity(d.pop("liquidity", UNSET))
 
+        open_interest_usd = d.pop("openInterestUsd", UNSET)
+
+        _open_interest_basis = d.pop("openInterestBasis", UNSET)
+        open_interest_basis: PublicPmEventOpenInterestBasis | Unset
+        if isinstance(_open_interest_basis, Unset):
+            open_interest_basis = UNSET
+        else:
+            open_interest_basis = PublicPmEventOpenInterestBasis(_open_interest_basis)
+
+        open_interest_basis_note = d.pop("openInterestBasisNote", UNSET)
+
         def _parse_best_bid(data: object) -> float | None | Unset:
             if data is None:
                 return data
@@ -685,6 +729,9 @@ class PublicPmEvent:
             volume=volume,
             volume24h=volume24h,
             liquidity=liquidity,
+            open_interest_usd=open_interest_usd,
+            open_interest_basis=open_interest_basis,
+            open_interest_basis_note=open_interest_basis_note,
             best_bid=best_bid,
             best_ask=best_ask,
             spread=spread,
