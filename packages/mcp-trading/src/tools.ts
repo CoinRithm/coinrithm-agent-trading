@@ -491,9 +491,17 @@ function compactComparison(value: unknown): unknown {
         (outcome.presentInA === true && outcome.presentInB === true)),
   );
   const candidates = shared.length > 0 ? shared : outcomes;
+  // The API headline (summary.maxSharedOutcome*) skips a row whose legs do
+  // not both show trading (`bothSidesTraded: false`). Such a row is still
+  // listed, but ranks after every other row so it never leads as the largest
+  // gap. Older APIs omit the field, which ranks exactly as before.
+  const untraded = (outcome: unknown): number =>
+    isJsonRecord(outcome) && outcome.bothSidesTraded === false ? 1 : 0;
   const ranked = candidates
     .map((outcome, index) => ({ outcome, index }))
     .sort((left, right) => {
+      const evidence = untraded(left.outcome) - untraded(right.outcome);
+      if (evidence !== 0) return evidence;
       const a = isJsonRecord(left.outcome)
         ? Math.abs(probability(left.outcome.deltaPoints) ?? -1)
         : -1;
@@ -516,6 +524,8 @@ function compactComparison(value: unknown): unknown {
             "presentInA",
             "presentInB",
             "isShared",
+            "bothSidesTraded",
+            "pairing",
           ])
         : outcome,
     );
