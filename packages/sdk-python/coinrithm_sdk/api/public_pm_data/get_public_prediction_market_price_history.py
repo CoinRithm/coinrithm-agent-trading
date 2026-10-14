@@ -96,8 +96,9 @@ def sync_detailed(
     r"""Probability history for one outcome of an event
 
      Native venue price history for ONE outcome of the event: the Yes leg
-    of a binary market, else the first outcome in venue order. `outcome`
-    names it; on a multi-outcome event, use event detail for the others.
+    of a binary market, else the first live outcome by sort order (not
+    resolved, voided or closed), else the first outcome. `outcome` names
+    it; on a multi-outcome event, use event detail for the others.
 
     Polymarket and Kalshi only. Other venues answer 200 with `points: []`,
     which means \"not served here\", not \"no trading\".
@@ -145,8 +146,9 @@ def sync(
     r"""Probability history for one outcome of an event
 
      Native venue price history for ONE outcome of the event: the Yes leg
-    of a binary market, else the first outcome in venue order. `outcome`
-    names it; on a multi-outcome event, use event detail for the others.
+    of a binary market, else the first live outcome by sort order (not
+    resolved, voided or closed), else the first outcome. `outcome` names
+    it; on a multi-outcome event, use event detail for the others.
 
     Polymarket and Kalshi only. Other venues answer 200 with `points: []`,
     which means \"not served here\", not \"no trading\".
@@ -189,8 +191,9 @@ async def asyncio_detailed(
     r"""Probability history for one outcome of an event
 
      Native venue price history for ONE outcome of the event: the Yes leg
-    of a binary market, else the first outcome in venue order. `outcome`
-    names it; on a multi-outcome event, use event detail for the others.
+    of a binary market, else the first live outcome by sort order (not
+    resolved, voided or closed), else the first outcome. `outcome` names
+    it; on a multi-outcome event, use event detail for the others.
 
     Polymarket and Kalshi only. Other venues answer 200 with `points: []`,
     which means \"not served here\", not \"no trading\".
@@ -236,8 +239,9 @@ async def asyncio(
     r"""Probability history for one outcome of an event
 
      Native venue price history for ONE outcome of the event: the Yes leg
-    of a binary market, else the first outcome in venue order. `outcome`
-    names it; on a multi-outcome event, use event detail for the others.
+    of a binary market, else the first live outcome by sort order (not
+    resolved, voided or closed), else the first outcome. `outcome` names
+    it; on a multi-outcome event, use event detail for the others.
 
     Polymarket and Kalshi only. Other venues answer 200 with `points: []`,
     which means \"not served here\", not \"no trading\".

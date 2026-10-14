@@ -25,6 +25,9 @@ class PublicPmOutcome:
     Attributes:
         name (str):
         external_market_id (str | Unset):
+        open_interest_usd (float | Unset): Event detail, Kalshi multi-market events only (also on
+            `representativeOutcome`). This contract's open interest in USD (open contracts times USD notional). Omitted
+            elsewhere.
         probability (float | None | Unset): Provider-implied probability on a 0–100 scale (raw venue input; may include
             vig, so a book's outcomes can sum above 100). Execution eligibility and a usable quote are reported by the quote
             endpoint, not inferred from this field alone.
@@ -70,6 +73,7 @@ class PublicPmOutcome:
 
     name: str
     external_market_id: str | Unset = UNSET
+    open_interest_usd: float | Unset = UNSET
     probability: float | None | Unset = UNSET
     normalized_probability: float | None | Unset = UNSET
     has_observed_price: bool | Unset = UNSET
@@ -91,6 +95,8 @@ class PublicPmOutcome:
         name = self.name
 
         external_market_id = self.external_market_id
+
+        open_interest_usd = self.open_interest_usd
 
         probability: float | None | Unset
         if isinstance(self.probability, Unset):
@@ -159,6 +165,8 @@ class PublicPmOutcome:
         )
         if external_market_id is not UNSET:
             field_dict["externalMarketId"] = external_market_id
+        if open_interest_usd is not UNSET:
+            field_dict["openInterestUsd"] = open_interest_usd
         if probability is not UNSET:
             field_dict["probability"] = probability
         if normalized_probability is not UNSET:
@@ -194,6 +202,8 @@ class PublicPmOutcome:
         name = d.pop("name")
 
         external_market_id = d.pop("externalMarketId", UNSET)
+
+        open_interest_usd = d.pop("openInterestUsd", UNSET)
 
         def _parse_probability(data: object) -> float | None | Unset:
             if data is None:
@@ -304,6 +314,7 @@ class PublicPmOutcome:
         public_pm_outcome = cls(
             name=name,
             external_market_id=external_market_id,
+            open_interest_usd=open_interest_usd,
             probability=probability,
             normalized_probability=normalized_probability,
             has_observed_price=has_observed_price,

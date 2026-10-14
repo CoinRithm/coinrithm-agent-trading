@@ -1791,6 +1791,51 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         "500": { $ref: "#/components/responses/ServerError" }
 
+  /api/prediction-markets/events/{source}/{slug}/holders:
+    get:
+      operationId: getPublicPredictionMarketEventHolders
+      tags: [public-pm-data]
+      summary: Top holders per outcome of an event (Polymarket)
+      description: |
+        Keyless top holders of each outcome, read from Polymarket's public
+        holder data on demand and never stored. Top 10 wallets per outcome by
+        shares held, with average price (a probability 0-1), current value and
+        realized/unrealized P&L in USD as Polymarket reports them. At most 10
+        markets per event are covered (live outcomes first, then by
+        probability); `marketsCovered < marketsTotal` means a partial list.
+        Cached 10 minutes.
+
+        The route takes NO query parameters: any query key answers 400.
+        Every other venue answers 200 with `available: false` and a `reason`:
+        `venue_has_no_public_holders` (Kalshi), `venue_not_supported`,
+        `market_ids_unavailable` (market ids pruned, e.g. some time after
+        resolution), or the transient `venue_unavailable` / `busy` (retry
+        later). A single outcome whose venue call failed has
+        `available: false` while the rest are served.
+
+        `walletPagePath` is the unlocalized path of CoinRithm's whale wallet
+        page (`/prediction-markets/whales/polymarket/<wallet>`), set only when
+        that page exists; otherwise null.
+      security: []
+      parameters:
+        - name: source
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/PublicPmSourceSlug" }
+        - name: slug
+          in: path
+          required: true
+          schema: { type: string, minLength: 1 }
+      responses:
+        "200":
+          description: Holders per outcome, or `available:false` with a reason
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicPmEventHoldersResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
   /api/prediction-markets/matches/public:
     get:
       operationId: getPublicPredictionMarketDisagreements
@@ -2339,8 +2384,9 @@ paths:
       summary: Probability history for one outcome of an event
       description: |
         Native venue price history for ONE outcome of the event: the Yes leg
-        of a binary market, else the first outcome in venue order. `outcome`
-        names it; on a multi-outcome event, use event detail for the others.
+        of a binary market, else the first live outcome by sort order (not
+        resolved, voided or closed), else the first outcome. `outcome` names
+        it; on a multi-outcome event, use event detail for the others.
 
         Polymarket and Kalshi only. Other venues answer 200 with `points: []`,
         which means "not served here", not "no trading".
@@ -2410,8 +2456,9 @@ paths:
       summary: Live order book for one outcome of an event
       description: |
         Keyless live order book for the SAME single outcome `price-history`
-        describes (the Yes leg of a binary market, else the first outcome in
-        venue order). Polymarket and Kalshi only; other sources answer 200
+        describes (the Yes leg of a binary market, else the first live outcome
+        by sort order, else the first outcome). Polymarket and Kalshi only;
+        other sources answer 200
         with `orderBook: null`, which means "not served here", not "no
         market". A thin or near-expiry market with no resting orders on
         either side also answers 200 with `orderBook: null` — a valid empty
@@ -4251,6 +4298,9 @@ components:
       properties:
         externalMarketId: { type: string }
         name: { type: string }
+        openInterestUsd:
+          type: number
+          description: Event detail, Kalshi multi-market events only (also on `representativeOutcome`). This contract's open interest in USD (open contracts times USD notional). Omitted elsewhere.
         probability:
           type: [number, "null"]
           description: Provider-implied probability on a 0–100 scale (raw venue input; may include vig, so a book's outcomes can sum above 100). Execution eligibility and a usable quote are reported by the quote endpoint, not inferred from this field alone.
@@ -4383,6 +4433,24 @@ components:
         volume: { type: [number, "null"] }
         volume24h: { type: [number, "null"] }
         liquidity: { type: [number, "null"] }
+        openInterestUsd:
+          type: number
+          description: |
+            Event detail only (full and `view=core`): open interest in USD,
+            whatever `fiat` was requested. Omitted when the venue publishes
+            none; never a fabricated 0. On Kalshi it is the same amount the
+            venue's `liquidity` carries.
+        openInterestBasis:
+          type: string
+          enum: [venue_reported_usd, contracts_x_notional_usd]
+          description: |
+            How `openInterestUsd` was measured. `venue_reported_usd`: the
+            venue's own event figure (Polymarket, Rothera).
+            `contracts_x_notional_usd`: open contracts times each contract's
+            USD notional, summed over the event's markets (Kalshi).
+        openInterestBasisNote:
+          type: string
+          description: Short human-readable description of `openInterestBasis`.
         bestBid: { type: [number, "null"] }
         bestAsk: { type: [number, "null"] }
         spread: { type: [number, "null"] }
@@ -4758,10 +4826,24 @@ components:
           items: { $ref: "#/components/schemas/PublicPmEvent" }
         crossSourceMatches:
           type: array
+          description: |
+            Approved cross-source matches. Each `comparison` has a `summary`
+            and per-outcome rows (`eventAProbability`, `eventBProbability`,
+            `deltaPoints`, `presentInA`, `presentInB`, `isShared`). A row the
+            two venues name differently ("San Francisco" / "San Francisco
+            49ers") carries `pairing` {`method`, `confidence`, `reason`,
+            `eventAName`, `eventBName`}; `label` stays event A's name. Every
+            row both venues list may carry `bothSidesTraded` (present while
+            the server's trading-evidence rule is on): false means at least
+            one leg shows no real trading, so the row stays listed but never
+            sets the `maxSharedOutcome*` headline. `summary.evidencedSharedOutcomeCount`
+            counts the shared rows with `bothSidesTraded: true`. Absent fields
+            mean an older server; do not infer false.
           items: { type: object, additionalProperties: true }
         resolution: { type: [object, "null"], additionalProperties: true }
         volumeHistory:
           type: array
+          description: Daily volume points (one per UTC day) for the newest 90 days with data, oldest first.
           items: { type: object, additionalProperties: true }
         relatedNews:
           type: array
@@ -4777,6 +4859,54 @@ components:
           type: boolean
           description: Present (true) when the server served a reduced payload under load; the `X-CoinRithm-Lite` header is also set.
       required: [event]
+
+    PublicPmEventHolder:
+      type: object
+      additionalProperties: true
+      properties:
+        wallet: { type: string, description: "Full proxy wallet, lower-case." }
+        walletShort: { type: string }
+        name: { type: [string, "null"], description: "Public display name; null when hidden or absent." }
+        pseudonym: { type: [string, "null"] }
+        shares: { type: number }
+        avgPrice: { type: [number, "null"], description: "Average entry price as a probability 0-1." }
+        currentValueUsd: { type: [number, "null"] }
+        realizedPnlUsd: { type: [number, "null"] }
+        unrealizedPnlUsd: { type: [number, "null"] }
+        walletPagePath: { type: [string, "null"], description: "Unlocalized CoinRithm wallet page path, only when that page exists." }
+      required: [wallet, walletShort, shares]
+
+    PublicPmEventHoldersResponse:
+      type: object
+      additionalProperties: true
+      properties:
+        source: { type: string }
+        slug: { type: string }
+        available: { type: boolean }
+        reason:
+          type: string
+          enum: [venue_has_no_public_holders, venue_not_supported, market_ids_unavailable, venue_unavailable, busy]
+          description: Present only when `available` is false.
+        provider: { type: string, enum: [polymarket_data_api_v2] }
+        asOf: { type: string, format: date-time }
+        cacheTtlSeconds: { type: integer }
+        holdersPerOutcome: { type: integer }
+        marketsCovered: { type: integer }
+        marketsTotal: { type: integer }
+        outcomes:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+            properties:
+              name: { type: string }
+              externalMarketId: { type: string }
+              tokenId: { type: string }
+              available: { type: boolean }
+              holders:
+                type: array
+                items: { $ref: "#/components/schemas/PublicPmEventHolder" }
+      required: [source, slug, available]
 
     PublicPmWhaleTrade:
       type: object
@@ -5119,7 +5249,11 @@ components:
             (per-pair matchId/confidence/matchMethod/divergence + a comparison
             with per-outcome eventAProbability/eventBProbability/deltaPoints),
             maxOverallGap, maxOutcomeGap, maxConfidence, and referenceProbability
-            when available.
+            when available. Comparison rows and summaries carry the same
+            `pairing`, `bothSidesTraded` and `evidencedSharedOutcomeCount`
+            fields as event detail `crossSourceMatches`. With the evidence
+            rule on, a pair counts toward the cluster's `maxOverallGap` only
+            when one of its shared rows has `bothSidesTraded: true`.
           items:
             type: object
             additionalProperties: true
@@ -8929,6 +9063,86 @@ components:
           description: "Recorded 15-minute snapshots in the window, oldest first."
           items: { $ref: "#/components/schemas/PublicTradfiReferenceSnapshot" }
         historyWindow: { $ref: "#/components/schemas/PublicTradfiReferenceHistoryWindow" }
+        corporateEvents:
+          description: |
+            Additive (2026-10-14). Earnings and dividend dates from SEC EDGAR
+            8-K filings for US-listed stocks. Null for ETFs, metals, FX, home
+            listings, issuers without SEC data, or when no event was found.
+            Read nightly.
+          anyOf:
+            - $ref: "#/components/schemas/PublicTradfiReferenceCorporateEvents"
+            - { type: "null" }
+
+    PublicTradfiReferenceCorporateEvents:
+      type: object
+      required: [lastEarnings, nextEarningsEstimate, dividends, upcomingDividend, source]
+      properties:
+        lastEarnings:
+          description: Latest Item 2.02 earnings release 8-K, or null.
+          anyOf:
+            - type: object
+              required: [date, timing, url]
+              properties:
+                date:
+                  type: string
+                  format: date
+                  description: US Eastern date of EDGAR acceptance.
+                timing:
+                  description: Acceptance time against the 09:30-16:00 ET session; null when unknown.
+                  anyOf:
+                    - { type: string, enum: [before_open, after_close, during_market] }
+                    - { type: "null" }
+                url: { type: string, description: "The SEC filing." }
+            - { type: "null" }
+        nextEarningsEstimate:
+          description: |
+            An ESTIMATE, never an announced date: the last release plus the
+            median gap, only with at least 3 consecutive releases 80-100 days
+            apart and while the date is not past. Otherwise null.
+          anyOf:
+            - type: object
+              required: [date, basis, fromReleases]
+              properties:
+                date: { type: string, format: date }
+                basis: { type: string, enum: [quarterly_cadence] }
+                fromReleases: { type: integer, description: "Releases the cadence was measured from." }
+            - { type: "null" }
+        dividends:
+          type: array
+          maxItems: 4
+          description: |
+            Up to 4 dividend declarations found in 8-K text, newest first.
+            Issuers that announce dividends only by press release (e.g. KO,
+            MSFT, JPM) have an empty list.
+          items: { $ref: "#/components/schemas/PublicTradfiReferenceDividendEvent" }
+        upcomingDividend:
+          description: The newest declaration whose `payableDate` is today or later, else null.
+          anyOf:
+            - $ref: "#/components/schemas/PublicTradfiReferenceDividendEvent"
+            - { type: "null" }
+        source:
+          type: object
+          required: [name, url]
+          properties:
+            name: { type: string, enum: ["SEC EDGAR"] }
+            url: { type: string, description: "The issuer's 8-K filing list." }
+
+    PublicTradfiReferenceDividendEvent:
+      type: object
+      required: [declaredDate, dividendPerShare, recordDate, exDate, exDateDerived, payableDate, url]
+      properties:
+        declaredDate:
+          type: [string, "null"]
+          format: date
+          description: Announcement date stated in the filing, else the SEC filing date.
+        dividendPerShare: { type: number, description: "USD per common share." }
+        recordDate: { type: [string, "null"], format: date }
+        exDate: { type: [string, "null"], format: date }
+        exDateDerived:
+          type: boolean
+          description: true when `exDate` is the record date under T+1 settlement (not stated by the company).
+        payableDate: { type: [string, "null"], format: date }
+        url: { type: string, description: "The SEC document the dates were read from." }
 
     # ---- spot reference ----
     SpotReferenceResponse:

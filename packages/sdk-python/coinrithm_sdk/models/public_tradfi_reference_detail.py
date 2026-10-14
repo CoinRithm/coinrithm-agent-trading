@@ -7,8 +7,11 @@ from typing import TYPE_CHECKING, Any, TypeVar, cast
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
+from ..types import UNSET, Unset
+
 if TYPE_CHECKING:
     from ..models.public_tradfi_reference_change import PublicTradfiReferenceChange
+    from ..models.public_tradfi_reference_corporate_events import PublicTradfiReferenceCorporateEvents
     from ..models.public_tradfi_reference_freshness import PublicTradfiReferenceFreshness
     from ..models.public_tradfi_reference_history_window import PublicTradfiReferenceHistoryWindow
     from ..models.public_tradfi_reference_instrument import PublicTradfiReferenceInstrument
@@ -38,6 +41,11 @@ class PublicTradfiReferenceDetail:
         live (None | PublicTradfiReferenceLive):
         history (list[PublicTradfiReferenceSnapshot]): Recorded 15-minute snapshots in the window, oldest first.
         history_window (PublicTradfiReferenceHistoryWindow):
+        corporate_events (None | PublicTradfiReferenceCorporateEvents | Unset): Additive (2026-10-14). Earnings and
+            dividend dates from SEC EDGAR
+            8-K filings for US-listed stocks. Null for ETFs, metals, FX, home
+            listings, issuers without SEC data, or when no event was found.
+            Read nightly.
     """
 
     version: int
@@ -53,10 +61,12 @@ class PublicTradfiReferenceDetail:
     live: None | PublicTradfiReferenceLive
     history: list[PublicTradfiReferenceSnapshot]
     history_window: PublicTradfiReferenceHistoryWindow
+    corporate_events: None | PublicTradfiReferenceCorporateEvents | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         from ..models.public_tradfi_reference_change import PublicTradfiReferenceChange
+        from ..models.public_tradfi_reference_corporate_events import PublicTradfiReferenceCorporateEvents
         from ..models.public_tradfi_reference_live import PublicTradfiReferenceLive
         from ..models.public_tradfi_reference_range import PublicTradfiReferenceRange
         from ..models.public_tradfi_reference_snapshot import PublicTradfiReferenceSnapshot
@@ -110,6 +120,14 @@ class PublicTradfiReferenceDetail:
 
         history_window = self.history_window.to_dict()
 
+        corporate_events: dict[str, Any] | None | Unset
+        if isinstance(self.corporate_events, Unset):
+            corporate_events = UNSET
+        elif isinstance(self.corporate_events, PublicTradfiReferenceCorporateEvents):
+            corporate_events = self.corporate_events.to_dict()
+        else:
+            corporate_events = self.corporate_events
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -129,12 +147,15 @@ class PublicTradfiReferenceDetail:
                 "historyWindow": history_window,
             }
         )
+        if corporate_events is not UNSET:
+            field_dict["corporateEvents"] = corporate_events
 
         return field_dict
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.public_tradfi_reference_change import PublicTradfiReferenceChange
+        from ..models.public_tradfi_reference_corporate_events import PublicTradfiReferenceCorporateEvents
         from ..models.public_tradfi_reference_freshness import PublicTradfiReferenceFreshness
         from ..models.public_tradfi_reference_history_window import PublicTradfiReferenceHistoryWindow
         from ..models.public_tradfi_reference_instrument import PublicTradfiReferenceInstrument
@@ -240,6 +261,23 @@ class PublicTradfiReferenceDetail:
 
         history_window = PublicTradfiReferenceHistoryWindow.from_dict(d.pop("historyWindow"))
 
+        def _parse_corporate_events(data: object) -> None | PublicTradfiReferenceCorporateEvents | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                corporate_events_type_0 = PublicTradfiReferenceCorporateEvents.from_dict(data)
+
+                return corporate_events_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(None | PublicTradfiReferenceCorporateEvents | Unset, data)
+
+        corporate_events = _parse_corporate_events(d.pop("corporateEvents", UNSET))
+
         public_tradfi_reference_detail = cls(
             version=version,
             generated_at=generated_at,
@@ -254,6 +292,7 @@ class PublicTradfiReferenceDetail:
             live=live,
             history=history,
             history_window=history_window,
+            corporate_events=corporate_events,
         )
 
         public_tradfi_reference_detail.additional_properties = d

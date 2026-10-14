@@ -443,6 +443,12 @@ from .public_pm_event_detail_response_resolution_type_0 import PublicPmEventDeta
 from .public_pm_event_detail_response_snapshots_item import PublicPmEventDetailResponseSnapshotsItem
 from .public_pm_event_detail_response_volume_history_item import PublicPmEventDetailResponseVolumeHistoryItem
 from .public_pm_event_freshness import PublicPmEventFreshness
+from .public_pm_event_holder import PublicPmEventHolder
+from .public_pm_event_holders_response import PublicPmEventHoldersResponse
+from .public_pm_event_holders_response_outcomes_item import PublicPmEventHoldersResponseOutcomesItem
+from .public_pm_event_holders_response_provider import PublicPmEventHoldersResponseProvider
+from .public_pm_event_holders_response_reason import PublicPmEventHoldersResponseReason
+from .public_pm_event_open_interest_basis import PublicPmEventOpenInterestBasis
 from .public_pm_event_probability_book_type_0 import PublicPmEventProbabilityBookType0
 from .public_pm_event_quality_type_0 import PublicPmEventQualityType0
 from .public_pm_event_reference_probability_type_0 import PublicPmEventReferenceProbabilityType0
@@ -534,7 +540,23 @@ from .public_ticker_treasury_response import PublicTickerTreasuryResponse
 from .public_tradfi_reference_catalog import PublicTradfiReferenceCatalog
 from .public_tradfi_reference_catalog_item import PublicTradfiReferenceCatalogItem
 from .public_tradfi_reference_change import PublicTradfiReferenceChange
+from .public_tradfi_reference_corporate_events import PublicTradfiReferenceCorporateEvents
+from .public_tradfi_reference_corporate_events_last_earnings_type_0 import (
+    PublicTradfiReferenceCorporateEventsLastEarningsType0,
+)
+from .public_tradfi_reference_corporate_events_last_earnings_type_0_timing_type_0 import (
+    PublicTradfiReferenceCorporateEventsLastEarningsType0TimingType0,
+)
+from .public_tradfi_reference_corporate_events_next_earnings_estimate_type_0 import (
+    PublicTradfiReferenceCorporateEventsNextEarningsEstimateType0,
+)
+from .public_tradfi_reference_corporate_events_next_earnings_estimate_type_0_basis import (
+    PublicTradfiReferenceCorporateEventsNextEarningsEstimateType0Basis,
+)
+from .public_tradfi_reference_corporate_events_source import PublicTradfiReferenceCorporateEventsSource
+from .public_tradfi_reference_corporate_events_source_name import PublicTradfiReferenceCorporateEventsSourceName
 from .public_tradfi_reference_detail import PublicTradfiReferenceDetail
+from .public_tradfi_reference_dividend_event import PublicTradfiReferenceDividendEvent
 from .public_tradfi_reference_freshness import PublicTradfiReferenceFreshness
 from .public_tradfi_reference_history_window import PublicTradfiReferenceHistoryWindow
 from .public_tradfi_reference_home_listing import PublicTradfiReferenceHomeListing
@@ -1003,6 +1025,12 @@ __all__ = (
     "PublicPmEventDetailResponseSnapshotsItem",
     "PublicPmEventDetailResponseVolumeHistoryItem",
     "PublicPmEventFreshness",
+    "PublicPmEventHolder",
+    "PublicPmEventHoldersResponse",
+    "PublicPmEventHoldersResponseOutcomesItem",
+    "PublicPmEventHoldersResponseProvider",
+    "PublicPmEventHoldersResponseReason",
+    "PublicPmEventOpenInterestBasis",
     "PublicPmEventProbabilityBookType0",
     "PublicPmEventQualityType0",
     "PublicPmEventReferenceProbabilityType0",
@@ -1090,7 +1118,15 @@ __all__ = (
     "PublicTradfiReferenceCatalog",
     "PublicTradfiReferenceCatalogItem",
     "PublicTradfiReferenceChange",
+    "PublicTradfiReferenceCorporateEvents",
+    "PublicTradfiReferenceCorporateEventsLastEarningsType0",
+    "PublicTradfiReferenceCorporateEventsLastEarningsType0TimingType0",
+    "PublicTradfiReferenceCorporateEventsNextEarningsEstimateType0",
+    "PublicTradfiReferenceCorporateEventsNextEarningsEstimateType0Basis",
+    "PublicTradfiReferenceCorporateEventsSource",
+    "PublicTradfiReferenceCorporateEventsSourceName",
     "PublicTradfiReferenceDetail",
+    "PublicTradfiReferenceDividendEvent",
     "PublicTradfiReferenceFreshness",
     "PublicTradfiReferenceHistoryWindow",
     "PublicTradfiReferenceHomeListing",

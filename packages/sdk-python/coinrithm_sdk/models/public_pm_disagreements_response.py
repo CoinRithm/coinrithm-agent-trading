@@ -26,7 +26,11 @@ class PublicPmDisagreementsResponse:
             (per-pair matchId/confidence/matchMethod/divergence + a comparison
             with per-outcome eventAProbability/eventBProbability/deltaPoints),
             maxOverallGap, maxOutcomeGap, maxConfidence, and referenceProbability
-            when available.
+            when available. Comparison rows and summaries carry the same
+            `pairing`, `bothSidesTraded` and `evidencedSharedOutcomeCount`
+            fields as event detail `crossSourceMatches`. With the evidence
+            rule on, a pair counts toward the cluster's `maxOverallGap` only
+            when one of its shared rows has `bothSidesTraded: true`.
         total (int):
         has_more (bool):
         pagination (PublicPmDisagreementsResponsePagination):

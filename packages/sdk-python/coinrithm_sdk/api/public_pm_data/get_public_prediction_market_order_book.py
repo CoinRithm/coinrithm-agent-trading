@@ -87,8 +87,9 @@ def sync_detailed(
     r"""Live order book for one outcome of an event
 
      Keyless live order book for the SAME single outcome `price-history`
-    describes (the Yes leg of a binary market, else the first outcome in
-    venue order). Polymarket and Kalshi only; other sources answer 200
+    describes (the Yes leg of a binary market, else the first live outcome
+    by sort order, else the first outcome). Polymarket and Kalshi only;
+    other sources answer 200
     with `orderBook: null`, which means \"not served here\", not \"no
     market\". A thin or near-expiry market with no resting orders on
     either side also answers 200 with `orderBook: null` — a valid empty
@@ -147,8 +148,9 @@ def sync(
     r"""Live order book for one outcome of an event
 
      Keyless live order book for the SAME single outcome `price-history`
-    describes (the Yes leg of a binary market, else the first outcome in
-    venue order). Polymarket and Kalshi only; other sources answer 200
+    describes (the Yes leg of a binary market, else the first live outcome
+    by sort order, else the first outcome). Polymarket and Kalshi only;
+    other sources answer 200
     with `orderBook: null`, which means \"not served here\", not \"no
     market\". A thin or near-expiry market with no resting orders on
     either side also answers 200 with `orderBook: null` — a valid empty
@@ -202,8 +204,9 @@ async def asyncio_detailed(
     r"""Live order book for one outcome of an event
 
      Keyless live order book for the SAME single outcome `price-history`
-    describes (the Yes leg of a binary market, else the first outcome in
-    venue order). Polymarket and Kalshi only; other sources answer 200
+    describes (the Yes leg of a binary market, else the first live outcome
+    by sort order, else the first outcome). Polymarket and Kalshi only;
+    other sources answer 200
     with `orderBook: null`, which means \"not served here\", not \"no
     market\". A thin or near-expiry market with no resting orders on
     either side also answers 200 with `orderBook: null` — a valid empty
@@ -260,8 +263,9 @@ async def asyncio(
     r"""Live order book for one outcome of an event
 
      Keyless live order book for the SAME single outcome `price-history`
-    describes (the Yes leg of a binary market, else the first outcome in
-    venue order). Polymarket and Kalshi only; other sources answer 200
+    describes (the Yes leg of a binary market, else the first live outcome
+    by sort order, else the first outcome). Polymarket and Kalshi only;
+    other sources answer 200
     with `orderBook: null`, which means \"not served here\", not \"no
     market\". A thin or near-expiry market with no resting orders on
     either side also answers 200 with `orderBook: null` — a valid empty
