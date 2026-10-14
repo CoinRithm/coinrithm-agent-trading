@@ -3501,10 +3501,13 @@ export interface components {
             markPrice?: number;
             /** @description Executed fill price; markPrice remains the reference mark and slippage is already embedded here. */
             fillPrice?: number | null;
+            /** @description Realized PnL of this exit, net of its close fee and, since 2026-10-14, of the share of open/add fees charged at this exit (entryFeeAllocatedMusd). History was corrected once. */
             realizedPnlMusd?: number;
             marginDeltaMusd?: number;
             feeMusd?: number;
             slippageMusd?: number;
+            /** @description Open/add fee charged to realizedPnlMusd at this exit (pro rata on a reduce, the remainder on a close or liquidation). Already included in realizedPnlMusd; the wallet paid it at open, so do not subtract it again. 0 on open/add events. */
+            entryFeeAllocatedMusd?: number;
             executionVersion?: string | null;
             idempotencyKey?: string | null;
             /** Format: date-time */
