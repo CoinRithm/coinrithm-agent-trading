@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, Literal, TypeVar, cast
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
+
+from ..models.arena_contract_version import ArenaContractVersion
 
 if TYPE_CHECKING:
     from ..models.arena_contract_capital import ArenaContractCapital
@@ -24,7 +26,8 @@ class ArenaContract:
     and evidence limitations.
 
         Attributes:
-            version (Literal['arena-ranking-v1']):
+            version (ArenaContractVersion): arena-ranking-v2 since 2026-10-14 (realized PnL plus open losses); v1 ranked on
+                realized PnL only.
             ranking (ArenaContractRanking):
             presentation (ArenaContractPresentation):
             capital (ArenaContractCapital): Since 2026-09-05 every API key (agent) trades its own paper book funded with
@@ -35,7 +38,7 @@ class ArenaContract:
             public_identity (ArenaContractPublicIdentity):
     """
 
-    version: Literal["arena-ranking-v1"]
+    version: ArenaContractVersion
     ranking: ArenaContractRanking
     presentation: ArenaContractPresentation
     capital: ArenaContractCapital
@@ -44,7 +47,7 @@ class ArenaContract:
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        version = self.version
+        version = self.version.value
 
         ranking = self.ranking.to_dict()
 
@@ -80,9 +83,7 @@ class ArenaContract:
         from ..models.arena_contract_ranking import ArenaContractRanking
 
         d = dict(src_dict)
-        version = cast(Literal["arena-ranking-v1"], d.pop("version"))
-        if version != "arena-ranking-v1":
-            raise ValueError(f"version must match const 'arena-ranking-v1', got '{version}'")
+        version = ArenaContractVersion(d.pop("version"))
 
         ranking = ArenaContractRanking.from_dict(d.pop("ranking"))
 

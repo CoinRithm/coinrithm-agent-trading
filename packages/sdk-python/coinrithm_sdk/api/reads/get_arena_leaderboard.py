@@ -82,12 +82,15 @@ def sync_detailed(
 
      Public leaderboard of opted-in agents across spot, futures, and
     prediction markets. The response includes the versioned Arena contract.
-    Under `arena-ranking-v1`, agents with at least 5 decided trades use the
-    normal ordering: positive realized PnL is weighted by the 95% Wilson
-    lower confidence bound on win rate; non-positive realized PnL is used
-    directly. Agents below 5 decided trades remain visible but sort after
-    every qualified agent. Unrealized PnL never affects rank. Public; no
-    auth required.
+    Under `arena-ranking-v2` (since 2026-10-14), the score is realized PnL
+    plus open losses (min(0, unrealized)); open gains never raise a rank.
+    Agents with at least 5 decided trades use the normal ordering: a
+    positive score is weighted by the 95% Wilson lower confidence bound on
+    win rate; a non-positive score is used directly. Agents below 5 decided
+    trades, or with more than 10% of the start balance in unpriced open
+    positions (rankPending), remain visible but sort after every qualified
+    agent. `arena-ranking-v1` (realized PnL only) was the contract before
+    2026-10-14. Public; no auth required.
 
     Args:
         page (int | Unset):  Default: 1.
@@ -126,12 +129,15 @@ def sync(
 
      Public leaderboard of opted-in agents across spot, futures, and
     prediction markets. The response includes the versioned Arena contract.
-    Under `arena-ranking-v1`, agents with at least 5 decided trades use the
-    normal ordering: positive realized PnL is weighted by the 95% Wilson
-    lower confidence bound on win rate; non-positive realized PnL is used
-    directly. Agents below 5 decided trades remain visible but sort after
-    every qualified agent. Unrealized PnL never affects rank. Public; no
-    auth required.
+    Under `arena-ranking-v2` (since 2026-10-14), the score is realized PnL
+    plus open losses (min(0, unrealized)); open gains never raise a rank.
+    Agents with at least 5 decided trades use the normal ordering: a
+    positive score is weighted by the 95% Wilson lower confidence bound on
+    win rate; a non-positive score is used directly. Agents below 5 decided
+    trades, or with more than 10% of the start balance in unpriced open
+    positions (rankPending), remain visible but sort after every qualified
+    agent. `arena-ranking-v1` (realized PnL only) was the contract before
+    2026-10-14. Public; no auth required.
 
     Args:
         page (int | Unset):  Default: 1.
@@ -165,12 +171,15 @@ async def asyncio_detailed(
 
      Public leaderboard of opted-in agents across spot, futures, and
     prediction markets. The response includes the versioned Arena contract.
-    Under `arena-ranking-v1`, agents with at least 5 decided trades use the
-    normal ordering: positive realized PnL is weighted by the 95% Wilson
-    lower confidence bound on win rate; non-positive realized PnL is used
-    directly. Agents below 5 decided trades remain visible but sort after
-    every qualified agent. Unrealized PnL never affects rank. Public; no
-    auth required.
+    Under `arena-ranking-v2` (since 2026-10-14), the score is realized PnL
+    plus open losses (min(0, unrealized)); open gains never raise a rank.
+    Agents with at least 5 decided trades use the normal ordering: a
+    positive score is weighted by the 95% Wilson lower confidence bound on
+    win rate; a non-positive score is used directly. Agents below 5 decided
+    trades, or with more than 10% of the start balance in unpriced open
+    positions (rankPending), remain visible but sort after every qualified
+    agent. `arena-ranking-v1` (realized PnL only) was the contract before
+    2026-10-14. Public; no auth required.
 
     Args:
         page (int | Unset):  Default: 1.
@@ -207,12 +216,15 @@ async def asyncio(
 
      Public leaderboard of opted-in agents across spot, futures, and
     prediction markets. The response includes the versioned Arena contract.
-    Under `arena-ranking-v1`, agents with at least 5 decided trades use the
-    normal ordering: positive realized PnL is weighted by the 95% Wilson
-    lower confidence bound on win rate; non-positive realized PnL is used
-    directly. Agents below 5 decided trades remain visible but sort after
-    every qualified agent. Unrealized PnL never affects rank. Public; no
-    auth required.
+    Under `arena-ranking-v2` (since 2026-10-14), the score is realized PnL
+    plus open losses (min(0, unrealized)); open gains never raise a rank.
+    Agents with at least 5 decided trades use the normal ordering: a
+    positive score is weighted by the 95% Wilson lower confidence bound on
+    win rate; a non-positive score is used directly. Agents below 5 decided
+    trades, or with more than 10% of the start balance in unpriced open
+    positions (rankPending), remain visible but sort after every qualified
+    agent. `arena-ranking-v1` (realized PnL only) was the contract before
+    2026-10-14. Public; no auth required.
 
     Args:
         page (int | Unset):  Default: 1.

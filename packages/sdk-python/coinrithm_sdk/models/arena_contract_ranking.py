@@ -6,6 +6,10 @@ from typing import Any, Literal, TypeVar, cast
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
+from ..models.arena_contract_ranking_non_positive_score import ArenaContractRankingNonPositiveScore
+from ..models.arena_contract_ranking_positive_score import ArenaContractRankingPositiveScore
+from ..types import UNSET, Unset
+
 T = TypeVar("T", bound="ArenaContractRanking")
 
 
@@ -15,16 +19,21 @@ class ArenaContractRanking:
     Attributes:
         listing_minimum_decided_trades (Literal[0]):
         qualification_decided_trades (Literal[5]):
-        positive_score (Literal['wilson_95_lower_bound_x_realized_pnl']):
-        non_positive_score (Literal['realized_pnl']):
-        unrealized_pnl_affects_rank (bool):
+        positive_score (ArenaContractRankingPositiveScore):
+        non_positive_score (ArenaContractRankingNonPositiveScore):
+        unrealized_pnl_affects_rank (bool | str): v2 "losses_only" (open losses count, open gains never do); v1 false.
+        mark_max_age_hours (int | Unset): v2. A mark older than this leaves the position unpriced.
+        rank_pending_unmarked_share (float | Unset): v2. Unpriced open cost above this share of the start balance makes
+            the rank pending.
     """
 
     listing_minimum_decided_trades: Literal[0]
     qualification_decided_trades: Literal[5]
-    positive_score: Literal["wilson_95_lower_bound_x_realized_pnl"]
-    non_positive_score: Literal["realized_pnl"]
-    unrealized_pnl_affects_rank: bool
+    positive_score: ArenaContractRankingPositiveScore
+    non_positive_score: ArenaContractRankingNonPositiveScore
+    unrealized_pnl_affects_rank: bool | str
+    mark_max_age_hours: int | Unset = UNSET
+    rank_pending_unmarked_share: float | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -32,11 +41,16 @@ class ArenaContractRanking:
 
         qualification_decided_trades = self.qualification_decided_trades
 
-        positive_score = self.positive_score
+        positive_score = self.positive_score.value
 
-        non_positive_score = self.non_positive_score
+        non_positive_score = self.non_positive_score.value
 
+        unrealized_pnl_affects_rank: bool | str
         unrealized_pnl_affects_rank = self.unrealized_pnl_affects_rank
+
+        mark_max_age_hours = self.mark_max_age_hours
+
+        rank_pending_unmarked_share = self.rank_pending_unmarked_share
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -49,6 +63,10 @@ class ArenaContractRanking:
                 "unrealizedPnlAffectsRank": unrealized_pnl_affects_rank,
             }
         )
+        if mark_max_age_hours is not UNSET:
+            field_dict["markMaxAgeHours"] = mark_max_age_hours
+        if rank_pending_unmarked_share is not UNSET:
+            field_dict["rankPendingUnmarkedShare"] = rank_pending_unmarked_share
 
         return field_dict
 
@@ -63,17 +81,18 @@ class ArenaContractRanking:
         if qualification_decided_trades != 5:
             raise ValueError(f"qualificationDecidedTrades must match const 5, got '{qualification_decided_trades}'")
 
-        positive_score = cast(Literal["wilson_95_lower_bound_x_realized_pnl"], d.pop("positiveScore"))
-        if positive_score != "wilson_95_lower_bound_x_realized_pnl":
-            raise ValueError(
-                f"positiveScore must match const 'wilson_95_lower_bound_x_realized_pnl', got '{positive_score}'"
-            )
+        positive_score = ArenaContractRankingPositiveScore(d.pop("positiveScore"))
 
-        non_positive_score = cast(Literal["realized_pnl"], d.pop("nonPositiveScore"))
-        if non_positive_score != "realized_pnl":
-            raise ValueError(f"nonPositiveScore must match const 'realized_pnl', got '{non_positive_score}'")
+        non_positive_score = ArenaContractRankingNonPositiveScore(d.pop("nonPositiveScore"))
 
-        unrealized_pnl_affects_rank = d.pop("unrealizedPnlAffectsRank")
+        def _parse_unrealized_pnl_affects_rank(data: object) -> bool | str:
+            return cast(bool | str, data)
+
+        unrealized_pnl_affects_rank = _parse_unrealized_pnl_affects_rank(d.pop("unrealizedPnlAffectsRank"))
+
+        mark_max_age_hours = d.pop("markMaxAgeHours", UNSET)
+
+        rank_pending_unmarked_share = d.pop("rankPendingUnmarkedShare", UNSET)
 
         arena_contract_ranking = cls(
             listing_minimum_decided_trades=listing_minimum_decided_trades,
@@ -81,6 +100,8 @@ class ArenaContractRanking:
             positive_score=positive_score,
             non_positive_score=non_positive_score,
             unrealized_pnl_affects_rank=unrealized_pnl_affects_rank,
+            mark_max_age_hours=mark_max_age_hours,
+            rank_pending_unmarked_share=rank_pending_unmarked_share,
         )
 
         arena_contract_ranking.additional_properties = d

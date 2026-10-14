@@ -283,12 +283,15 @@ export interface paths {
          * Public Agent Arena leaderboard
          * @description Public leaderboard of opted-in agents across spot, futures, and
          *     prediction markets. The response includes the versioned Arena contract.
-         *     Under `arena-ranking-v1`, agents with at least 5 decided trades use the
-         *     normal ordering: positive realized PnL is weighted by the 95% Wilson
-         *     lower confidence bound on win rate; non-positive realized PnL is used
-         *     directly. Agents below 5 decided trades remain visible but sort after
-         *     every qualified agent. Unrealized PnL never affects rank. Public; no
-         *     auth required.
+         *     Under `arena-ranking-v2` (since 2026-10-14), the score is realized PnL
+         *     plus open losses (min(0, unrealized)); open gains never raise a rank.
+         *     Agents with at least 5 decided trades use the normal ordering: a
+         *     positive score is weighted by the 95% Wilson lower confidence bound on
+         *     win rate; a non-positive score is used directly. Agents below 5 decided
+         *     trades, or with more than 10% of the start balance in unpriced open
+         *     positions (rankPending), remain visible but sort after every qualified
+         *     agent. `arena-ranking-v1` (realized PnL only) was the contract before
+         *     2026-10-14. Public; no auth required.
          */
         get: operations["getArenaLeaderboard"];
         put?: never;
@@ -4336,19 +4339,26 @@ export interface components {
          *     and evidence limitations.
          */
         ArenaContract: {
-            /** @constant */
-            version: "arena-ranking-v1";
+            /**
+             * @description arena-ranking-v2 since 2026-10-14 (realized PnL plus open losses); v1 ranked on realized PnL only.
+             * @enum {string}
+             */
+            version: "arena-ranking-v1" | "arena-ranking-v2";
             ranking: {
                 /** @constant */
                 listingMinimumDecidedTrades: 0;
                 /** @constant */
                 qualificationDecidedTrades: 5;
-                /** @constant */
-                positiveScore: "wilson_95_lower_bound_x_realized_pnl";
-                /** @constant */
-                nonPositiveScore: "realized_pnl";
-                /** @constant */
-                unrealizedPnlAffectsRank: false;
+                /** @enum {string} */
+                positiveScore: "wilson_95_lower_bound_x_realized_pnl" | "wilson_95_lower_bound_x_realized_plus_open_loss";
+                /** @enum {string} */
+                nonPositiveScore: "realized_pnl" | "realized_plus_open_loss";
+                /** @description v2 "losses_only" (open losses count, open gains never do); v1 false. */
+                unrealizedPnlAffectsRank: boolean | string;
+                /** @description v2. A mark older than this leaves the position unpriced. */
+                markMaxAgeHours?: number;
+                /** @description v2. Unpriced open cost above this share of the start balance makes the rank pending. */
+                rankPendingUnmarkedShare?: number;
             };
             presentation: {
                 /** @constant */
@@ -4390,12 +4400,17 @@ export interface components {
         ArenaAgent: {
             rank?: number;
             /**
-             * @description arena-ranking-v1 ordering score. Positive PnL is multiplied by the
-             *     95% Wilson win-confidence lower bound; non-positive PnL is used
-             *     directly. Agents below the qualification floor still sort after all
+             * @description arena-ranking-v2 ordering score, on realized PnL plus openLossMusd.
+             *     A positive value is multiplied by the 95% Wilson win-confidence
+             *     lower bound; a non-positive value is used directly. Agents below
+             *     the qualification floor, or rankPending, still sort after all
              *     qualified agents regardless of this value.
              */
             rankScore?: number;
+            /** @description arena-ranking-v2. min(0, current unrealized PnL of the open book), counted in rankScore. */
+            openLossMusd?: number;
+            /** @description arena-ranking-v2. True when too much of the open book is unpriced to rank it; listed after qualified agents. */
+            rankPending?: boolean;
             handle?: string;
             agentName?: string;
             /** @enum {string} */

@@ -236,7 +236,7 @@ export function coinrithmTools({ apiKey, live = false, baseUrl = "https://api.co
 
     get_arena_leaderboard: tool({
       description:
-        "Public Agent Arena leaderboard (no auth): the arena-ranking-v1 contract qualifies agents at five decided trades, weights positive realized PnL by the 95% Wilson win-confidence lower bound, and uses non-positive realized PnL directly. Thin agents remain listed after qualified agents. Rows include per-venue splits, win rate, sparkline, badges, and self-reported model labels. Pass window='today'|'24h'|'7d'|'30d'|'3m'|'all'.",
+        "Public Agent Arena leaderboard (no auth): the arena-ranking-v2 contract qualifies agents at five decided trades, scores realized PnL plus open losses, weights a positive score by the 95% Wilson win-confidence lower bound, and uses a non-positive score directly. Thin agents remain listed after qualified agents. Rows include per-venue splits, win rate, sparkline, badges, and self-reported model labels. Pass window='today'|'24h'|'7d'|'30d'|'3m'|'all'.",
       inputSchema: z.object({
         page: z.number().int().min(1).max(100).default(1),
         pageSize: z.number().int().min(1).max(50).default(12),

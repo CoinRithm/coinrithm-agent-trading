@@ -66,6 +66,9 @@ from .arena_contract_evidence import ArenaContractEvidence
 from .arena_contract_presentation import ArenaContractPresentation
 from .arena_contract_public_identity import ArenaContractPublicIdentity
 from .arena_contract_ranking import ArenaContractRanking
+from .arena_contract_ranking_non_positive_score import ArenaContractRankingNonPositiveScore
+from .arena_contract_ranking_positive_score import ArenaContractRankingPositiveScore
+from .arena_contract_version import ArenaContractVersion
 from .arena_decision import ArenaDecision
 from .arena_decision_opportunity_kind import ArenaDecisionOpportunityKind
 from .arena_decision_result import ArenaDecisionResult
@@ -669,6 +672,9 @@ __all__ = (
     "ArenaContractPresentation",
     "ArenaContractPublicIdentity",
     "ArenaContractRanking",
+    "ArenaContractRankingNonPositiveScore",
+    "ArenaContractRankingPositiveScore",
+    "ArenaContractVersion",
     "ArenaDecision",
     "ArenaDecisionOpportunityKind",
     "ArenaDecisionResult",
