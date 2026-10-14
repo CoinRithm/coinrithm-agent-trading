@@ -263,28 +263,33 @@ Base URL: `https://api.coinrithm.com` (live). Hosted MCP: `https://mcp.coinrithm
 `info.version` in `openapi.yaml` (currently **1.8.0**) is the API contract
 version. The MCP package (`@coinrithm/mcp-trading`, currently **0.7.17**)
 is versioned separately from the SDKs. Registry publication was verified
-on **7 October 2026**:
+on **14 October 2026**:
 
 | Package | Published registry version | Source version |
 | --- | --- | --- |
-| `@coinrithm/mcp-trading` (MCP server and agent runner) | **0.7.16** | **0.7.17** |
-| `@coinrithm/sdk` (TypeScript) | **0.3.5** | **0.4.0** |
-| `coinrithm-sdk` (Python) | **1.8.5** | **1.9.0** |
+| `@coinrithm/mcp-trading` (MCP server and agent runner) | **0.7.17** | **0.7.17** |
+| `@coinrithm/sdk` (TypeScript) | **0.4.0** | **0.4.0** |
+| `coinrithm-sdk` (Python) | **1.9.0** | **1.9.0** |
 
-All four npm/PyPI downloads match the reviewed release manifest byte for byte;
-npm integrity and clean-install checks also pass. Archive build source
-`966ee6089d7f78a4ec40e527970a2a38ec89212c` and release revision
-`ac555de90c2474f88103f9d9d892b84b2cfedfbf` share the tested source tree.
-This release includes provider-response guards, configurable strategy controls,
-independently timed market context, retained-input benchmark diagnostics and
-SDKs generated from the current contract. It supersedes the earlier MCP-only
-preparation; the published bytes include the latest funding and diagnostic changes.
+All four npm/PyPI downloads match the release manifest byte for byte (SHA-256).
+The archives were built from source `1fb74c5bcb2f6ca066f21f4e22048c484dba20a4`,
+and both SDKs are generated from API contract 1.8.0. This release adds keyless
+public market-data reads (TradFi reference prices with the `live` overlay,
+large perpetual trades, liquidations, CFTC positioning, SEC Form 4 insider
+filings and public-company crypto treasuries) to both SDKs. See the
+[publishing record](docs/PUBLISHING.md).
 
-The [GitHub release](https://github.com/CoinRithm/coinrithm-agent-trading/releases/tag/mcp-trading-v0.7.16) is published. The official MCP Registry lists
-**0.7.16** as active and latest after the [registry workflow](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/37692247498).
-Hosted MCP separately reports **0.7.16** with **41 tools**, verified at the same
-release revision. Its health, public read-only calls and missing-key behavior
-passed; the scheduler was not restarted. See the [publishing record](docs/PUBLISHING.md).
+MCP **0.7.17** keeps the 41 default tools and adds two opt-in tool sets
+(PM paper v2 discovery and trading for configured house keys, and a spot
+reference read; 46 tools with both on) that stay off
+unless a server enables them, plus the runner changes in the
+[MCP changelog](./packages/mcp-trading/CHANGELOG.md#0717-2026-10-13).
+
+The GitHub release and the official MCP Registry update follow the
+`mcp-trading-v0.7.17` tag. Until that registry workflow runs, the MCP Registry
+lists **0.7.16** as latest. Hosted MCP is deployed separately from package
+publication; on 14 October 2026 it reported **0.7.17** with the **41** default
+tools.
 
 For the historical hosted verification on **24 September 2026**, the MCP
 reported **0.7.14**, with **40 tools**, including **13 keyless data tools**.
@@ -296,20 +301,6 @@ preserved; permanent-error attribution followed the failing provider/model.
 The earlier house rollout verified the 20-point floor on all five active house
 agents. Hosted delivery does not publish the npm/PyPI archives; their status
 remains in the table above and the [changelog](./CHANGELOG.md).
-
-MCP source **0.7.17** keeps the 41 default tools and adds two opt-in tool sets
-(PM paper v2 discovery and trading for configured house keys, and a spot
-reference read; 46 tools with both on) that stay off
-unless a server enables them, plus the runner changes in the
-[MCP changelog](./packages/mcp-trading/CHANGELOG.md#0717-2026-10-13). The
-registry column above changes only after npm delivery is verified.
-
-Published MCP **0.7.16** includes 41 tools, including 15 keyless data tools,
-compact event results with explicit full detail, scored-news reads, and the
-runner's opt-in whale context. The SDKs include per-outcome observed-price and
-settlement-rule evidence, futures-entry eligibility, and corrected price-history
-and spot replay contracts. See the [release notes](./CHANGELOG.md) for scope and
-the [MCP/runner changelog](./packages/mcp-trading/CHANGELOG.md) for package history.
 
 The published SDKs include whale-wallet summary/detail reads, the house-only
 open-decision view, optional thesis/advisory fields, venue terms, funding and

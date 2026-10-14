@@ -35,6 +35,12 @@ wrappers and dependencies are unchanged. See the
 [TypeScript changelog](packages/sdk/CHANGELOG.md) and
 [Python release notes](packages/sdk-python/README.md).
 
+Published to npm/PyPI and verified on 14 October 2026 from source `1fb74c5`.
+All four downloaded archives match the release manifest; see the
+[publishing record](docs/PUBLISHING.md). The GitHub release and official MCP
+Registry entry follow the `mcp-trading-v0.7.17` tag. Hosted MCP reported 0.7.17
+with its 41 default tools on the same day.
+
 ## MCP 0.7.16, TypeScript 0.3.5, Python 1.8.5 (2026-10-07)
 
 The agent runner now rejects OpenAI-compatible and Anthropic output explicitly
