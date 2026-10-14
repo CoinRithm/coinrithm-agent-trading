@@ -54,13 +54,23 @@ def sync_detailed(
 
      Keyless, DB-free disclosure of exactly how the cross-venue Consensus
     Probability is computed: venue eligibility, one-voice-per-venue
-    weighting, the liquidity-capped weighted MEDIAN estimator, the spread
-    rule, the binary/leader kinds, and the stated limitations.
+    weighting, the size-capped weighted MEDIAN estimator, the spread rule,
+    the binary/leader kinds, and the stated limitations.
 
-    Every served `referenceProbability` carries `methodologyVersion` and
-    `methodologyUrl`; this endpoint is what that URL resolves to. Pin the
-    version alongside any number you store — it is what lets you tell
-    whether a probability you cached was produced the same way as today's.
+    Current version `consensus_probability_v3` (since 2026-10-14): each
+    venue's weight is clamp(openInterest, 1000, 50000) when every venue in
+    the comparison reports USD open interest, otherwise
+    clamp(liquidity, 1000, 50000) exactly as v2. `acceptedVersions` lists
+    every writer version still served (v2 and v3 during the transition);
+    `previousVersions` states each earlier version's weight rule.
+
+    Every served `referenceProbability` carries `methodologyVersion` (the
+    version that ROW was written with, never relabelled) and
+    `methodologyUrl`; this endpoint is what that URL resolves to. It also
+    carries `weightBasis` (`open_interest` | `liquidity`; every v2 row is
+    `liquidity`). Pin the version alongside any number you store — it is
+    what lets you tell whether a probability you cached was produced the
+    same way as today's.
 
     A published version's terms never change. If the computation changes,
     the version changes with it.
@@ -94,13 +104,23 @@ def sync(
 
      Keyless, DB-free disclosure of exactly how the cross-venue Consensus
     Probability is computed: venue eligibility, one-voice-per-venue
-    weighting, the liquidity-capped weighted MEDIAN estimator, the spread
-    rule, the binary/leader kinds, and the stated limitations.
+    weighting, the size-capped weighted MEDIAN estimator, the spread rule,
+    the binary/leader kinds, and the stated limitations.
 
-    Every served `referenceProbability` carries `methodologyVersion` and
-    `methodologyUrl`; this endpoint is what that URL resolves to. Pin the
-    version alongside any number you store — it is what lets you tell
-    whether a probability you cached was produced the same way as today's.
+    Current version `consensus_probability_v3` (since 2026-10-14): each
+    venue's weight is clamp(openInterest, 1000, 50000) when every venue in
+    the comparison reports USD open interest, otherwise
+    clamp(liquidity, 1000, 50000) exactly as v2. `acceptedVersions` lists
+    every writer version still served (v2 and v3 during the transition);
+    `previousVersions` states each earlier version's weight rule.
+
+    Every served `referenceProbability` carries `methodologyVersion` (the
+    version that ROW was written with, never relabelled) and
+    `methodologyUrl`; this endpoint is what that URL resolves to. It also
+    carries `weightBasis` (`open_interest` | `liquidity`; every v2 row is
+    `liquidity`). Pin the version alongside any number you store — it is
+    what lets you tell whether a probability you cached was produced the
+    same way as today's.
 
     A published version's terms never change. If the computation changes,
     the version changes with it.
@@ -130,13 +150,23 @@ async def asyncio_detailed(
 
      Keyless, DB-free disclosure of exactly how the cross-venue Consensus
     Probability is computed: venue eligibility, one-voice-per-venue
-    weighting, the liquidity-capped weighted MEDIAN estimator, the spread
-    rule, the binary/leader kinds, and the stated limitations.
+    weighting, the size-capped weighted MEDIAN estimator, the spread rule,
+    the binary/leader kinds, and the stated limitations.
 
-    Every served `referenceProbability` carries `methodologyVersion` and
-    `methodologyUrl`; this endpoint is what that URL resolves to. Pin the
-    version alongside any number you store — it is what lets you tell
-    whether a probability you cached was produced the same way as today's.
+    Current version `consensus_probability_v3` (since 2026-10-14): each
+    venue's weight is clamp(openInterest, 1000, 50000) when every venue in
+    the comparison reports USD open interest, otherwise
+    clamp(liquidity, 1000, 50000) exactly as v2. `acceptedVersions` lists
+    every writer version still served (v2 and v3 during the transition);
+    `previousVersions` states each earlier version's weight rule.
+
+    Every served `referenceProbability` carries `methodologyVersion` (the
+    version that ROW was written with, never relabelled) and
+    `methodologyUrl`; this endpoint is what that URL resolves to. It also
+    carries `weightBasis` (`open_interest` | `liquidity`; every v2 row is
+    `liquidity`). Pin the version alongside any number you store — it is
+    what lets you tell whether a probability you cached was produced the
+    same way as today's.
 
     A published version's terms never change. If the computation changes,
     the version changes with it.
@@ -168,13 +198,23 @@ async def asyncio(
 
      Keyless, DB-free disclosure of exactly how the cross-venue Consensus
     Probability is computed: venue eligibility, one-voice-per-venue
-    weighting, the liquidity-capped weighted MEDIAN estimator, the spread
-    rule, the binary/leader kinds, and the stated limitations.
+    weighting, the size-capped weighted MEDIAN estimator, the spread rule,
+    the binary/leader kinds, and the stated limitations.
 
-    Every served `referenceProbability` carries `methodologyVersion` and
-    `methodologyUrl`; this endpoint is what that URL resolves to. Pin the
-    version alongside any number you store — it is what lets you tell
-    whether a probability you cached was produced the same way as today's.
+    Current version `consensus_probability_v3` (since 2026-10-14): each
+    venue's weight is clamp(openInterest, 1000, 50000) when every venue in
+    the comparison reports USD open interest, otherwise
+    clamp(liquidity, 1000, 50000) exactly as v2. `acceptedVersions` lists
+    every writer version still served (v2 and v3 during the transition);
+    `previousVersions` states each earlier version's weight rule.
+
+    Every served `referenceProbability` carries `methodologyVersion` (the
+    version that ROW was written with, never relabelled) and
+    `methodologyUrl`; this endpoint is what that URL resolves to. It also
+    carries `weightBasis` (`open_interest` | `liquidity`; every v2 row is
+    `liquidity`). Pin the version alongside any number you store — it is
+    what lets you tell whether a probability you cached was produced the
+    same way as today's.
 
     A published version's terms never change. If the computation changes,
     the version changes with it.

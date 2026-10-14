@@ -1009,13 +1009,23 @@ export interface paths {
          * The versioned methodology behind Consensus Probability
          * @description Keyless, DB-free disclosure of exactly how the cross-venue Consensus
          *     Probability is computed: venue eligibility, one-voice-per-venue
-         *     weighting, the liquidity-capped weighted MEDIAN estimator, the spread
-         *     rule, the binary/leader kinds, and the stated limitations.
+         *     weighting, the size-capped weighted MEDIAN estimator, the spread rule,
+         *     the binary/leader kinds, and the stated limitations.
          *
-         *     Every served `referenceProbability` carries `methodologyVersion` and
-         *     `methodologyUrl`; this endpoint is what that URL resolves to. Pin the
-         *     version alongside any number you store — it is what lets you tell
-         *     whether a probability you cached was produced the same way as today's.
+         *     Current version `consensus_probability_v3` (since 2026-10-14): each
+         *     venue's weight is clamp(openInterest, 1000, 50000) when every venue in
+         *     the comparison reports USD open interest, otherwise
+         *     clamp(liquidity, 1000, 50000) exactly as v2. `acceptedVersions` lists
+         *     every writer version still served (v2 and v3 during the transition);
+         *     `previousVersions` states each earlier version's weight rule.
+         *
+         *     Every served `referenceProbability` carries `methodologyVersion` (the
+         *     version that ROW was written with, never relabelled) and
+         *     `methodologyUrl`; this endpoint is what that URL resolves to. It also
+         *     carries `weightBasis` (`open_interest` | `liquidity`; every v2 row is
+         *     `liquidity`). Pin the version alongside any number you store — it is
+         *     what lets you tell whether a probability you cached was produced the
+         *     same way as today's.
          *
          *     A published version's terms never change. If the computation changes,
          *     the version changes with it.
@@ -2532,7 +2542,14 @@ export interface components {
              * @enum {string}
              */
             representativeOutcomeBasis?: "threshold_ladder_line" | "informative_leader";
-            /** @description Canonical matched-venue reference with venue count and spread. */
+            /**
+             * @description Canonical matched-venue reference with venue count and spread. Also
+             *     carries `methodologyVersion` (the row's own writer version:
+             *     `consensus_probability_v2` or `consensus_probability_v3`) and
+             *     `weightBasis` (`open_interest` | `liquidity`, null for a v3 row
+             *     without a recognised basis); see the consensus-methodology
+             *     endpoint.
+             */
             referenceProbability?: {
                 [key: string]: unknown;
             } | null;
@@ -3367,7 +3384,9 @@ export interface components {
         /**
          * @description The cross-venue reference probability for one canonical question. Every
          *     open member holding a current reference must agree on the full tuple
-         *     (cluster, kind, outcome, probability, venueCount, spread); a binary
+         *     (cluster, kind, outcome, probability, venueCount, spread, writer
+         *     version, weight basis); rows of different versions or bases are never
+         *     merged. A binary
          *     reference additionally needs every holder aligned with the canonical
          *     anchor. Any disagreement yields null instead of a pick.
          */
@@ -3390,8 +3409,13 @@ export interface components {
              * @description Validated computation (heartbeat) time, not a quote or trade time.
              */
             computedAt: string;
-            /** @example consensus_probability_v2 */
+            /**
+             * @description The version this reference was written with (v2 and v3 are both served during the 2026-10-14 transition).
+             * @example consensus_probability_v3
+             */
             methodologyVersion: string;
+            /** @description Unit the venues were weighted in. Every v2 row is `liquidity`; null for a v3 row without a recognised basis. */
+            weightBasis?: ("open_interest" | "liquidity") | null;
             /**
              * @description Public listings of member events that hold this reference. May be a
              *     subset of the contributing venues and may include several listings
@@ -3412,6 +3436,10 @@ export interface components {
             probability: number;
             venueCount: number;
             spreadPoints: number;
+            /** @description Writer version of this day's row; a day is grouped per (version, weight basis). */
+            methodologyVersion?: string;
+            /** @description Unit the venues were weighted in; every v2 row is `liquidity`. */
+            weightBasis?: ("open_interest" | "liquidity") | null;
         };
         /**
          * @description One row of the top-gainers / top-losers universe scan. `change24h` and
@@ -3847,8 +3875,10 @@ export interface components {
              */
             marketProbability?: number | null;
             /**
-             * @description Cross-venue liquidity-weighted median reference probability at entry,
-             *     0-100. `null` when the event was not in an approved ≥2-venue cluster.
+             * @description Cross-venue size-capped weighted median reference probability at
+             *     entry (consensus methodology v2 or v3: weighted by liquidity, or by
+             *     open interest when every venue reports it), 0-100. `null` when the
+             *     event was not in an approved ≥2-venue cluster.
              */
             referenceProbability?: number | null;
             /**
@@ -3963,7 +3993,7 @@ export interface components {
             bestBid?: number | null;
             /** @description Best ask in probability points. */
             bestAsk?: number | null;
-            /** @description Cross-venue liquidity-weighted median reference probability (0-100). */
+            /** @description Cross-venue size-capped weighted median reference probability (0-100), weighted by liquidity or by open interest per the consensus methodology. */
             referenceProbability?: number | null;
             /** @description Real-money venues behind referenceProbability. */
             referenceVenueCount?: number | null;
@@ -6496,6 +6526,12 @@ export interface components {
             /** @description Venues that contributed to `latest`. */
             latestVenues: string[];
             live: components["schemas"]["PublicTradfiReferenceLive"] | null;
+            /**
+             * @description Additive (2026-10-14). SEC EDGAR company data for US-listed stocks.
+             *     Null for ETFs, metals, FX, home listings and issuers without SEC
+             *     data. Refreshed weekly per issuer.
+             */
+            fundamentals?: components["schemas"]["PublicTradfiReferenceFundamentals"] | null;
         };
         PublicTradfiReferenceCatalog: {
             version: number;
@@ -6535,12 +6571,104 @@ export interface components {
             history: components["schemas"]["PublicTradfiReferenceSnapshot"][];
             historyWindow: components["schemas"]["PublicTradfiReferenceHistoryWindow"];
             /**
+             * @description Additive (2026-10-14). SEC EDGAR company data for US-listed stocks.
+             *     Null for ETFs, metals, FX, home listings and issuers without SEC
+             *     data. Refreshed weekly per issuer.
+             */
+            fundamentals?: components["schemas"]["PublicTradfiReferenceFundamentals"] | null;
+            /**
+             * @description Additive (2026-10-14). High and low over the last 365 UTC days of
+             *     CoinRithm's own daily reference OHLC (rolled up from the 15-minute
+             *     consensus; history starts 2026-10-08). Null under 5 days of data.
+             */
+            week52?: components["schemas"]["PublicTradfiReferenceWeek52"] | null;
+            /**
              * @description Additive (2026-10-14). Earnings and dividend dates from SEC EDGAR
              *     8-K filings for US-listed stocks. Null for ETFs, metals, FX, home
              *     listings, issuers without SEC data, or when no event was found.
              *     Read nightly.
              */
             corporateEvents?: components["schemas"]["PublicTradfiReferenceCorporateEvents"] | null;
+        };
+        /**
+         * @description Company-reported SEC XBRL data. Each value is null when SEC data
+         *     cannot give it without guessing. Market cap, dividend yield and P/E
+         *     use the CoinRithm reference price (USDT perp index median, treated as
+         *     USD), not an exchange quote.
+         */
+        PublicTradfiReferenceFundamentals: {
+            /** @description sharesOutstanding x referencePrice. */
+            marketCapUsd: number | null;
+            /** @enum {string} */
+            marketCapBasis: "shares x reference price";
+            /** @description The live consensus when present, else the latest stored consensus. */
+            referencePrice: number | null;
+            sharesOutstanding: number | null;
+            /** Format: date */
+            sharesAsOf: string | null;
+            /** @description `dei_cover`: filing cover page; `balance_sheet`: all classes at quarter end. */
+            sharesSource: ("dei_cover" | "balance_sheet") | null;
+            /** @description Dividends declared per share over the trailing twelve months, USD. */
+            dividendPerShareTtm: number | null;
+            dividendTtmBasis: components["schemas"]["PublicTradfiReferenceTtmBasis"] | null;
+            /** Format: date */
+            dividendTtmPeriodEnd: string | null;
+            /** @description dividendPerShareTtm / referencePrice x 100. */
+            dividendYieldPct: number | null;
+            /** @description Declared in the latest reported quarter. */
+            lastDividendPerShare: number | null;
+            /** Format: date */
+            lastDividendPeriodEnd: string | null;
+            revenueTtmUsd: number | null;
+            netIncomeTtmUsd: number | null;
+            epsDilutedTtm: number | null;
+            /** @description referencePrice / epsDilutedTtm; null when EPS <= 0. */
+            peRatio: number | null;
+            /** @description `quarters`: last four reported quarters; `annual`: latest fiscal year. */
+            ttmBasis: components["schemas"]["PublicTradfiReferenceTtmBasis"] | null;
+            /**
+             * Format: date
+             * @description End of the twelve months behind revenue, net income and EPS.
+             */
+            ttmPeriodEnd: string | null;
+            /** @description SEC SIC industry description, e.g. Electronic Computers. */
+            sector: string | null;
+            /** @description MM-DD, e.g. 09-26. */
+            fiscalYearEnd: string | null;
+            latestFiling: {
+                /** @example 10-Q */
+                form: string;
+                /** Format: date */
+                date: string;
+            } | null;
+            /**
+             * Format: date-time
+             * @description When the aggregator last read SEC.
+             */
+            fetchedAt: string;
+            source: {
+                /** @enum {string} */
+                name: "SEC EDGAR";
+                publisher: string;
+                /** @description EDGAR filing list of the issuer. */
+                url: string;
+                /** @description The XBRL companyfacts JSON the values were derived from. */
+                dataUrl: string;
+                note: string;
+            };
+        };
+        /** @enum {string} */
+        PublicTradfiReferenceTtmBasis: "quarters" | "annual";
+        PublicTradfiReferenceWeek52: {
+            high: number;
+            low: number;
+            /**
+             * Format: date
+             * @description Latest UTC day included.
+             */
+            asOf: string;
+            /** @description Days with data in the window (not 365 while history is short). */
+            days: number;
         };
         PublicTradfiReferenceCorporateEvents: {
             /** @description Latest Item 2.02 earnings release 8-K, or null. */
@@ -8734,9 +8862,52 @@ export interface operations {
                     "application/json": {
                         /** @enum {string} */
                         schema?: "coinrithm.consensusMethodology.v1";
-                        /** @description e.g. consensus_probability_v1. Pin this next to any stored number. */
+                        /**
+                         * @description The current writer version, e.g. consensus_probability_v3. Pin a row's own methodologyVersion next to any stored number.
+                         * @example consensus_probability_v3
+                         */
                         version?: string;
                         methodology?: {
+                            version?: string;
+                            /**
+                             * @description Writer versions currently served; each reference row carries its own.
+                             * @example [
+                             *       "consensus_probability_v2",
+                             *       "consensus_probability_v3"
+                             *     ]
+                             */
+                            acceptedVersions?: string[];
+                            summary?: string;
+                            weighting?: {
+                                /** @description The weight expression. */
+                                weight?: string;
+                                floor?: number;
+                                cap?: number;
+                                /** @description When each `weightBasis` applies. */
+                                basis?: {
+                                    open_interest?: string;
+                                    liquidity?: string;
+                                } & {
+                                    [key: string]: unknown;
+                                };
+                            } & {
+                                [key: string]: unknown;
+                            };
+                            estimator?: {
+                                /** @example size_capped_weighted_median */
+                                kind?: string;
+                                why?: string;
+                            } & {
+                                [key: string]: unknown;
+                            };
+                            /** @description Earlier versions still served, with the weight each used. */
+                            previousVersions?: ({
+                                version?: string;
+                                weight?: string;
+                            } & {
+                                [key: string]: unknown;
+                            })[];
+                        } & {
                             [key: string]: unknown;
                         };
                         licence?: string;

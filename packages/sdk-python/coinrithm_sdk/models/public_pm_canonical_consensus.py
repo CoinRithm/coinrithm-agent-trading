@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any, TypeVar, cast
 from attrs import define as _attrs_define
 
 from ..models.public_pm_canonical_consensus_kind import PublicPmCanonicalConsensusKind
+from ..models.public_pm_canonical_consensus_weight_basis_type_0 import PublicPmCanonicalConsensusWeightBasisType0
+from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
     from ..models.public_pm_canonical_consensus_listings_item import PublicPmCanonicalConsensusListingsItem
@@ -19,7 +21,9 @@ T = TypeVar("T", bound="PublicPmCanonicalConsensus")
 class PublicPmCanonicalConsensus:
     """The cross-venue reference probability for one canonical question. Every
     open member holding a current reference must agree on the full tuple
-    (cluster, kind, outcome, probability, venueCount, spread); a binary
+    (cluster, kind, outcome, probability, venueCount, spread, writer
+    version, weight basis); rows of different versions or bases are never
+    merged. A binary
     reference additionally needs every holder aligned with the canonical
     anchor. Any disagreement yields null instead of a pick.
 
@@ -30,11 +34,14 @@ class PublicPmCanonicalConsensus:
             venue_count (int): Number of venues that contributed a voice.
             spread_points (float): Cross-venue spread in probability points.
             computed_at (datetime.datetime): Validated computation (heartbeat) time, not a quote or trade time.
-            methodology_version (str):
+            methodology_version (str): The version this reference was written with (v2 and v3 are both served during the
+                2026-10-14 transition).
             listings (list[PublicPmCanonicalConsensusListingsItem]): Public listings of member events that hold this
                 reference. May be a
                 subset of the contributing venues and may include several listings
                 of one venue; its length is not venueCount.
+            weight_basis (None | PublicPmCanonicalConsensusWeightBasisType0 | Unset): Unit the venues were weighted in.
+                Every v2 row is `liquidity`; null for a v3 row without a recognised basis.
     """
 
     kind: PublicPmCanonicalConsensusKind
@@ -45,6 +52,7 @@ class PublicPmCanonicalConsensus:
     computed_at: datetime.datetime
     methodology_version: str
     listings: list[PublicPmCanonicalConsensusListingsItem]
+    weight_basis: None | PublicPmCanonicalConsensusWeightBasisType0 | Unset = UNSET
 
     def to_dict(self) -> dict[str, Any]:
         kind = self.kind.value
@@ -67,6 +75,14 @@ class PublicPmCanonicalConsensus:
             listings_item = listings_item_data.to_dict()
             listings.append(listings_item)
 
+        weight_basis: None | str | Unset
+        if isinstance(self.weight_basis, Unset):
+            weight_basis = UNSET
+        elif isinstance(self.weight_basis, PublicPmCanonicalConsensusWeightBasisType0):
+            weight_basis = self.weight_basis.value
+        else:
+            weight_basis = self.weight_basis
+
         field_dict: dict[str, Any] = {}
 
         field_dict.update(
@@ -81,6 +97,8 @@ class PublicPmCanonicalConsensus:
                 "listings": listings,
             }
         )
+        if weight_basis is not UNSET:
+            field_dict["weightBasis"] = weight_basis
 
         return field_dict
 
@@ -115,6 +133,23 @@ class PublicPmCanonicalConsensus:
 
             listings.append(listings_item)
 
+        def _parse_weight_basis(data: object) -> None | PublicPmCanonicalConsensusWeightBasisType0 | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, str):
+                    raise TypeError()
+                weight_basis_type_0 = PublicPmCanonicalConsensusWeightBasisType0(data)
+
+                return weight_basis_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(None | PublicPmCanonicalConsensusWeightBasisType0 | Unset, data)
+
+        weight_basis = _parse_weight_basis(d.pop("weightBasis", UNSET))
+
         public_pm_canonical_consensus = cls(
             kind=kind,
             outcome_name=outcome_name,
@@ -124,6 +159,7 @@ class PublicPmCanonicalConsensus:
             computed_at=computed_at,
             methodology_version=methodology_version,
             listings=listings,
+            weight_basis=weight_basis,
         )
 
         return public_pm_canonical_consensus

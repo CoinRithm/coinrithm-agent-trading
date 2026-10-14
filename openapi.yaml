@@ -2110,13 +2110,23 @@ paths:
       description: |
         Keyless, DB-free disclosure of exactly how the cross-venue Consensus
         Probability is computed: venue eligibility, one-voice-per-venue
-        weighting, the liquidity-capped weighted MEDIAN estimator, the spread
-        rule, the binary/leader kinds, and the stated limitations.
+        weighting, the size-capped weighted MEDIAN estimator, the spread rule,
+        the binary/leader kinds, and the stated limitations.
 
-        Every served `referenceProbability` carries `methodologyVersion` and
-        `methodologyUrl`; this endpoint is what that URL resolves to. Pin the
-        version alongside any number you store — it is what lets you tell
-        whether a probability you cached was produced the same way as today's.
+        Current version `consensus_probability_v3` (since 2026-10-14): each
+        venue's weight is clamp(openInterest, 1000, 50000) when every venue in
+        the comparison reports USD open interest, otherwise
+        clamp(liquidity, 1000, 50000) exactly as v2. `acceptedVersions` lists
+        every writer version still served (v2 and v3 during the transition);
+        `previousVersions` states each earlier version's weight rule.
+
+        Every served `referenceProbability` carries `methodologyVersion` (the
+        version that ROW was written with, never relabelled) and
+        `methodologyUrl`; this endpoint is what that URL resolves to. It also
+        carries `weightBasis` (`open_interest` | `liquidity`; every v2 row is
+        `liquidity`). Pin the version alongside any number you store — it is
+        what lets you tell whether a probability you cached was produced the
+        same way as today's.
 
         A published version's terms never change. If the computation changes,
         the version changes with it.
@@ -2137,8 +2147,48 @@ paths:
                   schema: { type: string, enum: [coinrithm.consensusMethodology.v1] }
                   version:
                     type: string
-                    description: e.g. consensus_probability_v1. Pin this next to any stored number.
-                  methodology: { type: object, additionalProperties: true }
+                    description: The current writer version, e.g. consensus_probability_v3. Pin a row's own methodologyVersion next to any stored number.
+                    examples: ["consensus_probability_v3"]
+                  methodology:
+                    type: object
+                    additionalProperties: true
+                    properties:
+                      version: { type: string }
+                      acceptedVersions:
+                        type: array
+                        description: Writer versions currently served; each reference row carries its own.
+                        items: { type: string }
+                        examples: [["consensus_probability_v2", "consensus_probability_v3"]]
+                      summary: { type: string }
+                      weighting:
+                        type: object
+                        additionalProperties: true
+                        properties:
+                          weight: { type: string, description: "The weight expression." }
+                          floor: { type: number }
+                          cap: { type: number }
+                          basis:
+                            type: object
+                            additionalProperties: true
+                            description: When each `weightBasis` applies.
+                            properties:
+                              open_interest: { type: string }
+                              liquidity: { type: string }
+                      estimator:
+                        type: object
+                        additionalProperties: true
+                        properties:
+                          kind: { type: string, examples: ["size_capped_weighted_median"] }
+                          why: { type: string }
+                      previousVersions:
+                        type: array
+                        description: Earlier versions still served, with the weight each used.
+                        items:
+                          type: object
+                          additionalProperties: true
+                          properties:
+                            version: { type: string }
+                            weight: { type: string }
                   licence: { type: string }
 
   /api/prediction-markets/canonical:
@@ -4492,7 +4542,13 @@ components:
         referenceProbability:
           type: [object, "null"]
           additionalProperties: true
-          description: Canonical matched-venue reference with venue count and spread.
+          description: |
+            Canonical matched-venue reference with venue count and spread. Also
+            carries `methodologyVersion` (the row's own writer version:
+            `consensus_probability_v2` or `consensus_probability_v3`) and
+            `weightBasis` (`open_interest` | `liquidity`, null for a v3 row
+            without a recognised basis); see the consensus-methodology
+            endpoint.
         decisionSupport:
           type: [object, "null"]
           additionalProperties: true
@@ -5495,7 +5551,9 @@ components:
       description: |
         The cross-venue reference probability for one canonical question. Every
         open member holding a current reference must agree on the full tuple
-        (cluster, kind, outcome, probability, venueCount, spread); a binary
+        (cluster, kind, outcome, probability, venueCount, spread, writer
+        version, weight basis); rows of different versions or bases are never
+        merged. A binary
         reference additionally needs every holder aligned with the canonical
         anchor. Any disagreement yields null instead of a pick.
       properties:
@@ -5521,7 +5579,13 @@ components:
           description: Validated computation (heartbeat) time, not a quote or trade time.
         methodologyVersion:
           type: string
-          examples: ["consensus_probability_v2"]
+          description: The version this reference was written with (v2 and v3 are both served during the 2026-10-14 transition).
+          examples: ["consensus_probability_v3"]
+        weightBasis:
+          anyOf:
+            - { type: string, enum: [open_interest, liquidity] }
+            - { type: "null" }
+          description: Unit the venues were weighted in. Every v2 row is `liquidity`; null for a v3 row without a recognised basis.
         listings:
           type: array
           description: |
@@ -5554,6 +5618,14 @@ components:
         probability: { type: number }
         venueCount: { type: integer }
         spreadPoints: { type: number }
+        methodologyVersion:
+          type: string
+          description: Writer version of this day's row; a day is grouped per (version, weight basis).
+        weightBasis:
+          anyOf:
+            - { type: string, enum: [open_interest, liquidity] }
+            - { type: "null" }
+          description: Unit the venues were weighted in; every v2 row is `liquidity`.
       required: [day, kind, outcomeName, probability, venueCount, spreadPoints]
 
     PublicCryptoMover:
@@ -6066,8 +6138,10 @@ components:
         referenceProbability:
           type: [number, "null"]
           description: |
-            Cross-venue liquidity-weighted median reference probability at entry,
-            0-100. `null` when the event was not in an approved ≥2-venue cluster.
+            Cross-venue size-capped weighted median reference probability at
+            entry (consensus methodology v2 or v3: weighted by liquidity, or by
+            open interest when every venue reports it), 0-100. `null` when the
+            event was not in an approved ≥2-venue cluster.
         edgePoints:
           type: [number, "null"]
           description: |
@@ -6188,7 +6262,7 @@ components:
         bestAsk: { type: [number, "null"], description: Best ask in probability points. }
         referenceProbability:
           type: [number, "null"]
-          description: Cross-venue liquidity-weighted median reference probability (0-100).
+          description: Cross-venue size-capped weighted median reference probability (0-100), weighted by liquidity or by open interest per the consensus methodology.
         referenceVenueCount:
           type: [integer, "null"]
           description: Real-money venues behind referenceProbability.
@@ -9003,6 +9077,14 @@ components:
           anyOf:
             - $ref: "#/components/schemas/PublicTradfiReferenceLive"
             - { type: "null" }
+        fundamentals:
+          description: |
+            Additive (2026-10-14). SEC EDGAR company data for US-listed stocks.
+            Null for ETFs, metals, FX, home listings and issuers without SEC
+            data. Refreshed weekly per issuer.
+          anyOf:
+            - $ref: "#/components/schemas/PublicTradfiReferenceFundamentals"
+            - { type: "null" }
 
     PublicTradfiReferenceCatalog:
       type: object
@@ -9063,6 +9145,22 @@ components:
           description: "Recorded 15-minute snapshots in the window, oldest first."
           items: { $ref: "#/components/schemas/PublicTradfiReferenceSnapshot" }
         historyWindow: { $ref: "#/components/schemas/PublicTradfiReferenceHistoryWindow" }
+        fundamentals:
+          description: |
+            Additive (2026-10-14). SEC EDGAR company data for US-listed stocks.
+            Null for ETFs, metals, FX, home listings and issuers without SEC
+            data. Refreshed weekly per issuer.
+          anyOf:
+            - $ref: "#/components/schemas/PublicTradfiReferenceFundamentals"
+            - { type: "null" }
+        week52:
+          description: |
+            Additive (2026-10-14). High and low over the last 365 UTC days of
+            CoinRithm's own daily reference OHLC (rolled up from the 15-minute
+            consensus; history starts 2026-10-08). Null under 5 days of data.
+          anyOf:
+            - $ref: "#/components/schemas/PublicTradfiReferenceWeek52"
+            - { type: "null" }
         corporateEvents:
           description: |
             Additive (2026-10-14). Earnings and dividend dates from SEC EDGAR
@@ -9072,6 +9170,80 @@ components:
           anyOf:
             - $ref: "#/components/schemas/PublicTradfiReferenceCorporateEvents"
             - { type: "null" }
+
+    PublicTradfiReferenceFundamentals:
+      type: object
+      description: |
+        Company-reported SEC XBRL data. Each value is null when SEC data
+        cannot give it without guessing. Market cap, dividend yield and P/E
+        use the CoinRithm reference price (USDT perp index median, treated as
+        USD), not an exchange quote.
+      required: [marketCapUsd, marketCapBasis, referencePrice, sharesOutstanding, sharesAsOf, sharesSource, dividendPerShareTtm, dividendTtmBasis, dividendTtmPeriodEnd, dividendYieldPct, lastDividendPerShare, lastDividendPeriodEnd, revenueTtmUsd, netIncomeTtmUsd, epsDilutedTtm, peRatio, ttmBasis, ttmPeriodEnd, sector, fiscalYearEnd, latestFiling, fetchedAt, source]
+      properties:
+        marketCapUsd: { type: [number, "null"], description: "sharesOutstanding x referencePrice." }
+        marketCapBasis: { type: string, enum: ["shares x reference price"] }
+        referencePrice:
+          type: [number, "null"]
+          description: The live consensus when present, else the latest stored consensus.
+        sharesOutstanding: { type: [number, "null"] }
+        sharesAsOf: { type: [string, "null"], format: date }
+        sharesSource:
+          description: "`dei_cover`: filing cover page; `balance_sheet`: all classes at quarter end."
+          anyOf:
+            - { type: string, enum: [dei_cover, balance_sheet] }
+            - { type: "null" }
+        dividendPerShareTtm: { type: [number, "null"], description: "Dividends declared per share over the trailing twelve months, USD." }
+        dividendTtmBasis:
+          anyOf:
+            - $ref: "#/components/schemas/PublicTradfiReferenceTtmBasis"
+            - { type: "null" }
+        dividendTtmPeriodEnd: { type: [string, "null"], format: date }
+        dividendYieldPct: { type: [number, "null"], description: "dividendPerShareTtm / referencePrice x 100." }
+        lastDividendPerShare: { type: [number, "null"], description: "Declared in the latest reported quarter." }
+        lastDividendPeriodEnd: { type: [string, "null"], format: date }
+        revenueTtmUsd: { type: [number, "null"] }
+        netIncomeTtmUsd: { type: [number, "null"] }
+        epsDilutedTtm: { type: [number, "null"] }
+        peRatio: { type: [number, "null"], description: "referencePrice / epsDilutedTtm; null when EPS <= 0." }
+        ttmBasis:
+          description: "`quarters`: last four reported quarters; `annual`: latest fiscal year."
+          anyOf:
+            - $ref: "#/components/schemas/PublicTradfiReferenceTtmBasis"
+            - { type: "null" }
+        ttmPeriodEnd: { type: [string, "null"], format: date, description: "End of the twelve months behind revenue, net income and EPS." }
+        sector: { type: [string, "null"], description: "SEC SIC industry description, e.g. Electronic Computers." }
+        fiscalYearEnd: { type: [string, "null"], description: "MM-DD, e.g. 09-26." }
+        latestFiling:
+          anyOf:
+            - type: object
+              required: [form, date]
+              properties:
+                form: { type: string, examples: ["10-Q"] }
+                date: { type: string, format: date }
+            - { type: "null" }
+        fetchedAt: { type: string, format: date-time, description: "When the aggregator last read SEC." }
+        source:
+          type: object
+          required: [name, publisher, url, dataUrl, note]
+          properties:
+            name: { type: string, enum: ["SEC EDGAR"] }
+            publisher: { type: string }
+            url: { type: string, description: "EDGAR filing list of the issuer." }
+            dataUrl: { type: string, description: "The XBRL companyfacts JSON the values were derived from." }
+            note: { type: string }
+
+    PublicTradfiReferenceTtmBasis:
+      type: string
+      enum: [quarters, annual]
+
+    PublicTradfiReferenceWeek52:
+      type: object
+      required: [high, low, asOf, days]
+      properties:
+        high: { type: number }
+        low: { type: number }
+        asOf: { type: string, format: date, description: "Latest UTC day included." }
+        days: { type: integer, description: "Days with data in the window (not 365 while history is short)." }
 
     PublicTradfiReferenceCorporateEvents:
       type: object

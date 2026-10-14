@@ -91,7 +91,12 @@ class PublicPmEvent:
             `informative_leader` is the highest current outcome strictly inside
             5-95, else the highest; it is not necessarily the leading outcome.
         reference_probability (None | PublicPmEventReferenceProbabilityType0 | Unset): Canonical matched-venue reference
-            with venue count and spread.
+            with venue count and spread. Also
+            carries `methodologyVersion` (the row's own writer version:
+            `consensus_probability_v2` or `consensus_probability_v3`) and
+            `weightBasis` (`open_interest` | `liquidity`, null for a v3 row
+            without a recognised basis); see the consensus-methodology
+            endpoint.
         decision_support (None | PublicPmEventDecisionSupportType0 | Unset):
         quality (None | PublicPmEventQualityType0 | Unset): Persisted truth-engine decision eligibility and reason
             codes.

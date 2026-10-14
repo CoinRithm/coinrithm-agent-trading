@@ -25,7 +25,8 @@ class GetPublicPredictionMarketConsensusMethodologyResponse200:
     """
     Attributes:
         schema (GetPublicPredictionMarketConsensusMethodologyResponse200Schema | Unset):
-        version (str | Unset): e.g. consensus_probability_v1. Pin this next to any stored number.
+        version (str | Unset): The current writer version, e.g. consensus_probability_v3. Pin a row's own
+            methodologyVersion next to any stored number.
         methodology (GetPublicPredictionMarketConsensusMethodologyResponse200Methodology | Unset):
         licence (str | Unset):
     """

@@ -13,12 +13,14 @@ if TYPE_CHECKING:
     from ..models.public_tradfi_reference_change import PublicTradfiReferenceChange
     from ..models.public_tradfi_reference_corporate_events import PublicTradfiReferenceCorporateEvents
     from ..models.public_tradfi_reference_freshness import PublicTradfiReferenceFreshness
+    from ..models.public_tradfi_reference_fundamentals import PublicTradfiReferenceFundamentals
     from ..models.public_tradfi_reference_history_window import PublicTradfiReferenceHistoryWindow
     from ..models.public_tradfi_reference_instrument import PublicTradfiReferenceInstrument
     from ..models.public_tradfi_reference_live import PublicTradfiReferenceLive
     from ..models.public_tradfi_reference_methodology import PublicTradfiReferenceMethodology
     from ..models.public_tradfi_reference_range import PublicTradfiReferenceRange
     from ..models.public_tradfi_reference_snapshot import PublicTradfiReferenceSnapshot
+    from ..models.public_tradfi_reference_week_52 import PublicTradfiReferenceWeek52
 
 
 T = TypeVar("T", bound="PublicTradfiReferenceDetail")
@@ -41,6 +43,14 @@ class PublicTradfiReferenceDetail:
         live (None | PublicTradfiReferenceLive):
         history (list[PublicTradfiReferenceSnapshot]): Recorded 15-minute snapshots in the window, oldest first.
         history_window (PublicTradfiReferenceHistoryWindow):
+        fundamentals (None | PublicTradfiReferenceFundamentals | Unset): Additive (2026-10-14). SEC EDGAR company data
+            for US-listed stocks.
+            Null for ETFs, metals, FX, home listings and issuers without SEC
+            data. Refreshed weekly per issuer.
+        week52 (None | PublicTradfiReferenceWeek52 | Unset): Additive (2026-10-14). High and low over the last 365 UTC
+            days of
+            CoinRithm's own daily reference OHLC (rolled up from the 15-minute
+            consensus; history starts 2026-10-08). Null under 5 days of data.
         corporate_events (None | PublicTradfiReferenceCorporateEvents | Unset): Additive (2026-10-14). Earnings and
             dividend dates from SEC EDGAR
             8-K filings for US-listed stocks. Null for ETFs, metals, FX, home
@@ -61,15 +71,19 @@ class PublicTradfiReferenceDetail:
     live: None | PublicTradfiReferenceLive
     history: list[PublicTradfiReferenceSnapshot]
     history_window: PublicTradfiReferenceHistoryWindow
+    fundamentals: None | PublicTradfiReferenceFundamentals | Unset = UNSET
+    week52: None | PublicTradfiReferenceWeek52 | Unset = UNSET
     corporate_events: None | PublicTradfiReferenceCorporateEvents | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         from ..models.public_tradfi_reference_change import PublicTradfiReferenceChange
         from ..models.public_tradfi_reference_corporate_events import PublicTradfiReferenceCorporateEvents
+        from ..models.public_tradfi_reference_fundamentals import PublicTradfiReferenceFundamentals
         from ..models.public_tradfi_reference_live import PublicTradfiReferenceLive
         from ..models.public_tradfi_reference_range import PublicTradfiReferenceRange
         from ..models.public_tradfi_reference_snapshot import PublicTradfiReferenceSnapshot
+        from ..models.public_tradfi_reference_week_52 import PublicTradfiReferenceWeek52
 
         version = self.version
 
@@ -120,6 +134,22 @@ class PublicTradfiReferenceDetail:
 
         history_window = self.history_window.to_dict()
 
+        fundamentals: dict[str, Any] | None | Unset
+        if isinstance(self.fundamentals, Unset):
+            fundamentals = UNSET
+        elif isinstance(self.fundamentals, PublicTradfiReferenceFundamentals):
+            fundamentals = self.fundamentals.to_dict()
+        else:
+            fundamentals = self.fundamentals
+
+        week52: dict[str, Any] | None | Unset
+        if isinstance(self.week52, Unset):
+            week52 = UNSET
+        elif isinstance(self.week52, PublicTradfiReferenceWeek52):
+            week52 = self.week52.to_dict()
+        else:
+            week52 = self.week52
+
         corporate_events: dict[str, Any] | None | Unset
         if isinstance(self.corporate_events, Unset):
             corporate_events = UNSET
@@ -147,6 +177,10 @@ class PublicTradfiReferenceDetail:
                 "historyWindow": history_window,
             }
         )
+        if fundamentals is not UNSET:
+            field_dict["fundamentals"] = fundamentals
+        if week52 is not UNSET:
+            field_dict["week52"] = week52
         if corporate_events is not UNSET:
             field_dict["corporateEvents"] = corporate_events
 
@@ -157,12 +191,14 @@ class PublicTradfiReferenceDetail:
         from ..models.public_tradfi_reference_change import PublicTradfiReferenceChange
         from ..models.public_tradfi_reference_corporate_events import PublicTradfiReferenceCorporateEvents
         from ..models.public_tradfi_reference_freshness import PublicTradfiReferenceFreshness
+        from ..models.public_tradfi_reference_fundamentals import PublicTradfiReferenceFundamentals
         from ..models.public_tradfi_reference_history_window import PublicTradfiReferenceHistoryWindow
         from ..models.public_tradfi_reference_instrument import PublicTradfiReferenceInstrument
         from ..models.public_tradfi_reference_live import PublicTradfiReferenceLive
         from ..models.public_tradfi_reference_methodology import PublicTradfiReferenceMethodology
         from ..models.public_tradfi_reference_range import PublicTradfiReferenceRange
         from ..models.public_tradfi_reference_snapshot import PublicTradfiReferenceSnapshot
+        from ..models.public_tradfi_reference_week_52 import PublicTradfiReferenceWeek52
 
         d = dict(src_dict)
         version = d.pop("version")
@@ -261,6 +297,40 @@ class PublicTradfiReferenceDetail:
 
         history_window = PublicTradfiReferenceHistoryWindow.from_dict(d.pop("historyWindow"))
 
+        def _parse_fundamentals(data: object) -> None | PublicTradfiReferenceFundamentals | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                fundamentals_type_0 = PublicTradfiReferenceFundamentals.from_dict(data)
+
+                return fundamentals_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(None | PublicTradfiReferenceFundamentals | Unset, data)
+
+        fundamentals = _parse_fundamentals(d.pop("fundamentals", UNSET))
+
+        def _parse_week52(data: object) -> None | PublicTradfiReferenceWeek52 | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                week52_type_0 = PublicTradfiReferenceWeek52.from_dict(data)
+
+                return week52_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(None | PublicTradfiReferenceWeek52 | Unset, data)
+
+        week52 = _parse_week52(d.pop("week52", UNSET))
+
         def _parse_corporate_events(data: object) -> None | PublicTradfiReferenceCorporateEvents | Unset:
             if data is None:
                 return data
@@ -292,6 +362,8 @@ class PublicTradfiReferenceDetail:
             live=live,
             history=history,
             history_window=history_window,
+            fundamentals=fundamentals,
+            week52=week52,
             corporate_events=corporate_events,
         )
 
