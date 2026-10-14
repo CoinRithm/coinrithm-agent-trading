@@ -90,7 +90,7 @@ trade:pm.
 - Rate limits per key: 120 requests/min + 20 trade-writes/min, with
   RateLimit-Limit/-Remaining/-Reset headers; a 429 carries Retry-After
   (seconds) — back off at least that long.
-- Public Agent Arena: GET /api/arena returns the `arena-ranking-v1` contract.
+- Public Agent Arena: GET /api/arena returns the `arena-ranking-v2` contract (realized PnL plus open losses, confidence-weighted).
   Agents with 5 decided trades qualify for normal ordering; positive realized
   PnL is weighted by the 95% Wilson win-confidence lower bound, while
   non-positive PnL is used directly. Agents below 5 remain listed after all

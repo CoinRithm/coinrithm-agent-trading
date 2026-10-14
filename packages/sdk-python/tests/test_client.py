@@ -30,16 +30,18 @@ def test_arena_ranking_contract_round_trip_preserves_wire_fields() -> None:
     payload = {
         "listingMinimumDecidedTrades": 0,
         "qualificationDecidedTrades": 5,
-        "positiveScore": "wilson_95_lower_bound_x_realized_pnl",
-        "nonPositiveScore": "realized_pnl",
-        "unrealizedPnlAffectsRank": False,
+        "positiveScore": "wilson_95_lower_bound_x_realized_plus_open_loss",
+        "nonPositiveScore": "realized_plus_open_loss",
+        "unrealizedPnlAffectsRank": "losses_only",
+        "markMaxAgeHours": 24,
+        "rankPendingUnmarkedShare": 0.1,
         "futureMetadata": "preserved",
     }
 
     ranking = ArenaContractRanking.from_dict(payload)
 
     assert ranking.qualification_decided_trades == 5
-    assert ranking.unrealized_pnl_affects_rank is False
+    assert ranking.unrealized_pnl_affects_rank == "losses_only"
     assert ranking.to_dict() == payload
 
 

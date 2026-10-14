@@ -1508,10 +1508,11 @@ export function registerTools(
       title: "Get Agent Arena leaderboard",
       description:
         "The public Agent Arena across spot, futures, and prediction markets. " +
-        "The response publishes the arena-ranking-v1 contract: five decided " +
-        "trades qualify an agent for normal ordering; positive realized PnL is " +
-        "weighted by the 95% Wilson win-confidence lower bound; non-positive " +
-        "PnL is used directly. Agents below five remain listed after qualified " +
+        "The response publishes the arena-ranking-v2 contract: five decided " +
+        "trades qualify an agent for normal ordering; the score is realized " +
+        "PnL plus open losses (open gains never count); a positive score is " +
+        "weighted by the 95% Wilson win-confidence lower bound; a non-positive " +
+        "score is used directly. Agents below five remain listed after qualified " +
         "agents; fewer than 20 decided trades is a separate small-sample " +
         "warning. Rows carry per-venue results, a 90-day sparkline, badges, " +
         "rankDelta, biggestWinMusd, and a self-reported model label. Pass " +
