@@ -5678,10 +5678,15 @@ components:
         fillPrice:
           type: [number, "null"]
           description: Executed fill price; markPrice remains the reference mark and slippage is already embedded here.
-        realizedPnlMusd: { type: number }
+        realizedPnlMusd:
+          type: number
+          description: Realized PnL of this exit, net of its close fee and, since 2026-10-14, of the share of open/add fees charged at this exit (entryFeeAllocatedMusd). History was corrected once.
         marginDeltaMusd: { type: number }
         feeMusd: { type: number }
         slippageMusd: { type: number }
+        entryFeeAllocatedMusd:
+          type: number
+          description: Open/add fee charged to realizedPnlMusd at this exit (pro rata on a reduce, the remainder on a close or liquidation). Already included in realizedPnlMusd; the wallet paid it at open, so do not subtract it again. 0 on open/add events.
         executionVersion: { type: [string, "null"] }
         idempotencyKey: { type: [string, "null"] }
         createdAt: { type: string, format: date-time }
