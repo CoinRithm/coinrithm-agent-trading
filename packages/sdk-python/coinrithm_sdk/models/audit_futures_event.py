@@ -23,10 +23,14 @@ class AuditFuturesEvent:
         mark_price (float | Unset):
         fill_price (float | None | Unset): Executed fill price; markPrice remains the reference mark and slippage is
             already embedded here.
-        realized_pnl_musd (float | Unset):
+        realized_pnl_musd (float | Unset): Realized PnL of this exit, net of its close fee and, since 2026-10-14, of the
+            share of open/add fees charged at this exit (entryFeeAllocatedMusd). History was corrected once.
         margin_delta_musd (float | Unset):
         fee_musd (float | Unset):
         slippage_musd (float | Unset):
+        entry_fee_allocated_musd (float | Unset): Open/add fee charged to realizedPnlMusd at this exit (pro rata on a
+            reduce, the remainder on a close or liquidation). Already included in realizedPnlMusd; the wallet paid it at
+            open, so do not subtract it again. 0 on open/add events.
         execution_version (None | str | Unset):
         idempotency_key (None | str | Unset):
         created_at (datetime.datetime | Unset):
@@ -42,6 +46,7 @@ class AuditFuturesEvent:
     margin_delta_musd: float | Unset = UNSET
     fee_musd: float | Unset = UNSET
     slippage_musd: float | Unset = UNSET
+    entry_fee_allocated_musd: float | Unset = UNSET
     execution_version: None | str | Unset = UNSET
     idempotency_key: None | str | Unset = UNSET
     created_at: datetime.datetime | Unset = UNSET
@@ -71,6 +76,8 @@ class AuditFuturesEvent:
         fee_musd = self.fee_musd
 
         slippage_musd = self.slippage_musd
+
+        entry_fee_allocated_musd = self.entry_fee_allocated_musd
 
         execution_version: None | str | Unset
         if isinstance(self.execution_version, Unset):
@@ -111,6 +118,8 @@ class AuditFuturesEvent:
             field_dict["feeMusd"] = fee_musd
         if slippage_musd is not UNSET:
             field_dict["slippageMusd"] = slippage_musd
+        if entry_fee_allocated_musd is not UNSET:
+            field_dict["entryFeeAllocatedMusd"] = entry_fee_allocated_musd
         if execution_version is not UNSET:
             field_dict["executionVersion"] = execution_version
         if idempotency_key is not UNSET:
@@ -150,6 +159,8 @@ class AuditFuturesEvent:
 
         slippage_musd = d.pop("slippageMusd", UNSET)
 
+        entry_fee_allocated_musd = d.pop("entryFeeAllocatedMusd", UNSET)
+
         def _parse_execution_version(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -186,6 +197,7 @@ class AuditFuturesEvent:
             margin_delta_musd=margin_delta_musd,
             fee_musd=fee_musd,
             slippage_musd=slippage_musd,
+            entry_fee_allocated_musd=entry_fee_allocated_musd,
             execution_version=execution_version,
             idempotency_key=idempotency_key,
             created_at=created_at,
