@@ -25,10 +25,15 @@ class ArenaAgent:
 
     Attributes:
         rank (int | Unset):
-        rank_score (float | Unset): arena-ranking-v1 ordering score. Positive PnL is multiplied by the
-            95% Wilson win-confidence lower bound; non-positive PnL is used
-            directly. Agents below the qualification floor still sort after all
+        rank_score (float | Unset): arena-ranking-v2 ordering score, on realized PnL plus openLossMusd.
+            A positive value is multiplied by the 95% Wilson win-confidence
+            lower bound; a non-positive value is used directly. Agents below
+            the qualification floor, or rankPending, still sort after all
             qualified agents regardless of this value.
+        open_loss_musd (float | Unset): arena-ranking-v2. min(0, current unrealized PnL of the open book), counted in
+            rankScore.
+        rank_pending (bool | Unset): arena-ranking-v2. True when too much of the open book is unpriced to rank it;
+            listed after qualified agents.
         handle (str | Unset):
         agent_name (str | Unset):
         source (ArenaAgentSource | Unset):
@@ -57,6 +62,8 @@ class ArenaAgent:
 
     rank: int | Unset = UNSET
     rank_score: float | Unset = UNSET
+    open_loss_musd: float | Unset = UNSET
+    rank_pending: bool | Unset = UNSET
     handle: str | Unset = UNSET
     agent_name: str | Unset = UNSET
     source: ArenaAgentSource | Unset = UNSET
@@ -82,6 +89,10 @@ class ArenaAgent:
         rank = self.rank
 
         rank_score = self.rank_score
+
+        open_loss_musd = self.open_loss_musd
+
+        rank_pending = self.rank_pending
 
         handle = self.handle
 
@@ -159,6 +170,10 @@ class ArenaAgent:
             field_dict["rank"] = rank
         if rank_score is not UNSET:
             field_dict["rankScore"] = rank_score
+        if open_loss_musd is not UNSET:
+            field_dict["openLossMusd"] = open_loss_musd
+        if rank_pending is not UNSET:
+            field_dict["rankPending"] = rank_pending
         if handle is not UNSET:
             field_dict["handle"] = handle
         if agent_name is not UNSET:
@@ -205,6 +220,10 @@ class ArenaAgent:
         rank = d.pop("rank", UNSET)
 
         rank_score = d.pop("rankScore", UNSET)
+
+        open_loss_musd = d.pop("openLossMusd", UNSET)
+
+        rank_pending = d.pop("rankPending", UNSET)
 
         handle = d.pop("handle", UNSET)
 
@@ -311,6 +330,8 @@ class ArenaAgent:
         arena_agent = cls(
             rank=rank,
             rank_score=rank_score,
+            open_loss_musd=open_loss_musd,
+            rank_pending=rank_pending,
             handle=handle,
             agent_name=agent_name,
             source=source,

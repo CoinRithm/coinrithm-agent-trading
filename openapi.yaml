@@ -6652,10 +6652,8 @@ components:
               type: string
               enum: [realized_pnl, realized_plus_open_loss]
             unrealizedPnlAffectsRank:
+              type: [boolean, string]
               description: v2 "losses_only" (open losses count, open gains never do); v1 false.
-              oneOf:
-                - { type: boolean, const: false }
-                - { type: string, const: losses_only }
             markMaxAgeHours:
               type: integer
               description: v2. A mark older than this leaves the position unpriced.
