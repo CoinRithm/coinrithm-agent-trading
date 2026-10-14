@@ -2534,8 +2534,10 @@ export function registerTools(
         "crossSourceMatches (the SAME real-world question priced on other " +
         "venues — read probability divergence directly from it), " +
         "referenceProbability when present (CoinRithm's canonical cross-venue " +
-        "number: the liquidity-weighted median Yes probability across matched " +
-        "real-money venues, with venueCount and spreadPoints — quote all " +
+        "number: the size-capped weighted median Yes probability across " +
+        "matched real-money venues, weighted by open interest or else " +
+        "liquidity as weightBasis states, with venueCount and spreadPoints " +
+        "and methodologyVersion — quote all " +
         "three together, venues disagree and the spread says by how much), " +
         "recent whale trades on the event, related events, related news, and " +
         "volumeHistory when present (daily volume points captured since " +
@@ -2730,8 +2732,9 @@ export function registerTools(
         "deltaPoints (points, 0-100 scale) plus a summary (matchedOutcomeCount, " +
         "overallDeltaPoints, maxSharedOutcomeDeltaPoints); maxOverallGap/" +
         "maxOutcomeGap/maxConfidence are the cluster's headline numbers, and " +
-        "referenceProbability (when present) is CoinRithm's own liquidity-" +
-        "weighted median across matched venues. Orientation between matched " +
+        "referenceProbability (when present) is CoinRithm's own size-capped " +
+        "weighted median across matched venues (weightBasis: open_interest or " +
+        "liquidity). Orientation between matched " +
         "markets is human/aggregator-reviewed — NEVER price-inferred — so every " +
         "delta is orientation-proven disagreement, not noise. requirePriced " +
         "(default true) drops any pair where a side is an unpriced/untraded " +

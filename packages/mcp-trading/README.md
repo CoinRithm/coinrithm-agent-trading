@@ -10,7 +10,7 @@ future returns or live execution performance.
 
 **Plus a free prediction-market data surface — no key at all.** The same server
 ships twelve keyless `pm_data_*` tools serving CoinRithm's public cross-venue
-dataset: odds, cross-venue matches with a liquidity-aware reference probability,
+dataset: odds, cross-venue matches with a size-weighted reference probability,
 a whale-trade tape, and market-wide volume statistics. Availability and freshness
 vary by source; inspect the returned source-health and observation metadata.
 The catalog covers 12 venues: Polymarket, Kalshi, Smarkets, Limitless, Manifold,
@@ -266,7 +266,8 @@ The twelve `pm_data_*` tools wrap CoinRithm's free public cross-venue dataset
 (all 12 venues: Polymarket, Kalshi, Smarkets, Limitless, Manifold,
 Metaculus, PredictIt, Rothera, Futuur, Myriad, ForecastEx, Gemini). They require no API key, never attach yours, and
 are research surfaces: `pm_data_events` list rows carry `referenceProbability`
-(a liquidity-aware cross-venue consensus on matched questions); `pm_data_event`
+(a size-weighted cross-venue consensus on matched questions, weighted by
+open interest or else liquidity); `pm_data_event`
 includes `crossSourceMatches` (the same real-world question priced on other
 venues), `referenceProbability`, `volumeHistory`, and resolution evidence.
 Discovery calls deliberately omit heavyweight descriptions, full outcome
