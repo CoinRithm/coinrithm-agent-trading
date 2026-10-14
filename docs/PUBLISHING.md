@@ -5,7 +5,38 @@ MCP Registry are delivered separately. Current publication status is in the
 [README](../README.md#version-clarity); package changes are in the
 [changelog](../CHANGELOG.md).
 
-## Verified delivery - 7 October 2026
+## Verified delivery - 14 October 2026
+
+| Registry | Package                  | Version  | Files                                                                |
+| -------- | ------------------------ | -------- | -------------------------------------------------------------------- |
+| npm      | `@coinrithm/mcp-trading` | `0.7.17` | `coinrithm-mcp-trading-0.7.17.tgz`                                   |
+| npm      | `@coinrithm/sdk`         | `0.4.0`  | `coinrithm-sdk-0.4.0.tgz`                                            |
+| PyPI     | `coinrithm-sdk`          | `1.9.0`  | `coinrithm_sdk-1.9.0-py3-none-any.whl`, `coinrithm_sdk-1.9.0.tar.gz` |
+
+Archive source is `1fb74c5bcb2f6ca066f21f4e22048c484dba20a4` (main after #159);
+both SDKs are generated from API contract **1.8.0**. The four archives were
+built on the production host (`npm pack` in `node:24-alpine`, `python -m build`
+in `python:3.12-slim`) and passed `twine check`. The owner uploaded them with
+an npm web login and Twine. SHA-256 values from `release-manifest.json` and
+`SHA256SUMS.txt`, retained in the shared workspace at `temp/release-20261014`:
+
+| File                                   | SHA-256                                                            |
+| -------------------------------------- | ------------------------------------------------------------------ |
+| `coinrithm-mcp-trading-0.7.17.tgz`     | `ecd6844b2dc0d99c9930c8bb0668519dc79a594a143162b54b1f72e5ecfe399e` |
+| `coinrithm-sdk-0.4.0.tgz`              | `d609eeeb2edb1ad380c1e4f9cb9d8f639573aa1b1347a2d2ca485ae3b1024cb7` |
+| `coinrithm_sdk-1.9.0-py3-none-any.whl` | `edda75b827d362b5a40a437ca16e701177576c0b584b449c4e5c3f6ecc56485c` |
+| `coinrithm_sdk-1.9.0.tar.gz`           | `3ce09ad976eb3a4f427f36f9061d435d8d44fc4eb8358a40b09343b57896b425` |
+
+All four registry downloads match these values byte for byte. npm reports
+shasum `beabf3e04335d0b6e57e470f7d865eb80d39119d` for MCP 0.7.17 and
+`077d4e5b3e95ac29089b6ebf1d861bba9ba98464` for TypeScript 0.4.0; both are the
+npm `latest` tag. Hosted MCP reported 0.7.17 with its 41 default tools on the
+same day. The GitHub release and the official MCP Registry entry follow the
+`mcp-trading-v0.7.17` tag and the registry workflow. Runnable examples now pin
+TypeScript 0.4.0 and Python 1.9.0. Immutable registry versions must not be
+uploaded again.
+
+## Previous verified delivery - 7 October 2026
 
 MCP **0.7.16**, TypeScript **0.3.5** and Python **1.8.5** are published to
 npm/PyPI. All four registry downloads match the selected manifest and checksums;
@@ -159,8 +190,8 @@ An npm `E404` can also occur while an accepted upload is still processing.
 Check the original upload result and allow propagation before retrying. If a
 target version already exists, verify its files instead of uploading again.
 
-As verified on 7 October 2026, the registry versions are MCP 0.7.16,
-TypeScript 0.3.5 and Python 1.8.5. The API reference follows the current contract;
+As verified on 14 October 2026, the registry versions are MCP 0.7.17,
+TypeScript 0.4.0 and Python 1.9.0. The API reference follows the current contract;
 its runnable examples are pinned to these published SDK versions.
 
 ## Upload the exact archives
