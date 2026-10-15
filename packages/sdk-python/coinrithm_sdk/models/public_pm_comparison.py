@@ -25,10 +25,13 @@ class PublicPmComparison:
         Attributes:
             summary (PublicPmComparisonSummary | Unset):
             outcomes (list[PublicPmComparisonOutcome] | Unset):
+            outcomes_total (int | Unset): Event detail only, unless `full=1`. Comparison rows before the default trimming to
+                the shared outcomes (at most 60).
     """
 
     summary: PublicPmComparisonSummary | Unset = UNSET
     outcomes: list[PublicPmComparisonOutcome] | Unset = UNSET
+    outcomes_total: int | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -43,6 +46,8 @@ class PublicPmComparison:
                 outcomes_item = outcomes_item_data.to_dict()
                 outcomes.append(outcomes_item)
 
+        outcomes_total = self.outcomes_total
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update({})
@@ -50,6 +55,8 @@ class PublicPmComparison:
             field_dict["summary"] = summary
         if outcomes is not UNSET:
             field_dict["outcomes"] = outcomes
+        if outcomes_total is not UNSET:
+            field_dict["outcomesTotal"] = outcomes_total
 
         return field_dict
 
@@ -75,9 +82,12 @@ class PublicPmComparison:
 
                 outcomes.append(outcomes_item)
 
+        outcomes_total = d.pop("outcomesTotal", UNSET)
+
         public_pm_comparison = cls(
             summary=summary,
             outcomes=outcomes,
+            outcomes_total=outcomes_total,
         )
 
         public_pm_comparison.additional_properties = d

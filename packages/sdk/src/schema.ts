@@ -3275,6 +3275,8 @@ export interface components {
         PublicPmComparison: {
             summary?: components["schemas"]["PublicPmComparisonSummary"];
             outcomes?: components["schemas"]["PublicPmComparisonOutcome"][];
+            /** @description Event detail only, unless `full=1`. Comparison rows before the default trimming to the shared outcomes (at most 60). */
+            outcomesTotal?: number;
         } & {
             [key: string]: unknown;
         };
