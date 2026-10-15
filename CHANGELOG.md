@@ -8,6 +8,24 @@ Each package has its own version; the API contract is versioned separately.
 [TypeScript history](packages/sdk/CHANGELOG.md) ·
 [Python release notes](packages/sdk-python/README.md)
 
+## Unreleased
+
+Contract additions for the next SDK release (`info.version` stays 1.9.0 until
+that release bumps it; the MCP server is unchanged):
+
+- Large trades type the Hyperliquid `taker` block (`PublicLargeTradeTaker`:
+  address, action open/add/reduce/close/flip, Hyperliquid `dir`, filled size,
+  realized PnL on reduce/close/flip, fees and `positionNow`), nullable and
+  null on Binance rows. The live API has served it since 2026-10-14.
+- New keyless `GET /api/market/large-trades/notable`: large-print bursts
+  ranked against each market's own p99.9 or class floor, with
+  `significance`, the rules in force and the largest print's `taker`.
+- Cross-source comparisons are typed (`PublicPmComparison`) on event detail
+  `crossSourceMatches[].comparison` and `/matches/public`
+  `comparisons[].pair.comparison`: rows carry `pairing` (method, confidence,
+  reason, both venue names) and `bothSidesTraded`, and the summary carries
+  `evidencedSharedOutcomeCount`. All optional; absent means an older server.
+
 ## MCP 0.7.18, TypeScript 0.4.1, Python 1.9.1 (2026-10-15)
 
 Both SDKs are generated from API contract **1.9.0**, an additive minor

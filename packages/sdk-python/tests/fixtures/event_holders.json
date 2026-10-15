@@ -1,0 +1,77 @@
+{
+  "source": "polymarket",
+  "slug": "fed-decision-in-october-20260617190323537",
+  "available": true,
+  "provider": "polymarket_data_api_v2",
+  "asOf": "2026-10-15T03:10:33.921Z",
+  "cacheTtlSeconds": 600,
+  "holdersPerOutcome": 10,
+  "marketsCovered": 5,
+  "marketsTotal": 5,
+  "outcomes": [
+    {
+      "name": "No change",
+      "externalMarketId": "111061902544814266207267295505639408607400625795891618462682726460921782993748",
+      "tokenId": "111061902544814266207267295505639408607400625795891618462682726460921782993748",
+      "available": true,
+      "holders": [
+        {
+          "wallet": "0xe9076a87c5ed90ef16e6fe6529c943baeca0cff6",
+          "walletShort": "0xe907…cff6",
+          "name": "suntori",
+          "pseudonym": "All-Peasant-Drug",
+          "shares": 418443.114916,
+          "avgPrice": 0.6052,
+          "currentValueUsd": 320108.9829,
+          "realizedPnlUsd": -8670.9849,
+          "unrealizedPnlUsd": 69903.7162,
+          "walletPagePath": "/prediction-markets/whales/polymarket/0xe9076a87c5ed90ef16e6fe6529c943baeca0cff6"
+        },
+        {
+          "wallet": "0x6302cdefa498e7174dd0fcd6b06652a38eae7917",
+          "walletShort": "0x6302…7917",
+          "name": null,
+          "pseudonym": "Elastic-Universe",
+          "shares": 162475.042501,
+          "avgPrice": 0.6041,
+          "currentValueUsd": 124293.4075,
+          "realizedPnlUsd": 0,
+          "unrealizedPnlUsd": 26413.7255,
+          "walletPagePath": "/prediction-markets/whales/polymarket/0x6302cdefa498e7174dd0fcd6b06652a38eae7917"
+        }
+      ]
+    },
+    {
+      "name": "50+ bps increase",
+      "externalMarketId": "18246296022868501258060085368606280205967114341141276439803424448463050819498",
+      "tokenId": "18246296022868501258060085368606280205967114341141276439803424448463050819498",
+      "available": true,
+      "holders": [
+        {
+          "wallet": "0x7cf93583951552553bc0d243a8582a3410ed2798",
+          "walletShort": "0x7cf9…2798",
+          "name": "MysticFind",
+          "pseudonym": "Weird-Discourse",
+          "shares": 463594.190347,
+          "avgPrice": 0.0249,
+          "currentValueUsd": 2549.768,
+          "realizedPnlUsd": 97.6275,
+          "unrealizedPnlUsd": -8881.243,
+          "walletPagePath": "/prediction-markets/whales/polymarket/0x7cf93583951552553bc0d243a8582a3410ed2798"
+        },
+        {
+          "wallet": "0x76dd9f47b2480d46250d55411f4f9eb2903145bb",
+          "walletShort": "0x76dd…45bb",
+          "name": "sS666",
+          "pseudonym": "Plush-Accompanist",
+          "shares": 314031.961946,
+          "avgPrice": 0.0078,
+          "currentValueUsd": 1727.1757,
+          "realizedPnlUsd": 0,
+          "unrealizedPnlUsd": -613.7207,
+          "walletPagePath": null
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,597 @@
+{
+  "data": [
+    {
+      "clusterId": "gemini:aston-villa-vs-newcastle|kalshi:kxeplgame-26oct17newavl|polymarket:epl-new-ast-2026-10-17",
+      "primaryEventId": "kalshi:kxeplgame-26oct17newavl",
+      "title": "Newcastle vs Aston Villa",
+      "events": [
+        {
+          "id": "KXEPLGAME-26OCT17NEWAVL",
+          "slug": "kxeplgame-26oct17newavl",
+          "title": "Newcastle vs Aston Villa",
+          "description": "If Aston Villa wins the Newcastle vs Aston Villa professional EPL soccer game originally scheduled for Oct 17, 2026 after 90 minutes plus stoppage time (does not include extra time or penalties), then the market resolves to Yes.\n\nThe following market refers to the Newcastle vs Aston Villa professional EPL soccer game originally scheduled for Oct 17, 2026 after 90 minutes plus stoppage time (does not include extra time or penalties). If the game ends in a tie, the market called \"Tie\" resolves to Yes. If the game is cancelled or rescheduled to over 48 hours away, the market will resolve to a fair price in accordance with the rules.\n\nKalshi is not affiliated, associated, authorized, endorsed by, or in any way officially connected with the Governing League. All trademarks, logos, and brand names are the property of their respective owners.",
+          "image": "https://kalshi-public-docs.s3.amazonaws.com/series-images-webp/KXEPLGAME.webp",
+          "status": "open",
+          "startDate": "2026-10-03T00:36:00.000Z",
+          "endDate": "2026-10-19T16:30:00.000Z",
+          "resolvedAt": null,
+          "settlementWindowClosedAt": null,
+          "resolvedAtBasis": null,
+          "closedDetectedAt": null,
+          "resolvedOutcomeExternalMarketId": null,
+          "resolutionOutcomeBasis": null,
+          "lifecycleSummary": {
+            "open": 3,
+            "closed": 0,
+            "resolved": 0,
+            "voided": 0,
+            "unknown": 0,
+            "activeOutcomes": 3
+          },
+          "freshness": {
+            "asOf": "2026-10-15T03:46:17.321Z",
+            "ageMinutes": 22,
+            "status": "fresh",
+            "basis": "latest_snapshot"
+          },
+          "volume": 11827.64,
+          "volume24h": 5525.44,
+          "liquidity": 10787.060000000001,
+          "outcomes": [],
+          "probabilityBook": {
+            "basis": "normalized_complete_book",
+            "rawSum": 102,
+            "overroundPoints": 2
+          },
+          "priceChange24h": 1,
+          "priceChange7d": null,
+          "bestBid": 0.32,
+          "bestAsk": 0.33,
+          "spread": 1,
+          "spreadPoints": 1.0000000000000009,
+          "decisionSupport": {
+            "qualityScore": 73,
+            "qualityTier": "medium",
+            "qualityCapReason": null,
+            "spreadTier": "tight",
+            "liquidityTier": "medium",
+            "volumeTier": "high",
+            "flags": {
+              "thinMarket": false,
+              "inactiveMarket": false,
+              "highAmbiguity": true,
+              "nearResolution": false,
+              "staleData": false
+            }
+          },
+          "resolutionCriteria": null,
+          "settlementSources": null,
+          "participantCount": null,
+          "commentCount": null,
+          "marketsCount": 3,
+          "externalUrl": "https://kalshi.com/markets/kxeplgame/newcastle-vs-aston-villa/kxeplgame-26oct17newavl",
+          "source": {
+            "id": "kalshi",
+            "name": "Kalshi",
+            "icon": "/predictionmarkets/kalshi.svg",
+            "kind": "market",
+            "methodology": "Exchange order book",
+            "supportsTrading": true,
+            "supportsMarketMetrics": true,
+            "quoteScale": "ratio"
+          },
+          "forecasting": null,
+          "chartContext": {
+            "seriesTicker": "KXEPLGAME"
+          },
+          "directRelatedCoins": [],
+          "indirectRelatedCoins": [],
+          "divergence": {
+            "matchId": 251876,
+            "probabilityDelta": null,
+            "exceedsThreshold": false,
+            "threshold": 5,
+            "higherProbabilitySourceId": null,
+            "higherProbabilitySourceName": null,
+            "comparisonSummary": {
+              "overallDeltaPoints": 8,
+              "maxOutcomeDeltaPoints": 7,
+              "maxOutcomeLabel": "Tie",
+              "maxSharedOutcomeDeltaPoints": 0,
+              "maxSharedOutcomeLabel": null,
+              "matchedOutcomeCount": 2,
+              "totalOutcomeCount": 3,
+              "bookStructureA": "exclusive",
+              "bookStructureB": "exclusive",
+              "comparableBooks": true,
+              "evidencedSharedOutcomeCount": 0
+            },
+            "otherSourceId": "futuur",
+            "otherSourceName": "Futuur",
+            "otherEventSlug": "newcastle-united-vs-aston-villa",
+            "otherEventTitle": "Newcastle United vs. Aston Villa"
+          },
+          "outcomesTotal": 3
+        },
+        {
+          "id": "1128447",
+          "slug": "epl-new-ast-2026-10-17",
+          "title": "Newcastle United FC vs. Aston Villa FC",
+          "description": "This event is for the upcoming Premier League game, scheduled for Saturday, October 17, 2026 between Newcastle United FC and Aston Villa FC.",
+          "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/Repetitive-markets/premier+league.jpg",
+          "status": "open",
+          "startDate": "2026-10-04T04:00:16.000Z",
+          "endDate": "2026-10-17T16:30:00.000Z",
+          "resolvedAt": null,
+          "settlementWindowClosedAt": null,
+          "resolvedAtBasis": null,
+          "closedDetectedAt": null,
+          "resolvedOutcomeExternalMarketId": null,
+          "resolutionOutcomeBasis": null,
+          "lifecycleSummary": {
+            "open": 3,
+            "closed": 0,
+            "resolved": 0,
+            "voided": 0,
+            "unknown": 0,
+            "activeOutcomes": 3
+          },
+          "freshness": {
+            "asOf": "2026-10-15T03:56:11.650Z",
+            "ageMinutes": 12,
+            "status": "fresh",
+            "basis": "latest_snapshot"
+          },
+          "volume": 6743.431086999999,
+          "volume24h": 1620.2071049999995,
+          "liquidity": 189481.7318,
+          "outcomes": [],
+          "probabilityBook": {
+            "basis": "normalized_complete_book",
+            "rawSum": 101,
+            "overroundPoints": 1
+          },
+          "priceChange24h": 1,
+          "priceChange7d": 3.5,
+          "bestBid": 0.32,
+          "bestAsk": 0.33,
+          "spread": 1,
+          "spreadPoints": 1.0000000000000009,
+          "decisionSupport": {
+            "qualityScore": 80,
+            "qualityTier": "high",
+            "qualityCapReason": null,
+            "spreadTier": "tight",
+            "liquidityTier": "high",
+            "volumeTier": "medium",
+            "flags": {
+              "thinMarket": false,
+              "inactiveMarket": false,
+              "highAmbiguity": true,
+              "nearResolution": false,
+              "staleData": false
+            }
+          },
+          "resolutionCriteria": null,
+          "settlementSources": null,
+          "participantCount": null,
+          "commentCount": null,
+          "marketsCount": 3,
+          "externalUrl": "https://polymarket.com/event/epl-new-ast-2026-10-17",
+          "source": {
+            "id": "polymarket",
+            "name": "Polymarket",
+            "icon": "/predictionmarkets/polymarket.svg",
+            "kind": "market",
+            "methodology": "Market-implied probability",
+            "supportsTrading": true,
+            "supportsMarketMetrics": true,
+            "quoteScale": "ratio"
+          },
+          "forecasting": null,
+          "chartContext": {
+            "seriesTicker": "premier-league-2025"
+          },
+          "directRelatedCoins": [],
+          "indirectRelatedCoins": [],
+          "divergence": {
+            "matchId": 251789,
+            "probabilityDelta": null,
+            "exceedsThreshold": false,
+            "threshold": 5,
+            "higherProbabilitySourceId": null,
+            "higherProbabilitySourceName": null,
+            "comparisonSummary": {
+              "overallDeltaPoints": 8.5,
+              "maxOutcomeDeltaPoints": 7,
+              "maxOutcomeLabel": "Draw (Newcastle United FC vs. Aston Villa FC)",
+              "maxSharedOutcomeDeltaPoints": 0,
+              "maxSharedOutcomeLabel": null,
+              "matchedOutcomeCount": 1,
+              "totalOutcomeCount": 3,
+              "bookStructureA": "exclusive",
+              "bookStructureB": "exclusive",
+              "comparableBooks": true,
+              "evidencedSharedOutcomeCount": 0
+            },
+            "otherSourceId": "futuur",
+            "otherSourceName": "Futuur",
+            "otherEventSlug": "newcastle-united-vs-aston-villa",
+            "otherEventTitle": "Newcastle United vs. Aston Villa"
+          },
+          "outcomesTotal": 3
+        },
+        {
+          "id": "EPL-2610171630-AVL-NEW-M",
+          "slug": "aston-villa-vs-newcastle",
+          "title": "Aston Villa vs Newcastle",
+          "description": "Aston Villa vs Newcastle\n\nIf Newcastle wins the English Premier League match between Newcastle and Aston Villa originally scheduled for October 17, 2026 at 12:30 PM ET, based only on regulation time plus stoppage time and excluding extra time and penalties, this market will resolve to Yes. Otherwise, it will resolve to No. The Underlying is the official result of the specified sporting event after regulation time plus stoppage time only. Source Agencies, in order, are the league governing the event (Premier League), ESPN, Fox Sports, and the official broadcast partner of the event. If the Expiration Value cannot be determined on the Expiration Date, including because the event is cancelled or a team forfeits, withdraws, or is disqualified, the Exchange may determine payouts pursuant to the Market Outcome Review Process. Read the full contract [terms & conditions](https://assets.gemini.com/predictions/terms_and_conditions/Soccer_Match_Terms_and_Conditions_d44ee81f-1008-4300-b572-0982b2d9c57f.pdf)\n\nIf Aston Villa wins the English Premier League match between Aston Villa and Newcastle originally scheduled for October 17, 2026 at 12:30 PM ET, based only on regulation time plus stoppage time and excluding extra time and penalties, this market will resolve to Yes. Otherwise, it will resolve to No. The Underlying is the official result of the specified sporting event after regulation time plus stoppage time only. Source Agencies, in order, are the league governing the event (Premier League), ESPN, Fox Sports, and the official broadcast partner of the event. If the Expiration Value cannot be determined on the Expiration Date, including because the event is cancelled or a team forfeits, withdraws, or is disqualified, the Exchange may determine payouts pursuant to the Market Outcome Review Process. Read the full contract [terms & conditions](https://assets.gemini.com/predictions/terms_and_conditions/Soccer_Match_Terms_and_Conditions_d44ee81f-1008-4300-b572-0982b2d9c57f.pdf)\n\nIf the English Premier League match between Newcastle and Aston Villa scheduled for October 17, 2026 at 12:30 PM ET is tied after regulation time plus stoppage time, excluding extra time and penalties, this market will resolve to Yes. Otherwise, it will resolve to No. The Underlying is the official result of the specified sporting event after regulation time plus stoppage time only. Source Agencies, in order, are the league governing the event (Premier League), ESPN, Fox Sports, and the official broadcast partner of the event. If the Expiration Value cannot be determined on the Expiration Date, including because the event is cancelled or a team forfeits, withties, or is disqualified, the Exchange may determine payouts pursuant to the Market Outcome Review Process. Read the full contract [terms & conditions](https://assets.gemini.com/predictions/terms_and_conditions/Soccer_Match_Terms_and_Conditions_d44ee81f-1008-4300-b572-0982b2d9c57f.pdf)\n\nSettlement oracle: statscore-rest-api (Soccer).",
+          "image": "https://assets.gemini.com/predictions/images/Soccer_eb4baf30-095c-4b92-ae46-f6bf5061a57d.avif",
+          "status": "open",
+          "startDate": "2026-10-17T16:30:00.000Z",
+          "endDate": "2026-10-19T04:30:00.000Z",
+          "resolvedAt": null,
+          "settlementWindowClosedAt": null,
+          "resolvedAtBasis": null,
+          "closedDetectedAt": null,
+          "resolvedOutcomeExternalMarketId": null,
+          "resolutionOutcomeBasis": null,
+          "lifecycleSummary": {
+            "open": 0,
+            "closed": 0,
+            "resolved": 0,
+            "voided": 0,
+            "unknown": 3,
+            "activeOutcomes": 3
+          },
+          "freshness": {
+            "asOf": "2026-10-15T04:06:25.460Z",
+            "ageMinutes": 2,
+            "status": "fresh",
+            "basis": "latest_snapshot"
+          },
+          "volume": 2.04,
+          "volume24h": 0,
+          "liquidity": 0,
+          "outcomes": [],
+          "probabilityBook": {
+            "basis": "normalized_complete_book",
+            "rawSum": 99,
+            "overroundPoints": -1
+          },
+          "priceChange24h": null,
+          "priceChange7d": null,
+          "bestBid": 41,
+          "bestAsk": 43,
+          "spread": 2,
+          "spreadPoints": 2,
+          "decisionSupport": {
+            "qualityScore": 49,
+            "qualityTier": "low",
+            "qualityCapReason": "unassessable",
+            "spreadTier": "tight",
+            "liquidityTier": "unknown",
+            "volumeTier": "unknown",
+            "flags": {
+              "thinMarket": true,
+              "inactiveMarket": true,
+              "highAmbiguity": true,
+              "nearResolution": false,
+              "staleData": false
+            }
+          },
+          "resolutionCriteria": null,
+          "settlementSources": null,
+          "participantCount": null,
+          "commentCount": null,
+          "marketsCount": 3,
+          "externalUrl": "https://exchange.gemini.com/predictions/EPL-2610171630-AVL-NEW-M/aston-villa-vs-newcastle",
+          "source": {
+            "id": "gemini",
+            "name": "Gemini",
+            "icon": "/predictionmarkets/gemini.svg",
+            "kind": "market",
+            "methodology": "CFTC-regulated prediction exchange; public live quotes and rolling 24h volume",
+            "supportsTrading": true,
+            "supportsMarketMetrics": true,
+            "quoteScale": "points"
+          },
+          "forecasting": null,
+          "chartContext": {
+            "seriesTicker": "EPL-2610171630-AVL-NEW-M"
+          },
+          "directRelatedCoins": [],
+          "indirectRelatedCoins": [],
+          "divergence": {
+            "matchId": 251863,
+            "probabilityDelta": null,
+            "exceedsThreshold": false,
+            "threshold": 5,
+            "higherProbabilitySourceId": null,
+            "higherProbabilitySourceName": null,
+            "comparisonSummary": {
+              "overallDeltaPoints": 8,
+              "maxOutcomeDeltaPoints": 7.5,
+              "maxOutcomeLabel": "Tie",
+              "maxSharedOutcomeDeltaPoints": 0,
+              "maxSharedOutcomeLabel": null,
+              "matchedOutcomeCount": 2,
+              "totalOutcomeCount": 3,
+              "bookStructureA": "exclusive",
+              "bookStructureB": "exclusive",
+              "comparableBooks": true,
+              "evidencedSharedOutcomeCount": 0
+            },
+            "otherSourceId": "futuur",
+            "otherSourceName": "Futuur",
+            "otherEventSlug": "newcastle-united-vs-aston-villa",
+            "otherEventTitle": "Newcastle United vs. Aston Villa"
+          },
+          "outcomesTotal": 3
+        }
+      ],
+      "comparisons": [
+        {
+          "eventId": "polymarket:epl-new-ast-2026-10-17",
+          "pair": {
+            "matchId": 224922,
+            "confidence": 0.95,
+            "matchMethod": "auto",
+            "comparison": {
+              "summary": {
+                "overallDeltaPoints": 0.5,
+                "maxOutcomeDeltaPoints": 1,
+                "maxOutcomeLabel": "Newcastle",
+                "maxSharedOutcomeDeltaPoints": 1,
+                "maxSharedOutcomeLabel": "Newcastle",
+                "matchedOutcomeCount": 3,
+                "totalOutcomeCount": 3,
+                "bookStructureA": "exclusive",
+                "bookStructureB": "exclusive",
+                "comparableBooks": true,
+                "evidencedSharedOutcomeCount": 3
+              },
+              "outcomes": [
+                {
+                  "key": "newcastle united",
+                  "label": "Newcastle",
+                  "eventAProbability": 43,
+                  "eventBProbability": 42,
+                  "deltaPoints": 1,
+                  "presentInA": true,
+                  "presentInB": true,
+                  "isShared": true,
+                  "pairing": {
+                    "method": "token_containment",
+                    "confidence": 0.85,
+                    "reason": "\"newcastle\" is contained in \"newcastle united\"",
+                    "eventAName": "Newcastle",
+                    "eventBName": "Newcastle United"
+                  },
+                  "bothSidesTraded": true
+                },
+                {
+                  "key": "aston",
+                  "label": "Aston Villa",
+                  "eventAProbability": 33,
+                  "eventBProbability": 33,
+                  "deltaPoints": 0,
+                  "presentInA": true,
+                  "presentInB": true,
+                  "isShared": true,
+                  "pairing": {
+                    "method": "token_containment",
+                    "confidence": 0.85,
+                    "reason": "\"aston\" is contained in \"aston villa\"",
+                    "eventAName": "Aston Villa",
+                    "eventBName": "Aston"
+                  },
+                  "bothSidesTraded": true
+                },
+                {
+                  "key": "draw (newcastle united fc vs. aston villa fc)",
+                  "label": "Tie",
+                  "eventAProbability": 26,
+                  "eventBProbability": 26,
+                  "deltaPoints": 0,
+                  "presentInA": true,
+                  "presentInB": true,
+                  "isShared": true,
+                  "pairing": {
+                    "method": "draw",
+                    "confidence": 0.9,
+                    "reason": "the draw leg of a three-way game",
+                    "eventAName": "Tie",
+                    "eventBName": "Draw (Newcastle United FC vs. Aston Villa FC)"
+                  },
+                  "bothSidesTraded": true
+                }
+              ]
+            },
+            "divergence": {
+              "probabilityDelta": 1,
+              "exceedsThreshold": false,
+              "threshold": 5,
+              "higherProbabilitySourceId": "kalshi",
+              "higherProbabilitySourceName": "Kalshi",
+              "comparisonSummary": {
+                "overallDeltaPoints": 0.5,
+                "maxOutcomeDeltaPoints": 1,
+                "maxOutcomeLabel": "Newcastle",
+                "maxSharedOutcomeDeltaPoints": 1,
+                "maxSharedOutcomeLabel": "Newcastle",
+                "matchedOutcomeCount": 3,
+                "totalOutcomeCount": 3,
+                "bookStructureA": "exclusive",
+                "bookStructureB": "exclusive",
+                "comparableBooks": true,
+                "evidencedSharedOutcomeCount": 3
+              }
+            },
+            "recommendedSourceId": null,
+            "eventAId": "kalshi:kxeplgame-26oct17newavl",
+            "eventBId": "polymarket:epl-new-ast-2026-10-17"
+          }
+        },
+        {
+          "eventId": "gemini:aston-villa-vs-newcastle",
+          "pair": {
+            "matchId": 228557,
+            "confidence": 1,
+            "matchMethod": "auto",
+            "comparison": {
+              "summary": {
+                "overallDeltaPoints": 1.5,
+                "maxOutcomeDeltaPoints": 1.5,
+                "maxOutcomeLabel": "Aston Villa",
+                "maxSharedOutcomeDeltaPoints": 0,
+                "maxSharedOutcomeLabel": null,
+                "matchedOutcomeCount": 3,
+                "totalOutcomeCount": 3,
+                "bookStructureA": "exclusive",
+                "bookStructureB": "exclusive",
+                "comparableBooks": true,
+                "evidencedSharedOutcomeCount": 0
+              },
+              "outcomes": [
+                {
+                  "key": "newcastle",
+                  "label": "Newcastle",
+                  "eventAProbability": 43,
+                  "eventBProbability": 42,
+                  "deltaPoints": 1,
+                  "presentInA": true,
+                  "presentInB": true,
+                  "isShared": true,
+                  "bothSidesTraded": false
+                },
+                {
+                  "key": "aston villa",
+                  "label": "Aston Villa",
+                  "eventAProbability": 33,
+                  "eventBProbability": 31.5,
+                  "deltaPoints": 1.5,
+                  "presentInA": true,
+                  "presentInB": true,
+                  "isShared": true,
+                  "bothSidesTraded": false
+                },
+                {
+                  "key": "tie",
+                  "label": "Tie",
+                  "eventAProbability": 26,
+                  "eventBProbability": 25.5,
+                  "deltaPoints": 0.5,
+                  "presentInA": true,
+                  "presentInB": true,
+                  "isShared": true,
+                  "bothSidesTraded": false
+                }
+              ]
+            },
+            "divergence": {
+              "probabilityDelta": null,
+              "exceedsThreshold": false,
+              "threshold": 5,
+              "higherProbabilitySourceId": null,
+              "higherProbabilitySourceName": null,
+              "comparisonSummary": {
+                "overallDeltaPoints": 1.5,
+                "maxOutcomeDeltaPoints": 1.5,
+                "maxOutcomeLabel": "Aston Villa",
+                "maxSharedOutcomeDeltaPoints": 0,
+                "maxSharedOutcomeLabel": null,
+                "matchedOutcomeCount": 3,
+                "totalOutcomeCount": 3,
+                "bookStructureA": "exclusive",
+                "bookStructureB": "exclusive",
+                "comparableBooks": true,
+                "evidencedSharedOutcomeCount": 0
+              }
+            },
+            "recommendedSourceId": "kalshi",
+            "divergenceHistory": [
+              {
+                "day": "2026-10-05",
+                "deltaPoints": 0.5
+              },
+              {
+                "day": "2026-10-06",
+                "deltaPoints": 0.5
+              },
+              {
+                "day": "2026-10-07",
+                "deltaPoints": 1.5
+              },
+              {
+                "day": "2026-10-08",
+                "deltaPoints": 1.5
+              },
+              {
+                "day": "2026-10-09",
+                "deltaPoints": 1.5
+              },
+              {
+                "day": "2026-10-10",
+                "deltaPoints": 0.5
+              },
+              {
+                "day": "2026-10-11",
+                "deltaPoints": 1
+              },
+              {
+                "day": "2026-10-12",
+                "deltaPoints": 1.5
+              },
+              {
+                "day": "2026-10-13",
+                "deltaPoints": 0.5
+              },
+              {
+                "day": "2026-10-14",
+                "deltaPoints": 1
+              },
+              {
+                "day": "2026-10-15",
+                "deltaPoints": 1
+              }
+            ],
+            "eventAId": "kalshi:kxeplgame-26oct17newavl",
+            "eventBId": "gemini:aston-villa-vs-newcastle"
+          }
+        }
+      ],
+      "maxOverallGap": 0.5,
+      "maxOutcomeGap": 1,
+      "maxConfidence": 1,
+      "referenceProbability": {
+        "probability": 43,
+        "venueCount": 2,
+        "spreadPoints": 1,
+        "kind": "leader",
+        "outcomeName": "Newcastle",
+        "weightBasis": "liquidity",
+        "methodologyVersion": "consensus_probability_v3",
+        "methodologyUrl": "https://api.coinrithm.com/api/prediction-markets/consensus-methodology"
+      }
+    }
+  ],
+  "total": 1789,
+  "hasMore": true,
+  "pagination": {
+    "limit": 10,
+    "offset": 0,
+    "nextOffset": 10
+  },
+  "meta": {
+    "minDivergence": 0,
+    "divergenceThreshold": 5,
+    "sort": "confidence_desc",
+    "sourceKind": null,
+    "status": null,
+    "maxSnapshotAgeMinutes": null,
+    "maxEndDateDifferenceDays": null,
+    "requirePriced": true,
+    "projection": "compact"
+  }
+}

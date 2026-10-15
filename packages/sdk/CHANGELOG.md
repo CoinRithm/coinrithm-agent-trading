@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+Typed from the API contract, not yet released (contract version unchanged
+until the release):
+
+- `PublicLargeTrade.taker` (`PublicLargeTradeTaker | null`, optional): the
+  Hyperliquid taker's action (`open`, `add`, `reduce`, `close`, `flip`),
+  `dir`, `filledQty`, `realizedPnlUsd` (null on open/add), `feeUsd` and
+  `positionNow` (signed size, entry, leverage, liquidation price, unrealized
+  PnL, `asOf`). Null on Binance rows and on unenriched prints.
+- `/api/market/large-trades/notable` (`PublicNotableLargeTradesResponse`):
+  notable bursts with `significance` and the largest print's `taker`; only
+  `limit` (1-50) is accepted.
+- `PublicPmComparison`, `PublicPmComparisonSummary`,
+  `PublicPmComparisonOutcome` and `PublicPmOutcomePairing` on event detail
+  `crossSourceMatches[].comparison` and `/matches/public`
+  `data[].comparisons[].pair.comparison`: `pairing`, `bothSidesTraded` and
+  `evidencedSharedOutcomeCount` are now typed fields (all optional).
+
 ## 0.4.1 (2026-10-15)
 
 Generated from API contract 1.9.0, an additive minor version. The runtime

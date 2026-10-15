@@ -113,6 +113,13 @@ def sync_detailed(
     buyer/seller address and explorer links; Binance publishes no
     per-trade page or address.
 
+    Hyperliquid rows carry `taker`: what the print did for its taker
+    wallet (open, add, reduce, close or flip), realized PnL on a reduce,
+    close or flip, and the wallet's position in that market when it was
+    enriched (`positionNow.asOf`, not the print instant). `taker` is null
+    on Binance rows and on a Hyperliquid print that is not enriched yet
+    or has no match.
+
     `symbol` matches an exact venue symbol when it contains `:` (a
     Hyperliquid HIP-3 market such as `xyz:TSLA`) or ends in `USDT`
     (`BTCUSDT`); any other value matches the base across venues (`TSLA`
@@ -172,6 +179,13 @@ def sync(
     buyer/seller address and explorer links; Binance publishes no
     per-trade page or address.
 
+    Hyperliquid rows carry `taker`: what the print did for its taker
+    wallet (open, add, reduce, close or flip), realized PnL on a reduce,
+    close or flip, and the wallet's position in that market when it was
+    enriched (`positionNow.asOf`, not the print instant). `taker` is null
+    on Binance rows and on a Hyperliquid print that is not enriched yet
+    or has no match.
+
     `symbol` matches an exact venue symbol when it contains `:` (a
     Hyperliquid HIP-3 market such as `xyz:TSLA`) or ends in `USDT`
     (`BTCUSDT`); any other value matches the base across venues (`TSLA`
@@ -225,6 +239,13 @@ async def asyncio_detailed(
     proof that no large trade happened. Hyperliquid rows may carry the
     buyer/seller address and explorer links; Binance publishes no
     per-trade page or address.
+
+    Hyperliquid rows carry `taker`: what the print did for its taker
+    wallet (open, add, reduce, close or flip), realized PnL on a reduce,
+    close or flip, and the wallet's position in that market when it was
+    enriched (`positionNow.asOf`, not the print instant). `taker` is null
+    on Binance rows and on a Hyperliquid print that is not enriched yet
+    or has no match.
 
     `symbol` matches an exact venue symbol when it contains `:` (a
     Hyperliquid HIP-3 market such as `xyz:TSLA`) or ends in `USDT`
@@ -282,6 +303,13 @@ async def asyncio(
     proof that no large trade happened. Hyperliquid rows may carry the
     buyer/seller address and explorer links; Binance publishes no
     per-trade page or address.
+
+    Hyperliquid rows carry `taker`: what the print did for its taker
+    wallet (open, add, reduce, close or flip), realized PnL on a reduce,
+    close or flip, and the wallet's position in that market when it was
+    enriched (`positionNow.asOf`, not the print instant). `taker` is null
+    on Binance rows and on a Hyperliquid print that is not enriched yet
+    or has no match.
 
     `symbol` matches an exact venue symbol when it contains `:` (a
     Hyperliquid HIP-3 market such as `xyz:TSLA`) or ends in `USDT`

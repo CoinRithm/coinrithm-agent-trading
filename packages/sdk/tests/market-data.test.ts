@@ -140,6 +140,135 @@ describe("public market-data reads", () => {
     expect(data?.change7d).toBeNull();
   });
 
+  it("TradFi detail: SEC company data, 52-week range and corporate events", async () => {
+    // AAPL served 2026-10-15 03:10 UTC (contract 1.9.0), history and
+    // dividends trimmed to two rows.
+    const detail = fixture("tradfi_reference_detail_fundamentals.json");
+    const { transport, client } = keyless(detail);
+    const { data } = await client.GET("/api/market/references/{ticker}", {
+      params: { path: { ticker: "AAPL" } },
+    });
+    expect(new URL(requestOf(transport).url).pathname).toBe("/api/market/references/AAPL");
+    expectTypeOf(data?.fundamentals).toEqualTypeOf<
+      Schemas["PublicTradfiReferenceFundamentals"] | null | undefined
+    >();
+    expectTypeOf(data?.week52).toEqualTypeOf<
+      Schemas["PublicTradfiReferenceWeek52"] | null | undefined
+    >();
+    expectTypeOf(data?.corporateEvents).toEqualTypeOf<
+      Schemas["PublicTradfiReferenceCorporateEvents"] | null | undefined
+    >();
+    expect(data).toEqual(detail);
+    expect(data?.fundamentals?.marketCapBasis).toBe("shares x reference price");
+    expect(data?.fundamentals?.source.name).toBe("SEC EDGAR");
+    expect(data?.week52?.days).toBe(8);
+    expect(data?.corporateEvents?.lastEarnings?.timing).toBe("after_close");
+    expect(data?.corporateEvents?.nextEarningsEstimate?.basis).toBe("quarterly_cadence");
+    expect(data?.corporateEvents?.upcomingDividend).toBeNull();
+  });
+
+  it("event holders: Polymarket rows and the available:false shape", async () => {
+    const body = fixture("event_holders.json");
+    const slug = "fed-decision-in-october-20260617190323537";
+    const { transport, client } = keyless(body);
+    const { data } = await client.GET("/api/prediction-markets/events/{source}/{slug}/holders", {
+      params: { path: { source: "polymarket", slug } },
+    });
+    const url = new URL(requestOf(transport).url);
+    expect(url.pathname).toBe(`/api/prediction-markets/events/polymarket/${slug}/holders`);
+    expect(url.search).toBe("");
+    expect(requestOf(transport).headers.get("authorization")).toBeNull();
+    expectTypeOf(data).toEqualTypeOf<Schemas["PublicPmEventHoldersResponse"] | undefined>();
+    expectTypeOf(data?.outcomes?.[0]?.holders?.[0]?.walletPagePath).toEqualTypeOf<
+      string | null | undefined
+    >();
+    expect(data).toEqual(body);
+    expect(data?.provider).toBe("polymarket_data_api_v2");
+    const rows = data?.outcomes?.flatMap((outcome) => outcome.holders ?? []) ?? [];
+    expect(rows.some((row) => row.walletPagePath === null)).toBe(true);
+
+    const none = fixture("event_holders_unavailable.json");
+    const noneCall = keyless(none);
+    const { data: kalshi } = await noneCall.client.GET(
+      "/api/prediction-markets/events/{source}/{slug}/holders",
+      { params: { path: { source: "kalshi", slug: "kxmenworldcup-26" } } },
+    );
+    expect(kalshi).toEqual(none);
+    expect(kalshi?.available).toBe(false);
+    expect(kalshi?.reason).toBe("venue_has_no_public_holders");
+  });
+
+  it("large trades: the Hyperliquid taker block is typed and nullable", async () => {
+    // venue=hyperliquid served 2026-10-15 04:07 UTC: an open, a close to
+    // flat, a flip and an unenriched print (taker null).
+    const body = fixture("large_trades_taker.json");
+    const { transport, client } = keyless(body);
+    const { data } = await client.GET("/api/market/large-trades", {
+      params: { query: { venue: "hyperliquid", limit: 200 } },
+    });
+    expect(new URL(requestOf(transport).url).search).toBe("?venue=hyperliquid&limit=200");
+    expectTypeOf(data?.items[0]?.taker).toEqualTypeOf<
+      Schemas["PublicLargeTradeTaker"] | null | undefined
+    >();
+    expect(data).toEqual(body);
+    const actions = data?.items.map((row) => row.taker?.action ?? null);
+    expect(actions).toEqual(expect.arrayContaining(["open", "close", "flip", null]));
+    const close = data?.items.find((row) => row.taker?.action === "close")?.taker;
+    expect(close?.positionNow?.size).toBe(0);
+    expect(close?.positionNow?.avgEntryPrice).toBeNull();
+    expect(data?.items.find((row) => row.taker?.action === "open")?.taker?.realizedPnlUsd).toBeNull();
+  });
+
+  it("notable large trades: bursts, significance and taker", async () => {
+    const body = fixture("notable_large_trades.json");
+    const { transport, client } = keyless(body);
+    const { data } = await client.GET("/api/market/large-trades/notable", {
+      params: { query: { limit: 2 } },
+    });
+    expect(new URL(requestOf(transport).url).pathname).toBe("/api/market/large-trades/notable");
+    expectTypeOf(data).toEqualTypeOf<Schemas["PublicNotableLargeTradesResponse"] | undefined>();
+    expectTypeOf(data?.items[0]?.significance.rankInWindow).toEqualTypeOf<
+      number | null | undefined
+    >();
+    expect(data).toEqual(body);
+    const binance = data?.items.find((item) => item.venue === "binance");
+    const hyperliquid = data?.items.find((item) => item.venue === "hyperliquid");
+    expect(binance?.taker).toBeNull();
+    expect(hyperliquid?.taker?.address).toBe(hyperliquid?.buyer ?? hyperliquid?.seller);
+    for (const item of data?.items ?? []) {
+      expect(item.largestTrade.notionalUsd).toBeGreaterThanOrEqual(item.significance.thresholdUsd);
+    }
+  });
+
+  it("comparison rows type pairing, bothSidesTraded and the evidence count", async () => {
+    const match: NonNullable<Schemas["PublicPmEventDetailResponse"]["crossSourceMatches"]>[number] =
+      fixture("pm_cross_source_match.json");
+    const rows = match.comparison?.outcomes ?? [];
+    expectTypeOf(rows[0]?.pairing).toEqualTypeOf<Schemas["PublicPmOutcomePairing"] | undefined>();
+    expectTypeOf(rows[0]?.bothSidesTraded).toEqualTypeOf<boolean | undefined>();
+    expect(rows.every((row) => row.pairing?.eventAName === row.label)).toBe(true);
+    expect(new Set(rows.map((row) => row.pairing?.method))).toEqual(
+      new Set(["token_containment", "team_abbreviation"]),
+    );
+
+    const body = fixture("pm_disagreements_compact.json");
+    const { client } = keyless(body);
+    const { data } = await client.GET("/api/prediction-markets/matches/public", {
+      params: { query: { view: "compact", limit: 10 } },
+    });
+    expect(data).toEqual(body);
+    const comparisons = data?.data[0]?.comparisons ?? [];
+    for (const entry of comparisons) {
+      const comparison = entry.pair?.comparison;
+      const evidenced = (comparison?.outcomes ?? []).filter(
+        (row) => row.isShared && row.bothSidesTraded === true,
+      );
+      expect(comparison?.summary?.evidencedSharedOutcomeCount).toBe(evidenced.length);
+    }
+    const all = comparisons.flatMap((entry) => entry.pair?.comparison?.outcomes ?? []);
+    expect(all.some((row) => row.bothSidesTraded === false)).toBe(true);
+  });
+
   it("errors on these routes are { message } bodies", async () => {
     const { client } = keyless({ message: "Reference instrument not found" }, 404);
     const { data, error } = await client.GET("/api/market/references/{ticker}/filings", {

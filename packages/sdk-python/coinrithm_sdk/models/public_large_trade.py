@@ -7,8 +7,11 @@ from typing import TYPE_CHECKING, Any, TypeVar, cast
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
+from ..types import UNSET, Unset
+
 if TYPE_CHECKING:
     from ..models.public_large_trade_links import PublicLargeTradeLinks
+    from ..models.public_large_trade_taker import PublicLargeTradeTaker
 
 
 T = TypeVar("T", bound="PublicLargeTrade")
@@ -34,6 +37,9 @@ class PublicLargeTrade:
         buyer (None | str): Buyer address when the venue publishes it (Hyperliquid), else null.
         seller (None | str): Seller address when the venue publishes it (Hyperliquid), else null.
         links (PublicLargeTradeLinks):
+        taker (None | PublicLargeTradeTaker | Unset): Additive (2026-10-14). Hyperliquid only: what this print did for
+            its taker. Null on Binance rows and on a Hyperliquid print not
+            enriched yet or without a match. Absent on older servers.
     """
 
     id: str
@@ -52,9 +58,12 @@ class PublicLargeTrade:
     buyer: None | str
     seller: None | str
     links: PublicLargeTradeLinks
+    taker: None | PublicLargeTradeTaker | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
+        from ..models.public_large_trade_taker import PublicLargeTradeTaker
+
         id = self.id
 
         venue = self.venue
@@ -89,6 +98,14 @@ class PublicLargeTrade:
 
         links = self.links.to_dict()
 
+        taker: dict[str, Any] | None | Unset
+        if isinstance(self.taker, Unset):
+            taker = UNSET
+        elif isinstance(self.taker, PublicLargeTradeTaker):
+            taker = self.taker.to_dict()
+        else:
+            taker = self.taker
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -111,12 +128,15 @@ class PublicLargeTrade:
                 "links": links,
             }
         )
+        if taker is not UNSET:
+            field_dict["taker"] = taker
 
         return field_dict
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
         from ..models.public_large_trade_links import PublicLargeTradeLinks
+        from ..models.public_large_trade_taker import PublicLargeTradeTaker
 
         d = dict(src_dict)
         id = d.pop("id")
@@ -161,6 +181,23 @@ class PublicLargeTrade:
 
         links = PublicLargeTradeLinks.from_dict(d.pop("links"))
 
+        def _parse_taker(data: object) -> None | PublicLargeTradeTaker | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            try:
+                if not isinstance(data, dict):
+                    raise TypeError()
+                taker_type_0 = PublicLargeTradeTaker.from_dict(data)
+
+                return taker_type_0
+            except (TypeError, ValueError, AttributeError, KeyError):
+                pass
+            return cast(None | PublicLargeTradeTaker | Unset, data)
+
+        taker = _parse_taker(d.pop("taker", UNSET))
+
         public_large_trade = cls(
             id=id,
             venue=venue,
@@ -178,6 +215,7 @@ class PublicLargeTrade:
             buyer=buyer,
             seller=seller,
             links=links,
+            taker=taker,
         )
 
         public_large_trade.additional_properties = d

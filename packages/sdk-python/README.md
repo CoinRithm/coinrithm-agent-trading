@@ -10,6 +10,22 @@ generated from the same OpenAPI contract that drives the hosted MCP at
   CoinRithm API key (`crk_live_…`), sent as a bearer token.
 - The API is paper-only: no real funds ever move.
 
+## Unreleased
+
+Typed from the API contract, not yet released:
+
+- `PublicLargeTrade.taker` (`PublicLargeTradeTaker | None`, unset on older
+  servers): Hyperliquid taker `action`, `dir_` (Hyperliquid `dir`), `filled_qty`,
+  `realized_pnl_usd` (`None` on open/add), `fee_usd` and `position_now`.
+- `api.public_market_data.get_public_notable_large_trades(limit=...)`
+  returns `PublicNotableLargeTradesResponse` (bursts with `significance` and
+  `taker`).
+- `PublicPmComparison` on event detail `cross_source_matches[].comparison`
+  and on disagreement clusters' `comparisons[].pair.comparison`:
+  `PublicPmComparisonOutcome.pairing` (`PublicPmOutcomePairing`),
+  `both_sides_traded` and `summary.evidenced_shared_outcome_count` are typed
+  attributes. All optional.
+
 ## 1.9.1
 
 Released on 2026-10-15, generated from API contract **1.9.0** (additive).
