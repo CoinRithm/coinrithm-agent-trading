@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: CoinRithm Agent Trading API
-  version: "1.8.0"
+  version: "1.9.0"
   termsOfService: https://www.coinrithm.com/en/terms-of-use
   x-api-lifecycle:
     contract: v1
@@ -124,7 +124,7 @@ info:
 
     ## Versions and compatibility
 
-    **`info.version` (1.8.0) identifies the API contract**, independent of MCP
+    **`info.version` (1.9.0) identifies the API contract**, independent of MCP
     and SDK package versions. The paths documented here form contract **v1**
     and remain under `/api/...`; do not add a `/v1` prefix.
 
