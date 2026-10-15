@@ -1,0 +1,156 @@
+{
+  "version": 1,
+  "generatedAt": "2026-10-15T04:07:40.558Z",
+  "statsAsOf": "2026-10-15T04:07:40.402Z",
+  "rules": {
+    "candidateHours": 6,
+    "statsWindowHours": 29.8,
+    "classFloorsUsd": {
+      "btcEth": 2000000,
+      "crypto": 400000,
+      "commodity": 400000,
+      "index": 400000,
+      "equity": 250000,
+      "fx": 250000
+    },
+    "minSymbolTrades": 200,
+    "smallHistoryMultiple": {
+      "crypto": 3,
+      "commodity": 3,
+      "index": 3,
+      "equity": 6,
+      "fx": 6
+    },
+    "smallHistoryP50Multiple": 5,
+    "burstGapSeconds": 60
+  },
+  "candidatesTruncated": false,
+  "totalNotable": 30,
+  "count": 2,
+  "items": [
+    {
+      "id": "binance:ETHUSDT:3118642508",
+      "venue": "binance",
+      "symbol": "ETHUSDT",
+      "base": "ETH",
+      "assetClass": "crypto",
+      "side": "sell",
+      "notionalUsd": 11218727.63,
+      "qty": 4749.673,
+      "avgPrice": 2362,
+      "fills": 6,
+      "trades": 1,
+      "firstTime": "2026-10-15T04:07:32.351Z",
+      "lastTime": "2026-10-15T04:07:32.351Z",
+      "largestTrade": {
+        "tradeId": "3118642508",
+        "notionalUsd": 11218727.626,
+        "price": 2362,
+        "qty": 4749.673,
+        "tradeTime": "2026-10-15T04:07:32.351Z"
+      },
+      "buyer": null,
+      "seller": null,
+      "sourceRef": "agg:3118642508-3118642508;trades:8855433094-8855433099",
+      "links": {
+        "market": "https://www.binance.com/en/futures/ETHUSDT",
+        "buyer": null,
+        "seller": null,
+        "tx": null
+      },
+      "significance": {
+        "windowHours": 29.8,
+        "symbolTrades": 3260,
+        "p50Usd": 796168.57,
+        "p99Usd": 5098100.86,
+        "p999Usd": 10932847.1,
+        "maxUsd": 15732790.25,
+        "multipleOfP999": 1.03,
+        "isLargestInWindow": false,
+        "rankInWindow": 3,
+        "thresholdUsd": 10932847.1,
+        "basis": "p999"
+      },
+      "taker": null
+    },
+    {
+      "id": "hyperliquid:xyz:SPCX:0x95fedb08fab647469778044695ef0d0205ba00ee95b9661839c7865bb9ba2131:buy",
+      "venue": "hyperliquid",
+      "symbol": "xyz:SPCX",
+      "base": "SPCX",
+      "assetClass": "equity",
+      "side": "buy",
+      "notionalUsd": 1214465.83,
+      "qty": 8080.959999999998,
+      "avgPrice": 150.28732165485292,
+      "fills": 114,
+      "trades": 1,
+      "firstTime": "2026-10-15T03:01:23.471Z",
+      "lastTime": "2026-10-15T03:01:23.471Z",
+      "largestTrade": {
+        "tradeId": "0x95fedb08fab647469778044695ef0d0205ba00ee95b9661839c7865bb9ba2131:buy",
+        "notionalUsd": 1214465.8348,
+        "price": 150.2873216548529,
+        "qty": 8080.959999999998,
+        "tradeTime": "2026-10-15T03:01:23.471Z"
+      },
+      "buyer": "0xab47e5881d92c6a7c8d214b141b805f963ccc133",
+      "seller": null,
+      "sourceRef": "0x95fedb08fab647469778044695ef0d0205ba00ee95b9661839c7865bb9ba2131",
+      "links": {
+        "market": "https://app.hyperliquid.xyz/trade/xyz:SPCX",
+        "buyer": "https://app.hyperliquid.xyz/explorer/address/0xab47e5881d92c6a7c8d214b141b805f963ccc133",
+        "seller": null,
+        "tx": "https://app.hyperliquid.xyz/explorer/tx/0x95fedb08fab647469778044695ef0d0205ba00ee95b9661839c7865bb9ba2131"
+      },
+      "significance": {
+        "windowHours": 29.8,
+        "symbolTrades": 245,
+        "p50Usd": 90379.09,
+        "p99Usd": 999716.56,
+        "p999Usd": 1213948.05,
+        "maxUsd": 1214465.83,
+        "multipleOfP999": 1,
+        "isLargestInWindow": true,
+        "rankInWindow": 1,
+        "thresholdUsd": 1213948.05,
+        "basis": "p999"
+      },
+      "taker": {
+        "address": "0xab47e5881d92c6a7c8d214b141b805f963ccc133",
+        "action": "open",
+        "dir": "Open Long",
+        "filledQty": 8080.959999999998,
+        "realizedPnlUsd": null,
+        "feeUsd": 665.5271789999997,
+        "positionNow": {
+          "size": 8080.96,
+          "avgEntryPrice": 150.2873,
+          "leverage": 20,
+          "liquidationPrice": 130.4437684769,
+          "unrealizedPnlUsd": -301.5948,
+          "asOf": "2026-10-15T03:01:44.701Z"
+        }
+      }
+    }
+  ],
+  "source": {
+    "provider": "CoinRithm large-trade collector",
+    "venues": [
+      {
+        "venue": "binance",
+        "name": "Binance USD-M Futures",
+        "url": "https://www.binance.com/en/futures",
+        "feed": "public aggTrade stream"
+      },
+      {
+        "venue": "hyperliquid",
+        "name": "Hyperliquid",
+        "url": "https://app.hyperliquid.xyz",
+        "feed": "public trades stream"
+      }
+    ],
+    "method": "Prints at or above a per-market USD notional floor (thresholdUsd on each item): crypto by asset (BTC/ETH $500k, large alts $150k, others $50k), non-crypto by the market's 24h venue volume tier ($250k down to $5k). Binance rows merge one taker order's consecutive fills at the same trade time; Hyperliquid rows merge the fills of one transaction. Side is the taker side. Notional is in the venue's quote stablecoin (USDT/USDC). assetClass is a best-effort label.",
+    "coverage": "Top Binance USD-M crypto perpetuals by volume and every Binance TradFi perpetual; top Hyperliquid crypto perpetuals and HIP-3 xyz markets. Collected while our connection is live; gaps are possible."
+  }
+}

@@ -1,0 +1,173 @@
+{
+  "version": 1,
+  "generatedAt": "2026-10-15T04:07:40.135Z",
+  "filters": {
+    "symbol": null,
+    "venue": "hyperliquid",
+    "assetClass": null,
+    "limit": 200
+  },
+  "count": 4,
+  "items": [
+    {
+      "id": "hyperliquid:xyz:CL:0x03ec7a98d2a3b6070566044696c82702118f007e6da6d4d9a7b525eb91a78ff1:buy",
+      "venue": "hyperliquid",
+      "symbol": "xyz:CL",
+      "base": "CL",
+      "assetClass": "commodity",
+      "side": "buy",
+      "price": 92.84,
+      "qty": 697.129,
+      "notionalUsd": 64721.45636,
+      "fills": 1,
+      "thresholdUsd": 50000,
+      "tradeTime": "2026-10-15T04:07:32.738Z",
+      "ingestedAt": "2026-10-15T04:07:35.210Z",
+      "buyer": "0xce975678a14f17a15c946b95704744cd7c677e78",
+      "seller": "0xebe126adabe1a8f08d3ce53b45e7cc994ca14070",
+      "links": {
+        "market": "https://app.hyperliquid.xyz/trade/xyz:CL",
+        "buyer": "https://app.hyperliquid.xyz/explorer/address/0xce975678a14f17a15c946b95704744cd7c677e78",
+        "seller": "https://app.hyperliquid.xyz/explorer/address/0xebe126adabe1a8f08d3ce53b45e7cc994ca14070",
+        "tx": "https://app.hyperliquid.xyz/explorer/tx/0x03ec7a98d2a3b6070566044696c82702118f007e6da6d4d9a7b525eb91a78ff1"
+      },
+      "taker": null
+    },
+    {
+      "id": "hyperliquid:xyz:MU:0x366dc3ce9b33312337e7044696c68b02030c00b436364ff5da366f215a370b0d:buy",
+      "venue": "hyperliquid",
+      "symbol": "xyz:MU",
+      "base": "MU",
+      "assetClass": "equity",
+      "side": "buy",
+      "price": 873.3005799914707,
+      "qty": 68.001,
+      "notionalUsd": 59385.31274,
+      "fills": 25,
+      "thresholdUsd": 50000,
+      "tradeTime": "2026-10-15T04:07:03.378Z",
+      "ingestedAt": "2026-10-15T04:07:05.042Z",
+      "buyer": "0x832a384402b189606e8a4ca473af325031f59999",
+      "seller": null,
+      "links": {
+        "market": "https://app.hyperliquid.xyz/trade/xyz:MU",
+        "buyer": "https://app.hyperliquid.xyz/explorer/address/0x832a384402b189606e8a4ca473af325031f59999",
+        "seller": null,
+        "tx": "https://app.hyperliquid.xyz/explorer/tx/0x366dc3ce9b33312337e7044696c68b02030c00b436364ff5da366f215a370b0d"
+      },
+      "taker": {
+        "address": "0x832a384402b189606e8a4ca473af325031f59999",
+        "action": "open",
+        "dir": "Open Long",
+        "filledQty": 68.001,
+        "realizedPnlUsd": null,
+        "feeUsd": 5.130876,
+        "positionNow": {
+          "size": 68.001,
+          "avgEntryPrice": 873.3,
+          "leverage": 10,
+          "liquidationPrice": 735.125816772,
+          "unrealizedPnlUsd": 7.44067,
+          "asOf": "2026-10-15T04:07:12.597Z"
+        }
+      }
+    },
+    {
+      "id": "hyperliquid:SOL:0xd5753e0751eacffbd6ee044696c58d02042500ececedeecd793de95a10eea9e6:sell",
+      "venue": "hyperliquid",
+      "symbol": "SOL",
+      "base": "SOL",
+      "assetClass": "crypto",
+      "side": "sell",
+      "price": 102.7697371614848,
+      "qty": 1705.61,
+      "notionalUsd": 175285.0914,
+      "fills": 19,
+      "thresholdUsd": 150000,
+      "tradeTime": "2026-10-15T04:06:45.535Z",
+      "ingestedAt": "2026-10-15T04:06:46.891Z",
+      "buyer": null,
+      "seller": "0x154dfbb9a7072a2aea22c32b9868fbc4c8df8b51",
+      "links": {
+        "market": "https://app.hyperliquid.xyz/trade/SOL",
+        "buyer": null,
+        "seller": "https://app.hyperliquid.xyz/explorer/address/0x154dfbb9a7072a2aea22c32b9868fbc4c8df8b51",
+        "tx": "https://app.hyperliquid.xyz/explorer/tx/0xd5753e0751eacffbd6ee044696c58d02042500ececedeecd793de95a10eea9e6"
+      },
+      "taker": {
+        "address": "0x154dfbb9a7072a2aea22c32b9868fbc4c8df8b51",
+        "action": "close",
+        "dir": "Close Long",
+        "filledQty": 1705.61,
+        "realizedPnlUsd": 5.350774,
+        "feeUsd": 61.349773,
+        "positionNow": {
+          "size": 0,
+          "avgEntryPrice": null,
+          "leverage": null,
+          "liquidationPrice": null,
+          "unrealizedPnlUsd": null,
+          "asOf": "2026-10-15T04:07:11.609Z"
+        }
+      }
+    },
+    {
+      "id": "hyperliquid:xyz:XYZ100:0xdee5ca13673dd25be05f044696b6040204af00f90230f12d82ae75662631ac46:sell",
+      "venue": "hyperliquid",
+      "symbol": "xyz:XYZ100",
+      "base": "XYZ100",
+      "assetClass": "index",
+      "side": "sell",
+      "price": 29638,
+      "qty": 2.0415,
+      "notionalUsd": 60505.97700000001,
+      "fills": 1,
+      "thresholdUsd": 50000,
+      "tradeTime": "2026-10-15T04:01:58.893Z",
+      "ingestedAt": "2026-10-15T04:01:59.956Z",
+      "buyer": "0x354bcb431a332079950d2ce3a4698745e0f66425",
+      "seller": "0x46921f6961bdb411b756c9712f6bdb58fbd9164f",
+      "links": {
+        "market": "https://app.hyperliquid.xyz/trade/xyz:XYZ100",
+        "buyer": "https://app.hyperliquid.xyz/explorer/address/0x354bcb431a332079950d2ce3a4698745e0f66425",
+        "seller": "https://app.hyperliquid.xyz/explorer/address/0x46921f6961bdb411b756c9712f6bdb58fbd9164f",
+        "tx": "https://app.hyperliquid.xyz/explorer/tx/0xdee5ca13673dd25be05f044696b6040204af00f90230f12d82ae75662631ac46"
+      },
+      "taker": {
+        "address": "0x46921f6961bdb411b756c9712f6bdb58fbd9164f",
+        "action": "flip",
+        "dir": "Long > Short",
+        "filledQty": 2.0415,
+        "realizedPnlUsd": -2.770659,
+        "feeUsd": 1.887786,
+        "positionNow": {
+          "size": -2.3881,
+          "avgEntryPrice": 29638,
+          "leverage": 3,
+          "liquidationPrice": 24449885.34671654,
+          "unrealizedPnlUsd": -2.3881,
+          "asOf": "2026-10-15T04:02:07.731Z"
+        }
+      }
+    }
+  ],
+  "source": {
+    "provider": "CoinRithm large-trade collector",
+    "venues": [
+      {
+        "venue": "binance",
+        "name": "Binance USD-M Futures",
+        "url": "https://www.binance.com/en/futures",
+        "feed": "public aggTrade stream"
+      },
+      {
+        "venue": "hyperliquid",
+        "name": "Hyperliquid",
+        "url": "https://app.hyperliquid.xyz",
+        "feed": "public trades stream"
+      }
+    ],
+    "method": "Prints at or above a per-market USD notional floor (thresholdUsd on each item): crypto by asset (BTC/ETH $500k, large alts $150k, others $50k), non-crypto by the market's 24h venue volume tier ($250k down to $5k). Binance rows merge one taker order's consecutive fills at the same trade time; Hyperliquid rows merge the fills of one transaction. Side is the taker side. Notional is in the venue's quote stablecoin (USDT/USDC). assetClass is a best-effort label.",
+    "coverage": "Top Binance USD-M crypto perpetuals by volume and every Binance TradFi perpetual; top Hyperliquid crypto perpetuals and HIP-3 xyz markets. Collected while our connection is live; gaps are possible."
+  }
+}

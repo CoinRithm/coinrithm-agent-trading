@@ -1,9 +1,14 @@
-"""Keyless /api/market/* reads (API contract 1.8.0).
+"""Keyless /api/market/* reads (API contract 1.8.0, TradFi company data 1.9.0).
 
 Fixtures are production bodies served by api.coinrithm.com on 2026-10-13
 between 22:32 and 22:50 UTC, trimmed by dropping array rows (and adjusting
-the dependent `count`); every other key and value is as served. Tests make
-no network calls.
+the dependent `count`); every other key and value is as served.
+`tradfi_reference_detail_fundamentals.json` (AAPL, with `fundamentals`,
+`week52` and `corporateEvents`) was served on 2026-10-15 at 03:10 UTC and
+keeps two history rows and two dividends. `large_trades_taker.json`
+(`venue=hyperliquid&limit=200`, four of 200 rows: an open, a close to flat,
+a flip and an unenriched print) and `notable_large_trades.json` (two of 30
+bursts) were served on 2026-10-15 at 04:07 UTC. Tests make no network calls.
 """
 
 import asyncio
@@ -19,6 +24,7 @@ from coinrithm_sdk import Client
 from coinrithm_sdk.api.public_market_data import (
     get_public_crypto_treasuries,
     get_public_large_trades,
+    get_public_notable_large_trades,
     get_public_liquidations,
     get_public_tradfi_reference,
     get_public_tradfi_reference_filings,
@@ -35,12 +41,15 @@ from coinrithm_sdk.models import (
     PublicCryptoTreasuryResponse,
     PublicDataStatus,
     PublicLargeTradesResponse,
+    PublicLargeTradeTaker,
+    PublicNotableLargeTradesResponse,
     PublicLiquidationsResponse,
     PublicMessageError,
     PublicSecFilingsResponse,
     PublicTickerTreasuryResponse,
     PublicTradfiReferenceCatalog,
     PublicTradfiReferenceDetail,
+    PublicTradfiReferenceTtmBasis,
 )
 from coinrithm_sdk.types import UNSET
 
@@ -99,6 +108,15 @@ CASES = [
             limit=2,
         ),
         {"symbol": "BTC", "venue": "binance", "assetClass": "crypto", "limit": "2"},
+        PublicLargeTradesResponse,
+    ),
+    (
+        "large_trades_taker.json",
+        "/api/market/large-trades",
+        lambda client: get_public_large_trades.sync(
+            client=client, venue=GetPublicLargeTradesVenue.HYPERLIQUID, limit=200
+        ),
+        {"venue": "hyperliquid", "limit": "200"},
         PublicLargeTradesResponse,
     ),
     (
@@ -168,6 +186,14 @@ CASES = [
         {"window": "7d"},
         PublicTradfiReferenceDetail,
     ),
+    (
+        "tradfi_reference_detail_fundamentals.json",
+        "/api/market/references/AAPL",
+        lambda client: get_public_tradfi_reference.sync("AAPL", client=client),
+        # The generated client sends the contract's default window.
+        {"window": "24h"},
+        PublicTradfiReferenceDetail,
+    ),
 ]
 
 
@@ -192,6 +218,55 @@ def test_large_trade_rows_keep_venue_specific_nulls():
     assert isinstance(hyperliquid.threshold_usd, (int, float))
     assert result.source.coverage is not UNSET
     assert result.filters.limit == 200
+
+
+def test_hyperliquid_taker_block_is_typed_and_nullable():
+    result = PublicLargeTradesResponse.from_dict(fixture("large_trades_taker.json"))
+    takers = {}
+    for row in result.items:
+        assert row.venue == "hyperliquid"
+        if row.taker is None:
+            takers["none"] = row
+            continue
+        assert isinstance(row.taker, PublicLargeTradeTaker)
+        takers[row.taker.action] = row.taker
+    assert set(takers) == {"none", "open", "close", "flip"}
+
+    opened = takers["open"]
+    assert opened.realized_pnl_usd is None
+    assert opened.address == opened.address.lower()
+    closed = takers["close"]
+    assert closed.realized_pnl_usd is not None
+    assert closed.position_now is not None and closed.position_now.size == 0
+    assert closed.position_now.avg_entry_price is None
+    flip = takers["flip"]
+    assert ">" in flip.dir and flip.realized_pnl_usd is not None
+
+    # Older servers omit the field entirely; Binance rows send null.
+    body = fixture("large_trades.json")
+    old = PublicLargeTradesResponse.from_dict(body)
+    assert all(row.taker is UNSET for row in old.items)
+
+
+def test_notable_bursts_rank_against_their_own_market():
+    body = fixture("notable_large_trades.json")
+    with keyless_client("/api/market/large-trades/notable", body, query={"limit": "2"}) as client:
+        result = get_public_notable_large_trades.sync(client=client, limit=2)
+    assert isinstance(result, PublicNotableLargeTradesResponse)
+    assert normalized(result.to_dict()) == normalized(body)
+    assert result.count == len(result.items) == 2
+    assert result.total_notable >= result.count
+    assert result.rules.candidate_hours == 6
+    assert result.rules.class_floors_usd["btcEth"] == 2_000_000
+
+    binance, hyperliquid = sorted(result.items, key=lambda item: item.venue)
+    assert binance.taker is None and binance.links.tx is None
+    assert hyperliquid.taker is not None
+    assert hyperliquid.buyer == hyperliquid.taker.address or hyperliquid.seller == hyperliquid.taker.address
+    for item in result.items:
+        sig = item.significance
+        assert item.largest_trade.notional_usd >= sig.threshold_usd
+        assert sig.basis in ("p999", "smallHistory")
 
 
 def test_liquidation_capture_coverage_is_not_exchange_completeness():
@@ -263,6 +338,42 @@ def test_tradfi_live_overlay_is_optional_and_typed():
     parsed = PublicTradfiReferenceCatalog.from_dict(unavailable)
     assert parsed.items[0].live is None
     assert normalized(parsed.to_dict()) == normalized(unavailable)
+
+
+def test_tradfi_company_data_is_typed_and_null_off_equities():
+    detail = PublicTradfiReferenceDetail.from_dict(fixture("tradfi_reference_detail_fundamentals.json"))
+    fundamentals = detail.fundamentals
+    assert fundamentals is not None
+    assert fundamentals.market_cap_basis.value == "shares x reference price"
+    assert fundamentals.shares_source is not None and fundamentals.shares_source.value == "dei_cover"
+    assert fundamentals.ttm_basis is PublicTradfiReferenceTtmBasis.QUARTERS
+    assert fundamentals.pe_ratio == round(fundamentals.reference_price / fundamentals.eps_diluted_ttm, 2)
+    assert fundamentals.latest_filing is not None and fundamentals.latest_filing.form == "10-Q"
+    assert fundamentals.source.name.value == "SEC EDGAR"
+
+    week52 = detail.week52
+    assert week52 is not None and week52.low <= week52.high
+    assert week52.as_of == datetime.date(2026, 10, 15)
+    assert week52.days == 8
+
+    events = detail.corporate_events
+    assert events is not None
+    assert events.last_earnings is not None and events.last_earnings.timing is not None
+    assert events.last_earnings.timing.value == "after_close"
+    estimate = events.next_earnings_estimate
+    assert estimate is not None and estimate.basis.value == "quarterly_cadence"
+    assert estimate.from_releases >= 3
+    assert events.upcoming_dividend is None
+    assert all(row.ex_date_derived for row in events.dividends)
+
+    # Older fixtures (before 2026-10-14) omit the fields; metals and FX send null.
+    gold = PublicTradfiReferenceDetail.from_dict(fixture("tradfi_reference_detail.json"))
+    assert gold.fundamentals is UNSET and gold.week52 is UNSET and gold.corporate_events is UNSET
+    nulls = fixture("tradfi_reference_detail.json")
+    nulls.update(fundamentals=None, corporateEvents=None)
+    parsed = PublicTradfiReferenceDetail.from_dict(nulls)
+    assert parsed.fundamentals is None and parsed.corporate_events is None
+    assert normalized(parsed.to_dict()) == normalized(nulls)
 
 
 @pytest.mark.parametrize(

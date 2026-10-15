@@ -1,0 +1,237 @@
+{
+  "matchId": 19535,
+  "confidence": 0.9,
+  "matchMethod": "manual",
+  "comparison": {
+    "summary": {
+      "overallDeltaPoints": 9.5,
+      "maxOutcomeDeltaPoints": 2,
+      "maxOutcomeLabel": "San Francisco",
+      "maxSharedOutcomeDeltaPoints": 2,
+      "maxSharedOutcomeLabel": "San Francisco",
+      "matchedOutcomeCount": 32,
+      "totalOutcomeCount": 32,
+      "bookStructureA": "exclusive",
+      "bookStructureB": "exclusive",
+      "comparableBooks": true,
+      "evidencedSharedOutcomeCount": 32
+    },
+    "outcomes": [
+      {
+        "key": "san francisco 49ers",
+        "label": "San Francisco",
+        "eventAProbability": 14,
+        "eventBProbability": 12,
+        "deltaPoints": 2,
+        "presentInA": true,
+        "presentInB": true,
+        "isShared": true,
+        "pairing": {
+          "method": "token_containment",
+          "confidence": 0.85,
+          "reason": "\"san francisco\" is contained in \"san francisco 49ers\"",
+          "eventAName": "San Francisco",
+          "eventBName": "San Francisco 49ers"
+        },
+        "bothSidesTraded": true
+      },
+      {
+        "key": "los angeles rams",
+        "label": "Los Angeles R",
+        "eventAProbability": 10,
+        "eventBProbability": 11,
+        "deltaPoints": 1,
+        "presentInA": true,
+        "presentInB": true,
+        "isShared": true,
+        "pairing": {
+          "method": "team_abbreviation",
+          "confidence": 0.9,
+          "reason": "\"los angeles r\" abbreviates \"los angeles rams\"",
+          "eventAName": "Los Angeles R",
+          "eventBName": "Los Angeles Rams"
+        },
+        "bothSidesTraded": true
+      },
+      {
+        "key": "buffalo bills",
+        "label": "Buffalo",
+        "eventAProbability": 12,
+        "eventBProbability": 12,
+        "deltaPoints": 0,
+        "presentInA": true,
+        "presentInB": true,
+        "isShared": true,
+        "pairing": {
+          "method": "token_containment",
+          "confidence": 0.85,
+          "reason": "\"buffalo\" is contained in \"buffalo bills\"",
+          "eventAName": "Buffalo",
+          "eventBName": "Buffalo Bills"
+        },
+        "bothSidesTraded": true
+      }
+    ],
+    "outcomesTotal": 32
+  },
+  "divergence": {
+    "probabilityDelta": 2,
+    "exceedsThreshold": false,
+    "threshold": 5,
+    "higherProbabilitySourceId": "kalshi",
+    "higherProbabilitySourceName": "Kalshi",
+    "comparisonSummary": {
+      "overallDeltaPoints": 9.5,
+      "maxOutcomeDeltaPoints": 2,
+      "maxOutcomeLabel": "San Francisco",
+      "maxSharedOutcomeDeltaPoints": 2,
+      "maxSharedOutcomeLabel": "San Francisco",
+      "matchedOutcomeCount": 32,
+      "totalOutcomeCount": 32,
+      "bookStructureA": "exclusive",
+      "bookStructureB": "exclusive",
+      "comparableBooks": true,
+      "evidencedSharedOutcomeCount": 32
+    }
+  },
+  "recommendedSourceId": null,
+  "event": {
+    "id": "202857",
+    "slug": "pro-football-2027-champion-20260729185915366",
+    "title": "Pro Football: 2027 Champion",
+    "description": "This market will resolve according to the team that wins the 2027 NFL league championship. \n\nIf at any point it becomes impossible for a listed team to win the 2027 NFL league championship per the rules of the NFL (e.g., they are eliminated in the playoffs), the corresponding market will resolve to “No”.\n\nIf the 2027 NFL league championship game is cancelled, postponed after March 31, 2027 ET, or there is otherwise no winner declared within that timeframe, this market will resolve to “Other”.\n\nThe primary resolution source will be official information from NFL (https://www.nfl.com/); however, a consensus of credible reporting may also be used.",
+    "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/football-logo.png",
+    "status": "open",
+    "startDate": "2026-02-09T00:41:51.439Z",
+    "endDate": "2027-04-01T03:59:00.000Z",
+    "resolvedAt": null,
+    "settlementWindowClosedAt": null,
+    "resolvedAtBasis": null,
+    "closedDetectedAt": null,
+    "resolvedOutcomeExternalMarketId": null,
+    "resolutionOutcomeBasis": null,
+    "lifecycleSummary": {
+      "open": 32,
+      "closed": 0,
+      "resolved": 0,
+      "voided": 0,
+      "unknown": 0,
+      "activeOutcomes": 32
+    },
+    "freshness": {
+      "asOf": "2026-10-15T04:08:02.991Z",
+      "ageMinutes": 0,
+      "status": "fresh",
+      "basis": "latest_snapshot"
+    },
+    "volume": 67117416.55647199,
+    "volume24h": 1465021.7348679998,
+    "liquidity": 6813075.72157,
+    "outcomes": [
+      {
+        "externalMarketId": "15005653350202922348701786607519856020257461135905285631675545513297078700601",
+        "name": "Buffalo Bills",
+        "probability": 12,
+        "priceChange24h": null,
+        "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/football-logo.png",
+        "tokenId": "15005653350202922348701786607519856020257461135905285631675545513297078700601",
+        "color": null,
+        "priceBasis": "book_mid",
+        "venueTerms": {
+          "orderMinSize": 5,
+          "tickSize": 0.01,
+          "feesEnabled": true,
+          "canCloseEarly": null,
+          "settlementTimerSeconds": null
+        },
+        "lifecycle": {
+          "state": "open",
+          "providerAcceptingOrders": true,
+          "entryBlockedByLifecycle": false,
+          "observedAt": "2026-10-15T04:06:26.533Z",
+          "isResult": false,
+          "result": null,
+          "basis": "provider",
+          "closedAt": null,
+          "resolvedAt": null
+        },
+        "normalizedProbability": 11.65
+      },
+      {
+        "externalMarketId": "39837385690303579870717217200412085690608514752076614686048080531386540862921",
+        "name": "San Francisco 49ers",
+        "probability": 12,
+        "priceChange24h": -0.25,
+        "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/football-logo.png",
+        "tokenId": "39837385690303579870717217200412085690608514752076614686048080531386540862921",
+        "color": null,
+        "priceBasis": "book_mid",
+        "venueTerms": {
+          "orderMinSize": 5,
+          "tickSize": 0.001,
+          "feesEnabled": true,
+          "canCloseEarly": null,
+          "settlementTimerSeconds": null
+        },
+        "lifecycle": {
+          "state": "open",
+          "providerAcceptingOrders": true,
+          "entryBlockedByLifecycle": false,
+          "observedAt": "2026-10-15T04:06:26.533Z",
+          "isResult": false,
+          "result": null,
+          "basis": "provider",
+          "closedAt": null,
+          "resolvedAt": null
+        },
+        "normalizedProbability": 11.65
+      }
+    ],
+    "probabilityBook": {
+      "basis": "normalized_complete_book",
+      "rawSum": 103,
+      "overroundPoints": 3
+    },
+    "priceChange24h": -0.2,
+    "priceChange7d": -0.2,
+    "bestBid": 0.002,
+    "bestAsk": 0.003,
+    "spread": 0.1,
+    "spreadPoints": 0.1,
+    "decisionSupport": {
+      "qualityScore": 89,
+      "qualityTier": "high",
+      "qualityCapReason": "pinned_outcome",
+      "spreadTier": "tight",
+      "liquidityTier": "high",
+      "volumeTier": "high",
+      "flags": {
+        "thinMarket": false,
+        "inactiveMarket": false,
+        "highAmbiguity": false,
+        "nearResolution": false,
+        "staleData": false
+      }
+    },
+    "resolutionCriteria": null,
+    "settlementSources": null,
+    "participantCount": null,
+    "commentCount": null,
+    "marketsCount": 33,
+    "externalUrl": "https://polymarket.com/event/pro-football-2027-champion-20260729185915366",
+    "source": {
+      "id": "polymarket",
+      "name": "Polymarket",
+      "icon": "/predictionmarkets/polymarket.svg",
+      "kind": "market",
+      "methodology": "Market-implied probability",
+      "supportsTrading": true,
+      "supportsMarketMetrics": true,
+      "quoteScale": "ratio"
+    },
+    "forecasting": null,
+    "directRelatedCoins": [],
+    "indirectRelatedCoins": [],
+    "outcomesTotal": 32
+  }
+}
