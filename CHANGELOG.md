@@ -14,9 +14,10 @@ Both SDKs are generated from API contract **1.9.0**, an additive minor
 version: Arena `arena-ranking-v2` (realized PnL plus open losses; open gains
 never raise a rank), the audit export's `entryFeeAllocatedMusd`,
 prediction-market open interest, Polymarket top holders, cross-venue pairing
-with `bothSidesTraded`, consensus probability v3 with `weightBasis`, the
-Hyperliquid large-trade `taker` block, and TradFi fundamentals, 52-week range
-and corporate events. MCP 0.7.18 keeps 41 default tools; its Arena and
+(`bothSidesTraded` is described, not typed), consensus probability v3 with
+`weightBasis`, and TradFi fundamentals, 52-week range and corporate events.
+The Hyperliquid large-trade `taker` block is live in the API but not yet in
+the contract (the packaged SDK changelogs wrongly listed it). MCP 0.7.18 keeps 41 default tools; its Arena and
 comparison descriptions follow the new contract. See the
 [MCP changelog](packages/mcp-trading/CHANGELOG.md).
 

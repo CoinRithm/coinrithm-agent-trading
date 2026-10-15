@@ -5,7 +5,42 @@ MCP Registry are delivered separately. Current publication status is in the
 [README](../README.md#version-clarity); package changes are in the
 [changelog](../CHANGELOG.md).
 
-## Verified delivery - 14 October 2026
+## Verified delivery - 15 October 2026
+
+| Registry | Package                  | Version  | Files                                                                |
+| -------- | ------------------------ | -------- | -------------------------------------------------------------------- |
+| npm      | `@coinrithm/mcp-trading` | `0.7.18` | `coinrithm-mcp-trading-0.7.18.tgz`                                   |
+| npm      | `@coinrithm/sdk`         | `0.4.1`  | `coinrithm-sdk-0.4.1.tgz`                                            |
+| PyPI     | `coinrithm-sdk`          | `1.9.1`  | `coinrithm_sdk-1.9.1-py3-none-any.whl`, `coinrithm_sdk-1.9.1.tar.gz` |
+
+Archive source is `be06a22e42d02498ddc89a6eacc2d7af7ee74922` (main after #164);
+both SDKs are generated from API contract **1.9.0** (additive). The four
+archives were built on the production host (`npm pack` in `node:24-alpine`,
+`python -m build` in `python:3.12-slim`) and passed `twine check`. The owner
+uploaded them with an npm web login and Twine. SHA-256 (`SHA256SUMS.txt`,
+retained in the shared workspace at `temp/release-20261015` and attached to the
+GitHub release):
+
+| File | SHA-256 |
+| ---- | ------- |
+| `coinrithm-mcp-trading-0.7.18.tgz` | `53b3711d80c62b09f3aa6646212acfaa3e573f8a11bf1eb22019e1acb1fede81` |
+| `coinrithm-sdk-0.4.1.tgz` | `66bdd8f287b6f1234636e2268bec4e89376f3e40f230d8550aefbab82f148ffe` |
+| `coinrithm_sdk-1.9.1-py3-none-any.whl` | `5bb5b96ac7fd55c177b12041090ab24308feb34356b332cbe21d65a31ef0829f` |
+| `coinrithm_sdk-1.9.1.tar.gz` | `043160ba0cb52d40ef8c5a3e4e4638aec096220166c4843acec18021ccfad8c1` |
+
+All four registry downloads match these values byte for byte (PyPI's own wheel
+digest included); both npm packages are the `latest` tag. The official MCP
+Registry lists **0.7.18** as active/latest (publish workflow on tag
+`mcp-trading-v0.7.18`), the GitHub release carries the four archives, and hosted
+MCP reports **0.7.18**. Runnable examples now pin TypeScript 0.4.1 and Python
+1.9.1. Immutable registry versions must not be uploaded again.
+
+Correction to the packaged 0.4.1 / 1.9.1 changelogs: the Hyperliquid
+large-trade `taker` block is served by the live API but is not yet in the
+contract, so neither SDK types it; `bothSidesTraded` is described in the
+contract, not a typed field. Both are corrected in the repository notes.
+
+## Previous verified delivery - 14 October 2026
 
 | Registry | Package                  | Version  | Files                                                                |
 | -------- | ------------------------ | -------- | -------------------------------------------------------------------- |
@@ -190,8 +225,8 @@ An npm `E404` can also occur while an accepted upload is still processing.
 Check the original upload result and allow propagation before retrying. If a
 target version already exists, verify its files instead of uploading again.
 
-As verified on 14 October 2026, the registry versions are MCP 0.7.17,
-TypeScript 0.4.0 and Python 1.9.0. The API reference follows the current contract;
+As verified on 15 October 2026, the registry versions are MCP 0.7.18,
+TypeScript 0.4.1 and Python 1.9.1. The API reference follows the current contract;
 its runnable examples are pinned to these published SDK versions.
 
 ## Upload the exact archives

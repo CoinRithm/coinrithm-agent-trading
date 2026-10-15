@@ -6,6 +6,6 @@
     "test": "node --test test/examples.test.mjs"
   },
   "dependencies": {
-    "@coinrithm/sdk": "0.4.0"
+    "@coinrithm/sdk": "0.4.1"
   }
 }
