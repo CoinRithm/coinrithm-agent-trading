@@ -140,6 +140,64 @@ describe("public market-data reads", () => {
     expect(data?.change7d).toBeNull();
   });
 
+  it("TradFi detail: SEC company data, 52-week range and corporate events", async () => {
+    // AAPL served 2026-10-15 03:10 UTC (contract 1.9.0), history and
+    // dividends trimmed to two rows.
+    const detail = fixture("tradfi_reference_detail_fundamentals.json");
+    const { transport, client } = keyless(detail);
+    const { data } = await client.GET("/api/market/references/{ticker}", {
+      params: { path: { ticker: "AAPL" } },
+    });
+    expect(new URL(requestOf(transport).url).pathname).toBe("/api/market/references/AAPL");
+    expectTypeOf(data?.fundamentals).toEqualTypeOf<
+      Schemas["PublicTradfiReferenceFundamentals"] | null | undefined
+    >();
+    expectTypeOf(data?.week52).toEqualTypeOf<
+      Schemas["PublicTradfiReferenceWeek52"] | null | undefined
+    >();
+    expectTypeOf(data?.corporateEvents).toEqualTypeOf<
+      Schemas["PublicTradfiReferenceCorporateEvents"] | null | undefined
+    >();
+    expect(data).toEqual(detail);
+    expect(data?.fundamentals?.marketCapBasis).toBe("shares x reference price");
+    expect(data?.fundamentals?.source.name).toBe("SEC EDGAR");
+    expect(data?.week52?.days).toBe(8);
+    expect(data?.corporateEvents?.lastEarnings?.timing).toBe("after_close");
+    expect(data?.corporateEvents?.nextEarningsEstimate?.basis).toBe("quarterly_cadence");
+    expect(data?.corporateEvents?.upcomingDividend).toBeNull();
+  });
+
+  it("event holders: Polymarket rows and the available:false shape", async () => {
+    const body = fixture("event_holders.json");
+    const slug = "fed-decision-in-october-20260617190323537";
+    const { transport, client } = keyless(body);
+    const { data } = await client.GET("/api/prediction-markets/events/{source}/{slug}/holders", {
+      params: { path: { source: "polymarket", slug } },
+    });
+    const url = new URL(requestOf(transport).url);
+    expect(url.pathname).toBe(`/api/prediction-markets/events/polymarket/${slug}/holders`);
+    expect(url.search).toBe("");
+    expect(requestOf(transport).headers.get("authorization")).toBeNull();
+    expectTypeOf(data).toEqualTypeOf<Schemas["PublicPmEventHoldersResponse"] | undefined>();
+    expectTypeOf(data?.outcomes?.[0]?.holders?.[0]?.walletPagePath).toEqualTypeOf<
+      string | null | undefined
+    >();
+    expect(data).toEqual(body);
+    expect(data?.provider).toBe("polymarket_data_api_v2");
+    const rows = data?.outcomes?.flatMap((outcome) => outcome.holders ?? []) ?? [];
+    expect(rows.some((row) => row.walletPagePath === null)).toBe(true);
+
+    const none = fixture("event_holders_unavailable.json");
+    const noneCall = keyless(none);
+    const { data: kalshi } = await noneCall.client.GET(
+      "/api/prediction-markets/events/{source}/{slug}/holders",
+      { params: { path: { source: "kalshi", slug: "kxmenworldcup-26" } } },
+    );
+    expect(kalshi).toEqual(none);
+    expect(kalshi?.available).toBe(false);
+    expect(kalshi?.reason).toBe("venue_has_no_public_holders");
+  });
+
   it("errors on these routes are { message } bodies", async () => {
     const { client } = keyless({ message: "Reference instrument not found" }, 404);
     const { data, error } = await client.GET("/api/market/references/{ticker}/filings", {

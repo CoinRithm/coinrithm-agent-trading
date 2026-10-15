@@ -17,10 +17,11 @@ Released on 2026-10-15, generated from API contract **1.9.0** (additive).
 - Arena `arena-ranking-v2` contract fields (`losses_only`, `markMaxAgeHours`,
   `rankPendingUnmarkedShare`) and row fields `open_loss_musd`, `rank_pending`.
 - Audit export futures events: `entry_fee_allocated_musd`.
-- Prediction-market open interest, Polymarket top holders, cross-venue
-  pairing (`both_sides_traded`) and consensus v3 `weight_basis`.
-- Hyperliquid large-trade `taker` block; TradFi fundamentals, 52-week range
-  and corporate events.
+- Prediction-market open interest, Polymarket top holders and consensus v3
+  `weight_basis`. Cross-venue comparison `pairing`, `bothSidesTraded` and
+  `evidencedSharedOutcomeCount` are documented in field descriptions, not
+  typed attributes.
+- TradFi fundamentals, 52-week range and corporate events.
 
 ## 1.9.0
 

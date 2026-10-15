@@ -11,10 +11,10 @@ wrapper and its dependencies are unchanged.
 - Audit export futures events add `entryFeeAllocatedMusd` (the opening fee
   already included in that event's `realizedPnlMusd`).
 - Prediction-market detail: open interest fields, the on-demand Polymarket
-  top-holders route, cross-venue pairing with `bothSidesTraded`, and
-  consensus probability v3 with `weightBasis`.
-- Large trades carry an optional `taker` block for Hyperliquid prints
-  (open/add/reduce/close/flip, realized PnL, position now).
+  top-holders route and consensus probability v3 with `weightBasis`.
+  Cross-venue comparison `pairing`, `bothSidesTraded` and
+  `evidencedSharedOutcomeCount` are documented in field descriptions, not
+  typed fields.
 - TradFi references add fundamentals, the 52-week range and corporate events
   (earnings release dates, dividend dates).
 

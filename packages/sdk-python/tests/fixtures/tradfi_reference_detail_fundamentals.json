@@ -1,0 +1,261 @@
+{
+  "version": 1,
+  "generatedAt": "2026-10-15T03:10:47.059Z",
+  "methodology": {
+    "basis": "derivatives_venue_index",
+    "aggregation": "median",
+    "minimumVenueCount": 2,
+    "maxVenueSpreadPct": 5,
+    "collectionIntervalSeconds": 900,
+    "freshnessThresholdSeconds": 1800,
+    "retentionDays": 14,
+    "liveMaxAgeSeconds": 90
+  },
+  "instrument": {
+    "ticker": "AAPL",
+    "name": "Apple Inc.",
+    "assetClass": "equity",
+    "unit": {
+      "status": "unverified",
+      "currency": null,
+      "per": null
+    },
+    "venueQuoteAsset": "USDT",
+    "issuer": null,
+    "leverage": null,
+    "homeListing": null
+  },
+  "availability": "available",
+  "freshness": {
+    "status": "fresh",
+    "basis": "collection",
+    "asOf": "2026-10-15T03:02:17.804Z",
+    "ageSeconds": 509,
+    "staleAt": "2026-10-15T03:32:17.804Z"
+  },
+  "latest": {
+    "bucketStart": "2026-10-15T03:00:00.000Z",
+    "fetchedAt": "2026-10-15T03:02:17.804Z",
+    "consensusPrice": 345.10314866,
+    "minPrice": 344.926,
+    "maxPrice": 345.13,
+    "venueSpreadPct": 0.05914312055339543,
+    "venueCount": 3,
+    "venues": [
+      {
+        "venue": "binance",
+        "symbol": "AAPLUSDT",
+        "label": "EQUITY",
+        "assetClass": "equity",
+        "indexPrice": 345.10314866,
+        "sourceObservedAt": null
+      },
+      {
+        "venue": "bybit",
+        "symbol": "AAPLUSDT",
+        "label": "stock",
+        "assetClass": "equity",
+        "indexPrice": 345.13,
+        "sourceObservedAt": null
+      },
+      {
+        "venue": "gate",
+        "symbol": "AAPL_USDT",
+        "label": "stocks",
+        "assetClass": "equity",
+        "indexPrice": 344.926,
+        "sourceObservedAt": null
+      }
+    ]
+  },
+  "change24h": {
+    "pct": 1.0278849963685222,
+    "referencePrice": 341.59197599,
+    "referenceBucketStart": "2026-10-14T03:00:00.000Z"
+  },
+  "change7d": null,
+  "range24h": {
+    "low": 341.59,
+    "high": 346.55,
+    "observations": 96
+  },
+  "live": {
+    "price": 345.15,
+    "minPrice": 345.055,
+    "maxPrice": 345.15613616,
+    "venueSpreadPct": 0.0293101563518805,
+    "venueCount": 3,
+    "venues": [
+      {
+        "venue": "binance",
+        "indexPrice": 345.15613616
+      },
+      {
+        "venue": "bybit",
+        "indexPrice": 345.15
+      },
+      {
+        "venue": "gate",
+        "indexPrice": 345.055
+      }
+    ],
+    "sourceAt": "2026-10-15T03:10:40.188Z",
+    "ageSeconds": 6,
+    "change24hPct": 1.0416005820066854
+  },
+  "fundamentals": {
+    "marketCapUsd": 5037181227000,
+    "marketCapBasis": "shares x reference price",
+    "referencePrice": 345.15,
+    "sharesOutstanding": 14594180000,
+    "sharesAsOf": "2026-07-17",
+    "sharesSource": "dei_cover",
+    "dividendPerShareTtm": 1.05,
+    "dividendTtmBasis": "quarters",
+    "dividendTtmPeriodEnd": "2026-06-27",
+    "dividendYieldPct": 0.304,
+    "lastDividendPerShare": 0.27,
+    "lastDividendPeriodEnd": "2026-06-27",
+    "revenueTtmUsd": 466823000000,
+    "netIncomeTtmUsd": 128930000000,
+    "epsDilutedTtm": 8.71,
+    "peRatio": 39.63,
+    "ttmBasis": "quarters",
+    "ttmPeriodEnd": "2026-06-27",
+    "sector": "Electronic Computers",
+    "fiscalYearEnd": "09-26",
+    "latestFiling": {
+      "form": "10-Q",
+      "date": "2026-07-31"
+    },
+    "fetchedAt": "2026-10-14T16:26:29.021Z",
+    "source": {
+      "name": "SEC EDGAR",
+      "publisher": "U.S. Securities and Exchange Commission",
+      "url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0000320193&type=10-&dateb=&owner=include&count=40",
+      "dataUrl": "https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json",
+      "note": "Company-reported XBRL financial data. Trailing twelve months sum the last four reported quarters (a fiscal fourth quarter is the fiscal year less its first three), or use the latest fiscal year. Market cap, dividend yield and P/E use the CoinRithm reference price."
+    }
+  },
+  "week52": {
+    "high": 347.26424695,
+    "low": 331.4135369,
+    "asOf": "2026-10-15",
+    "days": 8
+  },
+  "corporateEvents": {
+    "lastEarnings": {
+      "date": "2026-07-30",
+      "timing": "after_close",
+      "url": "https://www.sec.gov/Archives/edgar/data/320193/000032019326000018/a8-kex991q3202606272026.htm"
+    },
+    "nextEarningsEstimate": {
+      "date": "2026-10-29",
+      "basis": "quarterly_cadence",
+      "fromReleases": 4
+    },
+    "dividends": [
+      {
+        "declaredDate": "2026-07-30",
+        "dividendPerShare": 0.27,
+        "recordDate": "2026-08-10",
+        "exDate": "2026-08-10",
+        "exDateDerived": true,
+        "payableDate": "2026-08-13",
+        "url": "https://www.sec.gov/Archives/edgar/data/320193/000032019326000018/a8-kex991q3202606272026.htm"
+      },
+      {
+        "declaredDate": "2026-04-30",
+        "dividendPerShare": 0.27,
+        "recordDate": "2026-05-11",
+        "exDate": "2026-05-11",
+        "exDateDerived": true,
+        "payableDate": "2026-05-14",
+        "url": "https://www.sec.gov/Archives/edgar/data/320193/000032019326000011/a8-kex991q2202603282026.htm"
+      }
+    ],
+    "upcomingDividend": null,
+    "source": {
+      "name": "SEC EDGAR",
+      "url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0000320193&type=8-K&dateb=&owner=include&count=40"
+    }
+  },
+  "history": [
+    {
+      "bucketStart": "2026-10-14T03:15:00.000Z",
+      "fetchedAt": "2026-10-14T03:17:18.100Z",
+      "consensusPrice": 341.59,
+      "minPrice": 341.484,
+      "maxPrice": 341.60171434,
+      "venueSpreadPct": 0.03447140715231445,
+      "venueCount": 3,
+      "venues": [
+        {
+          "venue": "binance",
+          "symbol": "AAPLUSDT",
+          "label": "EQUITY",
+          "assetClass": "equity",
+          "indexPrice": 341.60171434,
+          "sourceObservedAt": null
+        },
+        {
+          "venue": "bybit",
+          "symbol": "AAPLUSDT",
+          "label": "stock",
+          "assetClass": "equity",
+          "indexPrice": 341.59,
+          "sourceObservedAt": null
+        },
+        {
+          "venue": "gate",
+          "symbol": "AAPL_USDT",
+          "label": "stocks",
+          "assetClass": "equity",
+          "indexPrice": 341.484,
+          "sourceObservedAt": null
+        }
+      ]
+    },
+    {
+      "bucketStart": "2026-10-14T03:30:00.000Z",
+      "fetchedAt": "2026-10-14T03:32:18.099Z",
+      "consensusPrice": 341.64770246,
+      "minPrice": 341.531,
+      "maxPrice": 341.65,
+      "venueSpreadPct": 0.03484310355428288,
+      "venueCount": 3,
+      "venues": [
+        {
+          "venue": "binance",
+          "symbol": "AAPLUSDT",
+          "label": "EQUITY",
+          "assetClass": "equity",
+          "indexPrice": 341.64770246,
+          "sourceObservedAt": null
+        },
+        {
+          "venue": "bybit",
+          "symbol": "AAPLUSDT",
+          "label": "stock",
+          "assetClass": "equity",
+          "indexPrice": 341.65,
+          "sourceObservedAt": null
+        },
+        {
+          "venue": "gate",
+          "symbol": "AAPL_USDT",
+          "label": "stocks",
+          "assetClass": "equity",
+          "indexPrice": 341.531,
+          "sourceObservedAt": null
+        }
+      ]
+    }
+  ],
+  "historyWindow": {
+    "window": "24h",
+    "from": "2026-10-14T03:10:47.059Z",
+    "to": "2026-10-15T03:10:47.059Z",
+    "intervalSeconds": 900
+  }
+}

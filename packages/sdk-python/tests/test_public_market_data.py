@@ -1,9 +1,11 @@
-"""Keyless /api/market/* reads (API contract 1.8.0).
+"""Keyless /api/market/* reads (API contract 1.8.0, TradFi company data 1.9.0).
 
 Fixtures are production bodies served by api.coinrithm.com on 2026-10-13
 between 22:32 and 22:50 UTC, trimmed by dropping array rows (and adjusting
-the dependent `count`); every other key and value is as served. Tests make
-no network calls.
+the dependent `count`); every other key and value is as served.
+`tradfi_reference_detail_fundamentals.json` (AAPL, with `fundamentals`,
+`week52` and `corporateEvents`) was served on 2026-10-15 at 03:10 UTC and
+keeps two history rows and two dividends. Tests make no network calls.
 """
 
 import asyncio
@@ -41,6 +43,7 @@ from coinrithm_sdk.models import (
     PublicTickerTreasuryResponse,
     PublicTradfiReferenceCatalog,
     PublicTradfiReferenceDetail,
+    PublicTradfiReferenceTtmBasis,
 )
 from coinrithm_sdk.types import UNSET
 
@@ -168,6 +171,14 @@ CASES = [
         {"window": "7d"},
         PublicTradfiReferenceDetail,
     ),
+    (
+        "tradfi_reference_detail_fundamentals.json",
+        "/api/market/references/AAPL",
+        lambda client: get_public_tradfi_reference.sync("AAPL", client=client),
+        # The generated client sends the contract's default window.
+        {"window": "24h"},
+        PublicTradfiReferenceDetail,
+    ),
 ]
 
 
@@ -263,6 +274,42 @@ def test_tradfi_live_overlay_is_optional_and_typed():
     parsed = PublicTradfiReferenceCatalog.from_dict(unavailable)
     assert parsed.items[0].live is None
     assert normalized(parsed.to_dict()) == normalized(unavailable)
+
+
+def test_tradfi_company_data_is_typed_and_null_off_equities():
+    detail = PublicTradfiReferenceDetail.from_dict(fixture("tradfi_reference_detail_fundamentals.json"))
+    fundamentals = detail.fundamentals
+    assert fundamentals is not None
+    assert fundamentals.market_cap_basis.value == "shares x reference price"
+    assert fundamentals.shares_source is not None and fundamentals.shares_source.value == "dei_cover"
+    assert fundamentals.ttm_basis is PublicTradfiReferenceTtmBasis.QUARTERS
+    assert fundamentals.pe_ratio == round(fundamentals.reference_price / fundamentals.eps_diluted_ttm, 2)
+    assert fundamentals.latest_filing is not None and fundamentals.latest_filing.form == "10-Q"
+    assert fundamentals.source.name.value == "SEC EDGAR"
+
+    week52 = detail.week52
+    assert week52 is not None and week52.low <= week52.high
+    assert week52.as_of == datetime.date(2026, 10, 15)
+    assert week52.days == 8
+
+    events = detail.corporate_events
+    assert events is not None
+    assert events.last_earnings is not None and events.last_earnings.timing is not None
+    assert events.last_earnings.timing.value == "after_close"
+    estimate = events.next_earnings_estimate
+    assert estimate is not None and estimate.basis.value == "quarterly_cadence"
+    assert estimate.from_releases >= 3
+    assert events.upcoming_dividend is None
+    assert all(row.ex_date_derived for row in events.dividends)
+
+    # Older fixtures (before 2026-10-14) omit the fields; metals and FX send null.
+    gold = PublicTradfiReferenceDetail.from_dict(fixture("tradfi_reference_detail.json"))
+    assert gold.fundamentals is UNSET and gold.week52 is UNSET and gold.corporate_events is UNSET
+    nulls = fixture("tradfi_reference_detail.json")
+    nulls.update(fundamentals=None, corporateEvents=None)
+    parsed = PublicTradfiReferenceDetail.from_dict(nulls)
+    assert parsed.fundamentals is None and parsed.corporate_events is None
+    assert normalized(parsed.to_dict()) == normalized(nulls)
 
 
 @pytest.mark.parametrize(
