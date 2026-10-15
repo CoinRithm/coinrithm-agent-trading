@@ -1832,6 +1832,13 @@ export interface paths {
          *     buyer/seller address and explorer links; Binance publishes no
          *     per-trade page or address.
          *
+         *     Hyperliquid rows carry `taker`: what the print did for its taker
+         *     wallet (open, add, reduce, close or flip), realized PnL on a reduce,
+         *     close or flip, and the wallet's position in that market when it was
+         *     enriched (`positionNow.asOf`, not the print instant). `taker` is null
+         *     on Binance rows and on a Hyperliquid print that is not enriched yet
+         *     or has no match.
+         *
          *     `symbol` matches an exact venue symbol when it contains `:` (a
          *     Hyperliquid HIP-3 market such as `xyz:TSLA`) or ends in `USDT`
          *     (`BTCUSDT`); any other value matches the base across venues (`TSLA`
@@ -1839,6 +1846,38 @@ export interface paths {
          *     400. The response is shared-cached for about 15 seconds.
          */
         get: operations["getPublicLargeTrades"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/market/large-trades/notable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Notable large trades ranked against each market's own history
+         * @description Keyless feed of the few large prints worth attention, judged against
+         *     each market's own trailing distribution instead of one dollar bar.
+         *     A print is notable when it clears the larger of its class floor and
+         *     its venue+symbol p99.9 over the stats window (up to 168 hours); a
+         *     market with fewer than `rules.minSymbolTrades` prints must instead
+         *     clear a multiple of the class floor and 5x its own median.
+         *     Candidates come from the last `rules.candidateHours` hours. Notable
+         *     prints of the same venue, symbol and side at most 60 seconds apart
+         *     form one burst. Newest burst first.
+         *
+         *     Hyperliquid bursts carry the largest print's `taker` (same shape as
+         *     GET /api/market/large-trades). Only `limit` is accepted; any other
+         *     query parameter returns 400. Shared-cached for about 60 seconds.
+         */
+        get: operations["getPublicNotableLargeTrades"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2816,9 +2855,11 @@ export interface components {
              *     counts the shared rows with `bothSidesTraded: true`. Absent fields
              *     mean an older server; do not infer false.
              */
-            crossSourceMatches?: {
+            crossSourceMatches?: ({
+                comparison?: components["schemas"]["PublicPmComparison"];
+            } & {
                 [key: string]: unknown;
-            }[];
+            })[];
             resolution?: {
                 [key: string]: unknown;
             } | null;
@@ -3199,9 +3240,20 @@ export interface components {
              *     rule on, a pair counts toward the cluster's `maxOverallGap` only
              *     when one of its shared rows has `bothSidesTraded: true`.
              */
-            data: {
+            data: ({
+                comparisons?: ({
+                    eventId?: string;
+                    pair?: {
+                        comparison?: components["schemas"]["PublicPmComparison"];
+                    } & {
+                        [key: string]: unknown;
+                    };
+                } & {
+                    [key: string]: unknown;
+                })[];
+            } & {
                 [key: string]: unknown;
-            }[];
+            })[];
             total: number;
             hasMore: boolean;
             pagination: {
@@ -3214,6 +3266,85 @@ export interface components {
             meta?: {
                 [key: string]: unknown;
             };
+        };
+        /**
+         * @description One approved cross-source pair compared outcome by outcome. Every
+         *     field is optional in this contract; absent fields mean an older
+         *     server, never false or zero.
+         */
+        PublicPmComparison: {
+            summary?: components["schemas"]["PublicPmComparisonSummary"];
+            outcomes?: components["schemas"]["PublicPmComparisonOutcome"][];
+        } & {
+            [key: string]: unknown;
+        };
+        PublicPmComparisonSummary: {
+            overallDeltaPoints?: number;
+            /** @description Largest gap over all outcomes, including ones only one venue lists. */
+            maxOutcomeDeltaPoints?: number;
+            maxOutcomeLabel?: string | null;
+            /** @description Largest gap among outcomes both venues list. With the trading-evidence rule on, only rows with `bothSidesTraded: true` set it. */
+            maxSharedOutcomeDeltaPoints?: number;
+            maxSharedOutcomeLabel?: string | null;
+            matchedOutcomeCount?: number;
+            totalOutcomeCount?: number;
+            /** @description `independent`, `exclusive` or `incomplete`; two books produce a shared-outcome gap only when both are independent or both exclusive. */
+            bookStructureA?: string;
+            /** @description As `bookStructureA`, for event B. */
+            bookStructureB?: string;
+            comparableBooks?: boolean;
+            /** @description Shared rows whose two legs both show trading (`bothSidesTraded` true). Present while the server's trading-evidence rule is on. */
+            evidencedSharedOutcomeCount?: number;
+        } & {
+            [key: string]: unknown;
+        };
+        PublicPmComparisonOutcome: {
+            key?: string;
+            /** @description Event A's outcome name. */
+            label?: string;
+            /** @description 0-100. */
+            eventAProbability?: number | null;
+            /** @description 0-100. */
+            eventBProbability?: number | null;
+            deltaPoints?: number;
+            presentInA?: boolean;
+            presentInB?: boolean;
+            isShared?: boolean;
+            pairing?: components["schemas"]["PublicPmOutcomePairing"];
+            /**
+             * @description On rows both venues list, while the server's trading-evidence
+             *     rule is on: whether both legs show real trading. A false row
+             *     stays listed and shared but never sets the `maxSharedOutcome*`
+             *     headline. Absent means an older server or a one-venue row; do
+             *     not infer false.
+             */
+            bothSidesTraded?: boolean;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * @description Present on a comparison row only when the two venues name the
+         *     outcome differently and the server paired them ("San Francisco" /
+         *     "San Francisco 49ers"); `label` stays event A's name. Rows paired by
+         *     an identical name carry no `pairing`.
+         */
+        PublicPmOutcomePairing: {
+            /**
+             * @description How the two names were paired: `normalized_label`,
+             *     `rate_decision`, `strike`, `range`, `draw`, `team_abbreviation`,
+             *     `token_containment` or `first_initial`. Treat other values as
+             *     unknown.
+             * @example token_containment
+             */
+            method: string;
+            /** @description 0-1, fixed per method. */
+            confidence: number;
+            /** @description Human-readable reason, e.g. "san francisco" is contained in "san francisco 49ers". */
+            reason: string;
+            eventAName: string;
+            eventBName: string;
+        } & {
+            [key: string]: unknown;
         };
         PublicPmCalibrationResponse: {
             leadHours: number;
@@ -6092,6 +6223,55 @@ export interface components {
             /** @description Seller address when the venue publishes it (Hyperliquid), else null. */
             seller: string | null;
             links: components["schemas"]["PublicLargeTradeLinks"];
+            /**
+             * @description Additive (2026-10-14). Hyperliquid only: what this print did for
+             *     its taker. Null on Binance rows and on a Hyperliquid print not
+             *     enriched yet or without a match. Absent on older servers.
+             */
+            taker?: components["schemas"]["PublicLargeTradeTaker"] | null;
+        };
+        /**
+         * @description The taker side of a Hyperliquid print, matched from the taker
+         *     wallet's own fills. `positionNow` is the wallet's position in that
+         *     market when the row was enriched, which can be after the print.
+         */
+        PublicLargeTradeTaker: {
+            /** @description Taker wallet, lower-case 0x address. */
+            address: string;
+            /**
+             * @description What the print did to the taker's position: `open`, `add`,
+             *     `reduce`, `close` or `flip` (crossed from long to short or back).
+             *     Treat other values as unknown.
+             * @example open
+             */
+            action: string;
+            /**
+             * @description Hyperliquid's own direction text for the fills, e.g. `Open Long`,
+             *     `Close Short`, or a joined value such as `Close Short / Short >
+             *     Long / Open Long` when one transaction did several things.
+             */
+            dir: string | null;
+            /** @description Size the taker filled, in base units. */
+            filledQty: number | null;
+            /** @description Realized PnL of the taker's fills in USD on a reduce, close or flip; null on open and add. */
+            realizedPnlUsd: number | null;
+            /** @description Fees the taker paid on these fills, USD. */
+            feeUsd: number | null;
+            /** @description The wallet's position in this market at `asOf`; null when not read. */
+            positionNow: components["schemas"]["PublicLargeTradeTakerPosition"] | null;
+        };
+        PublicLargeTradeTakerPosition: {
+            /** @description Signed position size in base units (negative is short); 0 when flat. */
+            size: number | null;
+            avgEntryPrice: number | null;
+            leverage: number | null;
+            liquidationPrice: number | null;
+            unrealizedPnlUsd: number | null;
+            /**
+             * Format: date-time
+             * @description When the position was read.
+             */
+            asOf: string;
         };
         PublicLargeTradesResponse: {
             /** @description Response schema version (1). */
@@ -6103,6 +6283,111 @@ export interface components {
             /** @description Newest first. */
             items: components["schemas"]["PublicLargeTrade"][];
             source: components["schemas"]["PublicMarketFeedSource"];
+        };
+        PublicNotableLargeTradesResponse: {
+            /** @description Response schema version (1). */
+            version: number;
+            /** Format: date-time */
+            generatedAt: string;
+            /**
+             * Format: date-time
+             * @description When the per-market distributions were computed (recomputed at most every 10 minutes).
+             */
+            statsAsOf: string;
+            /** @description The selection rules in force. */
+            rules: {
+                /** @description Candidate prints come from this recent window. */
+                candidateHours?: number;
+                /** @description Hours of history behind the distributions (up to 168). */
+                statsWindowHours?: number;
+                /** @description Minimum notional by class (`btcEth`, `crypto`, `commodity`, `index`, `equity`, `fx`). */
+                classFloorsUsd?: {
+                    [key: string]: number;
+                };
+                /** @description Prints a market needs in the window before its p99.9 is used. */
+                minSymbolTrades?: number;
+                /** @description Class-floor multiple for markets with less history. */
+                smallHistoryMultiple?: {
+                    [key: string]: number;
+                };
+                smallHistoryP50Multiple?: number;
+                burstGapSeconds?: number;
+            } & {
+                [key: string]: unknown;
+            };
+            /** @description True when the candidate row cap was reached. */
+            candidatesTruncated: boolean;
+            /** @description Notable bursts before `limit`. */
+            totalNotable: number;
+            count: number;
+            /** @description Newest burst first. */
+            items: components["schemas"]["PublicNotableLargeTrade"][];
+            source: components["schemas"]["PublicMarketFeedSource"];
+        };
+        /**
+         * @description One burst: notable prints of the same venue, symbol and side at most
+         *     60 seconds apart. Identity, addresses and links are the largest
+         *     print's; sizes are summed over the burst.
+         */
+        PublicNotableLargeTrade: {
+            /** @description The largest print's row id (`venue:symbol:tradeId`). */
+            id: string;
+            venue: string;
+            symbol: string;
+            base: string;
+            assetClass: string;
+            /** @description Taker side: `buy` or `sell`. */
+            side: string;
+            /** @description Summed over the burst. */
+            notionalUsd: number;
+            qty: number;
+            avgPrice: number;
+            fills: number;
+            /** @description Prints in the burst. */
+            trades: number;
+            /** Format: date-time */
+            firstTime: string;
+            /** Format: date-time */
+            lastTime: string;
+            largestTrade: {
+                tradeId: string;
+                notionalUsd: number;
+                price: number;
+                qty: number;
+                /** Format: date-time */
+                tradeTime: string;
+            };
+            buyer: string | null;
+            seller: string | null;
+            /** @description Venue reference of the largest print (Hyperliquid transaction hash). */
+            sourceRef: string | null;
+            links: components["schemas"]["PublicLargeTradeLinks"];
+            significance: components["schemas"]["PublicNotableLargeTradeSignificance"];
+            /**
+             * @description The largest print's taker (same shape as on GET
+             *     /api/market/large-trades). Null on Binance and on a Hyperliquid
+             *     print not enriched yet or without a match.
+             */
+            taker?: components["schemas"]["PublicLargeTradeTaker"] | null;
+        };
+        /** @description The largest print against its own market's distribution. */
+        PublicNotableLargeTradeSignificance: {
+            windowHours: number;
+            /** @description Prints of this venue and symbol in the window. */
+            symbolTrades: number;
+            p50Usd: number | null;
+            p99Usd: number | null;
+            p999Usd: number | null;
+            maxUsd: number | null;
+            multipleOfP999: number | null;
+            /** @description Null only for a market newer than the cached distributions. */
+            isLargestInWindow: boolean | null;
+            /** @description 1 + prints strictly larger in the window; null when not exact. */
+            rankInWindow: number | null;
+            /** @description The bar this print cleared. */
+            thresholdUsd: number;
+            /** @description `p999` (the market's p99.9 or its class floor) or `smallHistory` (class-floor multiple and median multiple while history is short). */
+            basis: string;
         };
         PublicLiquidationsWindow: {
             /** Format: date-time */
@@ -10000,6 +10285,54 @@ export interface operations {
                 content?: never;
             };
             /** @description Large trades temporarily unavailable */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicMessageError"];
+                };
+            };
+        };
+    };
+    getPublicNotableLargeTrades: {
+        parameters: {
+            query?: {
+                /** @description Bursts to return, 1-50 (default 20). Out of range returns 400. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Notable bursts, the rules in force and source attribution */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicNotableLargeTradesResponse"];
+                };
+            };
+            /** @description Invalid or unknown query parameter */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicMessageError"];
+                };
+            };
+            /** @description Public request rate limit exceeded; honor `Retry-After`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Notable large trades temporarily unavailable */
             500: {
                 headers: {
                     [name: string]: unknown;
