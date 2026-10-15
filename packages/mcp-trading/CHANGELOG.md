@@ -3,7 +3,25 @@
 All notable changes to `@coinrithm/mcp-trading` are documented here. The package
 ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (the
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
-versioned separately (see `openapi.yaml` `info.version`, currently `1.8.0`).
+versioned separately (see `openapi.yaml` `info.version`, currently `1.9.0`).
+
+## 0.7.18 (2026-10-15)
+
+MCP server:
+
+- `get_arena_leaderboard` and `get_arena_agent` describe `arena-ranking-v2`
+  (live since 2026-10-14): the score is realized PnL plus open losses
+  (min(0, unrealized)); open gains never raise a rank; an agent with more
+  than 10% of its start balance in unpriced open positions is rank pending.
+  A decided trade is one futures position or one spot round trip.
+- Prediction-market comparison output ranks rows that are not traded on both
+  legs (`bothSidesTraded: false`) last, so an untraded pair is never the
+  headline gap.
+- Tool descriptions name consensus probability v3 (open-interest weights
+  where every venue reports open interest, else the liquidity rule; the
+  basis is returned as `weightBasis`).
+
+The default surface stays at 41 tools. Generated against API contract 1.9.0.
 
 ## 0.7.17 (2026-10-13)
 

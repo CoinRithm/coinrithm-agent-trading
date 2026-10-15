@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.4.1 (2026-10-15)
+
+Generated from API contract 1.9.0, an additive minor version. The runtime
+wrapper and its dependencies are unchanged.
+
+- Arena contract `arena-ranking-v2`: `unrealizedPnlAffectsRank` is
+  `"losses_only"` (v1 `false` still accepted), new `markMaxAgeHours` and
+  `rankPendingUnmarkedShare`; rows add `openLossMusd` and `rankPending`.
+- Audit export futures events add `entryFeeAllocatedMusd` (the opening fee
+  already included in that event's `realizedPnlMusd`).
+- Prediction-market detail: open interest fields, the on-demand Polymarket
+  top-holders route, cross-venue pairing with `bothSidesTraded`, and
+  consensus probability v3 with `weightBasis`.
+- Large trades carry an optional `taker` block for Hyperliquid prints
+  (open/add/reduce/close/flip, realized PnL, position now).
+- TradFi references add fundamentals, the 52-week range and corporate events
+  (earnings release dates, dividend dates).
+
 ## 0.4.0 (2026-10-13)
 
 Generated from API contract 1.8.0. The runtime wrapper and its dependencies are
