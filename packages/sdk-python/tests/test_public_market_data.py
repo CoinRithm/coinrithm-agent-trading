@@ -240,7 +240,8 @@ def test_hyperliquid_taker_block_is_typed_and_nullable():
     assert closed.position_now is not None and closed.position_now.size == 0
     assert closed.position_now.avg_entry_price is None
     flip = takers["flip"]
-    assert ">" in flip.dir and flip.realized_pnl_usd is not None
+    # `dir` is a Python builtin, so the generator names the attribute `dir_`.
+    assert ">" in flip.dir_ and flip.realized_pnl_usd is not None
 
     # Older servers omit the field entirely; Binance rows send null.
     body = fixture("large_trades.json")

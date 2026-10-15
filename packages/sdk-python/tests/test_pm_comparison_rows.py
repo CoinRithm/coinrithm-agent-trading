@@ -50,6 +50,7 @@ def test_event_detail_match_types_pairing_and_evidence():
     comparison = match.comparison
     assert isinstance(comparison, PublicPmComparison)
     assert_typed(comparison)
+    assert comparison.outcomes_total >= len(comparison.outcomes)
     summary = comparison.summary
     assert summary.evidenced_shared_outcome_count >= 0
     assert summary.book_structure_a in ("independent", "exclusive", "incomplete")

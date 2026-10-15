@@ -5408,6 +5408,9 @@ components:
         outcomes:
           type: array
           items: { $ref: "#/components/schemas/PublicPmComparisonOutcome" }
+        outcomesTotal:
+          type: integer
+          description: Event detail only, unless `full=1`. Comparison rows before the default trimming to the shared outcomes (at most 60).
 
     PublicPmComparisonSummary:
       type: object

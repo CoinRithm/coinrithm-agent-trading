@@ -15,7 +15,7 @@ generated from the same OpenAPI contract that drives the hosted MCP at
 Typed from the API contract, not yet released:
 
 - `PublicLargeTrade.taker` (`PublicLargeTradeTaker | None`, unset on older
-  servers): Hyperliquid taker `action`, `dir`, `filled_qty`,
+  servers): Hyperliquid taker `action`, `dir_` (Hyperliquid `dir`), `filled_qty`,
   `realized_pnl_usd` (`None` on open/add), `fee_usd` and `position_now`.
 - `api.public_market_data.get_public_notable_large_trades(limit=...)`
   returns `PublicNotableLargeTradesResponse` (bursts with `significance` and
