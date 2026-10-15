@@ -18,9 +18,11 @@ Released on 2026-10-15, generated from API contract **1.9.0** (additive).
   `rankPendingUnmarkedShare`) and row fields `open_loss_musd`, `rank_pending`.
 - Audit export futures events: `entry_fee_allocated_musd`.
 - Prediction-market open interest, Polymarket top holders, cross-venue
-  pairing (`both_sides_traded`) and consensus v3 `weight_basis`.
-- Hyperliquid large-trade `taker` block; TradFi fundamentals, 52-week range
-  and corporate events.
+  pairing (whether both legs traded is described, not a typed field) and
+  consensus v3 `weight_basis`.
+- TradFi fundamentals, 52-week range and corporate events.
+- Correction: the 1.9.1 package notes listed a Hyperliquid large-trade `taker`
+  block; the live API serves it but the contract does not type it yet.
 
 ## 1.9.0
 

@@ -263,33 +263,30 @@ Base URL: `https://api.coinrithm.com` (live). Hosted MCP: `https://mcp.coinrithm
 `info.version` in `openapi.yaml` (currently **1.9.0**) is the API contract
 version. The MCP package (`@coinrithm/mcp-trading`, currently **0.7.18**)
 is versioned separately from the SDKs. Registry publication was verified
-on **14 October 2026**:
+on **15 October 2026**:
 
 | Package | Published registry version | Source version |
 | --- | --- | --- |
-| `@coinrithm/mcp-trading` (MCP server and agent runner) | **0.7.17** | **0.7.18** |
-| `@coinrithm/sdk` (TypeScript) | **0.4.0** | **0.4.1** |
-| `coinrithm-sdk` (Python) | **1.9.0** | **1.9.1** |
+| `@coinrithm/mcp-trading` (MCP server and agent runner) | **0.7.18** | **0.7.18** |
+| `@coinrithm/sdk` (TypeScript) | **0.4.1** | **0.4.1** |
+| `coinrithm-sdk` (Python) | **1.9.1** | **1.9.1** |
 
 All four npm/PyPI downloads match the release manifest byte for byte (SHA-256).
-The archives were built from source `1fb74c5bcb2f6ca066f21f4e22048c484dba20a4`,
-and both SDKs are generated from API contract 1.8.0. This release adds keyless
-public market-data reads (TradFi reference prices with the `live` overlay,
-large perpetual trades, liquidations, CFTC positioning, SEC Form 4 insider
-filings and public-company crypto treasuries) to both SDKs. See the
-[publishing record](docs/PUBLISHING.md).
+The archives were built from source `be06a22e42d02498ddc89a6eacc2d7af7ee74922`,
+and both SDKs are generated from API contract 1.9.0 (additive): Arena
+`arena-ranking-v2`, the audit export's `entryFeeAllocatedMusd`,
+prediction-market open interest, Polymarket top holders, cross-venue pairing,
+consensus probability v3 with `weightBasis`, and TradFi fundamentals, 52-week
+range and corporate events. See the [publishing record](docs/PUBLISHING.md).
 
-MCP **0.7.17** keeps the 41 default tools and adds two opt-in tool sets
-(PM paper v2 discovery and trading for configured house keys, and a spot
-reference read; 46 tools with both on) that stay off
-unless a server enables them, plus the runner changes in the
-[MCP changelog](./packages/mcp-trading/CHANGELOG.md#0717-2026-10-13).
+MCP **0.7.18** keeps the 41 default tools (46 with both opt-in tool sets on);
+its Arena and comparison descriptions follow the new contract. See the
+[MCP changelog](./packages/mcp-trading/CHANGELOG.md#0718-2026-10-15).
 
-The GitHub release and the official MCP Registry update follow the
-`mcp-trading-v0.7.17` tag. Until that registry workflow runs, the MCP Registry
-lists **0.7.16** as latest. Hosted MCP is deployed separately from package
-publication; on 14 October 2026 it reported **0.7.17** with the **41** default
-tools.
+The GitHub release `mcp-trading-v0.7.18` carries the four archives, and the
+official MCP Registry lists **0.7.18** as latest. Hosted MCP is deployed
+separately from package publication; on 15 October 2026 it reported
+**0.7.18**.
 
 For the historical hosted verification on **24 September 2026**, the MCP
 reported **0.7.14**, with **40 tools**, including **13 keyless data tools**.

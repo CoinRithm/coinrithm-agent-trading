@@ -13,8 +13,6 @@ wrapper and its dependencies are unchanged.
 - Prediction-market detail: open interest fields, the on-demand Polymarket
   top-holders route, cross-venue pairing with `bothSidesTraded`, and
   consensus probability v3 with `weightBasis`.
-- Large trades carry an optional `taker` block for Hyperliquid prints
-  (open/add/reduce/close/flip, realized PnL, position now).
 - TradFi references add fundamentals, the 52-week range and corporate events
   (earnings release dates, dividend dates).
 
