@@ -12,6 +12,18 @@ jobs:
   docs-examples:
     uses: ./.github/workflows/docs-build.yml
 
+  # A contract change (paths, parameters, schemas) must bump info.version so
+  # integrators can see what moved under the additive-only v1 promise.
+  contract-version:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: openapi.yaml changes bump info.version
+        run: node .github/scripts/check-contract-version.mjs "origin/${{ github.base_ref }}"
+
   # The published npm SDK must be reproducible from the canonical contract.
   # Regeneration drift means consumers are missing declared fields even when
   # the OpenAPI document itself is correct.
