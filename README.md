@@ -267,9 +267,9 @@ on **15 October 2026**:
 
 | Package | Published registry version | Source version |
 | --- | --- | --- |
-| `@coinrithm/mcp-trading` (MCP server and agent runner) | **0.7.18** | **0.7.19** |
-| `@coinrithm/sdk` (TypeScript) | **0.4.1** | **0.4.1** |
-| `coinrithm-sdk` (Python) | **1.9.1** | **1.9.1** |
+| `@coinrithm/mcp-trading` (MCP server and agent runner) | **0.7.19** | **0.7.19** |
+| `@coinrithm/sdk` (TypeScript) | **0.4.1** | **0.5.0** |
+| `coinrithm-sdk` (Python) | **1.9.1** | **1.10.0** |
 
 All four npm/PyPI downloads match the release manifest byte for byte (SHA-256).
 The archives were built from source `be06a22e42d02498ddc89a6eacc2d7af7ee74922`,
