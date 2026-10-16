@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: CoinRithm Agent Trading API
-  version: "1.10.0"
+  version: "1.11.0"
   termsOfService: https://www.coinrithm.com/en/terms-of-use
   x-api-lifecycle:
     contract: v1
@@ -29,6 +29,9 @@ info:
 
     `status` defaults to `open`; send `status=closed` or `status=all` for
     history.
+
+    A crypto price with its as-of time and staleness flag is one keyless
+    request too: `curl "https://api.coinrithm.com/api/coins/bitcoin"`.
 
     The JSON response contains `data`, `pagination` and `meta`. Inspect each
     event's `freshness`, `quality` and `decisionSupport` before using it for a
@@ -105,6 +108,10 @@ info:
     close writes). Prefer the live `RateLimit-Limit`,
     `RateLimit-Remaining` and `RateLimit-Reset` headers to these defaults.
     Public routes also have service/IP limits; anonymous access is not unlimited.
+    Their `429` body is JSON `{"error": "rate_limited", "message": "..."}`.
+    Some prediction-market routes that call a venue on a cache miss answer
+    `503` with `Retry-After` and `retryAfterSeconds` when they are busy;
+    retry after that delay.
 
     On `429`, honor `Retry-After` when provided. If it is absent or invalid,
     use a bounded backoff instead of immediately looping. Retry behavior for
@@ -124,9 +131,15 @@ info:
 
     ## Versions and compatibility
 
-    **`info.version` (1.10.0) identifies the API contract**, independent of MCP
+    **`info.version` (1.11.0) identifies the API contract**, independent of MCP
     and SDK package versions. The paths documented here form contract **v1**
-    and remain under `/api/...`; do not add a `/v1` prefix.
+    and their canonical form is `/api/...`. Six public crypto reads are also
+    served under an `/api/v1/...` alias with identical behaviour (parameters,
+    caching, rate limits and responses): `/api/v1/coins`,
+    `/api/v1/coins/{slug}`, `/api/v1/coins/{slug}/price`,
+    `/api/v1/coins/{slug}/candles`, `/api/v1/live-prices` and
+    `/api/v1/market/snapshot`. No other path has the alias: any other
+    `/api/v1/...` path returns 404.
 
     Within v1, documented fields retain their names, types and meanings. New
     fields and endpoints may be added, so preserve or tolerate unknown response
@@ -1839,6 +1852,7 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
         "500": { $ref: "#/components/responses/ServerError" }
+        "503": { $ref: "#/components/responses/PublicUpstreamBusy" }
 
   /api/prediction-markets/matches/public:
     get:
@@ -2354,6 +2368,312 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "500": { $ref: "#/components/responses/ServerError" }
 
+  /api/coins:
+    get:
+      operationId: listPublicCoins
+      tags: [public-crypto-data]
+      summary: Tracked coin directory (identity, supply and links; no prices)
+      description: |
+        Keyless page of CoinRithm's coin directory, ordered by market-cap rank
+        (unranked coins last) and then by `ucid`. Rows carry identity, supply,
+        links, categories and chains but NO price: read prices from
+        `/api/coins/{slug}`, `/api/coins/{slug}/price` or `/api/live-prices`.
+        `ucid` is the `coinId` the agent endpoints take; `slug` keys the
+        other public coin reads.
+
+        The directory includes inactive coins (`isActive: false`), and
+        `totalRows` counts every coin, active or not (cached for up to 60
+        seconds). `view=options` returns only `ucid`, `slug`, `name`,
+        `symbol`, `isActive` and `marketCapRank` per row. Unlike the coin
+        price reads, supply fields here are JSON numbers; `supplyMax: -1`
+        means the supply is uncapped.
+
+        Only `page`, `limit` and `view` are accepted; any other query
+        parameter returns 400 `unsupported_query_parameter`. Also served at
+        `/api/v1/coins` with identical behaviour.
+      security: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: "1-based page. Below 1 returns 400; a page past the end returns `data: []`."
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: limit
+          in: query
+          required: false
+          description: Rows per page, 1-500 (default 50). Out of range returns 400; it is not clamped.
+          schema: { type: integer, minimum: 1, maximum: 500, default: 50 }
+        - name: view
+          in: query
+          required: false
+          description: "`full` (default) or `options` (identity, activity and rank only)."
+          schema: { type: string, enum: [full, options], default: full }
+      responses:
+        "200":
+          description: One page of the coin directory
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicCoinListResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "429": { $ref: "#/components/responses/PublicTooManyRequests" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /api/coins/{slug}:
+    get:
+      operationId: getPublicCoin
+      tags: [public-crypto-data]
+      summary: One coin's price, market data, supply and links
+      description: |
+        Keyless coin profile: price in USD and in `fiat`, 24h change, 24h
+        high and low, volume, market cap, all-time high and low, supply,
+        BTC and ETH ratios, links, chains, categories and notices.
+
+        Market and supply numerics are decimal STRINGS (numeric columns),
+        not JSON numbers: parse before comparing. `currentPriceUsd` is
+        always USD. `currentPrice`, `volume24h`, `marketCap`, `high24h`,
+        `low24h`, `athUsd` and `atlUsd` are converted to `fiat` (the last
+        two despite their names); percentages and ratios are unitless.
+
+        `priceUpdatedAt` is when the coin's live price was last written.
+        `priceStale: true` means that is more than `priceStaleAfterHours`
+        (72) ago: the price is kept as the last known value, never hidden.
+        `marketCapSuspect: true` flags a market cap CoinRithm does not trust
+        (`marketCapSuspectReason`, for example `stale_dead_pair`). A coin
+        without a live price (typically an inactive listing) answers 200
+        with the price fields, `priceUpdatedAt` and `marketCapSuspect` null
+        and `priceStale: false`.
+
+        Query parameters other than `fiat` and `locale` are ignored. Unknown
+        slug: 404 `{"message": "not_found"}`. Also served at
+        `/api/v1/coins/{slug}` with identical behaviour.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/PublicCoinSlug"
+        - $ref: "#/components/parameters/PublicCoinFiat"
+        - name: locale
+          in: query
+          required: false
+          description: Language of `notices` text (for example `de`); default `en`. At most 10 characters, or 400.
+          schema: { type: string, maxLength: 10, default: en }
+      responses:
+        "200":
+          description: Coin profile with price, freshness and links
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicCoinDetail" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404":
+          description: Unknown slug
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicMessageError" }
+        "429": { $ref: "#/components/responses/PublicTooManyRequests" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /api/coins/{slug}/price:
+    get:
+      operationId: getPublicCoinPrice
+      tags: [public-crypto-data]
+      summary: One coin's price snapshot (lightweight)
+      description: |
+        Keyless price-only subset of `/api/coins/{slug}` for polling: the
+        same price, change, volume, market-cap, all-time high/low, supply
+        and BTC/ETH ratio fields with the same decimal-string numerics and
+        the same `fiat` behaviour, without links, chains, categories,
+        notices, `volumeMissingVenues` or watchlist counts.
+
+        `priceUpdatedAt` here is the write time of the coin's price-summary
+        row, and `priceAgeHours`/`priceStale` derive from it. A periodic
+        recompute can rewrite that row without a new price, so `priceStale`
+        can read false for a price whose feed has stopped. For a staleness
+        decision read `/api/coins/{slug}` or `/api/live-prices`, whose
+        `priceUpdatedAt` is the live-price write time, and check
+        `marketCapSuspect`.
+
+        Query parameters other than `fiat` are ignored. Unknown slug, or a
+        coin with no price summary: 404 `{"message": "not_found"}`. Also
+        served at `/api/v1/coins/{slug}/price` with identical behaviour.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/PublicCoinSlug"
+        - $ref: "#/components/parameters/PublicCoinFiat"
+      responses:
+        "200":
+          description: Price snapshot with its as-of time
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicCoinPrice" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404":
+          description: Unknown slug, or no price summary for the coin
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicMessageError" }
+        "429": { $ref: "#/components/responses/PublicTooManyRequests" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /api/coins/{slug}/candles:
+    get:
+      operationId: getPublicCoinCandles
+      tags: [public-crypto-data]
+      summary: Price bars for one coin, keyed by slug
+      description: |
+        Keyless form of `/api/agent/market/{coinId}/candles`, keyed by slug:
+        the same loader and payload, without `observation`. `range` fixes
+        both lookback and resolution: 1H = 60 x 1-minute, 1D = 288 x
+        5-minute, 1W = 672 x 15-minute, 1M = 720 x 1-hour, 3M = 540 x
+        4-hour, 1Y = up to 366 daily bars. Bars are oldest first with `t` in
+        unix SECONDS. They are sampled composite-price bars, not venue trade
+        candles, and `v` is a rolling 24-hour USD quote-volume observation
+        at the bar, not the volume traded during it: never sum `v`.
+
+        o/h/l/c are converted to `fiat` at the nearest stored rate. Here
+        `fiat` is upper-cased and echoed; `rateToUsd: 1` with a non-USD
+        `fiat` means the code is not tracked and the values are USD.
+
+        Query parameters other than `range` and `fiat` are ignored. Unknown
+        slug: 404 `{"error": "Coin not found"}`. Also served at
+        `/api/v1/coins/{slug}/candles` with identical behaviour.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/PublicCoinSlug"
+        - name: range
+          in: query
+          required: false
+          description: Lookback window; also fixes the bar resolution. Legacy aliases `1m` (as 1H) and `3m` (as 1D) are accepted; any other value returns 400.
+          schema: { type: string, enum: [1H, 1D, 1W, 1M, 3M, 1Y], default: 1D }
+        - name: fiat
+          in: query
+          required: false
+          description: Currency for o/h/l/c, case-insensitive (default USD). At most 10 characters, or 400.
+          schema: { type: string, maxLength: 10, default: USD }
+      responses:
+        "200":
+          description: Bars for the requested range, oldest first
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicCoinCandles" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/PublicTooManyRequests" }
+        "500": { $ref: "#/components/responses/ServerError" }
+
+  /api/live-prices:
+    get:
+      operationId: listPublicLivePrices
+      tags: [public-crypto-data]
+      summary: Live price board for the tracked coin universe
+      description: |
+        Keyless paged board of every coin with a live price (about 1,040 on
+        2026-10-16), sorted by `sortBy`. Unlike the per-coin reads, numerics
+        here are JSON numbers. `currentPrice`, `volume24h`, `marketCapFiat`,
+        `high24h`, `low24h` and `sparkline15m` are in `fiat`; changes are
+        percentages.
+
+        Each row carries `priceUpdatedAt` (the live-price write time) with
+        the derived `priceAgeHours` and `priceStale` (older than
+        `priceStaleAfterHours`, 72). Stale rows stay on the board with
+        their last known price; `marketCapSuspect` flags a market cap
+        CoinRithm does not trust. Despite its name, `sparkline15m` holds
+        about 7 days of hourly prices (167 points on 2026-10-16), oldest
+        first, or null with `includeSparkline=false` (a much smaller
+        payload).
+
+        `fiat` is case-sensitive: an untracked or lower-case code is echoed
+        in `fiat` while the values stay USD. Query parameters other than
+        the six below are ignored. Also served at `/api/v1/live-prices`
+        with identical behaviour.
+      security: []
+      parameters:
+        - name: sortBy
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [marketCapUsd, priceUsd, change1h, change24h, change7d, volume, supply, name, rank]
+            default: marketCapUsd
+        - name: sortOrder
+          in: query
+          required: false
+          schema: { type: string, enum: [asc, desc], default: desc }
+        - name: page
+          in: query
+          required: false
+          description: 1-based page, 1-1000. Out of range returns 400.
+          schema: { type: integer, minimum: 1, maximum: 1000, default: 1 }
+        - name: limit
+          in: query
+          required: false
+          description: Rows per page, 1-200 (default 25). Out of range returns 400.
+          schema: { type: integer, minimum: 1, maximum: 200, default: 25 }
+        - name: fiat
+          in: query
+          required: false
+          description: Upper-case currency code (default USD). At most 10 characters, or 400.
+          schema: { type: string, maxLength: 10, default: USD }
+        - name: includeSparkline
+          in: query
+          required: false
+          description: "`false`, `0` or `no` returns `sparkline15m: null` (default true)."
+          schema: { type: boolean, default: true }
+      responses:
+        "200":
+          description: One page of the live price board
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicLivePricesResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "429": { $ref: "#/components/responses/PublicTooManyRequests" }
+        "500": { $ref: "#/components/responses/ServerError" }
+        "502":
+          description: The board failed its own response-contract check; retry later.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/market/snapshot:
+    get:
+      operationId: getPublicMarketSnapshot
+      tags: [public-crypto-data]
+      summary: Global crypto market snapshot
+      description: |
+        Keyless latest global snapshot: total market cap and 24h volume (in
+        `fiat`) with their 24h change in percent, BTC and ETH dominance, ETH
+        gas, tracked coin and exchange counts, and the Fear and Greed index.
+        Keys are lower-case, as served. `date` is the snapshot minute and
+        `createdat` its write time; it refreshes about every minute.
+        `stablecoinvolume` and `defivolume` were 0 with null change in every
+        2026-10-16 probe: do not read that 0 as zero volume.
+
+        `fiat` is upper-cased; an untracked code is echoed in
+        `fiatcurrency` with `fiatratetousd: 1` and USD values. Query
+        parameters other than `fiat` are ignored. Also served at
+        `/api/v1/market/snapshot` with identical behaviour.
+      security: []
+      parameters:
+        - name: fiat
+          in: query
+          required: false
+          description: Currency for the totals, case-insensitive (default USD).
+          schema: { type: string, default: USD }
+      responses:
+        "200":
+          description: Latest global snapshot
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicMarketSnapshot" }
+        "404":
+          description: No snapshot stored yet
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicMessageError" }
+        "429": { $ref: "#/components/responses/PublicTooManyRequests" }
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicMessageError" }
+
   /api/prediction-markets/whales:
     get:
       operationId: getPublicPredictionMarketWhales
@@ -2503,6 +2823,116 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         "500": { $ref: "#/components/responses/ServerError" }
 
+  /api/prediction-markets/prices-history:
+    get:
+      operationId: getPublicPredictionMarketTokenPriceHistory
+      tags: [public-pm-data]
+      summary: Probability history for up to five venue markets
+      description: |
+        Keyless probability history addressed by venue market id rather than
+        by event: up to five Polymarket CLOB token ids or Kalshi tickers (an
+        outcome's `tokenId`), or stored-history outcomes of the other
+        venues. This is the series behind CoinRithm's event charts; for one
+        outcome of an event, `/event/{source}/{slug}/price-history` is
+        simpler.
+
+        Polymarket and Kalshi series come from the venue. When a venue
+        request fails, the series is filled from CoinRithm's stored price
+        snapshots instead and labelled: that market carries
+        `historySource: "stored_snapshots"` and `asOf`, and the response
+        carries `freshness: {status: "lagging", reason:
+        "upstream_unavailable", storedMarkets}` and is cached for at most
+        30 seconds. Stored snapshots are written when the price changes, so
+        they are sparser than the venue series. When every venue request
+        fails and nothing is stored, the answer is 503
+        `price_history_unavailable` with `Retry-After: 10`. The route also
+        has an in-flight cap: 503 `temporarily_busy` with `Retry-After: 5`.
+        A 200 with `markets: []` means the venue answered with no points.
+
+        Point times are unix SECONDS for Polymarket and MILLISECONDS for
+        Kalshi and the stored-history venues; one response never mixes
+        units. Only the parameters below are accepted; any other returns 400
+        `unsupported_query_parameter`.
+      security: []
+      parameters:
+        - name: markets
+          in: query
+          required: false
+          description: |
+            Comma-separated venue market ids, 1-5 (more returns 400). One of
+            `markets`, `market` or `tokenIds` is required; the first present
+            is used.
+          schema: { type: string, minLength: 1 }
+        - name: market
+          in: query
+          required: false
+          description: Alias of `markets`.
+          schema: { type: string, minLength: 1 }
+        - name: tokenIds
+          in: query
+          required: false
+          description: Alias of `markets`.
+          schema: { type: string, minLength: 1 }
+        - name: source
+          in: query
+          required: false
+          description: Venue slug, case-insensitive (default `polymarket`).
+          schema: { $ref: "#/components/schemas/PublicPmSourceSlug" }
+        - name: interval
+          in: query
+          required: false
+          description: |
+            Lookback range (default `1w`); aliases 24h, 7d, 30d and all mean
+            1d, 1w, 1m and max. Any other value returns 400 unless `startTs`
+            and `endTs` are both set. Echoed as sent.
+          schema: { type: string, enum: ["1h", "6h", "1d", "1w", "1m", "max", "24h", "7d", "30d", "all"], default: "1w" }
+        - name: seriesTicker
+          in: query
+          required: false
+          description: Kalshi series ticker (event detail `chartContext.seriesTicker`). Required when `source=kalshi`, or 400.
+          schema: { type: string }
+        - name: eventId
+          in: query
+          required: false
+          description: Venue event id. Required for the stored-history venues (every source except `polymarket` and `kalshi`), or 400.
+          schema: { type: string }
+        - name: fidelity
+          in: query
+          required: false
+          description: Polymarket point spacing in minutes; raised to the venue minimum for the range.
+          schema: { type: integer, minimum: 1 }
+        - name: startTs
+          in: query
+          required: false
+          description: Custom range start, unix seconds. With `endTs`, replaces `interval` on Polymarket.
+          schema: { type: integer }
+        - name: endTs
+          in: query
+          required: false
+          description: Custom range end, unix seconds (default now).
+          schema: { type: integer }
+      responses:
+        "200":
+          description: One series per market with points, live or labelled as stored
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicPmPricesHistoryResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "429": { $ref: "#/components/responses/PublicTooManyRequests" }
+        "500": { $ref: "#/components/responses/ServerError" }
+        "503":
+          description: |
+            Retryable: `temporarily_busy` (in-flight cap, `Retry-After: 5`)
+            or `price_history_unavailable` (the venue failed for every
+            market and nothing is stored, `Retry-After: 10`).
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying (5 or 10).
+              schema: { type: integer }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RetryableUnavailableError" }
+
   /api/prediction-markets/event/{source}/{slug}/orderbook:
     get:
       operationId: getPublicPredictionMarketOrderBook
@@ -2558,6 +2988,7 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
         "500": { $ref: "#/components/responses/ServerError" }
+        "503": { $ref: "#/components/responses/PublicUpstreamBusy" }
 
   /api/prediction-markets/event/{source}/{slug}/trades:
     get:
@@ -2601,6 +3032,7 @@ paths:
         "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
         "500": { $ref: "#/components/responses/ServerError" }
+        "503": { $ref: "#/components/responses/PublicUpstreamBusy" }
 
   /api/prediction-markets/whales/wallets:
     get:
@@ -4381,6 +4813,24 @@ components:
       scheme: bearer
       description: Personal CoinRithm API key, format `crk_live_…`.
 
+  parameters:
+    PublicCoinSlug:
+      name: slug
+      in: path
+      required: true
+      description: Coin slug as on the website, for example `bitcoin` (the `slug` of a `/api/coins` or `/api/live-prices` row).
+      schema: { type: string, minLength: 1, maxLength: 100 }
+    PublicCoinFiat:
+      name: fiat
+      in: query
+      required: false
+      description: |
+        Upper-case currency code CoinRithm tracks, for example EUR, GBP or
+        JPY (default USD). Case-sensitive and not validated: an untracked
+        or lower-case code returns USD values with nothing in the body
+        saying so. At most 10 characters, or 400.
+      schema: { type: string, maxLength: 10, default: USD }
+
   responses:
     Unauthorized:
       description: Missing/malformed or invalid/revoked API key
@@ -4393,7 +4843,10 @@ components:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
     BadRequest:
-      description: Invalid or missing parameters
+      description: |
+        Invalid or missing parameters. On a route with a query allowlist, an
+        undocumented query parameter returns
+        `{"error": "unsupported_query_parameter", "message": "Unsupported query parameter: <key>. Supported: <keys>."}`.
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
@@ -4408,7 +4861,10 @@ components:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
     NotFound:
-      description: Resource not found
+      description: |
+        Resource not found. A path the API does not serve at all returns
+        `{"error": "not_found", "message": "not_found"}` with
+        `Cache-Control: no-store`.
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
@@ -4417,8 +4873,8 @@ components:
         Rate limit exceeded for this API key (120 req/min baseline, 20
         trade-writes/min). Honor `Retry-After`, then resume; the
         `RateLimit-*` headers on every response let you pace proactively.
-        (The platform also runs a per-IP limiter; its 429 body may be plain
-        text rather than JSON.)
+        (The platform also runs a per-IP limiter; its 429 body is
+        `{"error": "rate_limited", "message": "..."}`.)
       headers:
         Retry-After:
           description: Seconds to wait before retrying.
@@ -4446,13 +4902,71 @@ components:
               blockReasons:
                 type: array
                 items: { type: string }
+    PublicTooManyRequests:
+      description: |
+        Per-IP public rate limit exceeded. Honor `Retry-After` when present,
+        otherwise back off; `RateLimit-*` headers report the window.
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema: { type: integer }
+        RateLimit-Limit:
+          description: Request budget for the current window.
+          schema: { type: integer }
+        RateLimit-Remaining:
+          description: Requests remaining in the current window.
+          schema: { type: integer }
+        RateLimit-Reset:
+          description: Seconds until the current window resets.
+          schema: { type: integer }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    PublicUpstreamBusy:
+      description: |
+        The route already has its cap of venue requests in flight and
+        refused this one at once (`error: "temporarily_busy"`), without
+        queueing it. Sent with `Retry-After: 5` and `Cache-Control:
+        no-store`; retry after `retryAfterSeconds`. Cached responses are
+        never refused this way.
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying (5).
+          schema: { type: integer }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/RetryableUnavailableError" }
 
   schemas:
     Error:
       type: object
+      description: |
+        Error body. `error` is a short code or text; newer responses also
+        carry a human-readable `message`, including the JSON 404 for an
+        unknown path (`not_found`), the per-IP 429 (`rate_limited`) and the
+        query-allowlist 400 (`unsupported_query_parameter`).
       properties:
         error: { type: string }
+        message: { type: string }
       required: [error]
+
+    RetryableUnavailableError:
+      type: object
+      additionalProperties: true
+      description: |
+        Retryable 503 body. `error` is `temporarily_busy` (the route's
+        in-flight cap, Retry-After 5) or, on
+        `/api/prediction-markets/prices-history`,
+        `price_history_unavailable` (the venue failed and nothing is stored,
+        Retry-After 10). `retryAfterSeconds` matches the `Retry-After`
+        header.
+      required: [error, message, retryAfterSeconds]
+      properties:
+        error:
+          type: string
+          examples: ["temporarily_busy", "price_history_unavailable"]
+        message: { type: string }
+        retryAfterSeconds: { type: integer, minimum: 1 }
 
     PublicPmSourceSlug:
       type: string
@@ -5899,6 +6413,431 @@ components:
       type: array
       description: Bare array — this endpoint has no envelope, no pagination block.
       items: { $ref: "#/components/schemas/PublicCryptoMover" }
+
+    PublicCoinSocials:
+      description: Social links, normally an array of `{url, socialId}` objects (the coin profile adds `name` and `icon`); some directory rows carry an empty object instead.
+      oneOf:
+        - type: array
+          items:
+            type: object
+            additionalProperties: true
+            properties:
+              url: { type: string }
+              socialId: { type: integer }
+              name: { type: string }
+              icon: { type: string }
+        - type: object
+          additionalProperties: true
+
+    PublicCoinTranslatedName:
+      type: object
+      additionalProperties: true
+      properties:
+        name: { type: string }
+        translations:
+          type: object
+          description: Display name by language code (de, en, es, fr, it, nl, pt, tr).
+          additionalProperties: { type: string }
+
+    PublicCoinListItem:
+      type: object
+      additionalProperties: true
+      description: |
+        One directory row. With `view=options` only `ucid`, `slug`, `name`,
+        `symbol`, `isActive` and `marketCapRank` are present.
+      required: [ucid, slug, symbol, name, isActive, marketCapRank]
+      properties:
+        ucid:
+          type: string
+          description: CoinRithm coin id, the `coinId` of the agent endpoints.
+          examples: ["1"]
+        externalId: { type: string, examples: ["bitcoin"] }
+        slug: { type: string, examples: ["bitcoin"] }
+        symbol:
+          type: string
+          description: Ticker symbol. Symbols collide across listings; key on `ucid` or `slug`.
+          examples: ["BTC"]
+        name: { type: string, examples: ["Bitcoin"] }
+        logoUrl: { type: [string, "null"] }
+        marketCapRank: { type: [integer, "null"] }
+        supplyCirculating: { type: [number, "null"] }
+        supplyTotal: { type: [number, "null"] }
+        supplyMax:
+          type: [number, "null"]
+          description: Maximum supply; `-1` means uncapped, null unknown.
+        websiteUrl: { type: [string, "null"] }
+        socials: { $ref: "#/components/schemas/PublicCoinSocials" }
+        infoLinks:
+          type: [object, "null"]
+          description: Link groups such as `website`, `whitepaper`, `explorers`, `wallets`, `source_code` and `audit`, each an array of `{url, name}` objects.
+          additionalProperties: true
+        isActive:
+          type: boolean
+          description: false for a delisted or inactive listing, which has no live price.
+        createdAt: { type: string, format: date-time }
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last write to the directory row (metadata), not a price time.
+        priceHistoryValidFrom:
+          type: [string, "null"]
+          format: date-time
+          description: Earliest time from which stored price history is considered valid, when set.
+        categories:
+          type: array
+          items:
+            allOf:
+              - { $ref: "#/components/schemas/PublicCoinTranslatedName" }
+              - type: object
+                properties:
+                  id: { type: integer }
+        coinChains:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+            properties:
+              coinUcId: { type: string }
+              chainId: { type: integer }
+              contractAddress:
+                type: string
+                description: Token contract on that chain; empty for a native coin.
+              chain:
+                allOf:
+                  - { $ref: "#/components/schemas/PublicCoinTranslatedName" }
+                  - type: object
+                    properties:
+                      id: { type: integer }
+                      shortName: { type: string }
+                      icon: { type: string }
+
+    PublicCoinListResponse:
+      type: object
+      additionalProperties: true
+      required: [data, totalRows]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/PublicCoinListItem" }
+        totalRows:
+          type: integer
+          description: Every coin in the directory, active or not (1,704 on 2026-10-16).
+
+    PublicCoinPrice:
+      type: object
+      additionalProperties: true
+      description: |
+        Price snapshot for one coin. Market and supply numerics are decimal
+        STRINGS, null when unknown; parse before comparing. Converted fields
+        use the requested `fiat`; `currentPriceUsd` is always USD.
+      required: [ucid, slug, symbol, name, priceUpdatedAt, priceAgeHours, priceStale, priceStaleAfterHours]
+      properties:
+        ucid:
+          type: string
+          description: CoinRithm coin id, the `coinId` of the agent endpoints.
+        slug: { type: string }
+        symbol: { type: string }
+        name: { type: string }
+        currentPriceUsd:
+          type: [string, "null"]
+          description: Price in USD.
+          examples: ["81915.0561485573"]
+        currentPrice:
+          type: [string, "null"]
+          description: Price in `fiat`.
+        change24h:
+          type: [string, "null"]
+          description: 24h price change in percent.
+          examples: ["1"]
+        high24h: { type: [string, "null"], description: 24h high in `fiat`. }
+        low24h: { type: [string, "null"], description: 24h low in `fiat`. }
+        volume24h: { type: [string, "null"], description: 24h volume in `fiat`. }
+        volumeChange24h: { type: [string, "null"], description: 24h volume change in percent. }
+        marketCap: { type: [string, "null"], description: Market cap in `fiat`. }
+        marketCapChange24h: { type: [string, "null"], description: 24h market-cap change in percent. }
+        marketCapRank: { type: [integer, "null"] }
+        marketCapSuspect:
+          type: [boolean, "null"]
+          description: true when CoinRithm does not trust the market cap; null without a price.
+        marketCapSuspectReason:
+          type: [string, "null"]
+          examples: ["stale_dead_pair"]
+        athUsd: { type: [string, "null"], description: "All-time high, converted to `fiat` despite the name." }
+        athDate: { type: [string, "null"], format: date-time }
+        atlUsd: { type: [string, "null"], description: "All-time low, converted to `fiat` despite the name." }
+        atlDate: { type: [string, "null"], format: date-time }
+        supplyCirculating: { type: [string, "null"] }
+        supplyTotal: { type: [string, "null"] }
+        supplyMax:
+          type: [string, "null"]
+          description: Maximum supply; `"-1"` means uncapped, null unknown.
+        supplyPercent:
+          type: [string, "null"]
+          description: Circulating supply as a percent of `supplyMax`. Not meaningful (negative) when `supplyMax` is `-1`.
+        btcEquivalent: { type: [string, "null"], description: Price in BTC. }
+        btcChange24h: { type: [string, "null"], description: "24h change of the BTC ratio, in percent." }
+        ethEquivalent: { type: [string, "null"], description: Price in ETH. }
+        ethChange24h: { type: [string, "null"], description: "24h change of the ETH ratio, in percent." }
+        priceUpdatedAt:
+          type: [string, "null"]
+          format: date-time
+          description: |
+            As-of time of the price. On `/api/coins/{slug}` the live-price
+            write time; on `/api/coins/{slug}/price` the price-summary row's
+            write time (see that operation). Null when unknown.
+        priceAgeHours:
+          type: [number, "null"]
+          description: Hours since `priceUpdatedAt`, one decimal; null when unknown.
+        priceStale:
+          type: boolean
+          description: true when `priceAgeHours` exceeds `priceStaleAfterHours`; false when the age is unknown.
+        priceStaleAfterHours:
+          type: number
+          description: Staleness threshold in hours (72).
+
+    PublicCoinDetail:
+      allOf:
+        - { $ref: "#/components/schemas/PublicCoinPrice" }
+        - type: object
+          additionalProperties: true
+          properties:
+            volumeMissingVenues:
+              type: [integer, "null"]
+              minimum: 0
+              description: Expected venues missing from `volume24h` because their fetch failed; 0 none known, null unknown.
+            websiteUrl: { type: [string, "null"] }
+            socials: { $ref: "#/components/schemas/PublicCoinSocials" }
+            infoLinks:
+              type: [object, "null"]
+              description: Link groups such as `website`, `whitepaper`, `explorers`, `wallets`, `source_code` and `audit`.
+              additionalProperties: true
+            chains:
+              type: [array, "null"]
+              items:
+                allOf:
+                  - { $ref: "#/components/schemas/PublicCoinTranslatedName" }
+                  - type: object
+                    properties:
+                      shortName: { type: string }
+                      icon: { type: string }
+                      contractAddress: { type: string }
+            categories:
+              type: [array, "null"]
+              items: { $ref: "#/components/schemas/PublicCoinTranslatedName" }
+            notices:
+              type: [array, "null"]
+              description: Editorial notices about the coin in the requested `locale`.
+              items:
+                type: object
+                additionalProperties: true
+                properties:
+                  id: { type: integer }
+                  url: { type: [string, "null"] }
+                  text: { type: string }
+            watchlistCount:
+              type: integer
+              description: CoinRithm users watching the coin.
+            watchlistRank: { type: [integer, "null"] }
+
+    PublicCoinCandle:
+      type: object
+      additionalProperties: true
+      required: [t, o, h, l, c, v]
+      properties:
+        t:
+          type: integer
+          description: Bar timestamp, unix SECONDS (UTC).
+        o: { type: number }
+        h: { type: number }
+        l: { type: number }
+        c: { type: number }
+        v:
+          type: number
+          description: >
+            Mean rolling 24-hour quote volume observed at this bar, in USD
+            regardless of `fiat`; not the volume traded during the bar, so
+            never sum it across bars.
+        vm:
+          type: [integer, "null"]
+          minimum: 0
+          description: Expected venues missing from `v` because their fetch failed; 0 none known, null unknown.
+
+    PublicCoinCandles:
+      type: object
+      additionalProperties: true
+      required: [coin, range, fiat, rateToUsd, candles]
+      properties:
+        coin:
+          type: object
+          additionalProperties: true
+          properties:
+            ucid: { type: string }
+            slug: { type: string }
+            symbol: { type: string }
+            name: { type: string }
+        range: { type: string, enum: [1H, 1D, 1W, 1M, 3M, 1Y] }
+        fiat:
+          type: string
+          description: The requested currency, upper-cased.
+        rateToUsd:
+          type: number
+          description: Latest `fiat`-per-USD rate (1 for USD, and 1 for an untracked code).
+        candles:
+          type: array
+          description: Oldest first.
+          items: { $ref: "#/components/schemas/PublicCoinCandle" }
+
+    PublicLivePriceRow:
+      type: object
+      additionalProperties: true
+      required: [ucid, slug, symbol, name, currentPrice, priceStale, priceStaleAfterHours]
+      properties:
+        ucid:
+          type: string
+          description: CoinRithm coin id, the `coinId` of the agent endpoints.
+        slug: { type: string }
+        symbol: { type: string }
+        name: { type: string }
+        rank: { type: [integer, "null"], description: Market-cap rank. }
+        currentPrice: { type: number, description: Price in `fiat`. }
+        change1h: { type: [number, "null"], description: Percent. }
+        change24h: { type: [number, "null"], description: Percent. }
+        change7d: { type: [number, "null"], description: Percent. }
+        high24h: { type: [number, "null"] }
+        low24h: { type: [number, "null"] }
+        volume24h: { type: [number, "null"] }
+        volumeChange24h: { type: [number, "null"], description: Percent. }
+        volumeMissingVenues:
+          type: [integer, "null"]
+          minimum: 0
+          description: Expected venues missing from `volume24h` because their fetch failed; 0 none known, null unknown.
+        marketCapFiat: { type: [number, "null"], description: Market cap in `fiat`. }
+        marketCapChange24h: { type: [number, "null"], description: Percent. }
+        marketCapSuspect:
+          type: boolean
+          description: true when CoinRithm does not trust the market cap.
+        supplyCirculating: { type: [number, "null"] }
+        supplyTotal: { type: [number, "null"] }
+        priceUpdatedAt:
+          type: [string, "null"]
+          format: date-time
+          description: Live-price write time.
+        priceAgeHours: { type: [number, "null"], description: "Hours since `priceUpdatedAt`, one decimal." }
+        priceStale: { type: boolean, description: true when older than `priceStaleAfterHours`. }
+        priceStaleAfterHours: { type: number, description: Staleness threshold in hours (72). }
+        sparkline15m:
+          type: [array, "null"]
+          description: About 7 days of hourly prices in `fiat`, oldest first, despite the name; null with `includeSparkline=false`.
+          items: { type: number }
+
+    PublicLivePricesResponse:
+      type: object
+      additionalProperties: true
+      required: [data, totalRows]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/PublicLivePriceRow" }
+        totalRows:
+          type: integer
+          description: Coins on the board across all pages.
+        fiat:
+          type: [string, "null"]
+          description: The requested currency code, as sent.
+
+    PublicMarketSnapshot:
+      type: object
+      additionalProperties: true
+      description: Latest global market snapshot. Keys are lower-case, as served. Totals are in `fiatcurrency`; changes are percent.
+      required: [date, fiatcurrency, fiatratetousd]
+      properties:
+        id: { type: integer }
+        date:
+          type: string
+          format: date-time
+          description: Snapshot minute (UTC).
+        createdat:
+          type: string
+          format: date-time
+          description: Write time of the snapshot.
+        totalmarketcap: { type: [number, "null"] }
+        totalmarketcapchange: { type: [number, "null"] }
+        totalvolume24h: { type: [number, "null"] }
+        totalvolume24hchange: { type: [number, "null"] }
+        btcdominance: { type: [number, "null"], description: Percent of total market cap. }
+        btcdominancechange: { type: [number, "null"] }
+        ethdominance: { type: [number, "null"], description: Percent of total market cap. }
+        ethdominancechange: { type: [number, "null"] }
+        stablecoinvolume:
+          type: [number, "null"]
+          description: 0 in every 2026-10-16 probe; do not read it as zero volume.
+        stablecoinvolumechange: { type: [number, "null"] }
+        defivolume:
+          type: [number, "null"]
+          description: 0 in every 2026-10-16 probe; do not read it as zero volume.
+        defivolumechange: { type: [number, "null"] }
+        ethgasslow: { type: [number, "null"], description: "ETH gas price tier (about 0.06 on 2026-10-16, consistent with gwei)." }
+        ethgasstandard: { type: [number, "null"] }
+        ethgasfast: { type: [number, "null"] }
+        coincount: { type: [integer, "null"], description: Coins in the totals. }
+        exchangecount: { type: [integer, "null"], description: Exchanges in the totals. }
+        feargreedindex: { type: [integer, "null"], minimum: 0, maximum: 100 }
+        fiatcurrency: { type: string, description: "The requested currency, upper-cased." }
+        fiatratetousd:
+          type: number
+          description: Fiat-per-USD rate applied; 1 for USD and for an untracked code.
+
+    PublicPmPricesHistoryResponse:
+      type: object
+      additionalProperties: true
+      required: [interval, markets]
+      properties:
+        interval:
+          type: string
+          description: The `interval` as sent (default `1w`).
+        markets:
+          type: array
+          description: One series per requested market that has points; a market with no points is left out.
+          items:
+            type: object
+            additionalProperties: true
+            required: [market, history]
+            properties:
+              market:
+                type: string
+                description: The requested venue market id (Polymarket CLOB token id or Kalshi ticker).
+              history:
+                type: array
+                description: Oldest first.
+                items:
+                  type: object
+                  additionalProperties: true
+                  required: [t, p]
+                  properties:
+                    t:
+                      type: integer
+                      description: Unix time. SECONDS for Polymarket; MILLISECONDS for Kalshi and the stored-history venues.
+                    p: { type: number, minimum: 0, maximum: 1, description: Probability 0..1. }
+              historySource:
+                type: string
+                enum: [stored_snapshots]
+                description: Present only when the venue failed and this series comes from CoinRithm's stored price snapshots instead of the live venue history.
+              asOf:
+                type: string
+                format: date-time
+                description: Time of the last stored point; present with `historySource`.
+        freshness:
+          type: object
+          additionalProperties: true
+          description: Present only when at least one series is stored, not live. Such a response is cached for at most 30 seconds.
+          required: [status, reason, storedMarkets]
+          properties:
+            status: { type: string, enum: [lagging] }
+            reason: { type: string, enum: [upstream_unavailable] }
+            storedMarkets:
+              type: array
+              items: { type: string }
+              description: The markets served from stored snapshots.
 
     PublicPmVolumeHistoryResponse:
       type: object
@@ -8772,7 +9711,7 @@ components:
             confidence: { type: number }
     PublicMessageError:
       type: object
-      description: "Error body of the keyless `/api/market/*` reads."
+      description: "Error body of the keyless `/api/market/*` reads and of the coin reads' 404 (`{\"message\": \"not_found\"}`)."
       required: [message]
       properties:
         message: { type: string }

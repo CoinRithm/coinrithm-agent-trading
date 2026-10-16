@@ -6,21 +6,31 @@ from typing import Any, TypeVar
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
+from ..types import UNSET, Unset
+
 T = TypeVar("T", bound="Error")
 
 
 @_attrs_define
 class Error:
-    """
-    Attributes:
-        error (str):
+    """Error body. `error` is a short code or text; newer responses also
+    carry a human-readable `message`, including the JSON 404 for an
+    unknown path (`not_found`), the per-IP 429 (`rate_limited`) and the
+    query-allowlist 400 (`unsupported_query_parameter`).
+
+        Attributes:
+            error (str):
+            message (str | Unset):
     """
 
     error: str
+    message: str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         error = self.error
+
+        message = self.message
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -29,6 +39,8 @@ class Error:
                 "error": error,
             }
         )
+        if message is not UNSET:
+            field_dict["message"] = message
 
         return field_dict
 
@@ -37,8 +49,11 @@ class Error:
         d = dict(src_dict)
         error = d.pop("error")
 
+        message = d.pop("message", UNSET)
+
         error = cls(
             error=error,
+            message=message,
         )
 
         error.additional_properties = d

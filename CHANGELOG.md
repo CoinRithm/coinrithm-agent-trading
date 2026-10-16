@@ -8,6 +8,40 @@ Each package has its own version; the API contract is versioned separately.
 [TypeScript history](packages/sdk/CHANGELOG.md) ·
 [Python release notes](packages/sdk-python/README.md)
 
+## Unreleased: API contract 1.11.0
+
+`info.version` is now 1.11.0, an additive minor version. The published SDKs
+(TypeScript 0.4.1, Python 1.9.1) pick these up in their next release.
+
+Additions (live on the API since 2026-10-16):
+
+- Keyless crypto reads are now part of the contract: `GET /api/coins`
+  (directory, no prices), `/api/coins/{slug}` (profile with price,
+  `priceUpdatedAt` and `priceStale`), `/api/coins/{slug}/price` (lightweight
+  snapshot), `/api/coins/{slug}/candles`, `/api/live-prices` and
+  `/api/market/snapshot`. The same six reads also answer under
+  `/api/v1/...` with identical behaviour; `/api/...` stays canonical.
+- `/api/coins/{slug}/price` now carries `priceUpdatedAt`, `priceAgeHours`,
+  `priceStale` and `priceStaleAfterHours`. Its as-of is the price-summary
+  write time; for a staleness decision prefer `/api/coins/{slug}` or
+  `/api/live-prices`.
+- `GET /api/prediction-markets/prices-history` (history for up to five venue
+  market ids) is documented. When the venue fails, a series is served from
+  stored snapshots and labelled (`historySource: "stored_snapshots"`,
+  `asOf`, top-level `freshness.status: "lagging"`); with nothing stored the
+  answer is a retryable 503.
+
+Behaviour changes (live on the API since 2026-10-16):
+
+- The order book, trades, holders and prices-history routes can answer
+  **503** `{"error": "temporarily_busy", "message", "retryAfterSeconds"}`
+  with `Retry-After: 5` when busy. Retry after the delay.
+- Error bodies are JSON with `error` and `message`: an unknown path returns
+  404 `{"error": "not_found", "message": "not_found"}` (was an HTML page), the
+  per-IP 429 returns `{"error": "rate_limited", "message"}` (was plain text)
+  and the query-allowlist 400 adds `error: "unsupported_query_parameter"`. The
+  `Error` schema gains an optional `message`.
+
 ## Unreleased: API contract 1.10.0
 
 `info.version` is now 1.10.0. The published SDKs (TypeScript 0.4.1, Python

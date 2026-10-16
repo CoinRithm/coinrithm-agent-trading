@@ -11,7 +11,7 @@ T = TypeVar("T", bound="PublicMessageError")
 
 @_attrs_define
 class PublicMessageError:
-    """Error body of the keyless `/api/market/*` reads.
+    """Error body of the keyless `/api/market/*` reads and of the coin reads' 404 (`{"message": "not_found"}`).
 
     Attributes:
         message (str):
