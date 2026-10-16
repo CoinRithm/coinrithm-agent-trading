@@ -736,6 +736,9 @@ export interface paths {
          *     page (a page can then hold fewer than `limit` rows); `minVolume24h`
          *     keeps events with at least that 24h USD volume;
          *     `includeQuoteEvidence=1` adds `quoteEvidence` to every outcome.
+         *
+         *     An unknown query parameter returns `400` with a message naming the
+         *     supported parameters.
          */
         get: operations["searchPublicPredictionMarketEvents"];
         put?: never;
@@ -8858,6 +8861,7 @@ export interface operations {
                  */
                 q?: string;
                 tag?: string;
+                /** @description `open` (the default when absent or empty), `closed`, or any other value such as `all` for every status. */
                 status?: string;
                 source?: components["schemas"]["PublicPmSourceSlug"];
                 sort?: "best" | "volume24h_desc" | "priceChange24h_desc" | "priceChange24h_asc" | "endDate_desc" | "trending";

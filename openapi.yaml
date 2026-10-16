@@ -27,8 +27,8 @@ info:
     curl "https://api.coinrithm.com/api/prediction-markets/events?status=open&limit=3"
     ```
 
-    Without `status=open` the list also returns closed events (on 2026-09-29
-    the first three were closed July World Cup markets).
+    `status` defaults to `open`; send `status=closed` or `status=all` for
+    history.
 
     The JSON response contains `data`, `pagination` and `meta`. Inspect each
     event's `freshness`, `quality` and `decisionSupport` before using it for a
@@ -1665,6 +1665,9 @@ paths:
         page (a page can then hold fewer than `limit` rows); `minVolume24h`
         keeps events with at least that 24h USD volume;
         `includeQuoteEvidence=1` adds `quoteEvidence` to every outcome.
+
+        An unknown query parameter returns `400` with a message naming the
+        supported parameters.
       security: []
       parameters:
         - name: limit
@@ -1688,7 +1691,8 @@ paths:
           schema: { type: string }
         - name: status
           in: query
-          schema: { type: string }
+          description: "`open` (the default when absent or empty), `closed`, or any other value such as `all` for every status."
+          schema: { type: string, default: open }
         - name: source
           in: query
           schema: { $ref: "#/components/schemas/PublicPmSourceSlug" }
