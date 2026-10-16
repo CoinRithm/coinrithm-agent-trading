@@ -148,6 +148,31 @@ const traceFromBody = (body: unknown): AgentTrace | undefined =>
 export const API_KEY_MINT_URL =
   "https://www.coinrithm.com/en/settings/api-keys";
 
+// Upstream ceiling for every API call (audit 2026-10-16: none existed, so a
+// hung upstream held the tool call open until undici's ~300 s default).
+// Measured before choosing it: the slowest successful hosted calls in 24 h
+// took 26-29 s (cold heavy reads), so 35 s cuts hangs without failing them.
+export const UPSTREAM_TIMEOUT_MS = 35_000;
+
+const upstreamFailure = (err: unknown): ApiResult => {
+  const timedOut =
+    err instanceof Error &&
+    (err.name === "TimeoutError" || err.name === "AbortError");
+  return {
+    ok: false,
+    status: 0,
+    data: timedOut
+      ? {
+          error: "upstream_timeout",
+          message: `CoinRithm API did not answer within ${UPSTREAM_TIMEOUT_MS / 1000} s. Retry shortly.`,
+        }
+      : {
+          error: "network_error",
+          message: err instanceof Error ? err.message : String(err),
+        },
+  };
+};
+
 export class CoinRithmClient {
   // Default key for the stdio (single-user) path. Undefined in the multi-user
   // HTTP path, where every call must pass a per-request `apiKey` override.
@@ -212,17 +237,11 @@ export class CoinRithmClient {
         method,
         headers,
         body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+        signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
       });
     } catch (err) {
       log(`network error calling ${method} ${path}:`, err);
-      return {
-        ok: false,
-        status: 0,
-        data: {
-          error: "network_error",
-          message: err instanceof Error ? err.message : String(err),
-        },
-      };
+      return upstreamFailure(err);
     }
 
     const text = await res.text();
@@ -277,17 +296,11 @@ export class CoinRithmClient {
       res = await fetch(url.toString(), {
         method: "GET",
         headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
       });
     } catch (err) {
       log(`network error calling GET ${path}:`, err);
-      return {
-        ok: false,
-        status: 0,
-        data: {
-          error: "network_error",
-          message: err instanceof Error ? err.message : String(err),
-        },
-      };
+      return upstreamFailure(err);
     }
 
     const text = await res.text();

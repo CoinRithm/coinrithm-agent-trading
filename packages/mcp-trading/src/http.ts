@@ -52,6 +52,7 @@ import {
   observeHttpCompletion,
   type CompletionLogger,
 } from "./httpCompletion.js";
+import { createMcpAdmission, type McpLimitOptions } from "./httpLimits.js";
 
 // The SDK reads `req.auth` (AuthInfo) off the Node request if present and threads
 // it to handlers as `extra.authInfo`. We populate a minimal AuthInfo carrying the
@@ -70,9 +71,12 @@ export function createHttpApp(
   options: {
     completionLogger?: CompletionLogger;
     createServer?: () => McpServer;
+    limits?: McpLimitOptions;
   } = {},
 ) {
   const app = express();
+  // Behind Cloudflare and Traefik (audit 2026-10-16: no limit existed).
+  const admission = createMcpAdmission(options.limits);
   const completions = new WeakMap<
     Response,
     ReturnType<typeof observeHttpCompletion>
@@ -168,57 +172,61 @@ export function createHttpApp(
     });
   });
 
-  app.post(["/mcp", MALFORMED_MCP_LINK], async (req: AuthedRequest, res) => {
-    // Per-request auth: read THIS caller's key from the Authorization header,
-    // or from Smithery's non-reserved forwarding header.
-    // It is optional at the transport layer so registries can initialize the
-    // server and list tool schemas. Public data tools are keyless; protected
-    // tool handlers return a structured 401 if their key is missing.
-    const apiKey =
-      bearerFromHeader(req.headers.authorization) ??
-      bearerFromHeader(req.headers["x-coinrithm-api-key"]);
+  app.post(
+    ["/mcp", MALFORMED_MCP_LINK],
+    admission,
+    async (req: AuthedRequest, res) => {
+      // Per-request auth: read THIS caller's key from the Authorization header,
+      // or from Smithery's non-reserved forwarding header.
+      // It is optional at the transport layer so registries can initialize the
+      // server and list tool schemas. Public data tools are keyless; protected
+      // tool handlers return a structured 401 if their key is missing.
+      const apiKey =
+        bearerFromHeader(req.headers.authorization) ??
+        bearerFromHeader(req.headers["x-coinrithm-api-key"]);
 
-    // Belt-and-suspenders: also expose the token via the SDK's authInfo channel.
-    // The primary path is extra.requestInfo.headers.authorization (always set by
-    // StreamableHTTPServerTransport); this gives requestKey() a second source.
-    if (apiKey) {
-      req.auth = { token: apiKey, clientId: "coinrithm-key", scopes: [] };
-    }
-
-    const server =
-      options.createServer?.() ??
-      new McpServer(
-        {
-          name: "coinrithm-trading",
-          version: SERVER_VERSION,
-        },
-        { instructions: SERVER_INSTRUCTIONS },
-      );
-    if (!options.createServer) registerTools(server, client);
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: undefined, // stateless: no cross-request/user state
-    });
-    res.on("close", () => {
-      void transport.close();
-      void server.close();
-    });
-    try {
-      await server.connect(transport);
-      completions.get(res)?.attach(transport);
-      // The transport reads req.headers (→ extra.requestInfo) and req.auth
-      // (→ extra.authInfo); tools.ts picks up the caller's key from there.
-      await transport.handleRequest(req, res, req.body);
-    } catch (err) {
-      log("http request error:", err);
-      if (!res.headersSent) {
-        res.status(500).json({
-          jsonrpc: "2.0",
-          error: { code: -32603, message: "Internal server error" },
-          id: null,
-        });
+      // Belt-and-suspenders: also expose the token via the SDK's authInfo channel.
+      // The primary path is extra.requestInfo.headers.authorization (always set by
+      // StreamableHTTPServerTransport); this gives requestKey() a second source.
+      if (apiKey) {
+        req.auth = { token: apiKey, clientId: "coinrithm-key", scopes: [] };
       }
-    }
-  });
+
+      const server =
+        options.createServer?.() ??
+        new McpServer(
+          {
+            name: "coinrithm-trading",
+            version: SERVER_VERSION,
+          },
+          { instructions: SERVER_INSTRUCTIONS },
+        );
+      if (!options.createServer) registerTools(server, client);
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: undefined, // stateless: no cross-request/user state
+      });
+      res.on("close", () => {
+        void transport.close();
+        void server.close();
+      });
+      try {
+        await server.connect(transport);
+        completions.get(res)?.attach(transport);
+        // The transport reads req.headers (→ extra.requestInfo) and req.auth
+        // (→ extra.authInfo); tools.ts picks up the caller's key from there.
+        await transport.handleRequest(req, res, req.body);
+      } catch (err) {
+        log("http request error:", err);
+        if (!res.headersSent) {
+          res.status(500).json({
+            jsonrpc: "2.0",
+            error: { code: -32603, message: "Internal server error" },
+            id: null,
+          });
+        }
+      }
+    },
+  );
 
   return app;
 }
