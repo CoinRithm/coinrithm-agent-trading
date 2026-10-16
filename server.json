@@ -22,8 +22,8 @@
       "environmentVariables": [
         {
           "name": "COINRITHM_API_KEY",
-          "description": "Personal CoinRithm API key (crk_live_…) minted at Settings -> API Keys. Start with a read-only key.",
-          "isRequired": true,
+          "description": "Optional personal CoinRithm API key (crk_live_…) from Settings -> API Keys. Without it the server runs keyless data tools only; add a key (start read-only) to paper-trade.",
+          "isRequired": false,
           "isSecret": true
         },
         {

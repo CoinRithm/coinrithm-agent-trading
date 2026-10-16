@@ -502,10 +502,13 @@ describe("MCP configuration and header parsing", () => {
       expected,
     );
   });
-  it("requires a stdio key but ignores it in hosted HTTP configuration", () => {
+  it("starts stdio keyless in data-only mode and ignores the key in hosted HTTP configuration", () => {
     vi.stubEnv("COINRITHM_API_KEY", "");
     vi.stubEnv("COINRITHM_API_URL", "");
-    expect(() => loadConfig()).toThrow("COINRITHM_API_KEY is not set");
+    const notice = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(loadConfig()).toEqual({ baseUrl: DEFAULT_BASE_URL });
+    expect(notice).toHaveBeenCalledOnce();
+    notice.mockRestore();
     expect(loadHttpConfig()).toEqual({ baseUrl: DEFAULT_BASE_URL });
     vi.stubEnv("COINRITHM_API_KEY", " crk_live_fixture ");
     vi.stubEnv("COINRITHM_API_URL", ` ${baseUrl}/// `);

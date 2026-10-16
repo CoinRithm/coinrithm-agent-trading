@@ -6,7 +6,8 @@
 // paper account and place simulated trades using a user-minted API key.
 //
 // Config (env):
-//   COINRITHM_API_KEY  (required)  crk_live_… key minted in your profile.
+//   COINRITHM_API_KEY  (optional)  crk_live_… key minted in your profile.
+//                                  Without it: data-only mode (keyless tools).
 //   COINRITHM_API_URL  (optional)  base URL; defaults to https://api.coinrithm.com
 //
 // stdout is the JSON-RPC channel — we log ONLY to stderr.

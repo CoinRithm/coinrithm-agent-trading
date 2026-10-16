@@ -95,7 +95,10 @@ for the exact opt-in policy and persistence contract.
 ## Quick start
 
 ```bash
-# Run the MCP server with your CoinRithm key (no install needed):
+# Prediction-market and crypto data only, no account or key needed:
+npx -y @coinrithm/mcp-trading
+
+# Add your CoinRithm key to enable paper trading (no install needed):
 COINRITHM_API_KEY=crk_live_… npx -y @coinrithm/mcp-trading
 ```
 
@@ -178,13 +181,13 @@ agent file.
 
 ## Configure (stdio)
 
-| Env var                                  | Required         | Default                     | Notes                                                                                     |
-| ---------------------------------------- | ---------------- | --------------------------- | ----------------------------------------------------------------------------------------- |
-| `COINRITHM_API_KEY`                      | yes (stdio only) | —                           | A `crk_live_…` key from CoinRithm → Settings → API Keys. **Ignored by the HTTP entry.**    |
-| `COINRITHM_API_URL`                      | no               | `https://api.coinrithm.com` | Upstream base URL (live)                                                                  |
-| `PORT`                                   | no               | `8787`                      | HTTP entry only                                                                           |
-| `COINRITHM_PM_PAPER_V2_TOOLS_ENABLED`    | no               | off                         | `true` adds the [PM paper v2 tools](#opt-in-pm-paper-v2-tools) for configured house keys. |
-| `COINRITHM_SPOT_REFERENCE_TOOLS_ENABLED` | no               | off                         | `true` adds [`get_spot_reference`](#opt-in-spot-reference-tool).                          |
+| Env var                                  | Required        | Default                     | Notes                                                                                                                |
+| ---------------------------------------- | --------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `COINRITHM_API_KEY`                      | no (stdio only) | —                           | A `crk_live_…` key from CoinRithm → Settings → API Keys. Without it, data tools only. **Ignored by the HTTP entry.** |
+| `COINRITHM_API_URL`                      | no              | `https://api.coinrithm.com` | Upstream base URL (live)                                                                                             |
+| `PORT`                                   | no              | `8787`                      | HTTP entry only                                                                                                      |
+| `COINRITHM_PM_PAPER_V2_TOOLS_ENABLED`    | no              | off                         | `true` adds the [PM paper v2 tools](#opt-in-pm-paper-v2-tools) for configured house keys.                            |
+| `COINRITHM_SPOT_REFERENCE_TOOLS_ENABLED` | no              | off                         | `true` adds [`get_spot_reference`](#opt-in-spot-reference-tool).                                                     |
 
 ## Run
 
