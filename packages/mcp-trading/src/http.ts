@@ -53,6 +53,7 @@ import {
   type CompletionLogger,
 } from "./httpCompletion.js";
 import { createMcpAdmission, type McpLimitOptions } from "./httpLimits.js";
+import { installGracefulShutdown, type DrainState } from "./httpShutdown.js";
 
 // The SDK reads `req.auth` (AuthInfo) off the Node request if present and threads
 // it to handlers as `extra.authInfo`. We populate a minimal AuthInfo carrying the
@@ -72,6 +73,7 @@ export function createHttpApp(
     completionLogger?: CompletionLogger;
     createServer?: () => McpServer;
     limits?: McpLimitOptions;
+    drain?: DrainState;
   } = {},
 ) {
   const app = express();
@@ -95,11 +97,16 @@ export function createHttpApp(
   // Lightweight, unauthenticated liveness probe (handy for Coolify/uptime checks).
   // Keep `/healthz` as the deployment contract and expose `/health` as a
   // compatibility alias for agents and generic uptime monitors.
+  // While a stop signal drains the process it answers 503, so the proxy and
+  // the image HEALTHCHECK stop sending new work here (httpShutdown.ts).
   app.get(["/health", "/healthz"], (_req, res) => {
-    res.json({
-      ok: true,
+    const draining = options.drain?.draining === true;
+    res.status(draining ? 503 : 200).json({
+      ok: !draining,
       service: "coinrithm-mcp",
       transport: "streamable-http",
+      version: SERVER_VERSION,
+      ...(draining ? { draining: true } : {}),
     });
   });
 
@@ -234,14 +241,16 @@ export function createHttpApp(
 async function main(): Promise<void> {
   const config = loadHttpConfig(); // no global key — keys arrive per request
   const client = new CoinRithmClient(config); // constructed WITHOUT a default key
-  const app = createHttpApp(client);
+  const drain: DrainState = { draining: false };
+  const app = createHttpApp(client, { drain });
   const port = Number(process.env.PORT) || 8787;
-  app.listen(port, () => {
+  const listener = app.listen(port, () => {
     log(
       `HTTP MCP listening on :${port}/mcp (multi-user, per-request key). ` +
         `upstream=${config.baseUrl}. Paper only.`,
     );
   });
+  installGracefulShutdown(listener, { state: drain, log });
 }
 
 if (
