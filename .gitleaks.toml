@@ -24,3 +24,15 @@ regexes = [
   '''apiKey: crk_live_AbCdEfGh12345678_a1b2c3''',
   '''const secret = "crk_live_abc123_DEF456";''',
 ]
+
+# Kalshi market tickers in an observed-shape fixture (2026-10-16 probe of
+# /api/prediction-markets/expiring). Kalshi reuses the ticker as `tokenId`, and
+# the generic-api-key rule reads `tokenId: "<long uppercase id>"` as a key.
+# Anchored on the two exact public tickers.
+# packages/mcp-trading/src/tools.keylessData.test.ts
+[[allowlists]]
+regexTarget = "line"
+regexes = [
+  '''tokenId: "KXITFWMATCH-26OCT14MAZBUL-BUL",''',
+  '''tokenId: "KXITFWMATCH-26OCT14MAZBUL-MAZ",''',
+]
