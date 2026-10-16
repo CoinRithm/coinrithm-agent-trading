@@ -237,6 +237,29 @@ describe("public PM data client (keyless)", () => {
     ]);
   });
 
+  it("encodes the coin slug of the profile and candle reads, keylessly", async () => {
+    fetchMock.mockImplementation(async () => jsonResponse({}));
+    const client = new CoinRithmClient({
+      apiKey: "crk_live_secret",
+      baseUrl: "https://api.example.test",
+    });
+
+    await client.getPublicCoin("bit/coin", { fiat: "EUR" });
+    await client.getPublicCoin("bitcoin");
+    await client.getPublicCoinCandles("a b", { range: "1H" });
+
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+      "https://api.example.test/api/coins/bit%2Fcoin?fiat=EUR",
+      "https://api.example.test/api/coins/bitcoin",
+      "https://api.example.test/api/coins/a%20b/candles?range=1H",
+    ]);
+    for (const [, init] of fetchMock.mock.calls) {
+      expect(
+        ((init?.headers ?? {}) as Record<string, string>).Authorization,
+      ).toBeUndefined();
+    }
+  });
+
   it("never attaches the API key to volume-history requests", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ days: [] }));
     const client = new CoinRithmClient({

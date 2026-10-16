@@ -58,7 +58,7 @@ function resolveBaseUrl(): string {
 // stdio path (single user). The key is OPTIONAL since 2026-10-16 (audit):
 // without one the server starts in data-only mode, exactly like the hosted
 // server: keyless tools (pm_data_*, instrument_markets, tradfi_references,
-// get_arena_*, get_crypto_movers) work and
+// crypto_price, get_arena_*, get_crypto_movers) work and
 // every keyed tool returns the structured missing_api_key result. Requiring a
 // key blocked the one-line `npx -y @coinrithm/mcp-trading` data install.
 export function loadConfig(): ClientConfig {
@@ -215,8 +215,8 @@ export class CoinRithmClient {
             `${API_KEY_MINT_URL}, then on the hosted MCP send ` +
             "`Authorization: Bearer crk_live_…`, or for the local server " +
             "set COINRITHM_API_KEY. Public data tools (pm_data_*, " +
-            "instrument_markets, tradfi_references, get_arena_*, " +
-            "get_crypto_movers) need no key.",
+            "instrument_markets, tradfi_references, crypto_price, " +
+            "get_arena_*, get_crypto_movers) need no key.",
         },
       };
     }
@@ -527,6 +527,22 @@ export class CoinRithmClient {
         ? "/api/coins/top-losers"
         : "/api/coins/top-gainers",
       { limit },
+    );
+  }
+  // One coin's profile by slug: price in USD and `fiat`, 24h change, market
+  // cap, volume and the live-price as-of (priceUpdatedAt, priceStale).
+  // Numerics are decimal strings. An unknown slug is 404 {message}.
+  getPublicCoin(slug: string, query?: { fiat?: string }) {
+    return this.publicRequest(`/api/coins/${encodeURIComponent(slug)}`, query);
+  }
+  // OHLC bars by slug; `range` fixes lookback and resolution (1H = 60 x 1m).
+  getPublicCoinCandles(
+    slug: string,
+    query?: { range?: string; fiat?: string },
+  ) {
+    return this.publicRequest(
+      `/api/coins/${encodeURIComponent(slug)}/candles`,
+      query,
     );
   }
 

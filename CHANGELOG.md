@@ -42,6 +42,9 @@ Behaviour changes (live on the API since 2026-10-16):
   and the query-allowlist 400 adds `error: "unsupported_query_parameter"`. The
   `Error` schema gains an optional `message`.
 
+MCP (unreleased): new keyless `crypto_price` tool for one coin's price,
+change, market cap, volume and freshness, with optional sampled candles.
+
 ## Unreleased: API contract 1.10.0
 
 `info.version` is now 1.10.0. The published SDKs (TypeScript 0.4.1, Python

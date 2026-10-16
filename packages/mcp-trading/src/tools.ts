@@ -1168,6 +1168,108 @@ export function compactTradfiReference(
   };
 }
 
+// Coin slugs as served by /api/coins (lower case; one has an underscore).
+const COIN_SLUG_PATTERN = /^[a-z0-9][a-z0-9_.-]{0,99}$/;
+
+export const COIN_CANDLE_RANGES = ["1H", "1D", "1W", "1M", "3M", "1Y"] as const;
+
+/** Decimal string to number; anything else (null, unparsable) passes as is. */
+function decimalNumber(value: unknown): unknown {
+  if (typeof value !== "string" || value.trim() === "") return value;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : value;
+}
+
+function withoutUndefined(record: JsonRecord): JsonRecord {
+  return Object.fromEntries(
+    Object.entries(record).filter(([, value]) => value !== undefined),
+  );
+}
+
+/**
+ * Compact coin profile from GET /api/coins/{slug}: price, change, market cap,
+ * volume and the live-price as-of. The profile, not /price, because its
+ * priceUpdatedAt is the live-price write time (probe 2026-10-16: /price
+ * reported dead-pair coins as 0.6 h old while the profile said weeks).
+ */
+export function compactCryptoPrice(data: unknown, fiat: string): unknown {
+  if (!isJsonRecord(data)) return data;
+  const num = (key: string) => decimalNumber(data[key]);
+  const price = data.currentPrice;
+  return withoutUndefined({
+    coinId: data.ucid,
+    slug: data.slug,
+    symbol: data.symbol,
+    name: data.name,
+    fiat,
+    // An untracked fiat code is answered in USD with nothing saying so: the
+    // converted price then equals the USD price exactly (rate 1.0).
+    ...(fiat === "USD"
+      ? {}
+      : {
+          fiatApplied:
+            price === null || price === undefined
+              ? null
+              : price !== data.currentPriceUsd,
+        }),
+    price: num("currentPrice"),
+    priceUsd: num("currentPriceUsd"),
+    change24hPct: num("change24h"),
+    high24h: num("high24h"),
+    low24h: num("low24h"),
+    marketCap: num("marketCap"),
+    marketCapChange24hPct: num("marketCapChange24h"),
+    marketCapRank: data.marketCapRank,
+    marketCapSuspect: data.marketCapSuspect,
+    marketCapSuspectReason: data.marketCapSuspectReason,
+    volume24h: num("volume24h"),
+    volumeChange24hPct: num("volumeChange24h"),
+    volumeMissingVenues: data.volumeMissingVenues,
+    priceUpdatedAt: data.priceUpdatedAt,
+    priceAgeHours: data.priceAgeHours,
+    priceStale: data.priceStale,
+    priceStaleAfterHours: data.priceStaleAfterHours,
+  });
+}
+
+type Bar = { t: number; o: number; h: number; l: number; c: number };
+
+function isBar(value: unknown): value is Bar {
+  return (
+    isJsonRecord(value) &&
+    ["t", "o", "h", "l", "c"].every((key) => typeof value[key] === "number")
+  );
+}
+
+/**
+ * Bars from GET /api/coins/{slug}/candles, merged into at most maxPoints
+ * consecutive groups (open of the first bar, high and low across the group,
+ * close of the last). `v` is dropped: it is a rolling 24h volume observed at
+ * each bar, not the volume traded in it, so it cannot be merged.
+ */
+export function compactCoinCandles(data: unknown, maxPoints: number): unknown {
+  if (!isJsonRecord(data) || !Array.isArray(data.candles)) return data;
+  const bars = data.candles.filter(isBar);
+  const size = Math.max(1, Math.ceil(bars.length / Math.max(1, maxPoints)));
+  const merged: Bar[] = [];
+  for (let i = 0; i < bars.length; i += size) {
+    const group = bars.slice(i, i + size);
+    merged.push({
+      t: group[0].t,
+      o: group[0].o,
+      h: Math.max(...group.map((bar) => bar.h)),
+      l: Math.min(...group.map((bar) => bar.l)),
+      c: group[group.length - 1].c,
+    });
+  }
+  return {
+    ...pick(data, ["range", "fiat", "rateToUsd"]),
+    barCount: bars.length,
+    barsPerPoint: size,
+    candles: merged,
+  };
+}
+
 function mapSuccessfulBody(
   result: ApiResult,
   transform: (data: unknown) => unknown,
@@ -3788,5 +3890,80 @@ export function registerTools(
                 }),
             ),
       ),
+  );
+
+  server.registerTool(
+    "crypto_price",
+    {
+      title: "Crypto price for one coin",
+      description:
+        "Free public price for one coin by slug (for example bitcoin): " +
+        "price in fiat and USD, 24h change, high and low, market cap and " +
+        "rank, 24h volume, and freshness. priceUpdatedAt is when the live " +
+        "price was last written; priceStale:true means it is older than " +
+        "priceStaleAfterHours (72), a last known price, not a live one. " +
+        "marketCapSuspect flags a market cap CoinRithm does not trust. " +
+        "price is null for a coin with no live price. fiatApplied:false " +
+        "means the fiat code is not tracked and the values are USD. " +
+        "candles adds bars over that range, merged to at most maxPoints. " +
+        "coinId is the id get_candles and get_market_context take. " +
+        "Unknown slug: 404. No API key required.",
+      inputSchema: {
+        slug: z
+          .string()
+          .trim()
+          .regex(COIN_SLUG_PATTERN, "expected a coin slug such as bitcoin")
+          .describe(
+            "Coin slug such as bitcoin or tether-usdt (the slug of a get_crypto_movers row).",
+          ),
+        fiat: z
+          .string()
+          .trim()
+          .regex(/^[A-Za-z]{3}$/, "expected a 3-letter currency code")
+          .optional()
+          .describe("Currency code such as EUR or JPY (default USD)."),
+        candles: z
+          .enum(COIN_CANDLE_RANGES)
+          .optional()
+          .describe(
+            "Add bars over this range: 1H (1-minute bars), 1D, 1W, 1M, 3M or 1Y (daily).",
+          ),
+        maxPoints: z
+          .number()
+          .int()
+          .min(2)
+          .max(400)
+          .optional()
+          .describe("With candles: bars to return, 2-400 (default 24)."),
+      },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations("Crypto price for one coin"),
+    },
+    async ({ slug, fiat, candles, maxPoints }) => {
+      const currency = (fiat ?? "USD").toUpperCase();
+      // USD is the API default; leaving it out shares the web's cache entry.
+      const query = currency === "USD" ? {} : { fiat: currency };
+      const [profile, bars] = await Promise.all([
+        client.getPublicCoin(slug, query),
+        candles
+          ? client.getPublicCoinCandles(slug, { range: candles, ...query })
+          : Promise.resolve(undefined),
+      ]);
+      const result = mapSuccessfulBody(profile, (data) =>
+        compactCryptoPrice(data, currency),
+      );
+      if (!result.ok || !bars || !isJsonRecord(result.data)) {
+        return present(result);
+      }
+      return present({
+        ...result,
+        data: {
+          ...result.data,
+          candles: bars.ok
+            ? compactCoinCandles(bars.data, maxPoints ?? 24)
+            : { httpStatus: bars.status, body: bars.data },
+        },
+      });
+    },
   );
 }

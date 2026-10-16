@@ -3,6 +3,8 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { CoinRithmClient } from "./client.js";
 import {
+  compactCoinCandles,
+  compactCryptoPrice,
   compactInstrumentMarkets,
   compactPublicPmExpiring,
   compactPublicPmOrderBook,
@@ -1012,6 +1014,388 @@ describe("tradfi_references", () => {
     );
     expect(schema.safeParse({ assetClass: "crypto" }).success).toBe(false);
     expect(schema.safeParse({ limit: 251 }).success).toBe(false);
+  });
+});
+
+// GET /api/coins/{slug} and /candles, probed 2026-10-16 ~10:18 UTC without a
+// key. Links, chains and categories trimmed to one entry each.
+const COIN_LINKS = {
+  websiteUrl: "https://bitcoin.org",
+  socials: [
+    { url: "https://x.com/bitcoin", icon: "x.png", name: "X", socialId: 5 },
+  ],
+  infoLinks: {
+    website: [{ url: "https://bitcoin.org", name: "https://bitcoin.org" }],
+  },
+  chains: [
+    {
+      icon: "bitcoin.png",
+      name: "Bitcoin Ecosystem",
+      shortName: "Bitcoin",
+      contractAddress: "",
+    },
+  ],
+  categories: [{ name: "Bitcoin Ecosystem" }],
+  notices: null,
+};
+
+const BTC_PROFILE = {
+  ucid: "1",
+  slug: "bitcoin",
+  symbol: "BTC",
+  name: "Bitcoin",
+  currentPriceUsd: "82011.1767231591",
+  currentPrice: "82011.1767231591",
+  volume24h: "4580150709.46",
+  volumeChange24h: "-27.83",
+  volumeMissingVenues: 0,
+  change24h: "1.06",
+  marketCap: "1648329765204.03",
+  marketCapChange24h: "1.06",
+  supplyPercent: "95.71",
+  high24h: "82601.9459031111",
+  low24h: "79869.683951445",
+  athUsd: "126080",
+  athDate: "2025-10-06T18:57:42.558Z",
+  atlUsd: "67.81",
+  atlDate: "2013-07-06T00:00:00.000Z",
+  ...COIN_LINKS,
+  supplyCirculating: "20098843",
+  supplyTotal: "20098843",
+  supplyMax: "21000000",
+  btcEquivalent: "1",
+  btcChange24h: "0",
+  ethEquivalent: "33.4419818162652",
+  ethChange24h: "-2.44283093410141",
+  marketCapRank: 1,
+  marketCapSuspect: false,
+  marketCapSuspectReason: null,
+  watchlistCount: 7,
+  watchlistRank: 1,
+  priceUpdatedAt: "2026-10-16T10:18:18.001Z",
+  priceAgeHours: 0,
+  priceStale: false,
+  priceStaleAfterHours: 72,
+};
+
+// ?fiat=EUR: converted fields move, currentPriceUsd stays USD.
+const BTC_PROFILE_EUR = {
+  ...BTC_PROFILE,
+  currentPriceUsd: "82015.8569237809",
+  currentPrice: "72978.6059240964",
+  volume24h: "4385412193.49",
+  volumeChange24h: "-22.34",
+  marketCap: "1466785542827.28",
+  high24h: "73500.114303857",
+  low24h: "71068.9177556413",
+  priceUpdatedAt: "2026-10-16T10:19:21.421Z",
+};
+
+// A dead pair: the last known price stays, flagged stale and suspect.
+const STALE_PROFILE = {
+  ucid: "singularitynet",
+  slug: "singularitynet",
+  symbol: "AGIX",
+  name: "SingularityNET",
+  currentPriceUsd: "0.6141",
+  currentPrice: "0.6141",
+  volume24h: "787207.72",
+  volumeChange24h: null,
+  volumeMissingVenues: null,
+  change24h: null,
+  marketCap: "785192784.41",
+  marketCapChange24h: null,
+  supplyPercent: "63.93",
+  high24h: null,
+  low24h: null,
+  marketCapRank: null,
+  marketCapSuspect: true,
+  marketCapSuspectReason: "stale_dead_pair",
+  priceUpdatedAt: "2026-09-02T03:57:48.171Z",
+  priceAgeHours: 1062.4,
+  priceStale: true,
+  priceStaleAfterHours: 72,
+};
+
+// An inactive listing: 200 with every price field null.
+const NO_PRICE_PROFILE = {
+  ucid: "10312",
+  slug: "escointoken",
+  symbol: "ELG",
+  name: "EscoinToken",
+  currentPriceUsd: null,
+  currentPrice: null,
+  volume24h: null,
+  volumeChange24h: null,
+  volumeMissingVenues: null,
+  change24h: null,
+  marketCap: null,
+  marketCapChange24h: null,
+  high24h: null,
+  low24h: null,
+  marketCapRank: null,
+  marketCapSuspect: null,
+  marketCapSuspectReason: null,
+  priceUpdatedAt: null,
+  priceAgeHours: null,
+  priceStale: false,
+  priceStaleAfterHours: 72,
+};
+
+const BTC_CANDLES_1H = {
+  coin: { ucid: "1", slug: "bitcoin", symbol: "BTC", name: "Bitcoin" },
+  range: "1H",
+  fiat: "USD",
+  rateToUsd: 1,
+  candles: [
+    [1792141680, 82226.33567976458, 4925632742.279312],
+    [1792141800, 82244.2659924905, 4874225909.599998],
+    [1792141860, 82242.45655460695, 4920767035.87837],
+    [1792141920, 82252.29036900026, 4923694517.195305],
+    [1792141980, 82218.26543924895, 4921837384.890905],
+  ].map(([t, price, v]) => ({
+    t,
+    o: price,
+    h: price,
+    l: price,
+    c: price,
+    v,
+    vm: 0,
+  })),
+};
+
+// Answers each request by path, so the profile and candle reads can run in
+// parallel; returns the URLs requested.
+async function callCryptoPrice(
+  args: Record<string, unknown>,
+  responses: Record<string, [unknown, number?]>,
+) {
+  fetchMock.mockImplementation(async (input) => {
+    const { pathname } = new URL(String(input));
+    const [body, status] = responses[pathname] ?? [{ error: "unmocked" }, 599];
+    return jsonResponse(body, status ?? 200);
+  });
+  const tool = registered().get("crypto_price")!;
+  const result = await tool.handler(
+    z.object(tool.config.inputSchema).parse(args),
+    {},
+  );
+  for (const [, init] of fetchMock.mock.calls) {
+    expect(new Headers(init?.headers).has("authorization")).toBe(false);
+  }
+  return {
+    result,
+    urls: fetchMock.mock.calls.map(([url]) => new URL(String(url))),
+  };
+}
+
+describe("crypto_price", () => {
+  it("reads the coin profile keylessly and returns numbers with the as-of", async () => {
+    const { url, result } = await call(
+      "crypto_price",
+      { slug: "bitcoin" },
+      BTC_PROFILE,
+    );
+    expect(url.pathname).toBe("/api/coins/bitcoin");
+    expect(url.search).toBe("");
+    expect(result.isError).toBe(false);
+    expect(result.structuredContent.body).toEqual({
+      coinId: "1",
+      slug: "bitcoin",
+      symbol: "BTC",
+      name: "Bitcoin",
+      fiat: "USD",
+      price: 82011.1767231591,
+      priceUsd: 82011.1767231591,
+      change24hPct: 1.06,
+      high24h: 82601.9459031111,
+      low24h: 79869.683951445,
+      marketCap: 1648329765204.03,
+      marketCapChange24hPct: 1.06,
+      marketCapRank: 1,
+      marketCapSuspect: false,
+      marketCapSuspectReason: null,
+      volume24h: 4580150709.46,
+      volumeChange24hPct: -27.83,
+      volumeMissingVenues: 0,
+      priceUpdatedAt: "2026-10-16T10:18:18.001Z",
+      priceAgeHours: 0,
+      priceStale: false,
+      priceStaleAfterHours: 72,
+    });
+  });
+
+  it("upper-cases fiat, sends it, and says whether it was applied", async () => {
+    const eur = await call(
+      "crypto_price",
+      { slug: "bitcoin", fiat: "eur" },
+      BTC_PROFILE_EUR,
+    );
+    expect([...eur.url.searchParams]).toEqual([["fiat", "EUR"]]);
+    expect(eur.result.structuredContent.body).toMatchObject({
+      fiat: "EUR",
+      fiatApplied: true,
+      price: 72978.6059240964,
+      priceUsd: 82015.8569237809,
+      marketCap: 1466785542827.28,
+    });
+    // ?fiat=XYZ was answered in USD: currentPrice equals currentPriceUsd.
+    const untracked = await call(
+      "crypto_price",
+      { slug: "bitcoin", fiat: "XYZ" },
+      BTC_PROFILE,
+    );
+    expect(untracked.result.structuredContent.body).toMatchObject({
+      fiat: "XYZ",
+      fiatApplied: false,
+    });
+  });
+
+  it("keeps a stale last-known price, flagged, and a missing price as null", () => {
+    expect(compactCryptoPrice(STALE_PROFILE, "USD")).toMatchObject({
+      price: 0.6141,
+      change24hPct: null,
+      high24h: null,
+      marketCapSuspect: true,
+      marketCapSuspectReason: "stale_dead_pair",
+      priceUpdatedAt: "2026-09-02T03:57:48.171Z",
+      priceAgeHours: 1062.4,
+      priceStale: true,
+    });
+    expect(compactCryptoPrice(NO_PRICE_PROFILE, "EUR")).toMatchObject({
+      coinId: "10312",
+      fiatApplied: null,
+      price: null,
+      priceUsd: null,
+      marketCapSuspect: null,
+      priceUpdatedAt: null,
+      priceStale: false,
+    });
+    expect(compactCryptoPrice("not json", "USD")).toBe("not json");
+  });
+
+  it("passes an unknown slug's 404 through", async () => {
+    const { result } = await call(
+      "crypto_price",
+      { slug: "no-such-coin-zz" },
+      { message: "not_found" },
+      404,
+    );
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent).toMatchObject({
+      httpStatus: 404,
+      body: { message: "not_found" },
+    });
+  });
+
+  it("adds merged candles from a second keyless read", async () => {
+    const { result, urls } = await callCryptoPrice(
+      { slug: "bitcoin", candles: "1H", maxPoints: 2 },
+      {
+        "/api/coins/bitcoin": [BTC_PROFILE],
+        "/api/coins/bitcoin/candles": [BTC_CANDLES_1H],
+      },
+    );
+    expect(urls.map((url) => url.pathname + url.search).sort()).toEqual([
+      "/api/coins/bitcoin",
+      "/api/coins/bitcoin/candles?range=1H",
+    ]);
+    const bar = (i: number) => BTC_CANDLES_1H.candles[i]!;
+    expect(result.structuredContent.body.candles).toEqual({
+      range: "1H",
+      fiat: "USD",
+      rateToUsd: 1,
+      barCount: 5,
+      barsPerPoint: 3,
+      candles: [
+        {
+          t: bar(0).t,
+          o: bar(0).o,
+          h: bar(1).h,
+          l: bar(0).l,
+          c: bar(2).c,
+        },
+        { t: bar(3).t, o: bar(3).o, h: bar(3).h, l: bar(4).l, c: bar(4).c },
+      ],
+    });
+    expect(result.structuredContent.body.price).toBe(82011.1767231591);
+  });
+
+  it("sends the upper-cased fiat on the candle read too", async () => {
+    const { urls } = await callCryptoPrice(
+      { slug: "bitcoin", fiat: "eur", candles: "1D" },
+      {
+        "/api/coins/bitcoin": [BTC_PROFILE_EUR],
+        "/api/coins/bitcoin/candles": [{ ...BTC_CANDLES_1H, candles: [] }],
+      },
+    );
+    expect(urls.map((url) => url.pathname + url.search).sort()).toEqual([
+      "/api/coins/bitcoin/candles?range=1D&fiat=EUR",
+      "/api/coins/bitcoin?fiat=EUR",
+    ]);
+  });
+
+  it("keeps the price when the candle read fails", async () => {
+    const { result } = await callCryptoPrice(
+      { slug: "bitcoin", candles: "1D" },
+      {
+        "/api/coins/bitcoin": [BTC_PROFILE],
+        "/api/coins/bitcoin/candles": [
+          { error: "Failed to fetch candles" },
+          500,
+        ],
+      },
+    );
+    expect(result.isError).toBe(false);
+    expect(result.structuredContent.body).toMatchObject({
+      price: 82011.1767231591,
+      candles: { httpStatus: 500, body: { error: "Failed to fetch candles" } },
+    });
+  });
+
+  it("returns only the profile's 404 when the slug is unknown, even with candles", async () => {
+    const { result } = await callCryptoPrice(
+      { slug: "no-such-coin-zz", candles: "1H" },
+      {
+        "/api/coins/no-such-coin-zz": [{ message: "not_found" }, 404],
+        "/api/coins/no-such-coin-zz/candles": [
+          { error: "Coin not found" },
+          404,
+        ],
+      },
+    );
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent.body).toEqual({ message: "not_found" });
+  });
+
+  it("keeps bars untouched (without v) when they fit in maxPoints", () => {
+    const body = compactCoinCandles(BTC_CANDLES_1H, 24) as any;
+    expect(body).toMatchObject({ barCount: 5, barsPerPoint: 1 });
+    expect(body.candles).toEqual(
+      BTC_CANDLES_1H.candles.map(({ t, o, h, l, c }) => ({ t, o, h, l, c })),
+    );
+    expect(compactCoinCandles({ candles: null }, 24)).toEqual({
+      candles: null,
+    });
+  });
+
+  it("restricts slug, fiat, range and maxPoints", () => {
+    const schema = schemaFor("crypto_price");
+    expect(schema.safeParse({ slug: "hive_dollar" }).success).toBe(true);
+    expect(schema.safeParse({ slug: "tether-usdt" }).success).toBe(true);
+    expect(schema.safeParse({ slug: "Bitcoin" }).success).toBe(false);
+    expect(schema.safeParse({ slug: "bit coin" }).success).toBe(false);
+    expect(schema.safeParse({ slug: "../x" }).success).toBe(false);
+    expect(schema.safeParse({ slug: "bitcoin", fiat: "EURO" }).success).toBe(
+      false,
+    );
+    expect(schema.safeParse({ slug: "bitcoin", candles: "5Y" }).success).toBe(
+      false,
+    );
+    expect(
+      schema.safeParse({ slug: "bitcoin", candles: "1H", maxPoints: 1 })
+        .success,
+    ).toBe(false);
   });
 });
 

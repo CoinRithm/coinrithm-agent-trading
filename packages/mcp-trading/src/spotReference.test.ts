@@ -105,7 +105,7 @@ describe("explicit spot-reference tool", () => {
       vi.stubEnv("COINRITHM_SPOT_REFERENCE_TOOLS_ENABLED", flag);
       vi.stubEnv("COINRITHM_PM_PAPER_V2_TOOLS_ENABLED", undefined);
       const tools = inventory();
-      expect(tools.size).toBe(48);
+      expect(tools.size).toBe(49);
       expect(tools.has("get_spot_reference")).toBe(false);
     },
   );

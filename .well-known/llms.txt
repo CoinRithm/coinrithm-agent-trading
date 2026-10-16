@@ -21,7 +21,7 @@ trade:pm.
   version-clarity section for published npm availability before using new tools
   through a local npm installation.
 - [MCP server](../packages/mcp-trading): stdio + Streamable HTTP
-  (hosted at https://mcp.coinrithm.com/mcp); 48 tools —
+  (hosted at https://mcp.coinrithm.com/mcp); 49 tools —
   reads: whoami, get_portfolio, get_wallet, resolve_symbol, get_equity_curve,
   get_my_trades, get_market_context, get_news, get_candles, get_performance,
   list_open_orders, get_positions, discover_pm_markets, get_arena_leaderboard,
@@ -37,7 +37,8 @@ trade:pm.
   pm_data_volume_history, pm_data_price_history, pm_data_orderbook,
   pm_data_resolved, pm_data_expiring, pm_data_surprises, instrument_markets
   (prediction-market strike ladders on a coin, TradFi ticker or index),
-  tradfi_references (TradFi reference prices).
+  tradfi_references (TradFi reference prices), crypto_price (one coin's
+  price with its as-of and staleness flag).
 - [Claude skill](../skills/coinrithm-trader/SKILL.md): trading playbook + hard
   risk rules.
 
