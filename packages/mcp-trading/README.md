@@ -44,10 +44,18 @@ This package ships two binaries:
 
 > **Paper trading only** — virtual funds (50,000 mUSD). Not financial advice.
 
-## Version 0.7.17
+## Version 0.7.19
 
-The default tool surface is unchanged at 41 tools. Two server-wide opt-in
-flags add tools that stay off unless enabled: the
+The local server starts without `COINRITHM_API_KEY` in data-only mode, so
+`npx -y @coinrithm/mcp-trading` gives prediction-market and crypto data with
+no account; keyed tools return a structured `missing_api_key` result until a
+key is set. Upstream calls time out after 35 s (`upstream_timeout`). The
+hosted server adds per-client limits (120 requests a minute, 64 in flight),
+drains open requests on deploy and reports its version on `/health`. The
+default surface stays at 41 tools. See [CHANGELOG.md](./CHANGELOG.md).
+
+Version 0.7.17 kept the default tool surface at 41 tools. Two server-wide
+opt-in flags add tools that stay off unless enabled: the
 [PM paper v2 tools](#opt-in-pm-paper-v2-tools) for configured house keys and
 the [spot reference tool](#opt-in-spot-reference-tool).
 
