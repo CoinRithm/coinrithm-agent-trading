@@ -9,6 +9,7 @@ from ...client import AuthenticatedClient, Client
 from ...models.error import Error
 from ...models.public_pm_source_slug import PublicPmSourceSlug
 from ...models.public_pm_trades_response import PublicPmTradesResponse
+from ...models.retryable_unavailable_error import RetryableUnavailableError
 from ...types import Response
 
 
@@ -30,7 +31,7 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Error | PublicPmTradesResponse | None:
+) -> Error | PublicPmTradesResponse | RetryableUnavailableError | None:
     if response.status_code == 200:
         response_200 = PublicPmTradesResponse.from_dict(response.json())
 
@@ -51,6 +52,11 @@ def _parse_response(
 
         return response_500
 
+    if response.status_code == 503:
+        response_503 = RetryableUnavailableError.from_dict(response.json())
+
+        return response_503
+
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
     else:
@@ -59,7 +65,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[Error | PublicPmTradesResponse]:
+) -> Response[Error | PublicPmTradesResponse | RetryableUnavailableError]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -73,7 +79,7 @@ def sync_detailed(
     slug: str,
     *,
     client: AuthenticatedClient | Client,
-) -> Response[Error | PublicPmTradesResponse]:
+) -> Response[Error | PublicPmTradesResponse | RetryableUnavailableError]:
     r"""Recent trades for one outcome of an event
 
      Keyless recent-trades tape for the same single outcome
@@ -103,7 +109,7 @@ def sync_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Error | PublicPmTradesResponse]
+        Response[Error | PublicPmTradesResponse | RetryableUnavailableError]
     """
 
     kwargs = _get_kwargs(
@@ -123,7 +129,7 @@ def sync(
     slug: str,
     *,
     client: AuthenticatedClient | Client,
-) -> Error | PublicPmTradesResponse | None:
+) -> Error | PublicPmTradesResponse | RetryableUnavailableError | None:
     r"""Recent trades for one outcome of an event
 
      Keyless recent-trades tape for the same single outcome
@@ -153,7 +159,7 @@ def sync(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Error | PublicPmTradesResponse
+        Error | PublicPmTradesResponse | RetryableUnavailableError
     """
 
     return sync_detailed(
@@ -168,7 +174,7 @@ async def asyncio_detailed(
     slug: str,
     *,
     client: AuthenticatedClient | Client,
-) -> Response[Error | PublicPmTradesResponse]:
+) -> Response[Error | PublicPmTradesResponse | RetryableUnavailableError]:
     r"""Recent trades for one outcome of an event
 
      Keyless recent-trades tape for the same single outcome
@@ -198,7 +204,7 @@ async def asyncio_detailed(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Error | PublicPmTradesResponse]
+        Response[Error | PublicPmTradesResponse | RetryableUnavailableError]
     """
 
     kwargs = _get_kwargs(
@@ -216,7 +222,7 @@ async def asyncio(
     slug: str,
     *,
     client: AuthenticatedClient | Client,
-) -> Error | PublicPmTradesResponse | None:
+) -> Error | PublicPmTradesResponse | RetryableUnavailableError | None:
     r"""Recent trades for one outcome of an event
 
      Keyless recent-trades tape for the same single outcome
@@ -246,7 +252,7 @@ async def asyncio(
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Error | PublicPmTradesResponse
+        Error | PublicPmTradesResponse | RetryableUnavailableError
     """
 
     return (

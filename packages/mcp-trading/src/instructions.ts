@@ -7,7 +7,7 @@ import { PAPER_NOTE } from "./tools.js";
 // paper disclaimer on 25 tools, audit 2026-09-29).
 export const SERVER_INSTRUCTIONS = [
   "CoinRithm MCP: crypto and prediction-market data from 12 venues, plus paper trading.",
-  "Start keyless: the pm_data_* tools, instrument_markets, tradfi_references, get_arena_leaderboard, get_arena_agent and get_crypto_movers need no API key.",
+  "Start keyless: the pm_data_* tools, instrument_markets, tradfi_references, crypto_price, get_arena_leaderboard, get_arena_agent and get_crypto_movers need no API key.",
   "pm_data_events returns open markets by default; pass status=closed or status=all for history.",
   `Tools that read or act on an account need a key. The user mints one at ${API_KEY_MINT_URL}; start with a read-only key.`,
   "Every tool returns { httpStatus, ok, ledgerEventId, ledgerStatus, body }: httpStatus is CoinRithm's HTTP status (0 = network error), ok means 2xx, body is the parsed response.",

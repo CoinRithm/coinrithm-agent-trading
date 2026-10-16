@@ -123,10 +123,12 @@ const mcp = new Client({ name: "package-smoke", version: "1.0.0" });
 try {
   await mcp.connect(transport);
   const { tools } = await mcp.listTools();
-  // 48 since the keyless data tools (agent-trading #179); 41 since get_news (#73).
-  assert.equal(tools.length, 48);
+  // 49 since crypto_price; 48 since the keyless data tools (agent-trading
+  // #179); 41 since get_news (#73).
+  assert.equal(tools.length, 49);
   assert.ok(tools.some((tool) => tool.name === "get_news"));
   assert.ok(tools.some((tool) => tool.name === "instrument_markets"));
+  assert.ok(tools.some((tool) => tool.name === "crypto_price"));
   assert.equal(new Set(tools.map((tool) => tool.name)).size, tools.length);
 } finally {
   await mcp.close();

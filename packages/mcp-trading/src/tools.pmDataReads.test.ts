@@ -48,6 +48,7 @@ const NEW_PUBLIC_DATA_TOOLS = [
   "pm_data_surprises",
   "instrument_markets",
   "tradfi_references",
+  "crypto_price",
 ] as const;
 
 describe("new keyless pm_data_* read tools", () => {

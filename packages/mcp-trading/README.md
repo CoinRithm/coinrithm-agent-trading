@@ -20,8 +20,8 @@ Point an MCP client that supports Streamable HTTP at the hosted
 endpoint `https://mcp.coinrithm.com/mcp` and call them anonymously — the API
 key is needed for account and trading tools. `instrument_markets` (strike
 ladders on a coin, TradFi ticker or index), `tradfi_references`,
-`get_crypto_movers`, `get_arena_leaderboard` and `get_arena_agent` also work
-anonymously, for **22 keyless tools** in total.
+`crypto_price`, `get_crypto_movers`, `get_arena_leaderboard` and
+`get_arena_agent` also work anonymously, for **23 keyless tools** in total.
 
 Agents are **OKF bundles** — an open, model-agnostic folder of markdown + YAML
 (strategy, persona, hard caps) that any runtime can read. Two ways to run the
@@ -158,8 +158,8 @@ The hosted HTTP server holds **no** key: each request brings its own
 `crk_live_…` in the Authorization header, and the server forwards exactly that
 key upstream. The Authorization header is **optional** on the hosted endpoint —
 the seventeen `pm_data_*` tools, `instrument_markets`, `tradfi_references`,
-`get_crypto_movers`, `get_arena_leaderboard` and `get_arena_agent` work
-anonymously. Account and trading tools require it.
+`crypto_price`, `get_crypto_movers`, `get_arena_leaderboard` and
+`get_arena_agent` work anonymously. Account and trading tools require it.
 See [`DEPLOY.md`](./DEPLOY.md).
 
 ## Bring your own model key
@@ -267,6 +267,7 @@ agent file.
 | `get_crypto_movers` (direction, limit)                 | none (public) | `GET /api/coins/top-{gainers,losers}`                                                |
 | `instrument_markets` (type, id, horizon?, detail?)     | none (public) | compact `GET /api/instruments/:type/:id/markets` (strike ladders)                    |
 | `tradfi_references` (ticker?, assetClass?, window?)    | none (public) | `GET /api/market/references` (+ `/:ticker` detail)                                   |
+| `crypto_price` (slug, fiat?, candles?, maxPoints?)     | none (public) | compact `GET /api/coins/:slug` (+ `/:slug/candles`, merged bars)                     |
 
 From package version 0.7.15 (not in npm `0.7.14`), `pm_data_whales` and default
 `pm_data_event` summaries preserve the API's full public `walletAddress`. Pass
@@ -346,6 +347,15 @@ outcome ids; `detail: "full"` returns the untouched record. `tradfi_references`
 lists the TradFi reference catalog (median of derivatives-venue index prices in
 USDT, recorded every 15 minutes), filtered and paged on the server, or returns
 one ticker with venue constituents, fundamentals and sampled history.
+
+`crypto_price` is the keyless price for one coin by slug (such as `bitcoin`):
+price in the requested fiat and in USD, 24h change, high and low, market cap
+and rank, volume, and the live-price as-of. `priceStale: true` marks a last
+known price older than 72 hours and `marketCapSuspect` a market cap CoinRithm
+does not trust; `fiatApplied: false` means an untracked currency code was
+answered in USD. `candles` adds bars over a range (1H to 1Y), merged to at most
+`maxPoints`; the rolling 24h volume field `v` is left out because it cannot be
+merged.
 
 ¹ Server-flag gated; live now. Returns `403 … not enabled` only if CoinRithm later disables it.
 
@@ -473,7 +483,7 @@ The default tool list is unchanged. Set `COINRITHM_PM_PAPER_V2_TOOLS_ENABLED=tru
 only for a server intended to expose the separately authorized house pilot:
 `discover_pm_paper_v2_markets`, `open_pm_paper_v2`, `close_pm_paper_v2`, and
 `get_pm_paper_v2_positions`. With both opt-in flags on, the server registers
-53 tools.
+54 tools.
 
 | Tool                           | Scope      | Wraps                                        |
 | ------------------------------ | ---------- | -------------------------------------------- |
@@ -509,7 +519,7 @@ and management of already-open paper exposure.
 
 `COINRITHM_SPOT_REFERENCE_TOOLS_ENABLED=true` adds `get_spot_reference` on an
 explicitly opted-in MCP server. It is off by default and independent of the PM
-tool flag. The 48 default tools, hosted runner observations and existing agent
+tool flag. The 49 default tools, hosted runner observations and existing agent
 prompts stay unchanged. Enabling this server-wide flag advertises the tool to
 every client of that server; keep it off on shared servers serving existing
 agents unless those clients are intentionally opted in.

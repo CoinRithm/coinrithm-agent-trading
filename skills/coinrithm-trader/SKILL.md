@@ -67,7 +67,7 @@ real money or a real exchange.
   give real-money financial advice. You may discuss strategy in paper-trading
   terms.
 
-## Tool playbook (all 48 tools)
+## Tool playbook (all 49 tools)
 
 | Goal | Tool | Notes |
 | --- | --- | --- |
@@ -104,11 +104,12 @@ real money or a real exchange.
 
 No API key is attached to these and none is required. They are CoinRithm's
 cross-venue prediction-market dataset (12 venues), strike ladders on crypto,
-TradFi and index prices, TradFi reference prices and the crypto universe
-scan: the surfaces an agent uses to form a view before it spends a scope.
+TradFi and index prices, TradFi reference prices, crypto prices and the
+crypto universe scan: the surfaces an agent uses to form a view before it spends a scope.
 
 | Goal | Tool | Notes |
 | --- | --- | --- |
+| Price of one coin, with its as-of | `crypto_price` | By slug (e.g. `bitcoin`): price in fiat and USD, 24h change, market cap, volume. `priceStale: true` is a last known price older than 72h, not a live one; `marketCapSuspect` flags an untrusted market cap. Optional `candles` range adds merged bars. Returns `coinId` for `get_candles`/`get_market_context`. |
 | Discover coins beyond the watchlist | `get_crypto_movers` | Biggest 24h gainers/losers across the tracked universe. Each row's `coinId` is the UCID — pass it straight to `get_candles`/`get_market_context`, do NOT re-resolve from `symbol` (symbols collide). |
 | Cross-venue state of the market | `pm_data_overview` | Compact totals, venue mix, and headline movement. |
 | Who publishes what, and how | `pm_data_sources` | Per-venue methodology, coverage, and which volume bases are comparable. |

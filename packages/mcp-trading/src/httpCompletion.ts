@@ -60,6 +60,7 @@ export const COMPLETION_TOOL_NAMES = [
   "get_crypto_movers",
   "instrument_markets",
   "tradfi_references",
+  "crypto_price",
 ] as const;
 const toolNames: ReadonlySet<string> = new Set(COMPLETION_TOOL_NAMES);
 

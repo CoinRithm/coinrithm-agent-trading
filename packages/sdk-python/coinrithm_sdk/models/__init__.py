@@ -181,6 +181,7 @@ from .get_performance_response_200_by_venue import GetPerformanceResponse200ByVe
 from .get_pm_paper_v2_positions_response_503 import GetPmPaperV2PositionsResponse503
 from .get_pm_paper_v2_positions_status import GetPmPaperV2PositionsStatus
 from .get_pm_positions_response_200 import GetPmPositionsResponse200
+from .get_public_coin_candles_range import GetPublicCoinCandlesRange
 from .get_public_instrument_markets_horizon import GetPublicInstrumentMarketsHorizon
 from .get_public_instrument_markets_type import GetPublicInstrumentMarketsType
 from .get_public_large_trades_asset_class import GetPublicLargeTradesAssetClass
@@ -224,6 +225,9 @@ from .get_public_prediction_market_price_history_response_200_outcome_type_0 imp
 from .get_public_prediction_market_price_history_response_200_points_item import (
     GetPublicPredictionMarketPriceHistoryResponse200PointsItem,
 )
+from .get_public_prediction_market_token_price_history_interval import (
+    GetPublicPredictionMarketTokenPriceHistoryInterval,
+)
 from .get_public_prediction_market_whale_wallet_response_200 import GetPublicPredictionMarketWhaleWalletResponse200
 from .get_public_prediction_market_whale_wallet_response_200_daily_item import (
     GetPublicPredictionMarketWhaleWalletResponse200DailyItem,
@@ -264,6 +268,9 @@ from .get_public_tradfi_reference_window import GetPublicTradfiReferenceWindow
 from .get_spot_reference_response_404 import GetSpotReferenceResponse404
 from .list_competitions_response_200 import ListCompetitionsResponse200
 from .list_open_orders_response_200 import ListOpenOrdersResponse200
+from .list_public_coins_view import ListPublicCoinsView
+from .list_public_live_prices_sort_by import ListPublicLivePricesSortBy
+from .list_public_live_prices_sort_order import ListPublicLivePricesSortOrder
 from .list_public_prediction_market_surprises_window import ListPublicPredictionMarketSurprisesWindow
 from .market_chain_tvl_context import MarketChainTvlContext
 from .market_defi_context import MarketDefiContext
@@ -389,7 +396,26 @@ from .public_cftc_positioning_response_coverage import PublicCftcPositioningResp
 from .public_cftc_report import PublicCftcReport
 from .public_cftc_side import PublicCftcSide
 from .public_cftc_source import PublicCftcSource
+from .public_coin_candle import PublicCoinCandle
+from .public_coin_candles import PublicCoinCandles
+from .public_coin_candles_coin import PublicCoinCandlesCoin
+from .public_coin_candles_range import PublicCoinCandlesRange
+from .public_coin_detail import PublicCoinDetail
+from .public_coin_detail_chains_type_0_item import PublicCoinDetailChainsType0Item
+from .public_coin_detail_info_links_type_0 import PublicCoinDetailInfoLinksType0
+from .public_coin_detail_notices_type_0_item import PublicCoinDetailNoticesType0Item
 from .public_coin_gecko_attribution import PublicCoinGeckoAttribution
+from .public_coin_list_item import PublicCoinListItem
+from .public_coin_list_item_categories_item import PublicCoinListItemCategoriesItem
+from .public_coin_list_item_coin_chains_item import PublicCoinListItemCoinChainsItem
+from .public_coin_list_item_coin_chains_item_chain import PublicCoinListItemCoinChainsItemChain
+from .public_coin_list_item_info_links_type_0 import PublicCoinListItemInfoLinksType0
+from .public_coin_list_response import PublicCoinListResponse
+from .public_coin_price import PublicCoinPrice
+from .public_coin_socials_type_0_item import PublicCoinSocialsType0Item
+from .public_coin_socials_type_1 import PublicCoinSocialsType1
+from .public_coin_translated_name import PublicCoinTranslatedName
+from .public_coin_translated_name_translations import PublicCoinTranslatedNameTranslations
 from .public_crypto_mover import PublicCryptoMover
 from .public_crypto_treasury_company import PublicCryptoTreasuryCompany
 from .public_crypto_treasury_response import PublicCryptoTreasuryResponse
@@ -424,8 +450,11 @@ from .public_liquidation_totals import PublicLiquidationTotals
 from .public_liquidation_venue_summary import PublicLiquidationVenueSummary
 from .public_liquidations_response import PublicLiquidationsResponse
 from .public_liquidations_window import PublicLiquidationsWindow
+from .public_live_price_row import PublicLivePriceRow
+from .public_live_prices_response import PublicLivePricesResponse
 from .public_market_feed_source import PublicMarketFeedSource
 from .public_market_feed_venue import PublicMarketFeedVenue
+from .public_market_snapshot import PublicMarketSnapshot
 from .public_message_error import PublicMessageError
 from .public_notable_large_trade import PublicNotableLargeTrade
 from .public_notable_large_trade_largest_trade import PublicNotableLargeTradeLargestTrade
@@ -546,6 +575,17 @@ from .public_pm_overview_response_categories_item_type_1 import PublicPmOverview
 from .public_pm_overview_response_highlights import PublicPmOverviewResponseHighlights
 from .public_pm_overview_response_stats import PublicPmOverviewResponseStats
 from .public_pm_pagination import PublicPmPagination
+from .public_pm_prices_history_response import PublicPmPricesHistoryResponse
+from .public_pm_prices_history_response_freshness import PublicPmPricesHistoryResponseFreshness
+from .public_pm_prices_history_response_freshness_reason import PublicPmPricesHistoryResponseFreshnessReason
+from .public_pm_prices_history_response_freshness_status import PublicPmPricesHistoryResponseFreshnessStatus
+from .public_pm_prices_history_response_markets_item import PublicPmPricesHistoryResponseMarketsItem
+from .public_pm_prices_history_response_markets_item_history_item import (
+    PublicPmPricesHistoryResponseMarketsItemHistoryItem,
+)
+from .public_pm_prices_history_response_markets_item_history_source import (
+    PublicPmPricesHistoryResponseMarketsItemHistorySource,
+)
 from .public_pm_resolution_outcome import PublicPmResolutionOutcome
 from .public_pm_resolved_entry import PublicPmResolvedEntry
 from .public_pm_resolved_events_response import PublicPmResolvedEventsResponse
@@ -645,6 +685,7 @@ from .realized_paper_trade_schema import RealizedPaperTradeSchema
 from .resolve_symbol_response_200 import ResolveSymbolResponse200
 from .resolve_symbol_response_200_alternatives_item import ResolveSymbolResponse200AlternativesItem
 from .resolve_symbol_response_200_match_type_0 import ResolveSymbolResponse200MatchType0
+from .retryable_unavailable_error import RetryableUnavailableError
 from .scorecard import Scorecard
 from .scorecard_metrics import ScorecardMetrics
 from .scorecard_returns_basis import ScorecardReturnsBasis
@@ -874,6 +915,7 @@ __all__ = (
     "GetPmPaperV2PositionsResponse503",
     "GetPmPaperV2PositionsStatus",
     "GetPmPositionsResponse200",
+    "GetPublicCoinCandlesRange",
     "GetPublicInstrumentMarketsHorizon",
     "GetPublicInstrumentMarketsType",
     "GetPublicLargeTradesAssetClass",
@@ -897,6 +939,7 @@ __all__ = (
     "GetPublicPredictionMarketPriceHistoryResponse200",
     "GetPublicPredictionMarketPriceHistoryResponse200OutcomeType0",
     "GetPublicPredictionMarketPriceHistoryResponse200PointsItem",
+    "GetPublicPredictionMarketTokenPriceHistoryInterval",
     "GetPublicPredictionMarketWhalesMinUsd",
     "GetPublicPredictionMarketWhaleWalletResponse200",
     "GetPublicPredictionMarketWhaleWalletResponse200DailyItem",
@@ -917,6 +960,9 @@ __all__ = (
     "GetSpotReferenceResponse404",
     "ListCompetitionsResponse200",
     "ListOpenOrdersResponse200",
+    "ListPublicCoinsView",
+    "ListPublicLivePricesSortBy",
+    "ListPublicLivePricesSortOrder",
     "ListPublicPredictionMarketSurprisesWindow",
     "MarketChainTvlContext",
     "MarketDefiContext",
@@ -1038,7 +1084,26 @@ __all__ = (
     "PublicCftcReport",
     "PublicCftcSide",
     "PublicCftcSource",
+    "PublicCoinCandle",
+    "PublicCoinCandles",
+    "PublicCoinCandlesCoin",
+    "PublicCoinCandlesRange",
+    "PublicCoinDetail",
+    "PublicCoinDetailChainsType0Item",
+    "PublicCoinDetailInfoLinksType0",
+    "PublicCoinDetailNoticesType0Item",
     "PublicCoinGeckoAttribution",
+    "PublicCoinListItem",
+    "PublicCoinListItemCategoriesItem",
+    "PublicCoinListItemCoinChainsItem",
+    "PublicCoinListItemCoinChainsItemChain",
+    "PublicCoinListItemInfoLinksType0",
+    "PublicCoinListResponse",
+    "PublicCoinPrice",
+    "PublicCoinSocialsType0Item",
+    "PublicCoinSocialsType1",
+    "PublicCoinTranslatedName",
+    "PublicCoinTranslatedNameTranslations",
     "PublicCryptoMover",
     "PublicCryptoTreasuryCompany",
     "PublicCryptoTreasuryResponse",
@@ -1073,8 +1138,11 @@ __all__ = (
     "PublicLiquidationsWindow",
     "PublicLiquidationTotals",
     "PublicLiquidationVenueSummary",
+    "PublicLivePriceRow",
+    "PublicLivePricesResponse",
     "PublicMarketFeedSource",
     "PublicMarketFeedVenue",
+    "PublicMarketSnapshot",
     "PublicMessageError",
     "PublicNotableLargeTrade",
     "PublicNotableLargeTradeLargestTrade",
@@ -1181,6 +1249,13 @@ __all__ = (
     "PublicPmOverviewResponseHighlights",
     "PublicPmOverviewResponseStats",
     "PublicPmPagination",
+    "PublicPmPricesHistoryResponse",
+    "PublicPmPricesHistoryResponseFreshness",
+    "PublicPmPricesHistoryResponseFreshnessReason",
+    "PublicPmPricesHistoryResponseFreshnessStatus",
+    "PublicPmPricesHistoryResponseMarketsItem",
+    "PublicPmPricesHistoryResponseMarketsItemHistoryItem",
+    "PublicPmPricesHistoryResponseMarketsItemHistorySource",
     "PublicPmResolutionOutcome",
     "PublicPmResolvedEntry",
     "PublicPmResolvedEventsResponse",
@@ -1264,6 +1339,7 @@ __all__ = (
     "ResolveSymbolResponse200",
     "ResolveSymbolResponse200AlternativesItem",
     "ResolveSymbolResponse200MatchType0",
+    "RetryableUnavailableError",
     "Scorecard",
     "ScorecardMetrics",
     "ScorecardReturnsBasis",
