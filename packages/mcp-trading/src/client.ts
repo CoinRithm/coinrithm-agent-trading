@@ -54,14 +54,19 @@ function resolveBaseUrl(): string {
   );
 }
 
-// stdio path: a startup key is REQUIRED (single user).
+// stdio path (single user). The key is OPTIONAL since 2026-10-16 (audit):
+// without one the server starts in data-only mode, exactly like the hosted
+// server: keyless tools (pm_data_*, get_arena_*, get_crypto_movers) work and
+// every keyed tool returns the structured missing_api_key result. Requiring a
+// key blocked the one-line `npx -y @coinrithm/mcp-trading` data install.
 export function loadConfig(): ClientConfig {
   const apiKey = process.env.COINRITHM_API_KEY?.trim();
   if (!apiKey) {
-    throw new Error(
-      "COINRITHM_API_KEY is not set. Mint a key in CoinRithm → Settings → API Keys " +
-        "and expose it to this MCP server as the COINRITHM_API_KEY environment variable.",
+    log(
+      "no COINRITHM_API_KEY: data-only mode. Keyless data tools work; paper-trading " +
+        "tools need a key from CoinRithm → Settings → API Keys.",
     );
+    return { baseUrl: resolveBaseUrl() };
   }
   if (!apiKey.startsWith("crk_live_")) {
     log(
@@ -206,7 +211,8 @@ export class CoinRithmClient {
           message:
             "No API key for this request. Mint a free key at " +
             `${API_KEY_MINT_URL}, then on the hosted MCP send ` +
-            "`Authorization: Bearer crk_live_…`. Public data tools " +
+            "`Authorization: Bearer crk_live_…`, or for the local server " +
+            "set COINRITHM_API_KEY. Public data tools " +
             "(pm_data_*, get_arena_*, get_crypto_movers) need no key.",
         },
       };
