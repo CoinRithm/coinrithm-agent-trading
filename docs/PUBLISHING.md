@@ -5,6 +5,22 @@ MCP Registry are delivered separately. Current publication status is in the
 [README](../README.md#version-clarity); package changes are in the
 [changelog](../CHANGELOG.md).
 
+## Verified delivery - 16 October 2026 (MCP 0.7.20)
+
+| Registry | Package                  | Version  | File                               |
+| -------- | ------------------------ | -------- | ---------------------------------- |
+| npm      | `@coinrithm/mcp-trading` | `0.7.20` | `coinrithm-mcp-trading-0.7.20.tgz` |
+
+Source `15bf0105359ebd16b56f4ed7b2e0a96b53057bbe` (main after #183, API
+contract 1.11.0), built from a clean clone on the production host
+(`npm ci`, `npm run build`, `npm pack` in `node:24-alpine`); its file list
+differs from 0.7.19 only by `dist/requestContext.*` (#177). SHA-256
+`752f358cc96d0f1d27a7bcdbcbd45e27aefa6f1111a6a1d0924e7c7c3f5206b1`; the npm
+download matches byte for byte and is the `latest` tag. The official MCP
+Registry lists 0.7.20 as active/latest (run 38910603849); the
+[GitHub release](https://github.com/CoinRithm/coinrithm-agent-trading/releases/tag/mcp-trading-v0.7.20)
+carries the archive. 49 default tools (23 keyless).
+
 ## Verified delivery - 16 October 2026
 
 | Registry | Package                  | Version  | Files                                                                  |
