@@ -5,7 +5,8 @@
 # Build:  docker build -t coinrithm-mcp .
 # Run:    docker run -p 8787:8787 -e COINRITHM_API_URL=https://api.coinrithm.com coinrithm-mcp
 
-FROM node:20-slim
+# Node 20 reached end of life on 2026-04-30; the suite runs on Node 24.
+FROM node:24-slim
 
 WORKDIR /app
 
@@ -30,6 +31,13 @@ ENV COINRITHM_API_URL=https://api.coinrithm.com
 # HTTP port the Streamable-HTTP server listens on. Coolify maps its domain here.
 ENV PORT=8787
 EXPOSE 8787
+
+# /healthz answers 503 while a stop signal drains open requests
+# (src/httpShutdown.ts), so a stopping container reports unhealthy.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD node -e "const r=require('http').get('http://127.0.0.1:'+(process.env.PORT||8787)+'/healthz',x=>process.exit(x.statusCode===200?0:1));r.on('error',()=>process.exit(1));r.setTimeout(4000,()=>process.exit(1))"
+
+# The image's built-in unprivileged user; nothing here writes to disk.
+USER node
 
 # Run the HTTP (multi-user) entry. NOT index.js (that is the single-user stdio path).
 CMD ["node", "dist/http.js"]

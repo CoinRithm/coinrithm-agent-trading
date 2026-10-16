@@ -3,7 +3,8 @@
 # registry hosts that expect a repository-root Dockerfile from needing subfolder
 # build configuration.
 
-FROM node:20-slim
+# Node 20 reached end of life on 2026-04-30; the suite runs on Node 24.
+FROM node:24-slim
 
 WORKDIR /app/packages/mcp-trading
 
@@ -22,5 +23,8 @@ ENV NODE_ENV=production
 ENV COINRITHM_API_URL=https://api.coinrithm.com
 ENV PORT=8787
 EXPOSE 8787
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD node -e "const r=require('http').get('http://127.0.0.1:'+(process.env.PORT||8787)+'/healthz',x=>process.exit(x.statusCode===200?0:1));r.on('error',()=>process.exit(1));r.setTimeout(4000,()=>process.exit(1))"
+USER node
 
 CMD ["node", "dist/http.js"]
