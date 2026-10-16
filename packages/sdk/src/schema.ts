@@ -1889,6 +1889,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/instruments/{type}/{id}/markets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Prediction-market strike ladders on one crypto, TradFi or index instrument
+         * @description Keyless join of an instrument to the prediction-market contracts
+         *     written on its price: one group per (expiry, settlement source), one
+         *     ladder per venue series, contracts sorted by comparator then strike.
+         *     Probabilities are venue prices, never CoinRithm forecasts, and each
+         *     ladder names its own settlement source and how it relates to the
+         *     reference price (`referenceRelation`).
+         *
+         *     No live price is in the payload. `reference` names the live series to
+         *     read for a current-price marker (`coin_live_price`, `tradfi_reference`
+         *     or `macro_proxy`). `observation` is `at_time` (the price at
+         *     `expiresAt`) or `touch` (the price touches the strike before
+         *     `expiresAt`; `windowStartAt: null` means the venue's own window rules
+         *     apply).
+         *
+         *     A known instrument with no contracts returns 200 with `groups: []`;
+         *     `coverage.degraded: true` means the contract read failed. Only
+         *     `horizon`, `includeShortTerm` and `limit` are accepted; any other
+         *     query parameter returns 400. Shared-cached for about 30 seconds within
+         *     the 5-minute prediction-market ingest.
+         */
+        get: operations["getPublicInstrumentMarkets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/market/liquidations": {
         parameters: {
             query?: never;
@@ -6135,6 +6173,130 @@ export interface components {
                 nearResolution?: boolean;
             };
         };
+        PublicInstrumentMarkets: {
+            version: number;
+            instrument: {
+                type: string;
+                id: string;
+                symbol: string;
+                name: string;
+            };
+            /** @description The live series to read for a current-price marker. The payload carries no price. */
+            reference: {
+                /** @enum {string} */
+                kind: "coin_live_price" | "tradfi_reference" | "macro_proxy";
+                key: string;
+                label?: string;
+            };
+            /** Format: date-time */
+            generatedAt: string;
+            /** @enum {string} */
+            horizon: "hour" | "day" | "week" | "month" | "year" | "all";
+            groups: components["schemas"]["PublicInstrumentMarketGroup"][];
+            /** @description Contracts with an equal equivalence key on two or more venues, traded on each leg. */
+            crossVenue: {
+                [key: string]: unknown;
+            }[];
+            shortTerm: {
+                /** @description Open short-term up/down markets on this instrument (not ladders). */
+                upDownOpen: number;
+                /** Format: date-time */
+                nextExpiresAt?: string | null;
+                venues?: {
+                    [key: string]: number;
+                };
+                items?: {
+                    [key: string]: unknown;
+                }[];
+            };
+            coverage: {
+                venues: string[];
+                ladders: number;
+                contracts: number;
+                truncated: boolean;
+                /** @description The contract read failed; render nothing rather than an error. */
+                degraded?: boolean;
+                excluded?: string[];
+            };
+            disclaimer: string;
+            meta?: {
+                /** Format: date-time */
+                freshUntil?: string;
+            };
+        };
+        PublicInstrumentMarketGroup: {
+            /** Format: date-time */
+            expiresAt: string;
+            settlementSource: string;
+            settlementNote: string;
+            ladders: components["schemas"]["PublicInstrumentMarketLadder"][];
+        };
+        PublicInstrumentMarketLadder: {
+            venue: string;
+            venueName: string;
+            series: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /**
+             * Format: date-time
+             * @description Null on a touch ladder means the venue's own window rules apply.
+             */
+            windowStartAt?: string | null;
+            /** @enum {string} */
+            observation: "at_time" | "touch";
+            /** @description For example `spot_price` or `futures_settle`. */
+            metric?: string;
+            settlementSource: string;
+            settlementNote: string;
+            /** @description For example `same_asset_different_feed`, `futures_vs_spot`, `proxy_perp`. */
+            referenceRelation: string;
+            referenceNote?: string | null;
+            /**
+             * Format: date-time
+             * @description The venue lane's last observation time.
+             */
+            asOf?: string | null;
+            asOfBasis?: string;
+            /** @description False when the venue's traded prices disagree across strikes. */
+            monotonic: boolean;
+            events?: {
+                source?: string;
+                slug?: string;
+                title?: string;
+                path?: string;
+                sourceUrl?: string | null;
+                volume24hUsd?: number | null;
+                liquidityUsd?: number | null;
+                openInterestUsd?: number | null;
+            }[];
+            contracts: components["schemas"]["PublicInstrumentMarketContract"][];
+        };
+        PublicInstrumentMarketContract: {
+            outcomeId?: number | string;
+            externalMarketId?: string | null;
+            /** @description Display text; venue strike values are kept as given (81999.99 = $82,000 or above). */
+            label: string;
+            /** @enum {string} */
+            comparator: "gt" | "gte" | "lt" | "lte" | "between" | "touch_up" | "touch_down";
+            strikeLow?: number | null;
+            strikeHigh?: number | null;
+            unit: string;
+            probability?: number | null;
+            bid?: number | null;
+            ask?: number | null;
+            /** @description Kalshi only: contracts ($1 notional each). */
+            contractVolume24h?: number | null;
+            contractOpenInterest?: number | null;
+            /** @description False: show as no recent trading, never as a live price. */
+            tradedRecently: boolean;
+            equivalenceKey?: string | null;
+            eventSlug?: string | null;
+            parse?: {
+                method?: string;
+                parserVersion?: string;
+                confidence?: number;
+            };
+        };
         /** @description Error body of the keyless `/api/market/*` reads. */
         PublicMessageError: {
             message: string;
@@ -10346,6 +10508,62 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["PublicMessageError"];
                 };
+            };
+        };
+    };
+    getPublicInstrumentMarkets: {
+        parameters: {
+            query?: {
+                /** @description Expiry window for strike ladders (default `all`). Any other value returns 400. */
+                horizon?: "hour" | "day" | "week" | "month" | "year" | "all";
+                /** @description `true` adds up to 20 short-term up/down markets to `shortTerm.items`; counts are always present. */
+                includeShortTerm?: boolean;
+                /** @description Ladders to return, 1-200 (default 60). */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                /** @description `coin` (id = coin slug), `tradfi` (catalog ticker), `index` (SPX, NDX), `macro` (no instruments yet). */
+                type: "coin" | "tradfi" | "index" | "macro";
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Strike ladders, short-term counts, coverage and the reference series to read */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicInstrumentMarkets"];
+                };
+            };
+            /** @description Invalid or unknown query parameter */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicMessageError"];
+                };
+            };
+            /** @description Unknown instrument */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicMessageError"];
+                };
+            };
+            /** @description Public request rate limit exceeded; honor `Retry-After`. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
