@@ -41,10 +41,12 @@ https://mcp.coinrithm.com/mcp
 ```
 
 Ask: **“Call `pm_data_events` with `limit: 3`, then summarize the returned
-freshness and quality information.”** The twelve `pm_data_*` tools and
-`get_crypto_movers` are available anonymously on the hosted endpoint. Account
-and trading tools require your own API key. The local stdio process requires
-`COINRITHM_API_KEY` at startup; use the hosted endpoint for a keyless start.
+freshness and quality information.”** The seventeen `pm_data_*` tools,
+`instrument_markets`, `tradfi_references` and `get_crypto_movers` are
+available anonymously on the hosted endpoint. Account
+and trading tools require your own API key. The local stdio server
+(`npx -y @coinrithm/mcp-trading`, 0.7.19 and later) also starts without a key
+in data-only mode; set `COINRITHM_API_KEY` to enable the account tools.
 
 ### Use a typed SDK
 

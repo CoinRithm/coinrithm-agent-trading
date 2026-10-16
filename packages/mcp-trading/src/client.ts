@@ -57,7 +57,8 @@ function resolveBaseUrl(): string {
 
 // stdio path (single user). The key is OPTIONAL since 2026-10-16 (audit):
 // without one the server starts in data-only mode, exactly like the hosted
-// server: keyless tools (pm_data_*, get_arena_*, get_crypto_movers) work and
+// server: keyless tools (pm_data_*, instrument_markets, tradfi_references,
+// get_arena_*, get_crypto_movers) work and
 // every keyed tool returns the structured missing_api_key result. Requiring a
 // key blocked the one-line `npx -y @coinrithm/mcp-trading` data install.
 export function loadConfig(): ClientConfig {
@@ -213,8 +214,9 @@ export class CoinRithmClient {
             "No API key for this request. Mint a free key at " +
             `${API_KEY_MINT_URL}, then on the hosted MCP send ` +
             "`Authorization: Bearer crk_live_…`, or for the local server " +
-            "set COINRITHM_API_KEY. Public data tools " +
-            "(pm_data_*, get_arena_*, get_crypto_movers) need no key.",
+            "set COINRITHM_API_KEY. Public data tools (pm_data_*, " +
+            "instrument_markets, tradfi_references, get_arena_*, " +
+            "get_crypto_movers) need no key.",
         },
       };
     }
@@ -435,6 +437,83 @@ export class CoinRithmClient {
   // Global daily volume trend (real-money venues only). No query params.
   getPublicPmVolumeHistory() {
     return this.publicRequest("/api/prediction-markets/volume-history");
+  }
+  // Native venue price history for ONE outcome (Polymarket and Kalshi; other
+  // venues answer 200 with points: []). Points are {t: epoch ms, p: 0-1}.
+  getPublicPmPriceHistory(
+    source: string,
+    slug: string,
+    query?: { interval?: string },
+  ) {
+    return this.publicRequest(
+      `/api/prediction-markets/event/${encodeURIComponent(source)}/${encodeURIComponent(slug)}/price-history`,
+      query,
+    );
+  }
+  // Live order book for the same outcome price-history describes, or the
+  // outcome named by outcomeExternalMarketId. Prices are 0-1 fractions.
+  getPublicPmOrderBook(
+    source: string,
+    slug: string,
+    query?: { outcomeExternalMarketId?: string },
+  ) {
+    return this.publicRequest(
+      `/api/prediction-markets/event/${encodeURIComponent(source)}/${encodeURIComponent(slug)}/orderbook`,
+      query,
+    );
+  }
+  listPublicPmResolved(query?: {
+    limit?: number;
+    offset?: number;
+    fiat?: string;
+    source?: string;
+    minVolume?: number;
+    year?: number;
+    month?: number;
+  }) {
+    return this.publicRequest("/api/prediction-markets/resolved", query);
+  }
+  listPublicPmExpiring(query?: {
+    limit?: number;
+    offset?: number;
+    fiat?: string;
+    days?: number;
+    source?: string;
+  }) {
+    return this.publicRequest("/api/prediction-markets/expiring", query);
+  }
+  listPublicPmSurprises(query?: {
+    limit?: number;
+    offset?: number;
+    fiat?: string;
+    source?: string;
+    window?: string;
+  }) {
+    return this.publicRequest("/api/prediction-markets/surprises", query);
+  }
+
+  // ---- public instrument and TradFi reference data (no key required) ----
+  // Prediction-market strike ladders written on one instrument's price. The
+  // API returns 400 for any query parameter other than these three.
+  getPublicInstrumentMarkets(
+    type: string,
+    id: string,
+    query?: { horizon?: string; includeShortTerm?: boolean; limit?: number },
+  ) {
+    return this.publicRequest(
+      `/api/instruments/${encodeURIComponent(type)}/${encodeURIComponent(id)}/markets`,
+      query,
+    );
+  }
+  // The catalog accepts no query parameters (any one returns 400).
+  getPublicTradfiReferences() {
+    return this.publicRequest("/api/market/references");
+  }
+  getPublicTradfiReference(ticker: string, query?: { window?: string }) {
+    return this.publicRequest(
+      `/api/market/references/${encodeURIComponent(ticker)}`,
+      query,
+    );
   }
 
   // ---- public crypto data (no key required) ----

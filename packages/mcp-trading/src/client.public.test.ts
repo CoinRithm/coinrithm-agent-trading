@@ -191,6 +191,52 @@ describe("public PM data client (keyless)", () => {
     );
   });
 
+  it("encodes path segments of the outcome, instrument and TradFi reads", async () => {
+    fetchMock.mockImplementation(async () => jsonResponse({}));
+    const client = new CoinRithmClient({
+      apiKey: "crk_live_secret",
+      baseUrl: "https://api.example.test",
+    });
+
+    await client.getPublicPmPriceHistory("kalshi", "kx/a b", {
+      interval: "1d",
+    });
+    await client.getPublicPmOrderBook("polymarket", "x?y", {
+      outcomeExternalMarketId: "A&B",
+    });
+    await client.getPublicInstrumentMarkets("coin", "bit/coin", { limit: 5 });
+    await client.getPublicTradfiReference("A/B", { window: "7d" });
+    await client.getPublicTradfiReferences();
+
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+      "https://api.example.test/api/prediction-markets/event/kalshi/kx%2Fa%20b/price-history?interval=1d",
+      "https://api.example.test/api/prediction-markets/event/polymarket/x%3Fy/orderbook?outcomeExternalMarketId=A%26B",
+      "https://api.example.test/api/instruments/coin/bit%2Fcoin/markets?limit=5",
+      "https://api.example.test/api/market/references/A%2FB?window=7d",
+      "https://api.example.test/api/market/references",
+    ]);
+    for (const [, init] of fetchMock.mock.calls) {
+      expect(
+        ((init?.headers ?? {}) as Record<string, string>).Authorization,
+      ).toBeUndefined();
+    }
+  });
+
+  it("pages the resolved, expiring and surprise feeds with query params", async () => {
+    fetchMock.mockImplementation(async () => jsonResponse({ data: [] }));
+    const client = new CoinRithmClient({ baseUrl: "https://api.example.test" });
+
+    await client.listPublicPmResolved({ limit: 5, year: 2026, month: 9 });
+    await client.listPublicPmExpiring({ days: 3, source: "kalshi" });
+    await client.listPublicPmSurprises({ window: "30d", offset: 10 });
+
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+      "https://api.example.test/api/prediction-markets/resolved?limit=5&year=2026&month=9",
+      "https://api.example.test/api/prediction-markets/expiring?days=3&source=kalshi",
+      "https://api.example.test/api/prediction-markets/surprises?window=30d&offset=10",
+    ]);
+  });
+
   it("never attaches the API key to volume-history requests", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ days: [] }));
     const client = new CoinRithmClient({
