@@ -9,17 +9,19 @@ confidence-weighted realized-PnL methodology. Paper results do not establish
 future returns or live execution performance.
 
 **Plus a free prediction-market data surface — no key at all.** The same server
-ships twelve keyless `pm_data_*` tools serving CoinRithm's public cross-venue
+ships seventeen keyless `pm_data_*` tools serving CoinRithm's public cross-venue
 dataset: odds, cross-venue matches with a size-weighted reference probability,
-a whale-trade tape, and market-wide volume statistics. Availability and freshness
+a whale-trade tape, market-wide volume statistics, outcome price history and
+order books, and resolved, expiring and surprise markets. Availability and freshness
 vary by source; inspect the returned source-health and observation metadata.
 The catalog covers 12 venues: Polymarket, Kalshi, Smarkets, Limitless, Manifold,
 Metaculus, PredictIt, Rothera, Futuur, Myriad, ForecastEx and Gemini.
 Point an MCP client that supports Streamable HTTP at the hosted
 endpoint `https://mcp.coinrithm.com/mcp` and call them anonymously — the API
-key is needed for account and trading tools. `get_crypto_movers`,
-`get_arena_leaderboard` and `get_arena_agent` also work anonymously,
-for **15 keyless tools** in total.
+key is needed for account and trading tools. `instrument_markets` (strike
+ladders on a coin, TradFi ticker or index), `tradfi_references`,
+`get_crypto_movers`, `get_arena_leaderboard` and `get_arena_agent` also work
+anonymously, for **22 keyless tools** in total.
 
 Agents are **OKF bundles** — an open, model-agnostic folder of markdown + YAML
 (strategy, persona, hard caps) that any runtime can read. Two ways to run the
@@ -155,8 +157,9 @@ DB-driven runtime.
 The hosted HTTP server holds **no** key: each request brings its own
 `crk_live_…` in the Authorization header, and the server forwards exactly that
 key upstream. The Authorization header is **optional** on the hosted endpoint —
-the twelve `pm_data_*` tools, `get_crypto_movers`, `get_arena_leaderboard` and
-`get_arena_agent` work anonymously. Account and trading tools require it.
+the seventeen `pm_data_*` tools, `instrument_markets`, `tradfi_references`,
+`get_crypto_movers`, `get_arena_leaderboard` and `get_arena_agent` work
+anonymously. Account and trading tools require it.
 See [`DEPLOY.md`](./DEPLOY.md).
 
 ## Bring your own model key
@@ -256,7 +259,14 @@ agent file.
 | `pm_data_calibration`                                  | none (public) | `GET /api/prediction-markets/calibration`                                            |
 | `pm_data_canonical` (key?, limit, cursor)              | none (public) | `GET /api/prediction-markets/canonical` (+ `/:key` detail)                           |
 | `pm_data_volume_history`                               | none (public) | `GET /api/prediction-markets/volume-history`                                         |
+| `pm_data_price_history` (source, slug, interval?)      | none (public) | `GET /api/prediction-markets/event/:source/:slug/price-history`, sampled             |
+| `pm_data_orderbook` (source, slug, depth?)             | none (public) | `GET /api/prediction-markets/event/:source/:slug/orderbook`, best levels             |
+| `pm_data_resolved` (limit, source, year, month, ...)   | none (public) | compact `GET /api/prediction-markets/resolved`                                       |
+| `pm_data_expiring` (limit, days, source)               | none (public) | compact `GET /api/prediction-markets/expiring`                                       |
+| `pm_data_surprises` (limit, window, source)            | none (public) | compact `GET /api/prediction-markets/surprises`                                      |
 | `get_crypto_movers` (direction, limit)                 | none (public) | `GET /api/coins/top-{gainers,losers}`                                                |
+| `instrument_markets` (type, id, horizon?, detail?)     | none (public) | compact `GET /api/instruments/:type/:id/markets` (strike ladders)                    |
+| `tradfi_references` (ticker?, assetClass?, window?)    | none (public) | `GET /api/market/references` (+ `/:ticker` detail)                                   |
 
 From package version 0.7.15 (not in npm `0.7.14`), `pm_data_whales` and default
 `pm_data_event` summaries preserve the API's full public `walletAddress`. Pass
@@ -273,7 +283,7 @@ symbols collide across listings and a lookup can land on a different coin than
 the one that moved. The self-host runner does this automatically for agents
 carrying the `universe_scan` capability.
 
-The twelve `pm_data_*` tools wrap CoinRithm's free public cross-venue dataset
+The seventeen `pm_data_*` tools wrap CoinRithm's free public cross-venue dataset
 (all 12 venues: Polymarket, Kalshi, Smarkets, Limitless, Manifold,
 Metaculus, PredictIt, Rothera, Futuur, Myriad, ForecastEx, Gemini). They require no API key, never attach yours, and
 are research surfaces: `pm_data_events` list rows carry `referenceProbability`
@@ -316,6 +326,26 @@ stable cross-venue identity for one question (list, or pass `key` for one
 canonical's venue members + append-only judgment lineage); and
 `pm_data_volume_history` is the global daily volume trend (real-money venues
 only, ~90-day rolling window).
+
+`pm_data_price_history` and `pm_data_orderbook` read one outcome's native
+history and live book (Polymarket and Kalshi; other venues return an empty
+series or `orderBook: null`). Both use 0-1 fractions, not the 0-100 points of
+event outcomes; the history is evenly sampled to `maxPoints` with the raw
+`pointCount`, and the book keeps the best `depth` levels per side with the full
+level counts. `pm_data_resolved`, `pm_data_expiring` and `pm_data_surprises`
+page the resolved archive, soon-ending open events and the biggest resolved
+upsets, each row reduced to the same compact event summary.
+
+`instrument_markets` answers "what do prediction markets imply for this
+price": the contracts written on a coin (by slug, such as `bitcoin`), a TradFi
+ticker or an index, grouped by expiry and settlement source with one ladder per
+venue series. Probabilities are venue prices in 0-100 points, each ladder names
+its settlement source and how it relates to the reference price, and the
+payload carries no live price. The default asks for 10 ladders and omits venue
+outcome ids; `detail: "full"` returns the untouched record. `tradfi_references`
+lists the TradFi reference catalog (median of derivatives-venue index prices in
+USDT, recorded every 15 minutes), filtered and paged on the server, or returns
+one ticker with venue constituents, fundamentals and sampled history.
 
 ¹ Server-flag gated; live now. Returns `403 … not enabled` only if CoinRithm later disables it.
 
@@ -443,7 +473,7 @@ The default tool list is unchanged. Set `COINRITHM_PM_PAPER_V2_TOOLS_ENABLED=tru
 only for a server intended to expose the separately authorized house pilot:
 `discover_pm_paper_v2_markets`, `open_pm_paper_v2`, `close_pm_paper_v2`, and
 `get_pm_paper_v2_positions`. With both opt-in flags on, the server registers
-46 tools.
+53 tools.
 
 | Tool                           | Scope      | Wraps                                        |
 | ------------------------------ | ---------- | -------------------------------------------- |
@@ -479,7 +509,7 @@ and management of already-open paper exposure.
 
 `COINRITHM_SPOT_REFERENCE_TOOLS_ENABLED=true` adds `get_spot_reference` on an
 explicitly opted-in MCP server. It is off by default and independent of the PM
-tool flag. The 41 default tools, hosted runner observations and existing agent
+tool flag. The 48 default tools, hosted runner observations and existing agent
 prompts stay unchanged. Enabling this server-wide flag advertises the tool to
 every client of that server; keep it off on shared servers serving existing
 agents unless those clients are intentionally opted in.

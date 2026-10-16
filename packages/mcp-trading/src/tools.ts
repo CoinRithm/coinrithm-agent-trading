@@ -816,6 +816,358 @@ export function compactPublicPmDisagreements(data: unknown): unknown {
   };
 }
 
+// The 12 venue slugs of PublicPmSourceSlug in openapi.yaml.
+const PUBLIC_PM_SOURCES = [
+  "polymarket",
+  "kalshi",
+  "rothera",
+  "limitless",
+  "smarkets",
+  "manifold",
+  "metaculus",
+  "predictit",
+  "futuur",
+  "myriad",
+  "forecastex",
+  "gemini",
+] as const;
+
+/**
+ * Evenly spaced subset of a time series that always keeps the first and the
+ * last point. Values are never rewritten or interpolated.
+ */
+export function samplePoints(points: unknown[], max: number): unknown[] {
+  if (points.length <= max) return points;
+  if (max < 2) return points.slice(-1);
+  const step = (points.length - 1) / (max - 1);
+  return Array.from({ length: max }, (_, k) => points[Math.round(k * step)]);
+}
+
+function sampledSeries(
+  points: unknown,
+  max: number,
+  mapPoint: (point: unknown) => unknown = (point) => point,
+): { pointCount: number; sampled: boolean; points: unknown } {
+  if (!Array.isArray(points)) return { pointCount: 0, sampled: false, points };
+  return {
+    pointCount: points.length,
+    sampled: points.length > max,
+    points: samplePoints(points, max).map(mapPoint),
+  };
+}
+
+/** Price history for one outcome, with the point series bounded to maxPoints. */
+export function compactPublicPmPriceHistory(
+  data: unknown,
+  maxPoints: number,
+): unknown {
+  if (!isJsonRecord(data)) return data;
+  const { points, ...rest } = data;
+  return { ...rest, ...sampledSeries(points, maxPoints) };
+}
+
+/** Order book with each side cut to its best `depth` levels as served. */
+export function compactPublicPmOrderBook(
+  data: unknown,
+  depth: number,
+): unknown {
+  if (!isJsonRecord(data) || !isJsonRecord(data.orderBook)) return data;
+  const book = data.orderBook;
+  const side = (levels: unknown) =>
+    Array.isArray(levels) ? levels.slice(0, depth) : levels;
+  return {
+    ...data,
+    orderBook: {
+      ...book,
+      bidLevels: Array.isArray(book.bids) ? book.bids.length : 0,
+      askLevels: Array.isArray(book.asks) ? book.asks.length : 0,
+      bids: side(book.bids),
+      asks: side(book.asks),
+    },
+  };
+}
+
+// Resolved and surprise rows: { event, resolvedAt, resolvedAtVerified,
+// closedAt, resolutionOutcome, surprise? }. The event gets eventSummary.
+function compactSettledRow(value: unknown): unknown {
+  if (!isJsonRecord(value)) return value;
+  return {
+    ...pick(value, [
+      "resolvedAt",
+      "resolvedAtVerified",
+      "closedAt",
+      "resolutionOutcome",
+      "surprise",
+    ]),
+    event: eventSummary(value.event),
+  };
+}
+
+/** Resolved archive and surprise pages: rows reduced to settled summaries. */
+export function compactPublicPmSettled(data: unknown): unknown {
+  if (!isJsonRecord(data)) return data;
+  return {
+    ...data,
+    data: Array.isArray(data.data)
+      ? data.data.map(compactSettledRow)
+      : data.data,
+  };
+}
+
+/** Expiring page: each row is a full event plus expiresInMs. */
+export function compactPublicPmExpiring(data: unknown): unknown {
+  if (!isJsonRecord(data)) return data;
+  return {
+    ...data,
+    data: Array.isArray(data.data)
+      ? data.data.map((row) =>
+          isJsonRecord(row)
+            ? {
+                ...(eventSummary(row) as JsonRecord),
+                ...pick(row, ["expectedResolveAt", "expiresInMs"]),
+              }
+            : row,
+        )
+      : data.data,
+  };
+}
+
+const LADDER_CONTRACT_FIELDS = [
+  "label",
+  "comparator",
+  "strikeLow",
+  "strikeHigh",
+  "unit",
+  "probability",
+  "bid",
+  "ask",
+  "tradedRecently",
+] as const;
+
+const LADDER_EVENT_FIELDS = [
+  "source",
+  "slug",
+  "title",
+  "volume24hUsd",
+  "liquidityUsd",
+  "openInterestUsd",
+] as const;
+
+function compactLadderContract(value: unknown, multiEvent: boolean): unknown {
+  if (!isJsonRecord(value)) return value;
+  const contract = pick(value, LADDER_CONTRACT_FIELDS);
+  // Kalshi-only fields: carried only when the venue reported a value.
+  for (const key of ["contractVolume24h", "contractOpenInterest"]) {
+    if (value[key] !== null && value[key] !== undefined) {
+      contract[key] = value[key];
+    }
+  }
+  if (multiEvent && value.eventSlug !== undefined) {
+    contract.eventSlug = value.eventSlug;
+  }
+  return contract;
+}
+
+function compactLadder(
+  value: unknown,
+  group: JsonRecord,
+  referenceNotes: JsonRecord,
+): unknown {
+  if (!isJsonRecord(value)) return value;
+  const ladder = pick(value, [
+    "venue",
+    "series",
+    "windowStartAt",
+    "observation",
+    "metric",
+    "referenceRelation",
+    "asOf",
+    "asOfBasis",
+    "monotonic",
+  ]);
+  // Fields equal to the group's are stated once on the group.
+  for (const key of ["expiresAt", "settlementSource", "settlementNote"]) {
+    if (value[key] !== undefined && value[key] !== group[key]) {
+      ladder[key] = value[key];
+    }
+  }
+  // referenceNote repeats per relation: keep it once in referenceNotes and
+  // on a ladder only when its note differs from that entry.
+  const relation = value.referenceRelation;
+  if (value.referenceNote !== undefined) {
+    if (typeof relation === "string" && !(relation in referenceNotes)) {
+      referenceNotes[relation] = value.referenceNote;
+    }
+    if (
+      typeof relation !== "string" ||
+      referenceNotes[relation] !== value.referenceNote
+    ) {
+      ladder.referenceNote = value.referenceNote;
+    }
+  }
+  const events = value.events;
+  ladder.events = Array.isArray(events)
+    ? events.map((event) =>
+        isJsonRecord(event) ? pick(event, LADDER_EVENT_FIELDS) : event,
+      )
+    : events;
+  const multiEvent = !Array.isArray(events) || events.length !== 1;
+  ladder.contracts = Array.isArray(value.contracts)
+    ? value.contracts.map((contract) =>
+        compactLadderContract(contract, multiEvent),
+      )
+    : value.contracts;
+  return ladder;
+}
+
+/**
+ * Strike ladders without per-contract venue ids, parser details and URLs.
+ * detail=full returns the untouched record (externalMarketId included).
+ * Verified live 2026-10-16: bitcoin, 10 ladders, 174 contracts went from
+ * about 92 KB to about 40 KB.
+ */
+export function compactInstrumentMarkets(data: unknown): unknown {
+  if (!isJsonRecord(data)) return data;
+  const referenceNotes: JsonRecord = {};
+  const groups = Array.isArray(data.groups)
+    ? data.groups.map((group) => {
+        if (!isJsonRecord(group)) return group;
+        return {
+          ...pick(group, ["expiresAt", "settlementSource", "settlementNote"]),
+          ladders: Array.isArray(group.ladders)
+            ? group.ladders.map((ladder) =>
+                compactLadder(ladder, group, referenceNotes),
+              )
+            : group.ladders,
+        };
+      })
+    : data.groups;
+  return {
+    ...pick(data, [
+      "version",
+      "instrument",
+      "reference",
+      "generatedAt",
+      "horizon",
+    ]),
+    referenceNotes,
+    groups,
+    crossVenueCount: Array.isArray(data.crossVenue)
+      ? data.crossVenue.length
+      : 0,
+    crossVenue: Array.isArray(data.crossVenue)
+      ? data.crossVenue.slice(0, 20)
+      : data.crossVenue,
+    ...pick(data, ["shortTerm", "coverage", "disclaimer", "meta"]),
+  };
+}
+
+export const TRADFI_ASSET_CLASSES = [
+  "equity",
+  "etf",
+  "metal",
+  "commodity",
+  "fx",
+] as const;
+
+function compactTradfiCatalogItem(value: unknown): unknown {
+  if (!isJsonRecord(value)) return value;
+  const sub = (key: string, keys: readonly string[]): unknown => {
+    const nested = value[key];
+    return isJsonRecord(nested) ? pick(nested, keys) : nested;
+  };
+  return {
+    instrument: sub("instrument", [
+      "ticker",
+      "name",
+      "assetClass",
+      "unit",
+      "venueQuoteAsset",
+      "issuer",
+      "leverage",
+    ]),
+    availability: value.availability,
+    freshness: sub("freshness", ["status", "asOf", "ageSeconds"]),
+    latest: sub("latest", [
+      "bucketStart",
+      "consensusPrice",
+      "venueSpreadPct",
+      "venueCount",
+    ]),
+    change24h: sub("change24h", ["pct"]),
+    change7d: sub("change7d", ["pct"]),
+    range24h: sub("range24h", ["low", "high"]),
+    live: sub("live", [
+      "price",
+      "venueCount",
+      "sourceAt",
+      "ageSeconds",
+      "change24hPct",
+    ]),
+    ...(value.fundamentals === undefined
+      ? {}
+      : {
+          fundamentals: sub("fundamentals", [
+            "marketCapUsd",
+            "peRatio",
+            "dividendYieldPct",
+            "sector",
+          ]),
+        }),
+  };
+}
+
+/** TradFi catalog filtered by asset class and paged on the MCP side. */
+export function compactTradfiCatalog(
+  data: unknown,
+  opts: { assetClass?: string; limit: number; offset: number },
+): unknown {
+  if (!isJsonRecord(data) || !Array.isArray(data.items)) return data;
+  const matching = opts.assetClass
+    ? data.items.filter(
+        (item) =>
+          isJsonRecord(item) &&
+          isJsonRecord(item.instrument) &&
+          item.instrument.assetClass === opts.assetClass,
+      )
+    : data.items;
+  const items = matching.slice(opts.offset, opts.offset + opts.limit);
+  return {
+    ...pick(data, ["version", "generatedAt", "methodology", "count"]),
+    ...(opts.assetClass ? { assetClass: opts.assetClass } : {}),
+    matched: matching.length,
+    offset: opts.offset,
+    hasMore: opts.offset + items.length < matching.length,
+    items: items.map(compactTradfiCatalogItem),
+  };
+}
+
+/** TradFi detail with its 15-minute history bounded to maxPoints. */
+export function compactTradfiReference(
+  data: unknown,
+  maxPoints: number,
+): unknown {
+  if (!isJsonRecord(data)) return data;
+  const { history, ...rest } = data;
+  const series = sampledSeries(history, maxPoints, (point) =>
+    isJsonRecord(point)
+      ? pick(point, [
+          "bucketStart",
+          "consensusPrice",
+          "minPrice",
+          "maxPrice",
+          "venueCount",
+        ])
+      : point,
+  );
+  return {
+    ...rest,
+    historyCount: series.pointCount,
+    historySampled: series.sampled,
+    history: series.points,
+  };
+}
+
 function mapSuccessfulBody(
   result: ApiResult,
   transform: (data: unknown) => unknown,
@@ -2952,6 +3304,300 @@ export function registerTools(
     async () => present(await client.getPublicPmVolumeHistory()),
   );
 
+  const pmSourceSchema = z
+    .enum(PUBLIC_PM_SOURCES)
+    .describe("Venue slug, as in pm_data_events rows.");
+  const pmSlugSchema = z
+    .string()
+    .trim()
+    .min(1)
+    .max(500)
+    .describe("Event slug on that venue.");
+  const fiatSchema = z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z]{3}$/, "expected a 3-letter currency code")
+    .optional()
+    .describe("Fiat currency code for monetary figures (default USD).");
+
+  server.registerTool(
+    "pm_data_price_history",
+    {
+      title: "Prediction-market outcome price history",
+      description:
+        "Free public native venue price history for ONE outcome of an " +
+        "event: the Yes leg of a binary market, else the first live outcome. " +
+        "The response names it in `outcome`. Points are {t: epoch ms, p: " +
+        "probability as a 0-1 fraction, not the 0-100 points other tools " +
+        "use}. Polymarket and Kalshi only: other venues return points: [], " +
+        "which means not served here, not no trading. interval is a lookback " +
+        "range and the venue picks the spacing; the result is evenly " +
+        "sampled to maxPoints (first and last kept) with the raw pointCount. " +
+        "No API key required.",
+      inputSchema: {
+        source: pmSourceSchema,
+        slug: pmSlugSchema,
+        interval: z
+          .enum(["1h", "6h", "1d", "1w", "1m", "max"])
+          .optional()
+          .describe("Lookback range (default 1w)."),
+        maxPoints: z
+          .number()
+          .int()
+          .min(2)
+          .max(1000)
+          .optional()
+          .describe("Points to return, 2-1000 (default 200)."),
+      },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations(
+        "Prediction-market outcome price history",
+      ),
+    },
+    async ({ source, slug, interval, maxPoints }) =>
+      present(
+        mapSuccessfulBody(
+          await client.getPublicPmPriceHistory(source, slug, { interval }),
+          (data) => compactPublicPmPriceHistory(data, maxPoints ?? 200),
+        ),
+      ),
+  );
+
+  server.registerTool(
+    "pm_data_orderbook",
+    {
+      title: "Prediction-market outcome order book",
+      description:
+        "Free public live order book for one outcome of an event (the same " +
+        "outcome pm_data_price_history reads, or outcomeExternalMarketId). " +
+        "bid, ask, midpoint and level prices are 0-1 fractions, not 0-100 " +
+        "points. Each side is cut to its best `depth` levels as served, with " +
+        "the full level counts in bidLevels/askLevels. Polymarket and Kalshi " +
+        "only; orderBook: null is valid (venue not served, no resting orders, " +
+        "or a selected outcome book older than 10 s). This is fetch-time " +
+        "depth, not an executable quote: use pm_quote for that. No API key " +
+        "required.",
+      inputSchema: {
+        source: pmSourceSchema,
+        slug: pmSlugSchema,
+        outcomeExternalMarketId: z
+          .string()
+          .trim()
+          .min(1)
+          .max(200)
+          .optional()
+          .describe(
+            "Venue market id of another outcome on the event (from pm_data_event).",
+          ),
+        depth: z
+          .number()
+          .int()
+          .min(1)
+          .max(50)
+          .optional()
+          .describe("Levels per side, 1-50 (default 10)."),
+      },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations("Prediction-market outcome order book"),
+    },
+    async ({ source, slug, outcomeExternalMarketId, depth }) =>
+      present(
+        mapSuccessfulBody(
+          await client.getPublicPmOrderBook(source, slug, {
+            outcomeExternalMarketId,
+          }),
+          (data) => compactPublicPmOrderBook(data, depth ?? 10),
+        ),
+      ),
+  );
+
+  server.registerTool(
+    "pm_data_resolved",
+    {
+      title: "Resolved prediction markets archive",
+      description:
+        "Free public archive of definitively resolved events across all " +
+        "venues, newest settlement first. Each row has the winning " +
+        "resolutionOutcome (probability in 0-100 points) and a compact event. " +
+        "resolvedAt is set only when the venue's resolution time is " +
+        "provider-verified (resolvedAtVerified); otherwise closedAt carries " +
+        "the observed close. Pass year (and optionally month) for one " +
+        "calendar slice. minVolume keeps substantial markets; " +
+        "meta.totalResolved is then null. No API key required.",
+      inputSchema: {
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(200)
+          .optional()
+          .describe("Rows, 1-100 (default 10); up to 200 when year is set."),
+        offset: z
+          .number()
+          .int()
+          .min(0)
+          .optional()
+          .describe("Pagination offset (default 0)."),
+        source: pmSourceSchema.optional(),
+        minVolume: z
+          .number()
+          .min(0)
+          .optional()
+          .describe("Lifetime-volume floor (default 0, no floor)."),
+        year: z
+          .number()
+          .int()
+          .min(2010)
+          .max(2100)
+          .optional()
+          .describe("Calendar year slice. Required when month is set."),
+        month: z
+          .number()
+          .int()
+          .min(1)
+          .max(12)
+          .optional()
+          .describe("Calendar month 1-12; needs year."),
+        fiat: fiatSchema,
+      },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations("Resolved prediction markets archive"),
+    },
+    async ({ limit, offset, source, minVolume, year, month, fiat }) => {
+      if (month !== undefined && year === undefined) {
+        return present({
+          ok: false,
+          status: 400,
+          data: {
+            error: "invalid_period",
+            message: "month requires year.",
+          },
+        });
+      }
+      const max = year === undefined ? 100 : 200;
+      return present(
+        mapSuccessfulBody(
+          await client.listPublicPmResolved({
+            limit: Math.min(limit ?? 10, max),
+            offset,
+            source,
+            minVolume,
+            year,
+            month,
+            fiat,
+          }),
+          compactPublicPmSettled,
+        ),
+      );
+    },
+  );
+
+  server.registerTool(
+    "pm_data_expiring",
+    {
+      title: "Open prediction markets expiring soon",
+      description:
+        "Free public list of OPEN events whose endDate falls within the next " +
+        "`days` (default 7), soonest first, across all venues. Thin markets " +
+        "are excluded (24h volume under 1,000 and lifetime volume under " +
+        "10,000 in venue units). Rows are compact events plus expiresInMs " +
+        "(milliseconds from the response to endDate). endDate is the venue's " +
+        "scheduled end, not a settlement guarantee. No API key required.",
+      inputSchema: {
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(100)
+          .optional()
+          .describe("Rows, 1-100 (default 10)."),
+        offset: z
+          .number()
+          .int()
+          .min(0)
+          .optional()
+          .describe("Pagination offset (default 0)."),
+        days: z
+          .number()
+          .int()
+          .min(1)
+          .max(30)
+          .optional()
+          .describe("Lookahead window in days, 1-30 (default 7)."),
+        source: pmSourceSchema.optional(),
+        fiat: fiatSchema,
+      },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations("Open prediction markets expiring soon"),
+    },
+    async ({ limit, offset, days, source, fiat }) =>
+      present(
+        mapSuccessfulBody(
+          await client.listPublicPmExpiring({
+            limit: limit ?? 10,
+            offset,
+            days,
+            source,
+            fiat,
+          }),
+          compactPublicPmExpiring,
+        ),
+      ),
+  );
+
+  server.registerTool(
+    "pm_data_surprises",
+    {
+      title: "Biggest resolved prediction-market surprises",
+      description:
+        "Free public surprise index: resolved binary markets whose winner " +
+        "was priced under 50 (of 100) about 24 hours before settlement, " +
+        "lowest T-24h winner probability first. surprise.t24hProbability and " +
+        "surprise.t7dProbability are the WINNING outcome's probability in " +
+        "0-100 points (t7d is often null). Multi-strike ladders and markets " +
+        "without provider resolution are excluded. window filters by " +
+        "resolution recency. No API key required.",
+      inputSchema: {
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(100)
+          .optional()
+          .describe("Rows, 1-100 (default 10)."),
+        offset: z
+          .number()
+          .int()
+          .min(0)
+          .optional()
+          .describe("Pagination offset (default 0)."),
+        source: pmSourceSchema.optional(),
+        window: z
+          .enum(["7d", "30d", "90d", "all"])
+          .optional()
+          .describe("Resolved within this window (default all)."),
+        fiat: fiatSchema,
+      },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations(
+        "Biggest resolved prediction-market surprises",
+      ),
+    },
+    async ({ limit, offset, source, window, fiat }) =>
+      present(
+        mapSuccessfulBody(
+          await client.listPublicPmSurprises({
+            limit: limit ?? 10,
+            offset,
+            source,
+            window,
+            fiat,
+          }),
+          compactPublicPmSettled,
+        ),
+      ),
+  );
+
   server.registerTool(
     "get_crypto_movers",
     {
@@ -2993,6 +3639,154 @@ export function registerTools(
           ),
           compactPublicCryptoMovers,
         ),
+      ),
+  );
+
+  server.registerTool(
+    "instrument_markets",
+    {
+      title: "Prediction-market strike ladders on an instrument",
+      description:
+        "Free public strike ladders: the prediction-market contracts written " +
+        "on one crypto, TradFi or index price (for example, will BTC be " +
+        "above $X at time T), grouped by expiry and settlement source, one " +
+        "ladder per venue series, soonest expiry first. Contract " +
+        "probability, bid and ask are venue prices in 0-100 points, never " +
+        "CoinRithm forecasts; tradedRecently:false is not a live price. Each " +
+        "ladder names its settlement source and referenceRelation " +
+        "(explained once in referenceNotes); observation is at_time or " +
+        "touch. No live price is included: reference names the series to " +
+        "read. Venue outcome ids are omitted; use detail=full or " +
+        "pm_data_event on the ladder's event. groups: [] means no contracts; " +
+        "coverage.degraded:true means the read failed. No API key required.",
+      inputSchema: {
+        type: z
+          .enum(["coin", "tradfi", "index", "macro"])
+          .describe(
+            "coin (id = coin slug), tradfi (catalog ticker), index (SPX, NDX), macro (none yet).",
+          ),
+        id: z
+          .string()
+          .trim()
+          .regex(
+            /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/,
+            "expected a coin slug or ticker",
+          )
+          .describe(
+            "Coin slug such as bitcoin (the slug of a get_crypto_movers row, not its numeric coinId), or a ticker such as AAPL or SPX.",
+          ),
+        horizon: z
+          .enum(["hour", "day", "week", "month", "year", "all"])
+          .optional()
+          .describe("Expiry window (default all)."),
+        includeShortTerm: z
+          .boolean()
+          .optional()
+          .describe("true adds up to 20 short-term up/down markets."),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(200)
+          .optional()
+          .describe("Ladders to return, 1-200 (default 10)."),
+        detail: z
+          .enum(["summary", "full"])
+          .optional()
+          .describe(
+            "summary (default) or the untouched record with venue outcome ids.",
+          ),
+      },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations(
+        "Prediction-market strike ladders on an instrument",
+      ),
+    },
+    async ({ type, id, horizon, includeShortTerm, limit, detail }) => {
+      const result = await client.getPublicInstrumentMarkets(type, id, {
+        horizon,
+        includeShortTerm,
+        // 10 by default: the API's 60 returned about 274 KB for bitcoin.
+        limit: limit ?? 10,
+      });
+      return present(
+        detail === "full"
+          ? result
+          : mapSuccessfulBody(result, compactInstrumentMarkets),
+      );
+    },
+  );
+
+  server.registerTool(
+    "tradfi_references",
+    {
+      title: "TradFi reference prices",
+      description:
+        "Free public TradFi reference prices for equities, ETFs, metals, " +
+        "commodities and FX. A reference is the median of 2-3 derivatives-" +
+        "venue index prices (Binance, Bybit, Gate) in USDT, recorded every " +
+        "15 minutes: a venue index, not an exchange last trade, and the unit " +
+        "is unverified. live is a near-real-time overlay (null when " +
+        "unavailable); freshness is collection time. Omit ticker to page the " +
+        "catalog (latest, 24h/7d change, 24h range, live, key fundamentals). " +
+        "Pass ticker for one instrument with venue constituents, SEC " +
+        "fundamentals, corporate events and history over window, sampled " +
+        "to maxPoints. No API key required.",
+      inputSchema: {
+        ticker: z
+          .string()
+          .trim()
+          .regex(/^[A-Za-z0-9]{1,20}$/, "expected a catalog ticker")
+          .optional()
+          .describe("Catalog ticker such as AAPL or XAU. Omit to list."),
+        window: z
+          .enum(["24h", "7d"])
+          .optional()
+          .describe("Detail only: history window (default 24h)."),
+        maxPoints: z
+          .number()
+          .int()
+          .min(2)
+          .max(1000)
+          .optional()
+          .describe("Detail only: history points, 2-1000 (default 100)."),
+        assetClass: z
+          .enum(TRADFI_ASSET_CLASSES)
+          .optional()
+          .describe("List only: one asset class."),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(250)
+          .optional()
+          .describe("List only: rows, 1-250 (default 25)."),
+        offset: z
+          .number()
+          .int()
+          .min(0)
+          .optional()
+          .describe("List only: pagination offset (default 0)."),
+      },
+      outputSchema: API_RESULT_OUTPUT_SCHEMA,
+      annotations: readOnlyAnnotations("TradFi reference prices"),
+    },
+    async ({ ticker, window, maxPoints, assetClass, limit, offset }) =>
+      present(
+        ticker
+          ? mapSuccessfulBody(
+              await client.getPublicTradfiReference(ticker, { window }),
+              (data) => compactTradfiReference(data, maxPoints ?? 100),
+            )
+          : mapSuccessfulBody(
+              await client.getPublicTradfiReferences(),
+              (data) =>
+                compactTradfiCatalog(data, {
+                  assetClass,
+                  limit: limit ?? 25,
+                  offset: offset ?? 0,
+                }),
+            ),
       ),
   );
 }

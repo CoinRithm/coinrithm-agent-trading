@@ -67,7 +67,7 @@ real money or a real exchange.
   give real-money financial advice. You may discuss strategy in paper-trading
   terms.
 
-## Tool playbook (all 41 tools)
+## Tool playbook (all 48 tools)
 
 | Goal | Tool | Notes |
 | --- | --- | --- |
@@ -103,8 +103,9 @@ real money or a real exchange.
 ### Keyless research tools
 
 No API key is attached to these and none is required. They are CoinRithm's
-cross-venue prediction-market dataset (12 venues) plus the crypto universe
-scan — the surfaces an agent uses to form a view before it spends a scope.
+cross-venue prediction-market dataset (12 venues), strike ladders on crypto,
+TradFi and index prices, TradFi reference prices and the crypto universe
+scan: the surfaces an agent uses to form a view before it spends a scope.
 
 | Goal | Tool | Notes |
 | --- | --- | --- |
@@ -121,6 +122,13 @@ scan — the surfaces an agent uses to form a view before it spends a scope.
 | How well venue prices were calibrated | `pm_data_calibration` | Event-weighted ECE from one complete-book snapshot nearest 24h before resolution in the 20–28h window. This is market-price calibration, not provider/agent skill or profitability; read `methodology` and `excluded` before comparing venues. |
 | Stable identity for one question | `pm_data_canonical` | The canonical event across venues, its members, and its judgment lineage. |
 | Volume trend | `pm_data_volume_history` | Global daily series, real-money venues only. Gaps are null, never zero. |
+| One outcome's price over time | `pm_data_price_history` | Polymarket and Kalshi only; `p` is a 0-1 fraction. Other venues return `points: []` (not served, not no trading). Sampled to `maxPoints`. |
+| Order-book depth for one outcome | `pm_data_orderbook` | Polymarket and Kalshi only; prices are 0-1 fractions; best `depth` levels per side. Fetch-time depth, not an executable quote: use `pm_quote`. |
+| What settled, and how | `pm_data_resolved` | Resolved archive, newest first, with the winning outcome. `resolvedAt` only when provider-verified, else `closedAt`. `year`/`month` slices. |
+| What closes soon | `pm_data_expiring` | Open events ending within `days` (default 7), thin markets excluded. `endDate` is the venue schedule, not a settlement guarantee. |
+| Where the market was wrong | `pm_data_surprises` | Resolved binary markets whose winner traded under 50 about 24h before settlement, biggest surprise first. |
+| What markets imply for a price | `instrument_markets` | Strike ladders on a coin (slug, e.g. `bitcoin`), TradFi ticker or index (SPX, NDX): venue probabilities in 0-100 points per strike and expiry, each with its own settlement source. No live price inside. |
+| TradFi reference prices | `tradfi_references` | Equities, ETFs, metals, commodities, FX: median of derivatives-venue index prices in USDT, every 15 minutes. Omit `ticker` to list; pass it for constituents, fundamentals and history. |
 
 ## Identifiers
 

@@ -52,7 +52,14 @@ export const COMPLETION_TOOL_NAMES = [
   "pm_data_calibration",
   "pm_data_canonical",
   "pm_data_volume_history",
+  "pm_data_price_history",
+  "pm_data_orderbook",
+  "pm_data_resolved",
+  "pm_data_expiring",
+  "pm_data_surprises",
   "get_crypto_movers",
+  "instrument_markets",
+  "tradfi_references",
 ] as const;
 const toolNames: ReadonlySet<string> = new Set(COMPLETION_TOOL_NAMES);
 

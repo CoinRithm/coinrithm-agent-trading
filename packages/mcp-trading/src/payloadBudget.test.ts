@@ -45,13 +45,16 @@ describe("MCP first-contact payload budget", () => {
     expect(instructions).toContain(PAPER_NOTE);
   });
 
-  it("keeps tools/list under 95,000 bytes (was 115,070) and never repeats the full note", async () => {
+  it("keeps tools/list under 110,000 bytes (was 115,070 at 25 tools) and never repeats the full note", async () => {
     const client = await connect();
     const { tools } = await client.listTools();
     const bytes = Buffer.byteLength(JSON.stringify({ tools }));
-    expect(tools.length).toBeGreaterThanOrEqual(40);
-    // 115,070 bytes before this change, 90,013 after (same in-memory measure).
-    expect(bytes).toBeLessThan(95_000);
+    expect(tools.length).toBeGreaterThanOrEqual(48);
+    // 115,070 bytes before the instructions change, 90,013 after (same
+    // in-memory measure). 41 tools measured 92,732; the seven keyless data
+    // tools of audit P1-5 (2026-10-16) took it to 106,302, about 1.9 KB a
+    // tool, of which roughly 1 KB is the fixed envelope and annotations.
+    expect(bytes).toBeLessThan(110_000);
     for (const tool of tools) {
       expect(tool.description ?? "").not.toContain(PAPER_NOTE);
     }
