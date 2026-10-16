@@ -267,20 +267,19 @@ on **16 October 2026**:
 
 | Package | Published registry version | Source version |
 | --- | --- | --- |
-| `@coinrithm/mcp-trading` (MCP server and agent runner) | **0.7.19** | **0.7.20** |
+| `@coinrithm/mcp-trading` (MCP server and agent runner) | **0.7.20** | **0.7.20** |
 | `@coinrithm/sdk` (TypeScript) | **0.5.0** | **0.5.0** |
 | `coinrithm-sdk` (Python) | **1.10.0** | **1.10.0** |
 
 All four npm/PyPI downloads match the release manifest byte for byte (SHA-256).
-MCP 0.7.19 was built from source `e4e2c3f`; both SDKs from
+MCP 0.7.20 was built from source `15bf010`; both SDKs from
 `7587395975095404cbc353b2d3c3756cce28c2d6`, generated from API contract
 1.11.0 (additive): keyless crypto reads, prediction-market strike ladders,
 prices-history with stored-snapshot labels, the retryable 503 and the JSON
 error envelope. See the [publishing record](docs/PUBLISHING.md).
 
-MCP **0.7.19** on npm keeps 41 default tools and starts without a key in
-data-only mode. The hosted MCP already serves 49 tools from `main`; the next
-package release carries them. See the
+MCP **0.7.20** has 49 default tools (23 keyless) and starts without a key in
+data-only mode, like the hosted MCP. See the
 [MCP changelog](./packages/mcp-trading/CHANGELOG.md).
 
 The GitHub release `mcp-trading-v0.7.18` carries the four archives, and the
