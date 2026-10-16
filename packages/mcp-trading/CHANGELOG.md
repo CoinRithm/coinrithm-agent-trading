@@ -5,6 +5,26 @@ ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (t
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
 versioned separately (see `openapi.yaml` `info.version`, currently `1.11.0`).
 
+## 0.7.20 (2026-10-16)
+
+MCP server: eight keyless data tools, so the default surface grows from 41
+to 49 tools (23 keyless). Each uses compact projections by default.
+
+- `instrument_markets`: prediction-market strike ladders written on a coin
+  or TradFi instrument's price, by horizon.
+- `pm_data_price_history` (sampled to `maxPoints`, first and last kept) and
+  `pm_data_orderbook` (depth 1-50) for one event outcome.
+- `pm_data_resolved`, `pm_data_expiring` and `pm_data_surprises`.
+- `tradfi_references`: the TradFi reference catalog (asset-class filter and
+  paging) or one ticker's detail.
+- `crypto_price`: one coin's price, change, market cap, volume and
+  freshness, with optional merged candles; `fiatApplied` is false when the
+  API fell back to USD.
+
+The hosted server forwards each caller's address on keyless calls, so
+anonymous users get their own API rate bucket. Generated against API
+contract 1.11.0.
+
 ## 0.7.19 (2026-10-16)
 
 MCP server:

@@ -8,6 +8,13 @@ Each package has its own version; the API contract is versioned separately.
 [TypeScript history](packages/sdk/CHANGELOG.md) ·
 [Python release notes](packages/sdk-python/README.md)
 
+## MCP 0.7.20 (2026-10-16)
+
+Eight keyless MCP data tools (49 default tools, 23 keyless): strike ladders,
+prediction-market price history and order book, resolved, expiring and
+surprise lists, TradFi references and `crypto_price`. API contract 1.11.0;
+SDKs unchanged. See the [MCP changelog](packages/mcp-trading/CHANGELOG.md).
+
 ## TypeScript 0.5.0, Python 1.10.0 (2026-10-16)
 
 Both SDKs are generated from API contract 1.11.0 and carry the 1.10.0 and
@@ -48,7 +55,7 @@ Behaviour changes (live on the API since 2026-10-16):
   and the query-allowlist 400 adds `error: "unsupported_query_parameter"`. The
   `Error` schema gains an optional `message`.
 
-MCP (unreleased): new keyless `crypto_price` tool for one coin's price,
+MCP 0.7.20 adds the keyless `crypto_price` tool for one coin's price,
 change, market cap, volume and freshness, with optional sampled candles.
 
 ## API contract 1.10.0 (2026-10-16)
