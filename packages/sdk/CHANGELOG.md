@@ -1,9 +1,26 @@
 # Changelog
 
-## Unreleased
+## 0.5.0 (2026-10-16)
 
-Typed from the API contract, not yet released (contract version unchanged
-until the release):
+Generated from API contract 1.11.0 (additive minor versions 1.10.0 and
+1.11.0). The runtime wrapper and its dependencies are unchanged.
+
+- Keyless crypto reads: `GET /api/coins`, `/api/coins/{slug}`,
+  `/api/coins/{slug}/price`, `/api/coins/{slug}/candles`, `/api/live-prices`
+  and `/api/market/snapshot` (`PublicCoinListResponse`, `PublicCoinDetail`,
+  `PublicCoinPrice`, `PublicCoinCandles`, `PublicLivePricesResponse`,
+  `PublicMarketSnapshot`). For a staleness decision prefer the profile or
+  live-prices `priceUpdatedAt` over `/price`.
+- Prediction-market strike ladders: `GET /api/instruments/{type}/{id}/markets`.
+- `GET /api/prediction-markets/prices-history` (`PublicPmPricesHistoryResponse`,
+  with the stored-snapshot fallback labels `historySource`, `asOf` and
+  `freshness.status: "lagging"`).
+- Order book, trades, holders and prices-history document the retryable 503
+  `{error: "temporarily_busy", message, retryAfterSeconds}`; `Error` gains an
+  optional `message` and 400/404/429 bodies are JSON.
+- Behaviour to check in calls (API, not the SDK): `/api/prediction-markets/events`
+  without `status` returns open events only, and undocumented query
+  parameters return 400.
 
 - `PublicLargeTrade.taker` (`PublicLargeTradeTaker | null`, optional): the
   Hyperliquid taker's action (`open`, `add`, `reduce`, `close`, `flip`),

@@ -10,9 +10,22 @@ generated from the same OpenAPI contract that drives the hosted MCP at
   CoinRithm API key (`crk_live_…`), sent as a bearer token.
 - The API is paper-only: no real funds ever move.
 
-## Unreleased
+## 1.10.0
 
-Typed from the API contract, not yet released:
+Released on 2026-10-16, generated from API contract **1.11.0** (additive
+minor versions 1.10.0 and 1.11.0).
+
+- Keyless crypto reads: `GET /api/coins`, `/api/coins/{slug}`,
+  `/api/coins/{slug}/price`, `/api/coins/{slug}/candles`, `/api/live-prices`
+  and `/api/market/snapshot`. For a staleness decision prefer the profile or
+  live-prices `price_updated_at` over `/price`.
+- Prediction-market strike ladders (`/api/instruments/{type}/{id}/markets`)
+  and `/api/prediction-markets/prices-history` with its stored-snapshot
+  fallback labels.
+- Retryable 503 `temporarily_busy` on order book, trades, holders and
+  prices-history; `Error` gains an optional `message`.
+- Behaviour to check in calls (API, not the SDK): `/events` without `status`
+  returns open events only, and undocumented query parameters return 400.
 
 - `PublicLargeTrade.taker` (`PublicLargeTradeTaker | None`, unset on older
   servers): Hyperliquid taker `action`, `dir_` (Hyperliquid `dir`), `filled_qty`,

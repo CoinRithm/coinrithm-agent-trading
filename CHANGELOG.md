@@ -8,10 +8,16 @@ Each package has its own version; the API contract is versioned separately.
 [TypeScript history](packages/sdk/CHANGELOG.md) ·
 [Python release notes](packages/sdk-python/README.md)
 
-## Unreleased: API contract 1.11.0
+## TypeScript 0.5.0, Python 1.10.0 (2026-10-16)
 
-`info.version` is now 1.11.0, an additive minor version. The published SDKs
-(TypeScript 0.4.1, Python 1.9.1) pick these up in their next release.
+Both SDKs are generated from API contract 1.11.0 and carry the 1.10.0 and
+1.11.0 changes below. The MCP server stays at 0.7.19 on npm; the hosted
+server already runs the unreleased tools listed under 1.11.0.
+
+## API contract 1.11.0 (2026-10-16)
+
+`info.version` is now 1.11.0, an additive minor version. TypeScript SDK
+0.5.0 and Python SDK 1.10.0 carry it.
 
 Additions (live on the API since 2026-10-16):
 
@@ -45,11 +51,10 @@ Behaviour changes (live on the API since 2026-10-16):
 MCP (unreleased): new keyless `crypto_price` tool for one coin's price,
 change, market cap, volume and freshness, with optional sampled candles.
 
-## Unreleased: API contract 1.10.0
+## API contract 1.10.0 (2026-10-16)
 
-`info.version` is now 1.10.0. The published SDKs (TypeScript 0.4.1, Python
-1.9.1) are still generated from 1.9.0 and pick these up in their next
-release. Two server behaviour changes shipped under 1.9.0 without a version
+`info.version` is now 1.10.0. TypeScript SDK 0.5.0 and Python SDK 1.10.0
+carry it. Two server behaviour changes shipped under 1.9.0 without a version
 bump; they are listed first so integrators can check their calls.
 
 Behaviour changes (live on the API since 2026-10-15):
