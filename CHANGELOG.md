@@ -26,6 +26,16 @@ that release bumps it; the MCP server is unchanged):
   reason, both venue names) and `bothSidesTraded`, and the summary carries
   `evidencedSharedOutcomeCount`. All optional; absent means an older server.
 
+## MCP 0.7.19 (2026-10-16)
+
+The local MCP server now starts without an API key in data-only mode, so
+`npx -y @coinrithm/mcp-trading` gives prediction-market and crypto data with
+no account; paper-trading tools still need a key. Upstream calls time out
+after 35 s, and the hosted server adds per-client limits, drains open
+requests on deploy and reports its version on `/health`. 41 default tools,
+API contract 1.9.0, SDKs unchanged. See the
+[MCP changelog](packages/mcp-trading/CHANGELOG.md).
+
 ## MCP 0.7.18, TypeScript 0.4.1, Python 1.9.1 (2026-10-15)
 
 Both SDKs are generated from API contract **1.9.0**, an additive minor
