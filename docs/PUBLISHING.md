@@ -5,7 +5,42 @@ MCP Registry are delivered separately. Current publication status is in the
 [README](../README.md#version-clarity); package changes are in the
 [changelog](../CHANGELOG.md).
 
-## Verified delivery - 15 October 2026
+## Verified delivery - 16 October 2026
+
+| Registry | Package                  | Version  | Files                                                                  |
+| -------- | ------------------------ | -------- | ---------------------------------------------------------------------- |
+| npm      | `@coinrithm/mcp-trading` | `0.7.19` | `coinrithm-mcp-trading-0.7.19.tgz`                                     |
+| npm      | `@coinrithm/sdk`         | `0.5.0`  | `coinrithm-sdk-0.5.0.tgz`                                              |
+| PyPI     | `coinrithm-sdk`          | `1.10.0` | `coinrithm_sdk-1.10.0-py3-none-any.whl`, `coinrithm_sdk-1.10.0.tar.gz` |
+
+MCP 0.7.19 source is `e4e2c3f` (main after #175, API contract 1.9.0). SDK
+source is `7587395975095404cbc353b2d3c3756cce28c2d6` (main after #181); both
+SDKs are generated from API contract **1.11.0** (additive). The SDK archives
+were built from a clean clone of that commit on the production host
+(`npm run build` + `npm pack` in `node:24-alpine`, `python -m build` in
+`python:3.12-slim`) and passed `twine check`. The owner uploaded them with an
+npm web login and Twine. SHA-256 (`SHA256SUMS.txt`, retained in the shared
+workspace at `temp/release-20261016` and attached to the
+[GitHub release](https://github.com/CoinRithm/coinrithm-agent-trading/releases/tag/mcp-trading-v0.7.19)):
+
+| File | SHA-256 |
+| ---- | ------- |
+| `coinrithm-mcp-trading-0.7.19.tgz` | `1f539f4e31084f564a0c5617171b28891abe2158230defd685093e037fa46b4e` |
+| `coinrithm-sdk-0.5.0.tgz` | `8db6f1f7405c0d46455d28905237ce69c1f36311f20ad0e770757db645d3658c` |
+| `coinrithm_sdk-1.10.0-py3-none-any.whl` | `8bd4cf4cbc0f97f8164adddda54486472e3502a3aa0e6cbc0f29f50cd4d073f3` |
+| `coinrithm_sdk-1.10.0.tar.gz` | `1724a5770e8d486a157f0f4af7ad921ad85d73cb7248f21d68f4dee79df11e92` |
+
+All four registry downloads match these values byte for byte (PyPI's own
+digests included); both npm packages are the `latest` tag. The official MCP
+Registry lists **0.7.19** as active/latest (publish workflow on tag
+`mcp-trading-v0.7.19`). Runnable examples now pin TypeScript 0.5.0 and Python
+1.10.0. Immutable registry versions must not be uploaded again.
+
+Packaging note: `@coinrithm/sdk` has no `prepack` script, so `npm pack` must
+follow `npm run build`; a first 0.5.0 pack without `dist/` was caught by
+comparing its file list with 0.4.1 and was never published.
+
+## Previous verified delivery - 15 October 2026
 
 | Registry | Package                  | Version  | Files                                                                |
 | -------- | ------------------------ | -------- | -------------------------------------------------------------------- |
@@ -40,7 +75,7 @@ large-trade `taker` block is served by the live API but is not yet in the
 contract, so neither SDK types it; `bothSidesTraded` is described in the
 contract, not a typed field. Both are corrected in the repository notes.
 
-## Previous verified delivery - 14 October 2026
+## Earlier verified delivery - 14 October 2026
 
 | Registry | Package                  | Version  | Files                                                                |
 | -------- | ------------------------ | -------- | -------------------------------------------------------------------- |

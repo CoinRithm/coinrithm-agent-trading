@@ -198,15 +198,15 @@ format, type, generation-drift, build and secret-scanning checks.
 
 ## Release status is separate
 
-**Current verification, 15 October 2026:** npm serves MCP **0.7.18** and
-TypeScript SDK **0.4.1**; PyPI serves Python SDK **1.9.1**. All four downloaded
-archives match the release `SHA256SUMS.txt` byte for byte (PyPI's own wheel
-digest included). The official MCP Registry lists **0.7.18** as active and
-latest after the
-[registry workflow](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/38676228018),
-and the [GitHub release](https://github.com/CoinRithm/coinrithm-agent-trading/releases/tag/mcp-trading-v0.7.18)
-carries the four archives. Archive source is
-`be06a22e42d02498ddc89a6eacc2d7af7ee74922` (API contract **1.9.0**).
+**Current verification, 16 October 2026:** npm serves MCP **0.7.19** and
+TypeScript SDK **0.5.0**; PyPI serves Python SDK **1.10.0**. All four downloaded
+archives match the release `SHA256SUMS.txt` byte for byte (PyPI's own digests
+included). The official MCP Registry lists **0.7.19** as active and latest
+after the
+[registry workflow](https://github.com/CoinRithm/coinrithm-agent-trading/actions/runs/38899294747),
+and the [GitHub release](https://github.com/CoinRithm/coinrithm-agent-trading/releases/tag/mcp-trading-v0.7.19)
+carries the four archives. MCP source is `e4e2c3f` (API contract 1.9.0); SDK
+source is `7587395975095404cbc353b2d3c3756cce28c2d6` (API contract **1.11.0**).
 
 The hosted MCP separately reports 0.7.18 and 41 tools. Source, hosted and
 registry checks are recorded separately; none implies the others. Follow the

@@ -263,25 +263,25 @@ Base URL: `https://api.coinrithm.com` (live). Hosted MCP: `https://mcp.coinrithm
 `info.version` in `openapi.yaml` (currently **1.11.0**) is the API contract
 version. The MCP package (`@coinrithm/mcp-trading`, currently **0.7.19**)
 is versioned separately from the SDKs. Registry publication was verified
-on **15 October 2026**:
+on **16 October 2026**:
 
 | Package | Published registry version | Source version |
 | --- | --- | --- |
 | `@coinrithm/mcp-trading` (MCP server and agent runner) | **0.7.19** | **0.7.19** |
-| `@coinrithm/sdk` (TypeScript) | **0.4.1** | **0.5.0** |
-| `coinrithm-sdk` (Python) | **1.9.1** | **1.10.0** |
+| `@coinrithm/sdk` (TypeScript) | **0.5.0** | **0.5.0** |
+| `coinrithm-sdk` (Python) | **1.10.0** | **1.10.0** |
 
 All four npm/PyPI downloads match the release manifest byte for byte (SHA-256).
-The archives were built from source `be06a22e42d02498ddc89a6eacc2d7af7ee74922`,
-and both SDKs are generated from API contract 1.9.0 (additive): Arena
-`arena-ranking-v2`, the audit export's `entryFeeAllocatedMusd`,
-prediction-market open interest, Polymarket top holders, cross-venue pairing,
-consensus probability v3 with `weightBasis`, and TradFi fundamentals, 52-week
-range and corporate events. See the [publishing record](docs/PUBLISHING.md).
+MCP 0.7.19 was built from source `e4e2c3f`; both SDKs from
+`7587395975095404cbc353b2d3c3756cce28c2d6`, generated from API contract
+1.11.0 (additive): keyless crypto reads, prediction-market strike ladders,
+prices-history with stored-snapshot labels, the retryable 503 and the JSON
+error envelope. See the [publishing record](docs/PUBLISHING.md).
 
-MCP **0.7.18** keeps the 41 default tools (46 with both opt-in tool sets on);
-its Arena and comparison descriptions follow the new contract. See the
-[MCP changelog](./packages/mcp-trading/CHANGELOG.md#0718-2026-10-15).
+MCP **0.7.19** on npm keeps 41 default tools and starts without a key in
+data-only mode. The hosted MCP already serves 49 tools from `main`; the next
+package release carries them. See the
+[MCP changelog](./packages/mcp-trading/CHANGELOG.md).
 
 The GitHub release `mcp-trading-v0.7.18` carries the four archives, and the
 official MCP Registry lists **0.7.18** as latest. Hosted MCP is deployed
