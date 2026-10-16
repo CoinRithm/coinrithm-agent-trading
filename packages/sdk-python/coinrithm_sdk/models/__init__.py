@@ -181,6 +181,8 @@ from .get_performance_response_200_by_venue import GetPerformanceResponse200ByVe
 from .get_pm_paper_v2_positions_response_503 import GetPmPaperV2PositionsResponse503
 from .get_pm_paper_v2_positions_status import GetPmPaperV2PositionsStatus
 from .get_pm_positions_response_200 import GetPmPositionsResponse200
+from .get_public_instrument_markets_horizon import GetPublicInstrumentMarketsHorizon
+from .get_public_instrument_markets_type import GetPublicInstrumentMarketsType
 from .get_public_large_trades_asset_class import GetPublicLargeTradesAssetClass
 from .get_public_large_trades_venue import GetPublicLargeTradesVenue
 from .get_public_liquidations_venue import GetPublicLiquidationsVenue
@@ -393,6 +395,24 @@ from .public_crypto_treasury_company import PublicCryptoTreasuryCompany
 from .public_crypto_treasury_response import PublicCryptoTreasuryResponse
 from .public_data_status import PublicDataStatus
 from .public_fresh_until_meta import PublicFreshUntilMeta
+from .public_instrument_market_contract import PublicInstrumentMarketContract
+from .public_instrument_market_contract_comparator import PublicInstrumentMarketContractComparator
+from .public_instrument_market_contract_parse import PublicInstrumentMarketContractParse
+from .public_instrument_market_group import PublicInstrumentMarketGroup
+from .public_instrument_market_ladder import PublicInstrumentMarketLadder
+from .public_instrument_market_ladder_events_item import PublicInstrumentMarketLadderEventsItem
+from .public_instrument_market_ladder_observation import PublicInstrumentMarketLadderObservation
+from .public_instrument_markets import PublicInstrumentMarkets
+from .public_instrument_markets_coverage import PublicInstrumentMarketsCoverage
+from .public_instrument_markets_cross_venue_item import PublicInstrumentMarketsCrossVenueItem
+from .public_instrument_markets_horizon import PublicInstrumentMarketsHorizon
+from .public_instrument_markets_instrument import PublicInstrumentMarketsInstrument
+from .public_instrument_markets_meta import PublicInstrumentMarketsMeta
+from .public_instrument_markets_reference import PublicInstrumentMarketsReference
+from .public_instrument_markets_reference_kind import PublicInstrumentMarketsReferenceKind
+from .public_instrument_markets_short_term import PublicInstrumentMarketsShortTerm
+from .public_instrument_markets_short_term_items_item import PublicInstrumentMarketsShortTermItemsItem
+from .public_instrument_markets_short_term_venues import PublicInstrumentMarketsShortTermVenues
 from .public_large_trade import PublicLargeTrade
 from .public_large_trade_links import PublicLargeTradeLinks
 from .public_large_trade_taker import PublicLargeTradeTaker
@@ -854,6 +874,8 @@ __all__ = (
     "GetPmPaperV2PositionsResponse503",
     "GetPmPaperV2PositionsStatus",
     "GetPmPositionsResponse200",
+    "GetPublicInstrumentMarketsHorizon",
+    "GetPublicInstrumentMarketsType",
     "GetPublicLargeTradesAssetClass",
     "GetPublicLargeTradesVenue",
     "GetPublicLiquidationsVenue",
@@ -1022,6 +1044,24 @@ __all__ = (
     "PublicCryptoTreasuryResponse",
     "PublicDataStatus",
     "PublicFreshUntilMeta",
+    "PublicInstrumentMarketContract",
+    "PublicInstrumentMarketContractComparator",
+    "PublicInstrumentMarketContractParse",
+    "PublicInstrumentMarketGroup",
+    "PublicInstrumentMarketLadder",
+    "PublicInstrumentMarketLadderEventsItem",
+    "PublicInstrumentMarketLadderObservation",
+    "PublicInstrumentMarkets",
+    "PublicInstrumentMarketsCoverage",
+    "PublicInstrumentMarketsCrossVenueItem",
+    "PublicInstrumentMarketsHorizon",
+    "PublicInstrumentMarketsInstrument",
+    "PublicInstrumentMarketsMeta",
+    "PublicInstrumentMarketsReference",
+    "PublicInstrumentMarketsReferenceKind",
+    "PublicInstrumentMarketsShortTerm",
+    "PublicInstrumentMarketsShortTermItemsItem",
+    "PublicInstrumentMarketsShortTermVenues",
     "PublicLargeTrade",
     "PublicLargeTradeLinks",
     "PublicLargeTradesFilters",

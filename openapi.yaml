@@ -3479,6 +3479,76 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/PublicMessageError" }
 
+  /api/instruments/{type}/{id}/markets:
+    get:
+      operationId: getPublicInstrumentMarkets
+      tags: [public-market-data]
+      summary: Prediction-market strike ladders on one crypto, TradFi or index instrument
+      description: |
+        Keyless join of an instrument to the prediction-market contracts
+        written on its price: one group per (expiry, settlement source), one
+        ladder per venue series, contracts sorted by comparator then strike.
+        Probabilities are venue prices, never CoinRithm forecasts, and each
+        ladder names its own settlement source and how it relates to the
+        reference price (`referenceRelation`).
+
+        No live price is in the payload. `reference` names the live series to
+        read for a current-price marker (`coin_live_price`, `tradfi_reference`
+        or `macro_proxy`). `observation` is `at_time` (the price at
+        `expiresAt`) or `touch` (the price touches the strike before
+        `expiresAt`; `windowStartAt: null` means the venue's own window rules
+        apply).
+
+        A known instrument with no contracts returns 200 with `groups: []`;
+        `coverage.degraded: true` means the contract read failed. Only
+        `horizon`, `includeShortTerm` and `limit` are accepted; any other
+        query parameter returns 400. Shared-cached for about 30 seconds within
+        the 5-minute prediction-market ingest.
+      security: []
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema: { type: string, enum: [coin, tradfi, index, macro] }
+          description: "`coin` (id = coin slug), `tradfi` (catalog ticker), `index` (SPX, NDX), `macro` (no instruments yet)."
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: horizon
+          in: query
+          required: false
+          description: "Expiry window for strike ladders (default `all`). Any other value returns 400."
+          schema: { type: string, enum: [hour, day, week, month, year, all], default: all }
+        - name: includeShortTerm
+          in: query
+          required: false
+          description: "`true` adds up to 20 short-term up/down markets to `shortTerm.items`; counts are always present."
+          schema: { type: boolean, default: false }
+        - name: limit
+          in: query
+          required: false
+          description: "Ladders to return, 1-200 (default 60)."
+          schema: { type: integer, minimum: 1, maximum: 200, default: 60 }
+      responses:
+        "200":
+          description: "Strike ladders, short-term counts, coverage and the reference series to read"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicInstrumentMarkets" }
+        "400":
+          description: "Invalid or unknown query parameter"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicMessageError" }
+        "404":
+          description: "Unknown instrument"
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PublicMessageError" }
+        "429":
+          description: "Public request rate limit exceeded; honor `Retry-After`."
+
   /api/market/liquidations:
     get:
       operationId: getPublicLiquidations
@@ -8578,6 +8648,128 @@ components:
             highAmbiguity: { type: boolean }
             nearResolution: { type: boolean }
 
+    PublicInstrumentMarkets:
+      type: object
+      required: [version, instrument, reference, generatedAt, horizon, groups, crossVenue, shortTerm, coverage, disclaimer]
+      properties:
+        version: { type: integer }
+        instrument:
+          type: object
+          required: [type, id, symbol, name]
+          properties:
+            type: { type: string }
+            id: { type: string }
+            symbol: { type: string }
+            name: { type: string }
+        reference:
+          type: object
+          description: "The live series to read for a current-price marker. The payload carries no price."
+          required: [kind, key]
+          properties:
+            kind: { type: string, enum: [coin_live_price, tradfi_reference, macro_proxy] }
+            key: { type: string }
+            label: { type: string }
+        generatedAt: { type: string, format: date-time }
+        horizon: { type: string, enum: [hour, day, week, month, year, all] }
+        groups:
+          type: array
+          items: { $ref: "#/components/schemas/PublicInstrumentMarketGroup" }
+        crossVenue:
+          type: array
+          description: "Contracts with an equal equivalence key on two or more venues, traded on each leg."
+          items: { type: object, additionalProperties: true }
+        shortTerm:
+          type: object
+          required: [upDownOpen]
+          properties:
+            upDownOpen: { type: integer, description: "Open short-term up/down markets on this instrument (not ladders)." }
+            nextExpiresAt: { type: [string, "null"], format: date-time }
+            venues: { type: object, additionalProperties: { type: integer } }
+            items: { type: array, items: { type: object, additionalProperties: true } }
+        coverage:
+          type: object
+          required: [venues, ladders, contracts, truncated]
+          properties:
+            venues: { type: array, items: { type: string } }
+            ladders: { type: integer }
+            contracts: { type: integer }
+            truncated: { type: boolean }
+            degraded: { type: boolean, description: "The contract read failed; render nothing rather than an error." }
+            excluded: { type: array, items: { type: string } }
+        disclaimer: { type: string }
+        meta:
+          type: object
+          properties:
+            freshUntil: { type: string, format: date-time }
+    PublicInstrumentMarketGroup:
+      type: object
+      required: [expiresAt, settlementSource, settlementNote, ladders]
+      properties:
+        expiresAt: { type: string, format: date-time }
+        settlementSource: { type: string }
+        settlementNote: { type: string }
+        ladders:
+          type: array
+          items: { $ref: "#/components/schemas/PublicInstrumentMarketLadder" }
+    PublicInstrumentMarketLadder:
+      type: object
+      required: [venue, venueName, series, expiresAt, observation, settlementSource, settlementNote, referenceRelation, monotonic, contracts]
+      properties:
+        venue: { type: string }
+        venueName: { type: string }
+        series: { type: string }
+        expiresAt: { type: string, format: date-time }
+        windowStartAt: { type: [string, "null"], format: date-time, description: "Null on a touch ladder means the venue's own window rules apply." }
+        observation: { type: string, enum: [at_time, touch] }
+        metric: { type: string, description: "For example `spot_price` or `futures_settle`." }
+        settlementSource: { type: string }
+        settlementNote: { type: string }
+        referenceRelation: { type: string, description: "For example `same_asset_different_feed`, `futures_vs_spot`, `proxy_perp`." }
+        referenceNote: { type: [string, "null"] }
+        asOf: { type: [string, "null"], format: date-time, description: "The venue lane's last observation time." }
+        asOfBasis: { type: string }
+        monotonic: { type: boolean, description: "False when the venue's traded prices disagree across strikes." }
+        events:
+          type: array
+          items:
+            type: object
+            properties:
+              source: { type: string }
+              slug: { type: string }
+              title: { type: string }
+              path: { type: string }
+              sourceUrl: { type: [string, "null"] }
+              volume24hUsd: { type: [number, "null"] }
+              liquidityUsd: { type: [number, "null"] }
+              openInterestUsd: { type: [number, "null"] }
+        contracts:
+          type: array
+          items: { $ref: "#/components/schemas/PublicInstrumentMarketContract" }
+    PublicInstrumentMarketContract:
+      type: object
+      required: [label, comparator, unit, tradedRecently]
+      properties:
+        outcomeId: { type: [integer, string] }
+        externalMarketId: { type: [string, "null"] }
+        label: { type: string, description: "Display text; venue strike values are kept as given (81999.99 = $82,000 or above)." }
+        comparator: { type: string, enum: [gt, gte, lt, lte, between, touch_up, touch_down] }
+        strikeLow: { type: [number, "null"] }
+        strikeHigh: { type: [number, "null"] }
+        unit: { type: string }
+        probability: { type: [number, "null"], minimum: 0, maximum: 100 }
+        bid: { type: [number, "null"] }
+        ask: { type: [number, "null"] }
+        contractVolume24h: { type: [number, "null"], description: "Kalshi only: contracts ($1 notional each)." }
+        contractOpenInterest: { type: [number, "null"] }
+        tradedRecently: { type: boolean, description: "False: show as no recent trading, never as a live price." }
+        equivalenceKey: { type: [string, "null"] }
+        eventSlug: { type: [string, "null"] }
+        parse:
+          type: object
+          properties:
+            method: { type: string }
+            parserVersion: { type: string }
+            confidence: { type: number }
     PublicMessageError:
       type: object
       description: "Error body of the keyless `/api/market/*` reads."
