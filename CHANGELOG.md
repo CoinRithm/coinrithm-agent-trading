@@ -8,10 +8,26 @@ Each package has its own version; the API contract is versioned separately.
 [TypeScript history](packages/sdk/CHANGELOG.md) ·
 [Python release notes](packages/sdk-python/README.md)
 
-## Unreleased
+## Unreleased: API contract 1.10.0
 
-Contract additions for the next SDK release (`info.version` stays 1.9.0 until
-that release bumps it; the MCP server is unchanged):
+`info.version` is now 1.10.0. The published SDKs (TypeScript 0.4.1, Python
+1.9.1) are still generated from 1.9.0 and pick these up in their next
+release. Two server behaviour changes shipped under 1.9.0 without a version
+bump; they are listed first so integrators can check their calls.
+
+Behaviour changes (live on the API since 2026-10-15):
+
+- `GET /api/prediction-markets/events` without `status` now returns open
+  events only. Earlier it returned every status. Pass `status` explicitly to
+  get closed or resolved events.
+- Query parameters a route does not document now return **400** (for
+  example `Unsupported query parameter: bogus`). Remove cache-busters and
+  tracking parameters such as `utm_*` from API calls.
+
+Additions:
+
+- New keyless `GET /api/instruments/{type}/{id}/markets`: prediction-market
+  strike ladders for a coin or TradFi instrument, by horizon.
 
 - Large trades type the Hyperliquid `taker` block (`PublicLargeTradeTaker`:
   address, action open/add/reduce/close/flip, Hyperliquid `dir`, filled size,
