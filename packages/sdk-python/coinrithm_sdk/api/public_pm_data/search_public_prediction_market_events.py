@@ -24,7 +24,7 @@ def _get_kwargs(
     offset: int | Unset = 0,
     q: str | Unset = UNSET,
     tag: str | Unset = UNSET,
-    status: str | Unset = UNSET,
+    status: str | Unset = "open",
     source: PublicPmSourceSlug | Unset = UNSET,
     sort: SearchPublicPredictionMarketEventsSort | Unset = SearchPublicPredictionMarketEventsSort.BEST,
     tradeable: bool | Unset = False,
@@ -143,7 +143,7 @@ def sync_detailed(
     offset: int | Unset = 0,
     q: str | Unset = UNSET,
     tag: str | Unset = UNSET,
-    status: str | Unset = UNSET,
+    status: str | Unset = "open",
     source: PublicPmSourceSlug | Unset = UNSET,
     sort: SearchPublicPredictionMarketEventsSort | Unset = SearchPublicPredictionMarketEventsSort.BEST,
     tradeable: bool | Unset = False,
@@ -177,12 +177,15 @@ def sync_detailed(
     keeps events with at least that 24h USD volume;
     `includeQuoteEvidence=1` adds `quoteEvidence` to every outcome.
 
+    An unknown query parameter returns `400` with a message naming the
+    supported parameters.
+
     Args:
         limit (int | Unset):  Default: 20.
         offset (int | Unset):  Default: 0.
         q (str | Unset):
         tag (str | Unset):
-        status (str | Unset):
+        status (str | Unset):  Default: 'open'.
         source (PublicPmSourceSlug | Unset):
         sort (SearchPublicPredictionMarketEventsSort | Unset):  Default:
             SearchPublicPredictionMarketEventsSort.BEST.
@@ -233,7 +236,7 @@ def sync(
     offset: int | Unset = 0,
     q: str | Unset = UNSET,
     tag: str | Unset = UNSET,
-    status: str | Unset = UNSET,
+    status: str | Unset = "open",
     source: PublicPmSourceSlug | Unset = UNSET,
     sort: SearchPublicPredictionMarketEventsSort | Unset = SearchPublicPredictionMarketEventsSort.BEST,
     tradeable: bool | Unset = False,
@@ -267,12 +270,15 @@ def sync(
     keeps events with at least that 24h USD volume;
     `includeQuoteEvidence=1` adds `quoteEvidence` to every outcome.
 
+    An unknown query parameter returns `400` with a message naming the
+    supported parameters.
+
     Args:
         limit (int | Unset):  Default: 20.
         offset (int | Unset):  Default: 0.
         q (str | Unset):
         tag (str | Unset):
-        status (str | Unset):
+        status (str | Unset):  Default: 'open'.
         source (PublicPmSourceSlug | Unset):
         sort (SearchPublicPredictionMarketEventsSort | Unset):  Default:
             SearchPublicPredictionMarketEventsSort.BEST.
@@ -318,7 +324,7 @@ async def asyncio_detailed(
     offset: int | Unset = 0,
     q: str | Unset = UNSET,
     tag: str | Unset = UNSET,
-    status: str | Unset = UNSET,
+    status: str | Unset = "open",
     source: PublicPmSourceSlug | Unset = UNSET,
     sort: SearchPublicPredictionMarketEventsSort | Unset = SearchPublicPredictionMarketEventsSort.BEST,
     tradeable: bool | Unset = False,
@@ -352,12 +358,15 @@ async def asyncio_detailed(
     keeps events with at least that 24h USD volume;
     `includeQuoteEvidence=1` adds `quoteEvidence` to every outcome.
 
+    An unknown query parameter returns `400` with a message naming the
+    supported parameters.
+
     Args:
         limit (int | Unset):  Default: 20.
         offset (int | Unset):  Default: 0.
         q (str | Unset):
         tag (str | Unset):
-        status (str | Unset):
+        status (str | Unset):  Default: 'open'.
         source (PublicPmSourceSlug | Unset):
         sort (SearchPublicPredictionMarketEventsSort | Unset):  Default:
             SearchPublicPredictionMarketEventsSort.BEST.
@@ -406,7 +415,7 @@ async def asyncio(
     offset: int | Unset = 0,
     q: str | Unset = UNSET,
     tag: str | Unset = UNSET,
-    status: str | Unset = UNSET,
+    status: str | Unset = "open",
     source: PublicPmSourceSlug | Unset = UNSET,
     sort: SearchPublicPredictionMarketEventsSort | Unset = SearchPublicPredictionMarketEventsSort.BEST,
     tradeable: bool | Unset = False,
@@ -440,12 +449,15 @@ async def asyncio(
     keeps events with at least that 24h USD volume;
     `includeQuoteEvidence=1` adds `quoteEvidence` to every outcome.
 
+    An unknown query parameter returns `400` with a message naming the
+    supported parameters.
+
     Args:
         limit (int | Unset):  Default: 20.
         offset (int | Unset):  Default: 0.
         q (str | Unset):
         tag (str | Unset):
-        status (str | Unset):
+        status (str | Unset):  Default: 'open'.
         source (PublicPmSourceSlug | Unset):
         sort (SearchPublicPredictionMarketEventsSort | Unset):  Default:
             SearchPublicPredictionMarketEventsSort.BEST.
