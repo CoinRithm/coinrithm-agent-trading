@@ -1,3 +1,4 @@
+import { CALLER_IP_HEADER, callerIp } from "./requestContext.js";
 import {
   PM_PAPER_V2_BASE,
   type PmPaperOpen,
@@ -236,6 +237,8 @@ export class CoinRithmClient {
       opts.agentTrace ?? traceFromBody(opts.body),
     );
     if (opts.body !== undefined) headers["Content-Type"] = "application/json";
+    const ip = callerIp();
+    if (ip) headers[CALLER_IP_HEADER] = ip;
 
     let res: Response;
     try {
@@ -299,9 +302,13 @@ export class CoinRithmClient {
 
     let res: Response;
     try {
+      const ip = callerIp();
       res = await fetch(url.toString(), {
         method: "GET",
-        headers: { Accept: "application/json" },
+        headers: {
+          Accept: "application/json",
+          ...(ip ? { [CALLER_IP_HEADER]: ip } : {}),
+        },
         signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
       });
     } catch (err) {

@@ -54,6 +54,7 @@ import {
 } from "./httpCompletion.js";
 import { createMcpAdmission, type McpLimitOptions } from "./httpLimits.js";
 import { installGracefulShutdown, type DrainState } from "./httpShutdown.js";
+import { runWithCaller } from "./requestContext.js";
 
 // The SDK reads `req.auth` (AuthInfo) off the Node request if present and threads
 // it to handlers as `extra.authInfo`. We populate a minimal AuthInfo carrying the
@@ -221,7 +222,11 @@ export function createHttpApp(
         completions.get(res)?.attach(transport);
         // The transport reads req.headers (→ extra.requestInfo) and req.auth
         // (→ extra.authInfo); tools.ts picks up the caller's key from there.
-        await transport.handleRequest(req, res, req.body);
+        // Upstream calls made while handling it carry the caller's own
+        // address (requestContext.ts), not the container's.
+        await runWithCaller(req.headers["cf-connecting-ip"], () =>
+          transport.handleRequest(req, res, req.body),
+        );
       } catch (err) {
         log("http request error:", err);
         if (!res.headersSent) {
