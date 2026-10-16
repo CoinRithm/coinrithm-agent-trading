@@ -5,6 +5,25 @@ ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (t
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
 versioned separately (see `openapi.yaml` `info.version`, currently `1.9.0`).
 
+## 0.7.19 (2026-10-16)
+
+MCP server:
+
+- The local stdio server starts without `COINRITHM_API_KEY` in data-only
+  mode, like the hosted server: `npx -y @coinrithm/mcp-trading` works with no
+  account. Keyless data tools (`pm_data_*`, `get_arena_*`,
+  `get_crypto_movers`) answer; every keyed tool returns the structured
+  `missing_api_key` result, which now also names `COINRITHM_API_KEY` for the
+  local server. `server.json` marks the key optional.
+- Upstream requests time out after 35 s and report `upstream_timeout`
+  instead of hanging the tool call.
+- Hosted HTTP entry: per-client admission (120 requests a minute) and an
+  in-flight cap (64), answered as JSON-RPC 429/503 with `Retry-After`; a stop
+  signal drains open requests for up to 8 s while `/healthz` answers 503;
+  `/health` and `/healthz` report `version`.
+
+The default surface stays at 41 tools. Generated against API contract 1.9.0.
+
 ## 0.7.18 (2026-10-15)
 
 MCP server:
