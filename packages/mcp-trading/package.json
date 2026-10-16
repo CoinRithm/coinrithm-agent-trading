@@ -1,6 +1,6 @@
 {
   "name": "@coinrithm/mcp-trading",
-  "version": "0.7.19",
+  "version": "0.7.20",
   "mcpName": "io.github.CoinRithm/mcp-trading",
   "description": "CoinRithm MCP server (coinrithm-mcp) and self-host agent runner (coinrithm-agent): keyless prediction-market data across 12 venues, plus paper trading of crypto spot, futures, and prediction markets with a user-minted API key.",
   "type": "module",
