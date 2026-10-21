@@ -593,14 +593,15 @@ describe("hosted provider lifecycle", () => {
       .mockResolvedValueOnce({ ...good, responseSource: "tool_call" });
     await runAgentOnce(pool, agent, config);
     const calls = vi.mocked(engine.providerForRoute).mock.calls;
-    // Second attempt: the same-tier Super 3.5 (strong chain since 2026-10-21).
+    // Second attempt: the same-tier Super 3.5 (strong chain since 2026-10-21),
+    // reached as a fallback, so it also asks for JSON content.
     expect(calls.map((call) => call[0].model)).toEqual([
       NEMOTRON_SUPER,
       NEMOTRON_SUPER_35,
     ]);
     expect(calls.map((call) => call[3])).toEqual([
       { nemotronJsonContent: true },
-      undefined,
+      { nemotronJsonContent: true },
     ]);
     expect(result).toMatchObject({
       ok: true,
@@ -836,6 +837,9 @@ describe("hosted provider lifecycle", () => {
     decide
       .mockResolvedValueOnce({ ok: false, error: "capacity", status: 429 })
       .mockResolvedValueOnce(good);
+    // The house trial must not leak onto the fallback: with the separate
+    // fallback policy off, the next route keeps its default transport.
+    config.superFallbackJsonContentEnabled = false;
     await runAgentOnce(pool, agent, config);
     const calls = vi.mocked(engine.providerForRoute).mock.calls;
     expect(calls).toHaveLength(2);
