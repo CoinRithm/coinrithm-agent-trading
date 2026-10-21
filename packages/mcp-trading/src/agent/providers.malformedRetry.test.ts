@@ -5,6 +5,7 @@ import { renderFolderOfOne } from "./templates.js";
 import { parseDecision } from "./decision.js";
 
 const SUPER = "nvidia/nemotron-3-super-120b-a12b";
+const SUPER_35 = "nvidia/nemotron-3.5-super-vl-120b-a12b";
 const malformed = '{"decision":"act","actions":"[]","reason":"private"}';
 const valid = '{"decision":"skip","actions":[]}';
 const spec = parseSkill(renderFolderOfOne("fixture", "conservative")).spec;
@@ -82,6 +83,37 @@ describe("direct Super malformed tool recovery", () => {
     delete second.response_format;
     expect(second).toEqual(first);
     expect(JSON.stringify(result.route)).not.toContain("private");
+  });
+
+  it("gives Super 3.5 the same one same-model content recovery", async () => {
+    const f = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        response(
+          `{"decision":"act","actions":"[{'type': 'spot_cancel', 'orderId': 1}"}`,
+        ),
+      )
+      .mockResolvedValueOnce(response(valid, "content"));
+    const result = await provider(f, SUPER_35).decide(input);
+    expect(result).toMatchObject({
+      ok: true,
+      text: valid,
+      responseSource: "content",
+      route: {
+        effectiveModel: SUPER_35,
+        attempts: [
+          {
+            model: SUPER_35,
+            outcome: "failed",
+            responseSource: "tool_call",
+            actionsStringDiagnostic: "non_json_array_text",
+          },
+          { model: SUPER_35, outcome: "success", responseSource: "content" },
+        ],
+      },
+    });
+    expect(f).toHaveBeenCalledTimes(2);
+    expect(body(f, 1).response_format).toEqual({ type: "json_object" });
   });
 
   it.each([

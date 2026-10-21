@@ -7,6 +7,7 @@ import {
   MAX_CONCURRENT_OWNER_WAITS,
   MAX_OWNER_REFILL_WAIT_MS,
   NEMOTRON_SUPER,
+  NEMOTRON_SUPER_35,
   NEMOTRON_NANO,
   ownerWaitsInFlightNow,
   DISPATCH_STOPPED_ERROR,
@@ -334,6 +335,30 @@ describe("shared Super malformed tool recovery", () => {
       usage: bad.usage,
     });
     expect(h.build).toHaveBeenCalledOnce();
+  });
+
+  it("gives the Super 3.5 route the same one same-model JSON-content recovery", async () => {
+    const super35: ModelRoute = { ...superRoute, model: NEMOTRON_SUPER_35 };
+    const h = harness(
+      [
+        {
+          ...bad,
+          text: `{"decision":"act","actions":"[{'type': 'spot_cancel', 'orderId': 1}"}`,
+        },
+      ],
+      [super35, nanoRoute],
+    );
+    const result = await h.provider.decide(input);
+    expect(result.ok).toBe(true);
+    expect(h.requests.map((r) => [r.route.model, r.options])).toEqual([
+      [NEMOTRON_SUPER_35, undefined],
+      [NEMOTRON_SUPER_35, { nemotronJsonContent: true }],
+    ]);
+    expect(result.route.attempts[0]).toMatchObject({
+      outcome: "failed",
+      actionsStringDiagnostic: "non_json_array_text",
+    });
+    expect(result.route.effectiveModel).toBe(NEMOTRON_SUPER_35);
   });
 
   it("does not spend a third attempt or coerce malformed retry content", async () => {
