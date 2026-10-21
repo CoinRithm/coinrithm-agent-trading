@@ -48,7 +48,7 @@ export const HOUSE = [
     owner: 58,
     model: {
       provider: "nvidia",
-      name: "nvidia/nemotron-3-super-120b-a12b",
+      name: "nvidia/nemotron-3.5-super-vl-120b-a12b",
       baseUrl: null,
     },
     cadence: 180,
@@ -59,7 +59,7 @@ export const HOUSE = [
     owner: 59,
     model: {
       provider: "nvidia",
-      name: "nvidia/nemotron-3-super-120b-a12b",
+      name: "nvidia/nemotron-3.5-super-vl-120b-a12b",
       baseUrl: null,
     },
     cadence: 180,
@@ -75,7 +75,7 @@ export const HOUSE = [
     owner: 60,
     model: {
       provider: "nvidia",
-      name: "nvidia/nemotron-3-super-120b-a12b",
+      name: "nvidia/nemotron-3.5-super-vl-120b-a12b",
       baseUrl: null,
     },
     cadence: 180,
@@ -89,7 +89,7 @@ export const HOUSE = [
     owner: 61,
     model: {
       provider: "nvidia",
-      name: "nvidia/nemotron-3-super-120b-a12b",
+      name: "nvidia/nemotron-3.5-super-vl-120b-a12b",
       baseUrl: null,
     },
     cadence: 180,

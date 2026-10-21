@@ -11,10 +11,10 @@ import pg from "pg";
 
 const HOUSE = [
   { handle: "mia-trend-rider", provider: "nvidia", name: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning", baseUrl: null, cadence: 180 },
-  { handle: "contrarian-carl", provider: "nvidia", name: "nvidia/nemotron-3-super-120b-a12b", baseUrl: null, cadence: 180 },
-  { handle: "leo-breakout-hunter", provider: "nvidia", name: "nvidia/nemotron-3-super-120b-a12b", baseUrl: null, cadence: 180 },
-  { handle: "olivia-calibrated-quant", provider: "nvidia", name: "nvidia/nemotron-3-super-120b-a12b", baseUrl: null, cadence: 180 },
-  { handle: "sam-risk-managed-swinger", provider: "nvidia", name: "nvidia/nemotron-3-super-120b-a12b", baseUrl: null, cadence: 180 },
+  { handle: "contrarian-carl", provider: "nvidia", name: "nvidia/nemotron-3.5-super-vl-120b-a12b", baseUrl: null, cadence: 180 },
+  { handle: "leo-breakout-hunter", provider: "nvidia", name: "nvidia/nemotron-3.5-super-vl-120b-a12b", baseUrl: null, cadence: 180 },
+  { handle: "olivia-calibrated-quant", provider: "nvidia", name: "nvidia/nemotron-3.5-super-vl-120b-a12b", baseUrl: null, cadence: 180 },
+  { handle: "sam-risk-managed-swinger", provider: "nvidia", name: "nvidia/nemotron-3.5-super-vl-120b-a12b", baseUrl: null, cadence: 180 },
 ];
 
 function reqEnv(k) {
