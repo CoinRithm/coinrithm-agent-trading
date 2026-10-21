@@ -16,6 +16,7 @@ const PROVIDERS = {
     base: "https://integrate.api.nvidia.com/v1",
     keyEnv: "NVIDIA_API_KEY",
     models: [
+      { id: "nvidia/nemotron-3.5-super-vl-120b-a12b" },
       { id: "nvidia/nemotron-3-super-120b-a12b" },
       { id: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning" },
       { id: "nvidia/nemotron-3.5-lightning-30b-a3b" },

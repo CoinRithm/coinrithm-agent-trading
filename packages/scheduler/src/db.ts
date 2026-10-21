@@ -195,7 +195,7 @@ export async function migrateHouseAgentsOffGroq(pool: Pool): Promise<number> {
         SET model_provider = 'nvidia',
             model_name = CASE
               WHEN a.model_name ILIKE '%70b%' OR a.model_name ILIKE '%versatile%'
-                THEN 'nvidia/nemotron-3-super-120b-a12b'
+                THEN 'nvidia/nemotron-3.5-super-vl-120b-a12b'
               ELSE 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning'
             END,
             model_base_url = NULL,
@@ -234,11 +234,15 @@ export const EOL_MODEL_SUCCESSORS: Record<string, string> = {
   // 2026-09-02: the omni-reasoning variant answers 200 with strict JSON.
   "nvidia/nemotron-3-nano-30b-a3b":
     "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
-  "meta/llama-3.1-70b-instruct": "nvidia/nemotron-3-super-120b-a12b",
-  "meta/llama-3.3-70b-instruct": "nvidia/nemotron-3-super-120b-a12b",
-  "nvidia/llama-3.3-nemotron-super-49b-v1": "nvidia/nemotron-3-super-120b-a12b",
+  "meta/llama-3.1-70b-instruct": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+  "meta/llama-3.3-70b-instruct": "nvidia/nemotron-3.5-super-vl-120b-a12b",
+  "nvidia/llama-3.3-nemotron-super-49b-v1":
+    "nvidia/nemotron-3.5-super-vl-120b-a12b",
   "nvidia/llama-3.3-nemotron-super-49b-v1.5":
-    "nvidia/nemotron-3-super-120b-a12b",
+    "nvidia/nemotron-3.5-super-vl-120b-a12b",
+  // 2026-10-21: successor targets moved off nemotron-3-super-120b, which
+  // NVIDIA has answered 404 "Function ... Not found for account" since
+  // 2026-10-20 ~08:50 UTC. Super 3.5 passed 10/10 real decision probes.
 };
 
 /** Boot-run, idempotent (same pattern as the de-Groq migration): remap shared,

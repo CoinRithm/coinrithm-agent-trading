@@ -598,7 +598,7 @@ describe("migrateAgentsOffEolModels — NVIDIA 2026-08-26 EOL event", () => {
     expect(new Set(Object.values(EOL_MODEL_SUCCESSORS))).toEqual(
       new Set([
         "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
-        "nvidia/nemotron-3-super-120b-a12b",
+        "nvidia/nemotron-3.5-super-vl-120b-a12b",
       ]),
     );
     expect(remapSql).toContain("model_provider = 'nvidia'");
@@ -630,8 +630,10 @@ describe("migrateAgentsOffEolModels — NVIDIA 2026-08-26 EOL event", () => {
     const pool = { query } as unknown as Pool;
     await migrateHouseAgentsOffGroq(pool);
     const [sql] = query.mock.calls[0] as [string, unknown[]];
-    expect(sql).toContain("nvidia/nemotron-3-super-120b-a12b");
+    expect(sql).toContain("nvidia/nemotron-3.5-super-vl-120b-a12b");
     expect(sql).toContain("nvidia/nemotron-3-nano-omni-30b-a3b-reasoning");
+    // Super 3 has 404d since 2026-10-20; never migrate onto it.
+    expect(sql).not.toContain("nvidia/nemotron-3-super-120b-a12b");
     expect(sql).not.toContain("meta/llama-3.1-70b-instruct");
     expect(sql).not.toContain("llama-3.3-nemotron-super-49b-v1");
     expect(sql).toContain("is_house = true");

@@ -1389,7 +1389,7 @@ describe.skipIf(!databaseUrl)("provider admission on PostgreSQL", () => {
       status: "active",
       disabled_reason: null,
       model_provider: "nvidia",
-      model_name: "nvidia/nemotron-3-super-120b-a12b",
+      model_name: "nvidia/nemotron-3.5-super-vl-120b-a12b",
     });
     expect(await agentRow(activeShared)).toMatchObject({
       status: "active",

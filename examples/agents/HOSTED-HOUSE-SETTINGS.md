@@ -27,6 +27,7 @@ same.
 | `olivia-calibrated-quant`  | anthropic / claude-sonnet-4-6, 4h | `nvidia/nemotron-3-super-120b-a12b`             | 180 s          | pm                |
 | `sam-risk-managed-swinger` | anthropic / claude-sonnet-4-6, 1h | `nvidia/nemotron-3-super-120b-a12b`             | 180 s          | futures, spot, pm |
 
+- **Model (2026-10-21).** NVIDIA has answered 404 for `nvidia/nemotron-3-super-120b-a12b` since 2026-10-20; the router serves Super agents with `nvidia/nemotron-3.5-super-vl-120b-a12b` first (their configured model is unchanged), and the seed and update scripts now use Super 3.5.
 - **Model.** The hosted service keeps each agent's own model connection; the
   bundle's `model` block is not what the house runs on. The house agents use
   CoinRithm's shared NVIDIA key and are not pinned, so the router can serve a
