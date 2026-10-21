@@ -89,7 +89,9 @@ describe("direct Super malformed tool recovery", () => {
     const f = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(
-        response(`{"decision":"act","actions":"[{'type': 1}]"}`),
+        response(
+          `{"decision":"act","actions":"[{'type': 'spot_cancel', 'orderId': 1}"}`,
+        ),
       )
       .mockResolvedValueOnce(response(valid, "content"));
     const result = await provider(f, SUPER_35).decide(input);

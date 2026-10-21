@@ -340,7 +340,12 @@ describe("shared Super malformed tool recovery", () => {
   it("gives the Super 3.5 route the same one same-model JSON-content recovery", async () => {
     const super35: ModelRoute = { ...superRoute, model: NEMOTRON_SUPER_35 };
     const h = harness(
-      [{ ...bad, text: `{"decision":"act","actions":"[{'type': 1}]"}` }],
+      [
+        {
+          ...bad,
+          text: `{"decision":"act","actions":"[{'type': 'spot_cancel', 'orderId': 1}"}`,
+        },
+      ],
       [super35, nanoRoute],
     );
     const result = await h.provider.decide(input);
