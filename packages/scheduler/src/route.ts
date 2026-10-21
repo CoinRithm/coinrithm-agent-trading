@@ -20,6 +20,13 @@ export const ROUTE_POLICY_VERSION = "2026-10-06.1";
 export const NEMOTRON_NANO = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning";
 export const NEMOTRON_SUPER = "nvidia/nemotron-3-super-120b-a12b";
 export const NEMOTRON_LIGHTNING = "nvidia/nemotron-3.5-lightning-30b-a3b";
+// Since ~08:50 UTC 2026-10-20 NVIDIA answers 404 "Function ... Not found for
+// account" for NEMOTRON_SUPER (still listed in /v1/models; 10-03 it was a
+// 410 that NVIDIA reversed after 9.6 h). Its 3.5 successor passed the real
+// decision-contract probe 10/10 from the scheduler key (median ~0.9 s,
+// 2026-10-21). It is the strong tier's first alternate, so Super agents keep
+// a large model instead of piling onto the shared Nano workers.
+export const NEMOTRON_SUPER_35 = "nvidia/nemotron-3.5-super-vl-120b-a12b";
 export const OPENAI_BACKUP_MODEL = "gpt-5-nano";
 
 export type RouteProfile = "fast" | "strong" | "configured";
@@ -219,7 +226,7 @@ export function classifyFailure(
 
 export function routeProfileFor(model: string): RouteProfile {
   if (model === NEMOTRON_NANO) return "fast";
-  if (model === NEMOTRON_SUPER) return "strong";
+  if (model === NEMOTRON_SUPER || model === NEMOTRON_SUPER_35) return "strong";
   return "configured";
 }
 
@@ -274,6 +281,12 @@ export function resolveRouteChain(args: {
   if (args.byo || args.pinnedModel) return { profile, routes: [configured] };
 
   const routes: ModelRoute[] = [configured];
+  // Same-tier successor first for the strong profile (see NEMOTRON_SUPER_35).
+  if (profile === "strong") {
+    for (const model of [NEMOTRON_SUPER_35, NEMOTRON_SUPER]) {
+      routes.push({ provider: "nvidia", model, keyRef: configured.keyRef });
+    }
+  }
   if (args.lightningFallback && (profile === "fast" || profile === "strong")) {
     routes.push({
       provider: "nvidia",
@@ -282,11 +295,9 @@ export function resolveRouteChain(args: {
     });
   }
   if (profile === "fast") {
-    routes.push({
-      provider: "nvidia",
-      model: NEMOTRON_SUPER,
-      keyRef: configured.keyRef,
-    });
+    for (const model of [NEMOTRON_SUPER, NEMOTRON_SUPER_35]) {
+      routes.push({ provider: "nvidia", model, keyRef: configured.keyRef });
+    }
   } else if (profile === "strong") {
     routes.push({
       provider: "nvidia",

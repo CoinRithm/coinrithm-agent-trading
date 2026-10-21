@@ -12,6 +12,7 @@ import {
   NEMOTRON_NANO,
   NEMOTRON_SUPER,
   NEMOTRON_LIGHTNING,
+  NEMOTRON_SUPER_35,
   RoutedProvider,
   classifyFailure,
   resolveRouteChain,
@@ -118,8 +119,10 @@ describe("optional Lightning fallback", () => {
     lightningFallback: true,
   };
   it("adds a same-key alternative without replacing the configured model or paid routes", () => {
+    // Strong tier: same-tier successor first (Super 404 since 2026-10-20).
     expect(resolveRouteChain(args).routes.map((r) => r.model)).toEqual([
       NEMOTRON_SUPER,
+      NEMOTRON_SUPER_35,
       NEMOTRON_LIGHTNING,
       NEMOTRON_NANO,
     ]);
@@ -132,7 +135,7 @@ describe("optional Lightning fallback", () => {
       resolveRouteChain({ ...args, lightningFallback: false }).routes.map(
         (r) => r.model,
       ),
-    ).toEqual([NEMOTRON_SUPER, NEMOTRON_NANO]);
+    ).toEqual([NEMOTRON_SUPER, NEMOTRON_SUPER_35, NEMOTRON_NANO]);
   });
   it.each([{ byo: true }, { pinnedModel: true }])(
     "respects exact model selection %j",
@@ -150,7 +153,7 @@ describe("optional Lightning fallback", () => {
       }).routes,
     ).toHaveLength(1);
   });
-  it("rejects malformed Super output and audits valid Lightning fallback within two attempts", async () => {
+  it("rejects malformed Super output and audits the valid same-tier fallback within two attempts", async () => {
     const h = harness([
       { ok: true, text: '{"decision":"act","actions":"broken"}' },
       ok(),
@@ -164,7 +167,7 @@ describe("optional Lightning fallback", () => {
       h.hooks,
     ).decide(input);
     expect(result.ok).toBe(true);
-    expect(result.route.effectiveModel).toBe(NEMOTRON_LIGHTNING);
+    expect(result.route.effectiveModel).toBe(NEMOTRON_SUPER_35);
     expect(result.route.attempts.map((a) => a.outcome)).toEqual([
       "failed",
       "success",
@@ -491,6 +494,7 @@ describe("route policy", () => {
     expect(fast.routes.map((r) => `${r.provider}/${r.model}`)).toEqual([
       `nvidia/${NEMOTRON_NANO}`,
       `nvidia/${NEMOTRON_SUPER}`,
+      `nvidia/${NEMOTRON_SUPER_35}`,
       "openai/gpt-5-nano",
     ]);
   });
@@ -532,9 +536,10 @@ describe("RoutedProvider", () => {
     const result = await provider.decide(input);
     expect(result.ok).toBe(true);
     expect(result.route.reason).toBe("capacity_fallback");
-    // Live NIM evidence is model-scoped: Super 429 while Nano is clean on the
-    // same key. The second attempt must therefore use Nano, not stall the key.
-    expect(result.route.effectiveModel).toBe(NEMOTRON_NANO);
+    // Live NIM evidence is model-scoped: a Super 429 leaves other models clean
+    // on the same key. The second attempt therefore uses the next model (the
+    // same-tier Super 3.5 since 2026-10-21), not a stalled key.
+    expect(result.route.effectiveModel).toBe(NEMOTRON_SUPER_35);
     expect(result.route.effectiveProvider).toBe("nvidia");
     expect(result.route.attempts).toHaveLength(2);
     expect(result.route.attempts[0]).toMatchObject({
@@ -583,7 +588,10 @@ describe("RoutedProvider", () => {
   });
 
   it("skips open circuits and can reach the independent third route without exceeding two attempts", async () => {
-    const h = harness([ok("openai")], new Set([NEMOTRON_NANO, NEMOTRON_SUPER]));
+    const h = harness(
+      [ok("openai")],
+      new Set([NEMOTRON_NANO, NEMOTRON_SUPER, NEMOTRON_SUPER_35]),
+    );
     const provider = new RoutedProvider(
       routes.profile,
       routes.routes,
