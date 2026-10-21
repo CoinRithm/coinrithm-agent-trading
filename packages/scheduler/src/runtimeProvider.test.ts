@@ -1167,6 +1167,44 @@ describe("hosted provider lifecycle", () => {
     ).toBe(false);
   });
 
+  it("gives a Super 3.5 fallback the same JSON transport, unless 3.5 is the configured model", () => {
+    const { agent, config } = fixture();
+    const super35 = {
+      provider: "nvidia" as const,
+      model: NEMOTRON_SUPER_35,
+      keyRef: "nvidia:shared:0",
+    };
+    expect(usesSuperFallbackJsonContent(agent, config, super35)).toBe(true);
+    // An agent still configured on retired Super 3 reaches 3.5 as a fallback.
+    expect(
+      usesSuperFallbackJsonContent(
+        { ...agent, modelName: NEMOTRON_SUPER },
+        config,
+        super35,
+      ),
+    ).toBe(true);
+    expect(
+      usesSuperFallbackJsonContent(
+        { ...agent, modelName: NEMOTRON_SUPER_35 },
+        config,
+        super35,
+      ),
+    ).toBe(false);
+    expect(
+      usesSuperFallbackJsonContent(
+        { ...agent, brainKeyEnc: encrypt("fixture-byo", key) },
+        config,
+        super35,
+      ),
+    ).toBe(false);
+    expect(
+      usesSuperFallbackJsonContent(agent, config, {
+        ...super35,
+        baseUrl: "https://nim.example.com/v1",
+      }),
+    ).toBe(false);
+  });
+
   it("defers owner quota exhaustion once without spending a fallback or a model call", async () => {
     const { agent, config } = fixture();
     config.sharedPoolPolicyEnabled = true;
