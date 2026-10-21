@@ -66,6 +66,7 @@ import {
   RoutedProvider,
   resolveRouteChain,
   NEMOTRON_SUPER,
+  NEMOTRON_SUPER_35,
   NEMOTRON_LIGHTNING,
   type ModelRoute,
   type RouteAttempt,
@@ -223,6 +224,14 @@ function keyForRoute(
 // second and last attempt it cannot use the same-model content retry, and that
 // path was 91 of 110 model failures from 6 Oct 14:22Z to 7 Oct 00:29Z. The
 // model, key, parser, attempt budget and admission are unchanged.
+// Super 3.5 (strong-tier successor since 2026-10-21) has the same tool-call
+// failure: 125 of 327 shared customer cycles failed in 2 h, all on agents
+// configured on Super 3 or Nano reaching 3.5 as a fallback.
+const SUPER_FALLBACK_JSON_CONTENT_MODELS: ReadonlySet<string> = new Set([
+  NEMOTRON_SUPER,
+  NEMOTRON_SUPER_35,
+]);
+
 export function usesSuperFallbackJsonContent(
   agent: AgentRow,
   config: Config,
@@ -231,9 +240,9 @@ export function usesSuperFallbackJsonContent(
   return (
     config.superFallbackJsonContentEnabled === true &&
     !agent.brainKeyEnc &&
-    agent.modelName !== NEMOTRON_SUPER &&
+    agent.modelName !== route.model &&
     route.provider === "nvidia" &&
-    route.model === NEMOTRON_SUPER &&
+    SUPER_FALLBACK_JSON_CONTENT_MODELS.has(route.model) &&
     (route.baseUrl == null ||
       route.baseUrl === "https://integrate.api.nvidia.com/v1")
   );
