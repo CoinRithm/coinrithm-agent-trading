@@ -25,6 +25,15 @@ import { DECISION_JSON_SCHEMA } from "./decision.js";
 export const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
 export const DECISION_TOOL_NAME = "submit_trading_decision";
 
+// Super models whose forced tool call can return `actions` as a string: Super 3
+// since 2026-10-02, and its successor Super 3.5 (2026-10-21: 103 of 103
+// malformed attempts were non_json_array_text via tool_call, opening its
+// circuit). Both return valid multi-action decisions as JSON content.
+const SUPER_TOOL_STRING_RETRY_MODELS: ReadonlySet<string> = new Set([
+  "nvidia/nemotron-3-super-120b-a12b",
+  "nvidia/nemotron-3.5-super-vl-120b-a12b",
+]);
+
 // A retry changes transport only after the strict parser has rejected a known
 // Super tool-argument encoding failure. Valid responses and other routes keep
 // their original request shape. A custom endpoint is deliberately excluded.
@@ -35,7 +44,7 @@ export function canRetrySuperToolOutput(
 ): boolean {
   return (
     route.provider === "nvidia" &&
-    route.model === "nvidia/nemotron-3-super-120b-a12b" &&
+    SUPER_TOOL_STRING_RETRY_MODELS.has(route.model) &&
     (route.baseUrl == null || route.baseUrl === NVIDIA_BASE_URL) &&
     responseSource === "tool_call" &&
     actionsStringDiagnostic !== undefined
