@@ -240,7 +240,11 @@ export function usesSuperFallbackJsonContent(
   return (
     config.superFallbackJsonContentEnabled === true &&
     !agent.brainKeyEnc &&
-    agent.modelName !== route.model &&
+    // Super 3.5 asks for JSON content even as the configured model: shared
+    // agents configured on retired Super 3 move to it (owner 2026-10-21), and
+    // on JSON content it had 0 actions-string failures in the first hour
+    // (220 content successes) with no drop in act share.
+    (agent.modelName !== route.model || route.model === NEMOTRON_SUPER_35) &&
     route.provider === "nvidia" &&
     SUPER_FALLBACK_JSON_CONTENT_MODELS.has(route.model) &&
     (route.baseUrl == null ||

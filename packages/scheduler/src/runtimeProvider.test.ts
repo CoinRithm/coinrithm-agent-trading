@@ -1171,7 +1171,7 @@ describe("hosted provider lifecycle", () => {
     ).toBe(false);
   });
 
-  it("gives a Super 3.5 fallback the same JSON transport, unless 3.5 is the configured model", () => {
+  it("gives Super 3.5 the JSON transport as a fallback and as the configured model", () => {
     const { agent, config } = fixture();
     const super35 = {
       provider: "nvidia" as const,
@@ -1192,6 +1192,14 @@ describe("hosted provider lifecycle", () => {
         { ...agent, modelName: NEMOTRON_SUPER_35 },
         config,
         super35,
+      ),
+    ).toBe(true);
+    // A configured Super 3 primary keeps its tool call (unchanged).
+    expect(
+      usesSuperFallbackJsonContent(
+        { ...agent, modelName: NEMOTRON_SUPER },
+        config,
+        { ...super35, model: NEMOTRON_SUPER },
       ),
     ).toBe(false);
     expect(
