@@ -254,7 +254,12 @@ describe("buildChatBody position id limit (opt-in, transport only)", () => {
 
   it("ignores ids that cannot be a position and repeats", () => {
     const schema = restrictPositionIds(DECISION_JSON_SCHEMA, [
-      7, 7, 0, -3, 1.5, Number.NaN,
+      7,
+      7,
+      0,
+      -3,
+      1.5,
+      Number.NaN,
     ]);
     expect(positionId(schema, "futures_close")).toEqual({
       type: "number",
@@ -282,8 +287,8 @@ describe("buildChatBody position id limit (opt-in, transport only)", () => {
   it("changes nothing on a route that does not enforce a schema", () => {
     const openai = chatShapeFor("openai", "gpt-5-nano");
     const plain = { ...args, model: "gpt-5-nano" };
-    expect(buildChatBody(openai, { ...plain, allowedPositionIds: [7] })).toEqual(
-      buildChatBody(openai, plain),
-    );
+    expect(
+      buildChatBody(openai, { ...plain, allowedPositionIds: [7] }),
+    ).toEqual(buildChatBody(openai, plain));
   });
 });
