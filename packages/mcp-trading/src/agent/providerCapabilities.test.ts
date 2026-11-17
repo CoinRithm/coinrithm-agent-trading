@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   chatShapeFor,
   buildChatBody,
+  restrictPositionIds,
   NVIDIA_BASE_URL,
 } from "./providerCapabilities.js";
 import { DECISION_JSON_SCHEMA } from "./decision.js";
@@ -182,5 +183,107 @@ describe("buildChatBody action exclusion (transport only)", () => {
     expect(
       buildChatBody(openai, { ...plain, excludeActionTypes: ["futures_open"] }),
     ).toEqual(buildChatBody(openai, plain));
+  });
+});
+
+describe("buildChatBody position id limit (opt-in, transport only)", () => {
+  const nemotronModel = "nvidia/nemotron-3-nano-30b-a3b";
+  const nemotron = chatShapeFor("nvidia", nemotronModel, NVIDIA_BASE_URL);
+  const args = { model: nemotronModel, system: "S", user: "U", maxTokens: 512 };
+  type Variant = {
+    properties: { type: { const: string }; positionId?: unknown };
+    required: string[];
+  };
+  const variants = (schema: unknown) =>
+    (schema as { properties: { actions: { items: { oneOf: Variant[] } } } })
+      .properties.actions.items.oneOf;
+  const toolSchema = (body: Record<string, unknown>) =>
+    (body.tools as Array<{ function: { parameters: unknown } }>)[0].function
+      .parameters;
+  const positionId = (schema: unknown, type: string) =>
+    variants(schema).find((v) => v.properties.type.const === type)?.properties
+      .positionId;
+  const fullTypes = variants(DECISION_JSON_SCHEMA).map(
+    (v) => v.properties.type.const,
+  );
+
+  it("sends the unchanged contract when the agent did not opt in", () => {
+    expect(toolSchema(buildChatBody(nemotron, args))).toBe(
+      DECISION_JSON_SCHEMA,
+    );
+    expect(restrictPositionIds(DECISION_JSON_SCHEMA, undefined)).toBe(
+      DECISION_JSON_SCHEMA,
+    );
+  });
+
+  it("limits positionId to the open ids on both position actions only", () => {
+    const schema = toolSchema(
+      buildChatBody(nemotron, { ...args, allowedPositionIds: [38307, 38211] }),
+    );
+    const limit = { type: "number", enum: [38211, 38307] };
+    expect(positionId(schema, "futures_close")).toEqual(limit);
+    expect(positionId(schema, "futures_set_sltp")).toEqual(limit);
+    // Same action menu, same required fields, same top-level contract.
+    expect(variants(schema).map((v) => v.properties.type.const)).toEqual(
+      fullTypes,
+    );
+    expect(
+      variants(schema).find((v) => v.properties.type.const === "futures_close")
+        ?.required,
+    ).toEqual(["type", "positionId"]);
+    expect(schema).toMatchObject({
+      required: DECISION_JSON_SCHEMA.required,
+      allOf: DECISION_JSON_SCHEMA.allOf,
+    });
+    // The shared constant the parser relies on is not mutated.
+    expect(positionId(DECISION_JSON_SCHEMA, "futures_close")).toEqual({
+      type: "number",
+    });
+  });
+
+  it("offers no position action when nothing is open", () => {
+    const schema = toolSchema(
+      buildChatBody(nemotron, { ...args, allowedPositionIds: [] }),
+    );
+    expect(variants(schema).map((v) => v.properties.type.const)).toEqual(
+      fullTypes.filter(
+        (t) => t !== "futures_close" && t !== "futures_set_sltp",
+      ),
+    );
+  });
+
+  it("ignores ids that cannot be a position and repeats", () => {
+    const schema = restrictPositionIds(DECISION_JSON_SCHEMA, [
+      7, 7, 0, -3, 1.5, Number.NaN,
+    ]);
+    expect(positionId(schema, "futures_close")).toEqual({
+      type: "number",
+      enum: [7],
+    });
+  });
+
+  it("combines with a withheld futures_open", () => {
+    const schema = toolSchema(
+      buildChatBody(nemotron, {
+        ...args,
+        excludeActionTypes: ["futures_open"],
+        allowedPositionIds: [7],
+      }),
+    );
+    expect(variants(schema).map((v) => v.properties.type.const)).toEqual(
+      fullTypes.filter((t) => t !== "futures_open"),
+    );
+    expect(positionId(schema, "futures_set_sltp")).toEqual({
+      type: "number",
+      enum: [7],
+    });
+  });
+
+  it("changes nothing on a route that does not enforce a schema", () => {
+    const openai = chatShapeFor("openai", "gpt-5-nano");
+    const plain = { ...args, model: "gpt-5-nano" };
+    expect(buildChatBody(openai, { ...plain, allowedPositionIds: [7] })).toEqual(
+      buildChatBody(openai, plain),
+    );
   });
 });

@@ -178,6 +178,54 @@ export function restrictDecisionSchema(
   };
 }
 
+// Action variants that name an existing futures position.
+const POSITION_ACTION_TYPES: ReadonlySet<string> = new Set([
+  "futures_close",
+  "futures_set_sltp",
+]);
+
+// Transport-only restriction for an agent that opted in
+// (spec.constrainPositionIds): on a schema-enforcing route, positionId may only
+// be one of this cycle's open futures position ids, and with none open the two
+// position actions are not offered. parseDecision and the validator are
+// unchanged, so an id outside the list is still rejected as unknown_position
+// and never replaced. `undefined` means the agent did not opt in.
+export function restrictPositionIds(
+  schema: Record<string, unknown>,
+  allowed: readonly number[] | undefined,
+): Record<string, unknown> {
+  if (allowed === undefined) return schema;
+  const properties = schema.properties as Record<string, unknown> | undefined;
+  const actions = properties?.actions as
+    { items?: { oneOf?: unknown[] } } | undefined;
+  const variants = actions?.items?.oneOf;
+  if (!properties || !actions || !Array.isArray(variants)) return schema;
+  const ids = [
+    ...new Set(allowed.filter((id) => Number.isSafeInteger(id) && id > 0)),
+  ].sort((a, b) => a - b);
+  const next = variants.flatMap((variant) => {
+    const props = (variant as { properties?: Record<string, unknown> })
+      .properties;
+    const type = (props?.type as { const?: unknown } | undefined)?.const;
+    if (!props || !POSITION_ACTION_TYPES.has(type as string)) return [variant];
+    if (ids.length === 0) return [];
+    return [
+      {
+        ...(variant as Record<string, unknown>),
+        properties: { ...props, positionId: { type: "number", enum: ids } },
+      },
+    ];
+  });
+  if (next.length === 0) return schema;
+  return {
+    ...schema,
+    properties: {
+      ...properties,
+      actions: { ...actions, items: { ...actions.items, oneOf: next } },
+    },
+  };
+}
+
 /** Build the chat-completions body for a route from its capability shape. */
 export function buildChatBody(
   shape: ChatShape,
@@ -188,6 +236,7 @@ export function buildChatBody(
     maxTokens: number;
     temperature?: number;
     excludeActionTypes?: readonly DecisionActionExclusion[];
+    allowedPositionIds?: readonly number[];
     decisionContract?: "pm_paper_v2";
   },
 ): Record<string, unknown> {
@@ -197,7 +246,10 @@ export function buildChatBody(
   const jsonSchema = shape.jsonSchema
     ? args.decisionContract === "pm_paper_v2"
       ? PM_PAPER_DECISION_JSON_SCHEMA
-      : restrictDecisionSchema(shape.jsonSchema, args.excludeActionTypes)
+      : restrictPositionIds(
+          restrictDecisionSchema(shape.jsonSchema, args.excludeActionTypes),
+          args.allowedPositionIds,
+        )
     : undefined;
   return {
     model: args.model,

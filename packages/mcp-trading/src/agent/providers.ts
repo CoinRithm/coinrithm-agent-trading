@@ -112,6 +112,10 @@ export interface DecideInput {
   // runner withholds futures_open when futures capacity is spent). Transport
   // only: parseDecision still validates against the full contract.
   excludeActionTypes?: readonly DecisionActionExclusion[];
+  // Set only for an agent that opted in (spec.constrainPositionIds): the open
+  // futures position ids a schema-enforcing route may name this cycle.
+  // Transport only, like excludeActionTypes.
+  allowedPositionIds?: readonly number[];
   decisionContract?: "pm_paper_v2";
 }
 
@@ -528,6 +532,7 @@ class OpenAiCompatProvider implements Provider {
                 user: input.user,
                 maxTokens: input.maxTokens ?? 1024,
                 excludeActionTypes: input.excludeActionTypes,
+                allowedPositionIds: input.allowedPositionIds,
                 decisionContract: input.decisionContract,
               }),
             ),

@@ -389,6 +389,44 @@ describe("direct NVIDIA same-model retry", () => {
     }
   });
 
+  it("sends the opted-in position id limit in the request schema", async () => {
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValueOnce(success());
+    const result = await direct(fetchFn).decide({
+      system: "STRATEGY",
+      user: "OBSERVATION",
+      allowedPositionIds: [38211, 38307],
+    });
+    expect(result.ok).toBe(true);
+    const body = JSON.parse(fetchFn.mock.calls[0][1]?.body as string) as {
+      tools: Array<{
+        function: {
+          parameters: {
+            properties: {
+              actions: {
+                items: {
+                  oneOf: Array<{
+                    properties: {
+                      type: { const: string };
+                      positionId?: unknown;
+                    };
+                  }>;
+                };
+              };
+            };
+          };
+        };
+      }>;
+    };
+    const close =
+      body.tools[0].function.parameters.properties.actions.items.oneOf.find(
+        (v) => v.properties.type.const === "futures_close",
+      );
+    expect(close?.properties.positionId).toEqual({
+      type: "number",
+      enum: [38211, 38307],
+    });
+  });
+
   it("retains capacity classification for both same-model ResourceExhausted attempts", async () => {
     vi.useFakeTimers();
     const fetchFn = vi

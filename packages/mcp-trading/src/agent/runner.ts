@@ -1028,11 +1028,28 @@ async function runCycleCore(
         `futures capacity spent (slotsLeft ${futuresCapacity.slotsLeft}, marginHeadroomMusd ${futuresCapacity.marginHeadroomMusd}): futures_open withheld from schema-enforcing routes`,
       );
     }
+    // Opt-in (spec.constrainPositionIds === true): a schema-enforcing route may
+    // only name the futures positions this observation shows as open. The
+    // prompt is untouched, and the validator below still rejects any other id.
+    const positionIdLimit: { allowedPositionIds?: number[] } =
+      spec.constrainPositionIds === true && spec.venues.includes("futures")
+        ? {
+            allowedPositionIds: observation.openPositions
+              .filter((p) => p.venue === "futures")
+              .map((p) => p.id),
+          }
+        : {};
+    if (positionIdLimit.allowedPositionIds) {
+      log(
+        `position ids limited to [${positionIdLimit.allowedPositionIds.join(", ")}] on schema-enforcing routes`,
+      );
+    }
     const res = await provider.decide({
       system,
       user,
       ...(compactUser && compactUser !== user ? { compactUser } : {}),
       ...actionAvailability,
+      ...positionIdLimit,
     });
     const route = res.route;
     const actualCallMade = route
