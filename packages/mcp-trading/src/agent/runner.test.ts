@@ -3635,6 +3635,80 @@ describe("runner: futures_open withheld from schema routes when capacity is spen
     expect(client.openFutures).not.toHaveBeenCalled();
   });
 
+  describe("position id limit (spec.constrainPositionIds, opt-in)", () => {
+    const LIMITED = "position ids limited to";
+    const limitedLines = (log: ReturnType<typeof vi.fn>) =>
+      log.mock.calls.filter(([line]) => String(line).includes(LIMITED));
+
+    it("is off unless the spec says exactly true", async () => {
+      for (const value of [undefined, false, "true", 1]) {
+        const log = vi.fn();
+        const r = recording({ decision: "skip", actions: [] });
+        const d = deps({ log }, withHeld(), r.prov);
+        d.spec.venues = ["futures"];
+        d.spec.risk.maxConcurrentPositions = 5;
+        d.spec.limits.maxOpenMarginMusd = 1000;
+        (d.spec as { constrainPositionIds?: unknown }).constrainPositionIds =
+          value;
+        await runCycle(d);
+        expect(r.inputs[0]).not.toHaveProperty("allowedPositionIds");
+        expect(limitedLines(log)).toHaveLength(0);
+      }
+    });
+
+    it("passes this cycle's open futures ids, without changing the prompts", async () => {
+      const plain = recording({ decision: "skip", actions: [] });
+      const p = deps({}, withHeld(), plain.prov);
+      p.spec.venues = ["futures"];
+      p.spec.risk.maxConcurrentPositions = 5;
+      p.spec.limits.maxOpenMarginMusd = 1000;
+      await runCycle(p);
+
+      const log = vi.fn();
+      const r = recording({ decision: "skip", actions: [] });
+      const d = deps({ log }, withHeld(), r.prov);
+      d.spec.venues = ["futures"];
+      d.spec.risk.maxConcurrentPositions = 5;
+      d.spec.limits.maxOpenMarginMusd = 1000;
+      d.spec.constrainPositionIds = true;
+      await runCycle(d);
+      expect(r.inputs[0].allowedPositionIds).toEqual([7]);
+      expect(r.inputs[0].system).toBe(plain.inputs[0].system);
+      expect(r.inputs[0].user).toBe(plain.inputs[0].user);
+      expect(limitedLines(log)).toHaveLength(1);
+    });
+
+    it("still rejects an unknown id from a route that ignores the limit, and never substitutes", async () => {
+      const client = withHeld();
+      const r = recording({
+        decision: "act",
+        confidence: 0.8,
+        actions: [{ type: "futures_close", positionId: 1 }],
+      });
+      const d = deps({ live: true }, client, r.prov);
+      d.spec.venues = ["futures"];
+      d.spec.risk.maxConcurrentPositions = 5;
+      d.spec.limits.maxOpenMarginMusd = 1000;
+      d.spec.constrainPositionIds = true;
+      const result = await runCycle(d);
+      expect(r.inputs[0].allowedPositionIds).toEqual([7]);
+      expect(result.planned[0]).toMatchObject({
+        accepted: false,
+        code: "unknown_position",
+      });
+      expect(client.closeFutures).not.toHaveBeenCalled();
+    });
+
+    it("is not sent for an agent without the futures venue", async () => {
+      const r = recording({ decision: "skip", actions: [] });
+      const d = deps({}, withHeld(), r.prov);
+      d.spec.venues = ["pm"];
+      d.spec.constrainPositionIds = true;
+      await runCycle(d);
+      expect(r.inputs[0]).not.toHaveProperty("allowedPositionIds");
+    });
+  });
+
   it("two opens racing for the last slot: nothing is withheld and the validator rejects the second", async () => {
     const client = withHeld();
     const r = recording({

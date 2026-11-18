@@ -312,6 +312,11 @@ export interface AgentSpec {
   // Market boundaries the agent scans inside each cycle (universe.ts).
   // Omitted => watchlist only, or today's top-gainers scan with universe_scan.
   universe?: UniverseConfig;
+  // Opt-in, default off. When exactly true, a schema-enforcing model route may
+  // only name this cycle's open futures position ids in futures_close and
+  // futures_set_sltp (providerCapabilities.restrictPositionIds). Prompts,
+  // parsing and validation do not change.
+  constrainPositionIds?: boolean;
 }
 
 /** Declared market boundaries; see universe.ts for semantics and defaults. */
