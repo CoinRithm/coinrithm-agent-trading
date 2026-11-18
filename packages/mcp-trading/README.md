@@ -215,9 +215,7 @@ agent file.
   # GET  http://localhost:8787/healthz  (liveness, no auth)
   ```
 
-## Tools
-
-### Load part of the tool list (toolsets)
+## Toolsets: load part of the tool list
 
 The full list is 49 tools, about 23,000 tokens of model context for a client
 that loads all of it. A client can ask for less:
@@ -235,6 +233,8 @@ that loads all of it. A client can ask for less:
 With no selection every tool loads, as before. Unknown names are ignored, and
 a selection with no valid name also loads every tool. Token counts are the
 list without output schemas at four characters a token, measured 2026-11-18.
+
+## Tools
 
 | Tool                                                   | Scope         | Wraps                                                                                |
 | ------------------------------------------------------ | ------------- | ------------------------------------------------------------------------------------ |
