@@ -215,6 +215,25 @@ agent file.
   # GET  http://localhost:8787/healthz  (liveness, no auth)
   ```
 
+## Toolsets: load part of the tool list
+
+The full list is 49 tools, about 23,000 tokens of model context for a client
+that loads all of it. A client can ask for less:
+
+| Toolset | Tools | About | What it holds |
+| --- | --- | --- | --- |
+| `data` | 23 | 8,800 tokens | keyless public data: `pm_data_*`, `crypto_price`, `get_crypto_movers`, `instrument_markets`, `tradfi_references`, the two arena reads |
+| `account` | 16 | 7,600 tokens | reads that need your API key |
+| `trading` | 10 | 6,900 tokens | paper-trade quotes and writes |
+
+- Hosted: add `?toolsets=data` (or a list, `?toolsets=data,account`) to the
+  endpoint URL, for example `https://mcp.coinrithm.com/mcp?toolsets=data`.
+- stdio: set `COINRITHM_MCP_TOOLSETS=data,account`.
+
+With no selection every tool loads, as before. Unknown names are ignored, and
+a selection with no valid name also loads every tool. Token counts are the
+list without output schemas at four characters a token, measured 2026-11-18.
+
 ## Tools
 
 | Tool                                                   | Scope         | Wraps                                                                                |

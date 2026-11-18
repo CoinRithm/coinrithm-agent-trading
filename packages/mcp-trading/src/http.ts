@@ -35,7 +35,7 @@
 // the correct isolation model for a multi-user, per-request-keyed surface — no
 // session state is shared between users.
 
-import { SERVER_INSTRUCTIONS } from "./instructions.js";
+import { instructionsFor } from "./instructions.js";
 import express, { type Request, type Response } from "express";
 import { pathToFileURL } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -46,7 +46,7 @@ import {
   loadHttpConfig,
   log,
 } from "./client.js";
-import { registerTools } from "./tools.js";
+import { parseToolsets, registerTools } from "./tools.js";
 import { SERVER_VERSION } from "./version.js";
 import {
   observeHttpCompletion,
@@ -200,6 +200,9 @@ export function createHttpApp(
         req.auth = { token: apiKey, clientId: "coinrithm-key", scopes: [] };
       }
 
+      // `?toolsets=data` (or data,account,trading) loads part of the tool
+      // list; no selection loads every tool.
+      const toolsets = parseToolsets(req.query?.toolsets);
       const server =
         options.createServer?.() ??
         new McpServer(
@@ -207,9 +210,9 @@ export function createHttpApp(
             name: "coinrithm-trading",
             version: SERVER_VERSION,
           },
-          { instructions: SERVER_INSTRUCTIONS },
+          { instructions: instructionsFor(toolsets) },
         );
-      if (!options.createServer) registerTools(server, client);
+      if (!options.createServer) registerTools(server, client, { toolsets });
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined, // stateless: no cross-request/user state
       });

@@ -1277,13 +1277,73 @@ function mapSuccessfulBody(
   return result.ok ? { ...result, data: transform(result.data) } : result;
 }
 
+// Toolsets let a client load part of the tool list. The full list is about
+// 21,000 tokens of model context (49 tools); a client that only wants market
+// data can ask for `data` alone. Default (no selection) stays every tool.
+//   data:    keyless public data (pm_data_*, crypto, TradFi, arena)
+//   account: reads that need the caller's API key
+//   trading: paper-trade quotes and writes
+export const TOOLSETS = ["data", "account", "trading"] as const;
+export type Toolset = (typeof TOOLSETS)[number];
+
+const DATA_TOOL_NAMES: ReadonlySet<string> = new Set([
+  "instrument_markets",
+  "tradfi_references",
+  "crypto_price",
+  "get_arena_leaderboard",
+  "get_arena_agent",
+  "get_crypto_movers",
+]);
+const QUOTE_TOOL_NAMES: ReadonlySet<string> = new Set([
+  "spot_quote",
+  "futures_quote",
+  "pm_quote",
+]);
+
+/** Which toolset a tool belongs to. Every tool belongs to exactly one. */
+export function toolsetOf(name: string, readOnly: boolean): Toolset {
+  if (name.startsWith("pm_data_") || DATA_TOOL_NAMES.has(name)) return "data";
+  if (!readOnly || QUOTE_TOOL_NAMES.has(name)) return "trading";
+  return "account";
+}
+
+/**
+ * Parse a toolset selection such as "data" or "data,account" (URL query
+ * `?toolsets=` on the HTTP server, COINRITHM_MCP_TOOLSETS on stdio). Unknown
+ * names are ignored. Returns undefined, meaning every tool, when nothing
+ * valid is selected, so a typo never leaves a client with an empty server.
+ */
+export function parseToolsets(raw: unknown): ReadonlySet<Toolset> | undefined {
+  const text = Array.isArray(raw) ? raw.join(",") : raw;
+  if (typeof text !== "string") return undefined;
+  const picked = new Set<Toolset>();
+  for (const part of text.split(",")) {
+    const name = part.trim().toLowerCase();
+    if ((TOOLSETS as readonly string[]).includes(name))
+      picked.add(name as Toolset);
+  }
+  return picked.size > 0 ? picked : undefined;
+}
+
 export function registerTools(
   server: McpServer,
   client: CoinRithmClient,
+  options: { toolsets?: ReadonlySet<Toolset> } = {},
 ): void {
+  const selected = options.toolsets;
+  // Every registration below goes through this, so a selection filters the
+  // list without touching any tool definition.
+  const register = ((name, config, handler) => {
+    if (
+      selected &&
+      !selected.has(toolsetOf(name, config.annotations?.readOnlyHint === true))
+    )
+      return undefined;
+    return server.registerTool(name, config, handler);
+  }) as McpServer["registerTool"];
   // Separate opt-in inventory: never enrich existing market context or prompts.
   if (process.env.COINRITHM_SPOT_REFERENCE_TOOLS_ENABLED === "true") {
-    server.registerTool(
+    register(
       "get_spot_reference",
       {
         title: "Get optional spot reference",
@@ -1318,7 +1378,7 @@ export function registerTools(
     );
   }
   // ---------------- identity ----------------
-  server.registerTool(
+  register(
     "whoami",
     {
       title: "Who am I (CoinRithm)",
@@ -1342,7 +1402,7 @@ export function registerTools(
   );
 
   // ---------------- reads ----------------
-  server.registerTool(
+  register(
     "get_portfolio",
     {
       title: "Get portfolio",
@@ -1375,7 +1435,7 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
+  register(
     "get_wallet",
     {
       title: "Get wallet",
@@ -1400,7 +1460,7 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
+  register(
     "list_open_orders",
     {
       title: "List open spot orders",
@@ -1445,7 +1505,7 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
+  register(
     "get_positions",
     {
       title: "Get positions",
@@ -1489,7 +1549,7 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
+  register(
     "resolve_symbol",
     {
       title: "Resolve symbol -> coinId",
@@ -1514,7 +1574,7 @@ export function registerTools(
       present(await client.resolveSymbol({ q }, requestKey(extra), agentTrace)),
   );
 
-  server.registerTool(
+  register(
     "get_equity_curve",
     {
       title: "Get equity curve",
@@ -1557,7 +1617,7 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
+  register(
     "get_my_trades",
     {
       title: "Get my trades",
@@ -1604,7 +1664,7 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
+  register(
     "get_market_context",
     {
       title: "Get market context",
@@ -1637,7 +1697,7 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
+  register(
     "get_candles",
     {
       title: "Get OHLCV candles",
@@ -1685,7 +1745,7 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
+  register(
     "get_news",
     {
       title: "Get scored crypto news",
@@ -1741,7 +1801,7 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
+  register(
     "discover_pm_markets",
     {
       title: "Discover prediction markets",
@@ -1806,7 +1866,7 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
+  register(
     "get_performance",
     {
       title: "Get my performance",
@@ -1826,7 +1886,7 @@ export function registerTools(
       present(await client.getPerformance(requestKey(extra), agentTrace)),
   );
 
-  server.registerTool(
+  register(
     "get_agent_ledger",
     {
       title: "Get private agent ledger",
@@ -1902,7 +1962,7 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
+  register(
     "export_agent_ledger",
     {
       title: "Export private agent ledger",
@@ -1943,7 +2003,7 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
+  register(
     "export_run_evidence",
     {
       title: "Export run evidence",
@@ -1966,7 +2026,7 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
+  register(
     "get_arena_leaderboard",
     {
       title: "Get Agent Arena leaderboard",
@@ -2016,7 +2076,7 @@ export function registerTools(
       present(await client.getArenaLeaderboard({ page, pageSize, window })),
   );
 
-  server.registerTool(
+  register(
     "get_arena_agent",
     {
       title: "Get Agent Arena profile",
@@ -2041,7 +2101,7 @@ export function registerTools(
   );
 
   // ---------------- quotes (read scope, read-only) ----------------
-  server.registerTool(
+  register(
     "futures_quote",
     {
       title: "Futures quote",
@@ -2076,7 +2136,7 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
+  register(
     "pm_quote",
     {
       title: "Prediction-market quote",
@@ -2160,7 +2220,7 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
+  register(
     "spot_quote",
     {
       title: "Spot quote",
@@ -2198,7 +2258,7 @@ export function registerTools(
   );
 
   // ---------------- writes ----------------
-  server.registerTool(
+  register(
     "place_spot_order",
     {
       title: "Place spot order",
@@ -2268,7 +2328,7 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
+  register(
     "cancel_spot_order",
     {
       title: "Cancel spot order",
@@ -2301,7 +2361,7 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
+  register(
     "open_futures_position",
     {
       title: "Open futures position",
@@ -2389,7 +2449,7 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
+  register(
     "set_futures_sl_tp",
     {
       title: "Set futures stop-loss / take-profit",
@@ -2441,7 +2501,7 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
+  register(
     "close_futures_position",
     {
       title: "Close futures position",
@@ -2485,7 +2545,7 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
+  register(
     "open_pm_position",
     {
       title: "Open prediction-market position",
@@ -2587,7 +2647,7 @@ export function registerTools(
   );
 
   if (process.env.COINRITHM_PM_PAPER_V2_TOOLS_ENABLED === "true") {
-    server.registerTool(
+    register(
       "discover_pm_paper_v2_markets",
       {
         title: "Discover PM paper v2 candidates",
@@ -2621,7 +2681,7 @@ export function registerTools(
           ),
         ),
     );
-    server.registerTool(
+    register(
       "open_pm_paper_v2",
       {
         title: "Open opted-in PM paper position",
@@ -2642,7 +2702,7 @@ export function registerTools(
           ),
         ),
     );
-    server.registerTool(
+    register(
       "close_pm_paper_v2",
       {
         title: "Request full PM paper exit",
@@ -2664,7 +2724,7 @@ export function registerTools(
           ),
         ),
     );
-    server.registerTool(
+    register(
       "get_pm_paper_v2_positions",
       {
         title: "Read PM paper v2 positions and exit receipts",
@@ -2684,7 +2744,7 @@ export function registerTools(
     );
   }
 
-  server.registerTool(
+  register(
     "report_pm_opportunity",
     {
       title: "Report a non-opened PM opportunity",
@@ -2816,7 +2876,7 @@ export function registerTools(
   // These wrap the free /api/prediction-markets/* endpoints — CoinRithm's
   // citable cross-venue dataset. They never attach the caller's key.
 
-  server.registerTool(
+  register(
     "pm_data_overview",
     {
       title: "Cross-venue prediction-market statistics",
@@ -2853,7 +2913,7 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
+  register(
     "pm_data_sources",
     {
       title: "Prediction-market venue methodology and coverage",
@@ -2878,7 +2938,7 @@ export function registerTools(
     async ({ fiat }) => present(await client.getPublicPmSources({ fiat })),
   );
 
-  server.registerTool(
+  register(
     "pm_data_sources_health",
     {
       title: "Prediction-market venue freshness and health",
@@ -2898,7 +2958,7 @@ export function registerTools(
     async () => present(await client.getPublicPmSourcesHealth()),
   );
 
-  server.registerTool(
+  register(
     "pm_data_events",
     {
       title: "Search prediction markets across all venues",
@@ -2978,7 +3038,7 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
+  register(
     "pm_data_event",
     {
       title: "Get prediction-market event detail",
@@ -3057,7 +3117,7 @@ export function registerTools(
     },
   );
 
-  server.registerTool(
+  register(
     "pm_data_whales",
     {
       title: "Get latest prediction-market whale trades",
@@ -3090,7 +3150,7 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
+  register(
     "pm_data_whale_wallets",
     {
       title: "Explore prediction-market whale wallets",
@@ -3134,7 +3194,7 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
+  register(
     "pm_data_whale_wallet",
     {
       title: "Inspect one prediction-market whale wallet",
@@ -3173,7 +3233,7 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
+  register(
     "pm_data_disagreements",
     {
       title: "Cross-venue disagreement clusters",
@@ -3301,7 +3361,7 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
+  register(
     "pm_data_calibration",
     {
       title: "Per-venue market-price calibration",
@@ -3325,7 +3385,7 @@ export function registerTools(
     async () => present(await client.getPublicPmCalibration()),
   );
 
-  server.registerTool(
+  register(
     "pm_data_canonical",
     {
       title: "Canonical cross-venue event identity",
@@ -3385,7 +3445,7 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
+  register(
     "pm_data_volume_history",
     {
       title: "Global prediction-market volume trend",
@@ -3422,7 +3482,7 @@ export function registerTools(
     .optional()
     .describe("Fiat currency code for monetary figures (default USD).");
 
-  server.registerTool(
+  register(
     "pm_data_price_history",
     {
       title: "Prediction-market outcome price history",
@@ -3465,7 +3525,7 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
+  register(
     "pm_data_orderbook",
     {
       title: "Prediction-market outcome order book",
@@ -3513,7 +3573,7 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
+  register(
     "pm_data_resolved",
     {
       title: "Resolved prediction markets archive",
@@ -3594,7 +3654,7 @@ export function registerTools(
     },
   );
 
-  server.registerTool(
+  register(
     "pm_data_expiring",
     {
       title: "Open prediction markets expiring soon",
@@ -3647,7 +3707,7 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
+  register(
     "pm_data_surprises",
     {
       title: "Biggest resolved prediction-market surprises",
@@ -3700,7 +3760,7 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
+  register(
     "get_crypto_movers",
     {
       title: "Top 24h crypto movers (universe scan)",
@@ -3744,7 +3804,7 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
+  register(
     "instrument_markets",
     {
       title: "Prediction-market strike ladders on an instrument",
@@ -3819,7 +3879,7 @@ export function registerTools(
     },
   );
 
-  server.registerTool(
+  register(
     "tradfi_references",
     {
       title: "TradFi reference prices",
@@ -3892,7 +3952,7 @@ export function registerTools(
       ),
   );
 
-  server.registerTool(
+  register(
     "crypto_price",
     {
       title: "Crypto price for one coin",

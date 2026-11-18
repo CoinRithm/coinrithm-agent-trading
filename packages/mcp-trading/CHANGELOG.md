@@ -5,6 +5,15 @@ ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (t
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
 versioned separately (see `openapi.yaml` `info.version`, currently `1.11.0`).
 
+## Unreleased
+
+- MCP server: optional toolsets. `?toolsets=data` on the hosted endpoint, or
+  `COINRITHM_MCP_TOOLSETS=data` on stdio, loads only the 23 keyless data tools
+  (about 8,800 tokens instead of about 23,000). `account` and `trading` are
+  the other two sets; no selection loads every tool as before.
+- Agent runner: optional `constrainPositionIds` spec flag (hosted), and the
+  calibration read asks the API for its one block (`only=pmCalibration`).
+
 ## 0.7.20 (2026-10-16)
 
 MCP server: eight keyless data tools, so the default surface grows from 41

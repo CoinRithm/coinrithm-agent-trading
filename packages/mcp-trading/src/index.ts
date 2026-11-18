@@ -12,26 +12,27 @@
 //
 // stdout is the JSON-RPC channel — we log ONLY to stderr.
 
-import { SERVER_INSTRUCTIONS } from "./instructions.js";
+import { instructionsFor } from "./instructions.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CoinRithmClient, loadConfig, log } from "./client.js";
-import { registerTools } from "./tools.js";
+import { parseToolsets, registerTools } from "./tools.js";
 import { SERVER_VERSION } from "./version.js";
 
 async function main(): Promise<void> {
   const config = loadConfig();
   const client = new CoinRithmClient(config);
 
+  const toolsets = parseToolsets(process.env.COINRITHM_MCP_TOOLSETS);
   const server = new McpServer(
     {
       name: "coinrithm-trading",
       version: SERVER_VERSION,
     },
-    { instructions: SERVER_INSTRUCTIONS },
+    { instructions: instructionsFor(toolsets) },
   );
 
-  registerTools(server, client);
+  registerTools(server, client, { toolsets });
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
