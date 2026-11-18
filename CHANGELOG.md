@@ -8,6 +8,14 @@ Each package has its own version; the API contract is versioned separately.
 [TypeScript history](packages/sdk/CHANGELOG.md) ·
 [Python release notes](packages/sdk-python/README.md)
 
+## MCP 0.7.21 (2026-11-18)
+
+Optional toolsets (`?toolsets=data` loads the 23 keyless data tools, about
+8,800 tokens instead of about 23,000), `zod` 4.6.7 with the published tool
+list held, and an opt-in position id limit for the agent runner. 49 default
+tools as before. API contract 1.11.0; SDKs unchanged. See the
+[MCP changelog](packages/mcp-trading/CHANGELOG.md).
+
 ## MCP 0.7.20 (2026-10-16)
 
 Eight keyless MCP data tools (49 default tools, 23 keyless): strike ladders,
