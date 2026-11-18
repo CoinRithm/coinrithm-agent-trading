@@ -516,7 +516,6 @@ describe("route policy", () => {
     expect(fast.profile).toBe("fast");
     expect(fast.routes.map((r) => `${r.provider}/${r.model}`)).toEqual([
       `nvidia/${NEMOTRON_NANO}`,
-      `nvidia/${NEMOTRON_SUPER}`,
       `nvidia/${NEMOTRON_SUPER_35}`,
       "openai/gpt-5-nano",
     ]);
