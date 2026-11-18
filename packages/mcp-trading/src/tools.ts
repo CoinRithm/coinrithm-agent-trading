@@ -1353,12 +1353,13 @@ export function registerTools(
       !selected.has(toolsetOf(name, config.annotations?.readOnlyHint === true))
     )
       return undefined;
-    const shape = config.inputSchema;
-    const closed =
-      shape && !(shape instanceof z.ZodType) && Object.keys(shape).length > 0
-        ? { ...config, inputSchema: z.object(shape).meta(CLOSED) }
-        : config;
-    return server.registerTool(name, closed as typeof config, handler);
+    const tool = server.registerTool(name, config, handler);
+    // The SDK builds the argument object from the raw shape. Mark that object
+    // closed in the schema registry the converter reads (see CLOSED above).
+    const input = tool?.inputSchema;
+    if (input && Object.keys(config.inputSchema ?? {}).length > 0)
+      z.globalRegistry.add(input as unknown as z.core.$ZodType, CLOSED);
+    return tool;
   }) as McpServer["registerTool"];
   // Separate opt-in inventory: never enrich existing market context or prompts.
   if (process.env.COINRITHM_SPOT_REFERENCE_TOOLS_ENABLED === "true") {
