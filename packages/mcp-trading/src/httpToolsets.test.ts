@@ -44,6 +44,16 @@ async function toolNames(url: string) {
   }
 }
 
+async function instructions(url: string) {
+  const client = new Client({ name: "toolset-http-probe", version: "0.0.0" });
+  await client.connect(new StreamableHTTPClientTransport(new URL(url)));
+  try {
+    return client.getInstructions() ?? "";
+  } finally {
+    await client.close();
+  }
+}
+
 describe("hosted MCP ?toolsets=", () => {
   it("serves the selected toolsets and leaves the plain URL unchanged", async () => {
     const base = await start();
@@ -61,5 +71,15 @@ describe("hosted MCP ?toolsets=", () => {
     expect(dataAccount.length).toBeLessThan(all.length);
     // An unknown selection falls back to every tool, never to none.
     expect([...typo].sort()).toEqual([...all].sort());
+  });
+
+  it("says which toolsets are loaded only when a selection was made", async () => {
+    const base = await start();
+    const plain = await instructions(`${base}/mcp`);
+    const selected = await instructions(`${base}/mcp?toolsets=trading,data`);
+    expect(plain).not.toContain("Loaded toolsets");
+    expect(selected.startsWith(plain)).toBe(true);
+    expect(selected).toContain("Loaded toolsets: data, trading.");
+    expect(await instructions(`${base}/mcp?toolsets=dta`)).toBe(plain);
   });
 });
