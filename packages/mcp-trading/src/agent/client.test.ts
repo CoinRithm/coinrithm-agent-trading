@@ -81,6 +81,21 @@ describe("CoinRithmClient", () => {
       expect(isFailClosed(200)).toBe(false);
     },
   );
+  it("asks for the calibration block alone only when told to", async () => {
+    const fetchFn = vi.fn(
+      async () => new Response(JSON.stringify({ pmCalibration: null })),
+    );
+    const c = new CoinRithmClient({ apiKey: "fixture", fetchFn });
+    await c.performance(undefined, { only: "pmCalibration" });
+    await c.performance();
+    expect(String(fetchFn.mock.calls[0][0])).toBe(
+      "https://api.coinrithm.com/api/agent/performance?only=pmCalibration",
+    );
+    expect(String(fetchFn.mock.calls[1][0])).toBe(
+      "https://api.coinrithm.com/api/agent/performance",
+    );
+  });
+
   it("lets an optional read opt out of 429 retries while still counting the hit", async () => {
     const fetchFn = vi.fn(
       async () =>

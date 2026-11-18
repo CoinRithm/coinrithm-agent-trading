@@ -476,6 +476,7 @@ export async function readPmCalibration(
       .performance(trace, {
         timeoutMs: PM_CALIBRATION_READ_TIMEOUT_MS,
         maxRetries: 0,
+        only: "pmCalibration",
       })
       .then((r) =>
         r.ok ? pmCalibrationOf(asObj(r.data).pmCalibration) : undefined,
