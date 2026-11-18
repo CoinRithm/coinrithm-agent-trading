@@ -75,7 +75,7 @@
     "express": "^4.21.0",
     "json5": "2.2.3",
     "yaml": "^2.5.0",
-    "zod": "^3.23.8"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@eslint/js": "^9.13.0",

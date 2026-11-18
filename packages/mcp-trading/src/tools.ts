@@ -42,13 +42,24 @@ export const PAPER_NOTE_SHORT =
 // descriptions live in the server instructions' wording, not here: httpStatus
 // is CoinRithm's HTTP status (0 = network error), ok is a 2xx, the ledger
 // fields come from /api/agent/* writes, and body is the parsed response.
+// zod 4 publishes the safe-integer range as minimum/maximum on every unbounded
+// integer: 56 bytes on each of the 49 result envelopes. An undefined key is
+// dropped when the list is serialized, so this stays {"type":"integer"}.
+const NO_SAFE_INTEGER_RANGE = { minimum: undefined, maximum: undefined };
 const API_RESULT_OUTPUT_SCHEMA = {
-  httpStatus: z.number().int(),
+  httpStatus: z.number().int().meta(NO_SAFE_INTEGER_RANGE),
   ok: z.boolean(),
   ledgerEventId: z.string().nullable().optional(),
   ledgerStatus: z.string().nullable().optional(),
-  body: z.unknown(),
+  // Explicitly optional: zod 4 no longer treats an unknown key as optional,
+  // and a required body would fail clients that validate structured output.
+  body: z.unknown().optional(),
 };
+
+// zod 4's JSON Schema converter leaves `additionalProperties` out of a plain
+// input object. Parsing still strips unknown keys, as before; this keeps the
+// published schema saying that no other arguments exist, as it did on zod 3.
+const CLOSED = { additionalProperties: false } as const;
 
 const AGENT_TRACE_SCHEMA = z
   .object({
@@ -79,6 +90,7 @@ const AGENT_TRACE_SCHEMA = z
         "Optional concise rationale summary. Do not include chain-of-thought, secrets, or account identity.",
       ),
   })
+  .meta(CLOSED)
   .optional()
   .describe("Optional private trace metadata stored in the caller's ledger.");
 
@@ -127,11 +139,13 @@ const PROVENANCE_REPORT_SCHEMA = z
           .optional()
           .describe("Source capture time (ISO 8601)."),
       })
+      .meta(CLOSED)
       .optional()
       .describe(
         "Pointers to the observation evidence (never the evidence itself).",
       ),
   })
+  .meta(CLOSED)
   .optional()
   .describe(
     "Optional self-reported provenance (WHAT RAN). No trust: the server stamps " +
@@ -1339,7 +1353,13 @@ export function registerTools(
       !selected.has(toolsetOf(name, config.annotations?.readOnlyHint === true))
     )
       return undefined;
-    return server.registerTool(name, config, handler);
+    const tool = server.registerTool(name, config, handler);
+    // The SDK builds the argument object from the raw shape. Mark that object
+    // closed in the schema registry the converter reads (see CLOSED above).
+    const input = tool?.inputSchema;
+    if (input && Object.keys(config.inputSchema ?? {}).length > 0)
+      z.globalRegistry.add(input as unknown as z.core.$ZodType, CLOSED);
+    return tool;
   }) as McpServer["registerTool"];
   // Separate opt-in inventory: never enrich existing market context or prompts.
   if (process.env.COINRITHM_SPOT_REFERENCE_TOOLS_ENABLED === "true") {
@@ -2815,6 +2835,7 @@ export function registerTools(
               .optional()
               .describe("Your forecast/decision horizon label (e.g. '7d')."),
           })
+          .meta(CLOSED)
           .optional()
           .describe("Opportunity-cohort breadth (frozen into the artifact)."),
         decisionId: z
