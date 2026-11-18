@@ -137,6 +137,29 @@ describe("optional Lightning fallback", () => {
       ),
     ).toEqual([NEMOTRON_SUPER, NEMOTRON_SUPER_35, NEMOTRON_NANO]);
   });
+  it("never spends the one fallback attempt on the retired Super", () => {
+    const chain = (model: string) =>
+      resolveRouteChain({
+        configured: { provider: "nvidia", model, keyRef: "pool:1" },
+        byo: false,
+        openAiBackup: false,
+      }).routes.map((r) => r.model);
+    // Configured on Super 3.5: the second (and last) attempt is live Nano.
+    expect(chain(NEMOTRON_SUPER_35)).toEqual([
+      NEMOTRON_SUPER_35,
+      NEMOTRON_NANO,
+    ]);
+    // Configured on Nano: the alternate is Super 3.5.
+    expect(chain(NEMOTRON_NANO)).toEqual([NEMOTRON_NANO, NEMOTRON_SUPER_35]);
+    // An agent still configured on the retired model keeps it first, then
+    // gets the live successor.
+    expect(chain(NEMOTRON_SUPER).slice(0, 2)).toEqual([
+      NEMOTRON_SUPER,
+      NEMOTRON_SUPER_35,
+    ]);
+    for (const model of [NEMOTRON_SUPER_35, NEMOTRON_NANO])
+      expect(chain(model)).not.toContain(NEMOTRON_SUPER);
+  });
   it.each([{ byo: true }, { pinnedModel: true }])(
     "respects exact model selection %j",
     (over) => {
@@ -910,7 +933,7 @@ describe("pinned model: one route, no failover", () => {
       openAiBackup: true,
     });
     expect(normal.routes.length).toBeGreaterThan(1);
-    expect(normal.routes.map((r) => r.model)).toContain(NEMOTRON_SUPER);
+    expect(normal.routes.map((r) => r.model)).toContain(NEMOTRON_SUPER_35);
   });
 });
 
