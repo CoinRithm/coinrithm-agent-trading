@@ -263,29 +263,30 @@ Base URL: `https://api.coinrithm.com` (live). Hosted MCP: `https://mcp.coinrithm
 `info.version` in `openapi.yaml` (currently **1.11.0**) is the API contract
 version. The MCP package (`@coinrithm/mcp-trading`, currently **0.7.21**)
 is versioned separately from the SDKs. Registry publication was verified
-on **16 October 2026**:
+on **18 November 2026** for the MCP package and on **16 October 2026** for
+the SDKs:
 
 | Package | Published registry version | Source version |
 | --- | --- | --- |
-| `@coinrithm/mcp-trading` (MCP server and agent runner) | **0.7.20** | **0.7.21** |
+| `@coinrithm/mcp-trading` (MCP server and agent runner) | **0.7.21** | **0.7.21** |
 | `@coinrithm/sdk` (TypeScript) | **0.5.0** | **0.5.0** |
 | `coinrithm-sdk` (Python) | **1.10.0** | **1.10.0** |
 
-All four npm/PyPI downloads match the release manifest byte for byte (SHA-256).
-MCP 0.7.20 was built from source `15bf010`; both SDKs from
+All four npm/PyPI downloads match their release manifests byte for byte
+(SHA-256). MCP 0.7.21 was built from source `61df419`; both SDKs from
 `7587395975095404cbc353b2d3c3756cce28c2d6`, generated from API contract
 1.11.0 (additive): keyless crypto reads, prediction-market strike ladders,
 prices-history with stored-snapshot labels, the retryable 503 and the JSON
 error envelope. See the [publishing record](docs/PUBLISHING.md).
 
-MCP **0.7.20** has 49 default tools (23 keyless) and starts without a key in
+MCP **0.7.21** has 49 default tools (23 keyless) and starts without a key in
 data-only mode, like the hosted MCP. See the
 [MCP changelog](./packages/mcp-trading/CHANGELOG.md).
 
-The GitHub release `mcp-trading-v0.7.18` carries the four archives, and the
-official MCP Registry lists **0.7.18** as latest. Hosted MCP is deployed
-separately from package publication; on 15 October 2026 it reported
-**0.7.18**.
+The GitHub release `mcp-trading-v0.7.21` carries the MCP archive, and the
+official MCP Registry lists **0.7.21** as latest. Hosted MCP is deployed
+separately from package publication; on 18 November 2026 it reported
+**0.7.21**.
 
 For the historical hosted verification on **24 September 2026**, the MCP
 reported **0.7.14**, with **40 tools**, including **13 keyless data tools**.
