@@ -43,7 +43,7 @@ jobs:
       - name: TypeScript SDK — audit, regenerate, verify, package
         run: |
           npm ci
-          npm audit --audit-level=high
+          node "$GITHUB_WORKSPACE/.github/scripts/audit-gate.mjs"
           npm run generate
           git diff --exit-code -- src/schema.ts
           npm run typecheck
@@ -149,11 +149,18 @@ jobs:
           cache: npm
           cache-dependency-path: packages/mcp-trading/package-lock.json
 
+      # The audit gate replaces a bare `npm audit --audit-level=high`: it
+      # fails on every high or critical advisory except the dated exceptions
+      # listed in the script (owner-approved 2026-11-18). Its own rules are
+      # tested here first.
+      - name: Audit gate self-test
+        run: node --test .github/scripts/audit-gate.test.mjs
+
       - name: mcp-trading — install, lint, format:check, typecheck, test, build
         working-directory: packages/mcp-trading
         run: |
           npm ci
-          npm audit --audit-level=high
+          node "$GITHUB_WORKSPACE/.github/scripts/audit-gate.mjs"
           npm run lint
           npm run format:check
           npm run typecheck
@@ -212,7 +219,7 @@ jobs:
         working-directory: packages/scheduler
         run: |
           npm ci
-          npm audit --audit-level=high
+          node "$GITHUB_WORKSPACE/.github/scripts/audit-gate.mjs"
           npm run lint
           npm run format:check
           npm run typecheck
