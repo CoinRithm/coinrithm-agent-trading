@@ -420,3 +420,70 @@ describe("action confidence tolerance (fleet fail-closed fix, 2026-08-19)", () =
     }
   });
 });
+
+// Cycle records store these strings as the skip reason and the revision views
+// group by the exact text, so the zod 3 wording is held after the zod 4
+// upgrade (2026-11-18). Each expected string is what zod 3.25 produced.
+describe("rejection wording is unchanged by the zod 4 upgrade", () => {
+  const ACTION_TYPES =
+    "'futures_open' | 'futures_close' | 'futures_set_sltp' | 'spot_order' | 'spot_cancel' | 'pm_open'";
+  const open = (extra: Record<string, unknown>) =>
+    JSON.stringify({
+      decision: "act",
+      actions: [
+        {
+          type: "futures_open",
+          symbol: "BTC",
+          side: "long",
+          leverage: 2,
+          marginMusd: 10,
+          ...extra,
+        },
+      ],
+    });
+
+  it.each([
+    ['{"actions":[]}', "decision: Required"],
+    [
+      '{"decision":3,"actions":[]}',
+      "decision: Expected 'skip' | 'act', received number",
+    ],
+    ['{"decision":"maybe","actions":[]}', "decision: Invalid enum value"],
+    [open({ side: undefined }), "actions.0.side: Required"],
+    [
+      open({ side: 1 }),
+      "actions.0.side: Expected 'long' | 'short', received number",
+    ],
+    [open({ side: "up" }), "actions.0.side: Invalid enum value"],
+    [open({ symbol: undefined }), "actions.0.symbol: Required"],
+    [
+      open({ symbol: "" }),
+      "actions.0.symbol: String must contain at least 1 character(s)",
+    ],
+    [
+      open({ leverage: 0 }),
+      "actions.0.leverage: Number must be greater than 0",
+    ],
+    [
+      '{"decision":"act","actions":[{"type":"futures_close","positionId":1,"fraction":1.5}]}',
+      "actions.0.fraction: Number must be less than or equal to 1",
+    ],
+    [
+      JSON.stringify({ decision: "skip", rationale: "x".repeat(1201) }),
+      "rationale: String must contain at most 1200 character(s)",
+    ],
+    [
+      '{"decision":"act","actions":[{"type":"teleport"}]}',
+      `actions.0.type: Invalid discriminator value. Expected ${ACTION_TYPES}`,
+    ],
+    [
+      '{"decision":"act","actions":[{"symbol":"BTC"}]}',
+      `actions.0.type: Invalid discriminator value. Expected ${ACTION_TYPES}`,
+    ],
+  ])("rejection %# keeps its wording", (text, expected) => {
+    const result = parseDecision(text);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.split("; ")).toContain(expected);
+  });
+});

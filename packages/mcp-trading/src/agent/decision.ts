@@ -464,29 +464,116 @@ export type ParseDecisionResult =
       actionsStringDiagnostic?: ActionsStringDiagnostic;
     };
 
-function safeIssueMessage(issue: z.ZodIssue): string {
-  // These Zod messages echo model-supplied values or unknown field names.
-  // Other messages in this fixed schema describe types or contract limits.
+/** zod 3's name for a value's type, as its messages printed it. */
+function zod3TypeName(value: unknown): string {
+  if (value === null) return "null";
+  if (Array.isArray(value)) return "array";
+  if (typeof value === "number" && Number.isNaN(value)) return "nan";
+  return typeof value;
+}
+
+function valueAtPath(root: unknown, path: readonly PropertyKey[]): unknown {
+  let current = root;
+  for (const key of path) {
+    if (current === null || typeof current !== "object") return undefined;
+    current = (current as Record<PropertyKey, unknown>)[key];
+  }
+  return current;
+}
+
+const quotedList = (values: readonly unknown[]): string =>
+  values.map((v) => (typeof v === "string" ? `'${v}'` : String(v))).join(" | ");
+
+// The action types in declaration order, as zod 3 listed them when the
+// discriminator matched none.
+const ACTION_TYPE_LIST = quotedList(
+  actionSchema.options.map((option) => option.shape.type.value),
+);
+
+/**
+ * One wording per rejection, held across the zod 3 -> 4 upgrade (2026-11-18).
+ * The text is stored as a cycle's skip reason and the revision views group
+ * cycles by that exact string, so a reworded message would read as a new
+ * failure mode. Messages that would echo a model-supplied value or an unknown
+ * field name are replaced by a fixed phrase, as before; the rest name types
+ * and contract limits from this fixed schema only.
+ */
+function safeIssueMessage(issue: z.ZodIssue, input: unknown): string {
   switch (issue.code) {
     // zod 4 reports a failed enum and a failed literal with one code; a
-    // literal carries exactly one allowed value. The wording stays as it was.
-    case "invalid_value":
-      return issue.values.length === 1
-        ? "Invalid literal value"
-        : "Invalid enum value";
+    // literal carries exactly one allowed value.
+    case "invalid_value": {
+      if (issue.values.length === 1) return "Invalid literal value";
+      const value = valueAtPath(input, issue.path);
+      if (value === undefined) return "Required";
+      return typeof value === "string"
+        ? "Invalid enum value"
+        : `Expected ${quotedList(issue.values)}, received ${zod3TypeName(value)}`;
+    }
     case "unrecognized_keys":
       return "Unrecognized field(s)";
-    // zod 4 words a wrong type as "Invalid input: expected array, received
-    // string". Records, prompts and tests quote the earlier wording, so it is
-    // kept: "Expected array, received string", and "Required" when missing.
+    // zod 4: "Invalid input: expected array, received string".
     case "invalid_type": {
       const m = /^Invalid input: expected (.+), received (.+)$/.exec(
         issue.message,
       );
       if (!m) return issue.message;
-      return m[2] === "undefined"
-        ? "Required"
-        : `Expected ${m[1]}, received ${m[2]}`;
+      if (m[2] === "undefined") return "Required";
+      return `Expected ${m[1]}, received ${m[2] === "NaN" ? "nan" : m[2]}`;
+    }
+    // zod 4 says only "Invalid input" when no action type matches.
+    case "invalid_union":
+      return issue.path[issue.path.length - 1] === "type"
+        ? `Invalid discriminator value. Expected ${ACTION_TYPE_LIST}`
+        : issue.message;
+    // zod 4: "Too small: expected number to be >0".
+    case "too_small":
+    case "too_big": {
+      const small = issue.code === "too_small";
+      const bound = String(small ? issue.minimum : issue.maximum);
+      const inclusive = issue.inclusive === true;
+      const exact = issue.exact === true;
+      if (issue.origin === "string") {
+        const how = exact
+          ? "exactly"
+          : small
+            ? inclusive
+              ? "at least"
+              : "over"
+            : inclusive
+              ? "at most"
+              : "under";
+        return `String must contain ${how} ${bound} character(s)`;
+      }
+      if (issue.origin === "array") {
+        const how = exact
+          ? "exactly"
+          : small
+            ? inclusive
+              ? "at least"
+              : "more than"
+            : inclusive
+              ? "at most"
+              : "less than";
+        return `Array must contain ${how} ${bound} element(s)`;
+      }
+      if (issue.origin === "number") {
+        if (small) {
+          const how = exact
+            ? "exactly equal to "
+            : inclusive
+              ? "greater than or equal to "
+              : "greater than ";
+          return `Number must be ${how}${bound}`;
+        }
+        const how = exact
+          ? "exactly"
+          : inclusive
+            ? "less than or equal to"
+            : "less than";
+        return `Number must be ${how} ${bound}`;
+      }
+      return issue.message;
     }
     default:
       return issue.message;
@@ -509,7 +596,9 @@ export function parseDecision(text: string): ParseDecisionResult {
     return {
       ok: false,
       error: res.error.issues
-        .map((i) => `${i.path.join(".") || "(root)"}: ${safeIssueMessage(i)}`)
+        .map(
+          (i) => `${i.path.join(".") || "(root)"}: ${safeIssueMessage(i, obj)}`,
+        )
         .join("; "),
       actionsStringDiagnostic: diagnoseActionsString(obj),
     };
