@@ -46,7 +46,7 @@ import {
   loadHttpConfig,
   log,
 } from "./client.js";
-import { registerTools } from "./tools.js";
+import { parseToolsets, registerTools } from "./tools.js";
 import { SERVER_VERSION } from "./version.js";
 import {
   observeHttpCompletion,
@@ -209,7 +209,12 @@ export function createHttpApp(
           },
           { instructions: SERVER_INSTRUCTIONS },
         );
-      if (!options.createServer) registerTools(server, client);
+      // `?toolsets=data` (or data,account,trading) loads part of the tool
+      // list; no selection loads every tool.
+      if (!options.createServer)
+        registerTools(server, client, {
+          toolsets: parseToolsets(req.query?.toolsets),
+        });
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined, // stateless: no cross-request/user state
       });

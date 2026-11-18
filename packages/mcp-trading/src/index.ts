@@ -16,7 +16,7 @@ import { SERVER_INSTRUCTIONS } from "./instructions.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CoinRithmClient, loadConfig, log } from "./client.js";
-import { registerTools } from "./tools.js";
+import { parseToolsets, registerTools } from "./tools.js";
 import { SERVER_VERSION } from "./version.js";
 
 async function main(): Promise<void> {
@@ -31,7 +31,9 @@ async function main(): Promise<void> {
     { instructions: SERVER_INSTRUCTIONS },
   );
 
-  registerTools(server, client);
+  registerTools(server, client, {
+    toolsets: parseToolsets(process.env.COINRITHM_MCP_TOOLSETS),
+  });
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
