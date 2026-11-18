@@ -476,6 +476,18 @@ function safeIssueMessage(issue: z.ZodIssue): string {
         : "Invalid enum value";
     case "unrecognized_keys":
       return "Unrecognized field(s)";
+    // zod 4 words a wrong type as "Invalid input: expected array, received
+    // string". Records, prompts and tests quote the earlier wording, so it is
+    // kept: "Expected array, received string", and "Required" when missing.
+    case "invalid_type": {
+      const m = /^Invalid input: expected (.+), received (.+)$/.exec(
+        issue.message,
+      );
+      if (!m) return issue.message;
+      return m[2] === "undefined"
+        ? "Required"
+        : `Expected ${m[1]}, received ${m[2]}`;
+    }
     default:
       return issue.message;
   }

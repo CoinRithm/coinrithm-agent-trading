@@ -19,12 +19,6 @@ export const ALLOWED = {
     reason:
       "No patched release exists (latest 4.0.7 is affected). Development tooling only (vitest, typescript-eslint); the trigger is an attacker-supplied glob pattern and nothing here passes outside input to it. Not in the published package's runtime dependencies.",
   },
-  "GHSA-mrhx-c7xc-m3w5": {
-    package: "zod",
-    expires: "2026-12-02",
-    reason:
-      "The only patched release is zod 4, a major upgrade of the decision parser every agent uses; it needs its own reviewed change. The trigger is a large array sent to an array schema without a length limit. The one such schema here parses model output capped at 1,024 output tokens; no MCP tool input uses an array schema, and HTTP bodies are capped at 100 kB.",
-  },
 };
 
 const BLOCKING = new Set(["high", "critical"]);
