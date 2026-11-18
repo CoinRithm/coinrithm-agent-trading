@@ -468,10 +468,12 @@ function safeIssueMessage(issue: z.ZodIssue): string {
   // These Zod messages echo model-supplied values or unknown field names.
   // Other messages in this fixed schema describe types or contract limits.
   switch (issue.code) {
-    case "invalid_enum_value":
-      return "Invalid enum value";
-    case "invalid_literal":
-      return "Invalid literal value";
+    // zod 4 reports a failed enum and a failed literal with one code; a
+    // literal carries exactly one allowed value. The wording stays as it was.
+    case "invalid_value":
+      return issue.values.length === 1
+        ? "Invalid literal value"
+        : "Invalid enum value";
     case "unrecognized_keys":
       return "Unrecognized field(s)";
     default:
@@ -507,7 +509,7 @@ export function parseDecision(text: string): ParseDecisionResult {
     ok: true,
     decision: {
       decision: d.decision,
-      confidence: d.confidence,
+      confidence: d.confidence as number | undefined,
       reason: d.reason,
       rationale: d.rationale,
       actions,
