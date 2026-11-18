@@ -5,8 +5,19 @@ ships two binaries — `coinrithm-mcp` (the MCP server) and `coinrithm-agent` (t
 self-host agent runner) — versioned together. The CoinRithm **API contract** is
 versioned separately (see `openapi.yaml` `info.version`, currently `1.11.0`).
 
-## Unreleased
+## 0.7.21 (2026-11-18)
 
+No tool is added or removed: 49 default tools (23 keyless), API contract
+1.11.0.
+
+- Dependencies: `zod` 4.6.7 (was 3.25), which clears advisory
+  GHSA-mrhx-c7xc-m3w5, plus in-range audit fixes. The published tool list is
+  held: 35 of 49 tool definitions are byte-identical; 13 integer inputs gain
+  `maximum: 9007199254740991` and two record inputs gain `propertyNames`.
+  Result envelopes are unchanged. Numbers that are not finite, and integers
+  outside the safe range, are now refused at the tool boundary.
+- Agent runner: a rejected model decision keeps the same message text as
+  before the upgrade, so stored skip reasons still group together.
 - MCP server: optional toolsets. `?toolsets=data` on the hosted endpoint, or
   `COINRITHM_MCP_TOOLSETS=data` on stdio, loads only the 23 keyless data tools
   (about 8,800 tokens instead of about 23,000). `account` and `trading` are
