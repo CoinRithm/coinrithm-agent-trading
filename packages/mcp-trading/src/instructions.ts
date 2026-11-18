@@ -15,3 +15,18 @@ export const SERVER_INSTRUCTIONS = [
   "Prediction-market probabilities are venue prices, not CoinRithm forecasts. referenceProbability is a cross-venue consensus with a disagreement band (spreadPoints).",
   PAPER_NOTE,
 ].join("\n");
+
+// With a toolset selection, some tool descriptions name tools that were not
+// loaded (pm_data_events points at pm_quote, crypto_price at get_candles).
+// One extra instruction line says what is loaded and how to get the rest, so
+// a model does not call a tool this connection does not have.
+export function instructionsFor(
+  toolsets: ReadonlySet<string> | undefined,
+): string {
+  if (!toolsets) return SERVER_INSTRUCTIONS;
+  const loaded = [...toolsets].sort().join(", ");
+  return [
+    SERVER_INSTRUCTIONS,
+    `Loaded toolsets: ${loaded}. Tools named in descriptions but missing from the tool list belong to a toolset that is not loaded (data, account, trading); connect without a toolset selection to load every tool.`,
+  ].join("\n");
+}
