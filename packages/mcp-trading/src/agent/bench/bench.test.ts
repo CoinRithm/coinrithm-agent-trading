@@ -171,7 +171,7 @@ describe("recording", () => {
         "GET /api/agent/trades?limit=1&venue=futures",
         "GET /api/agent/resolve?q=BTC",
         "GET /api/agent/pm/discover?limit=30&q=Bitcoin",
-        "GET /api/agent/performance",
+        "GET /api/agent/performance?only=pmCalibration",
       ]),
     );
     expect(keys).not.toContain("GET /api/agent/pm/discover?limit=12&q=Bitcoin");
