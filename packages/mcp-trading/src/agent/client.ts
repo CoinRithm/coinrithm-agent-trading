@@ -323,11 +323,19 @@ export class CoinRithmClient {
   // GET /api/agent/performance: the calling key's own realized performance.
   // Newer backends add an optional `pmCalibration` block (the key's settled PM
   // forecast record), parsed defensively in observe.
+  // `only: "pmCalibration"` asks the backend for that block alone, so it can
+  // skip the rest of the report; a backend that predates the parameter
+  // ignores it and returns the full report.
   performance(
     trace?: AgentTrace,
-    options?: { timeoutMs?: number; maxRetries?: number },
+    options?: {
+      timeoutMs?: number;
+      maxRetries?: number;
+      only?: "pmCalibration";
+    },
   ) {
     return this.request("GET", "/api/agent/performance", {
+      ...(options?.only ? { query: { only: options.only } } : {}),
       trace,
       timeoutMs: options?.timeoutMs,
       maxRetries: options?.maxRetries,

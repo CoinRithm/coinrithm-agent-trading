@@ -1615,7 +1615,11 @@ describe("own PM calibration record (pmCalibration)", () => {
     vi.setSystemTime(t0 + 30 * 60_000 - 1);
     await observe(clientWith(perf), pmSpec, newState("r"));
     expect(perf).toHaveBeenCalledOnce();
-    expect(perf.mock.calls[0][1]).toEqual({ timeoutMs: 5_000, maxRetries: 0 });
+    expect(perf.mock.calls[0][1]).toEqual({
+      timeoutMs: 5_000,
+      maxRetries: 0,
+      only: "pmCalibration",
+    });
     // Another agent's credential has its own entry.
     await observe(clientWith(perf, "agent-b"), pmSpec, newState("r"));
     expect(perf).toHaveBeenCalledTimes(2);
