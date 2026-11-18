@@ -13,7 +13,7 @@ import type { ProviderCapacityDenialReason } from "./capacity.js";
 
 type AdmissionReason = ProviderCapacityDenialReason | "model_cooldown";
 
-export const ROUTE_POLICY_VERSION = "2026-10-06.1";
+export const ROUTE_POLICY_VERSION = "2026-11-18.1";
 // nemotron-3-nano-30b-a3b went 410 (end of life) on 2026-09-01; the omni
 // variant is the live-probe-verified fast tier (200 + strict JSON, ~2.6s,
 // probe 2026-09-02 06:5xZ from the scheduler key).
@@ -281,11 +281,20 @@ export function resolveRouteChain(args: {
   if (args.byo || args.pinnedModel) return { profile, routes: [configured] };
 
   const routes: ModelRoute[] = [configured];
+  // The retired NEMOTRON_SUPER is no longer added as an alternate (policy
+  // 2026-11-18.1). It has answered 404/410 since 2026-10-20, and with
+  // MAX_ROUTE_ATTEMPTS = 2 it used up the only fallback attempt: production,
+  // 7 days to 2026-11-18, 1,710 cycles of 20 agents configured on Super 3.5
+  // failed on 3.5 and then on the retired model, and none reached the live
+  // Nano route behind it. An agent still configured on NEMOTRON_SUPER keeps
+  // it as its own first route; only the alternates change.
   // Same-tier successor first for the strong profile (see NEMOTRON_SUPER_35).
   if (profile === "strong") {
-    for (const model of [NEMOTRON_SUPER_35, NEMOTRON_SUPER]) {
-      routes.push({ provider: "nvidia", model, keyRef: configured.keyRef });
-    }
+    routes.push({
+      provider: "nvidia",
+      model: NEMOTRON_SUPER_35,
+      keyRef: configured.keyRef,
+    });
   }
   if (args.lightningFallback && (profile === "fast" || profile === "strong")) {
     routes.push({
@@ -295,9 +304,11 @@ export function resolveRouteChain(args: {
     });
   }
   if (profile === "fast") {
-    for (const model of [NEMOTRON_SUPER, NEMOTRON_SUPER_35]) {
-      routes.push({ provider: "nvidia", model, keyRef: configured.keyRef });
-    }
+    routes.push({
+      provider: "nvidia",
+      model: NEMOTRON_SUPER_35,
+      keyRef: configured.keyRef,
+    });
   } else if (profile === "strong") {
     routes.push({
       provider: "nvidia",

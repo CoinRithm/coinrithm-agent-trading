@@ -638,10 +638,11 @@ describe("hosted provider lifecycle", () => {
     // house, fallback switch -> JSON content on the Super fallback
     [false, true, true],
     [true, true, true],
-    // Switch off: customers keep the default fallback; the house trial
-    // gate still covers house agents on its own.
+    // Switch off: the default fallback for everyone. The fallback is Super
+    // 3.5 since route policy 2026-11-18.1, and the house trial gate only
+    // ever covered the retired Super 3, so it no longer reaches a fallback.
     [false, false, false],
-    [true, false, true],
+    [true, false, false],
   ])(
     "selects the Super fallback transport by the fallback switch, preserving house scope: house=%s switch=%s",
     async (isHouse, fallbackSwitch, expected) => {
@@ -659,7 +660,7 @@ describe("hosted provider lifecycle", () => {
       const calls = vi.mocked(engine.providerForRoute).mock.calls;
       expect(calls.map((call) => call[0].model)).toEqual([
         NEMOTRON_NANO,
-        NEMOTRON_SUPER,
+        NEMOTRON_SUPER_35,
       ]);
       expect(calls[0]![3]).toBeUndefined();
       expect(calls[1]![3]).toEqual(
@@ -959,7 +960,7 @@ describe("hosted provider lifecycle", () => {
       await runAgentOnce(pool, agent, config);
       expect(result).toMatchObject({
         ok: true,
-        route: { effectiveModel: NEMOTRON_SUPER },
+        route: { effectiveModel: NEMOTRON_SUPER_35 },
       });
       const releases = vi.mocked(capacity.releaseProviderCapacity).mock.calls;
       expect(releases).toHaveLength(4);
@@ -1063,7 +1064,7 @@ describe("hosted provider lifecycle", () => {
     const calls = vi.mocked(engine.providerForRoute).mock.calls;
     expect(calls.map((call) => call[0].model)).toEqual([
       NEMOTRON_NANO,
-      NEMOTRON_SUPER,
+      NEMOTRON_SUPER_35,
     ]);
     expect(calls[0]).toHaveLength(3);
     expect(calls[1]![3]).toEqual({ nemotronJsonContent: true });
@@ -1071,7 +1072,7 @@ describe("hosted provider lifecycle", () => {
     expect(calls[1]![0].keyRef).toBe(calls[0]![0].keyRef);
     expect(result).toMatchObject({
       ok: true,
-      route: { effectiveModel: NEMOTRON_SUPER },
+      route: { effectiveModel: NEMOTRON_SUPER_35 },
     });
   });
 
@@ -1111,7 +1112,7 @@ describe("hosted provider lifecycle", () => {
     decide.mockResolvedValueOnce(nanoWorkerLimit).mockResolvedValueOnce(good);
     await runAgentOnce(pool, off.agent, off.config);
     const calls = vi.mocked(engine.providerForRoute).mock.calls;
-    expect(calls[1]![0].model).toBe(NEMOTRON_SUPER);
+    expect(calls[1]![0].model).toBe(NEMOTRON_SUPER_35);
     expect(calls[1]).toHaveLength(3);
   });
 

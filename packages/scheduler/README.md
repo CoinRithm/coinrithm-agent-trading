@@ -64,7 +64,7 @@ Env: `DATABASE_URL`, `ENCRYPTION_KEY`, `NVIDIA_API_KEY` (secrets). **No volume.*
 
 Operational must-knows:
 
-- **Routing deadline (policy `2026-10-06.1`).** The shared fallback chain has
+- **Routing deadline (policy `2026-11-18.1`, deadline rule from `2026-10-06.1`).** The shared fallback chain has
   one 300-second maximum budget, below the 360-second run lock and heartbeat.
   An alternate receives only the remaining time. Older `2026-08-27.2` runs
   allowed 300 seconds per attempt; retain the source revision when replaying
