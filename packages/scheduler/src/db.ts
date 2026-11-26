@@ -294,6 +294,13 @@ export async function migrateAgentsOffEolModels(
 // credentials, drawdown, kill-switch and user action.
 
 export const CIRCUIT_TRIP_STRIKES = 3;
+// 60 * 2^6 is already above the 3600 second cap, so a larger exponent never
+// changes the backoff. Unbounded, power() leaves double precision near 2^1019
+// and the whole upsert fails with "value out of range: overflow". Seen on
+// 2026-11-26: the retired Super 3 route sat at 1,019 strikes, every permanent
+// failure (+3) failed to record, probe_after stayed in the past and the dead
+// route was offered again on every cycle.
+export const CIRCUIT_BACKOFF_MAX_EXPONENT = 6;
 
 export async function recordProviderStrike(
   pool: Pool,
@@ -315,7 +322,7 @@ export async function recordProviderStrike(
        probe_after = CASE
          WHEN agent_runtime.provider_circuits.strikes + $4 >= ${CIRCUIT_TRIP_STRIKES}
          THEN now() + make_interval(secs => LEAST(
-                60 * power(2, agent_runtime.provider_circuits.strikes + $4 - ${CIRCUIT_TRIP_STRIKES}),
+                60 * power(2, LEAST(agent_runtime.provider_circuits.strikes + $4 - ${CIRCUIT_TRIP_STRIKES}, ${CIRCUIT_BACKOFF_MAX_EXPONENT})),
                 3600))
          ELSE NULL
        END,
@@ -1235,7 +1242,7 @@ export async function persistCycleResult(
            probe_after = CASE
              WHEN agent_runtime.provider_circuits.strikes + 1 >= ${CIRCUIT_TRIP_STRIKES}
              THEN now() + make_interval(secs => LEAST(
-                    60 * power(2, agent_runtime.provider_circuits.strikes + 1 - ${CIRCUIT_TRIP_STRIKES}),
+                    60 * power(2, LEAST(agent_runtime.provider_circuits.strikes + 1 - ${CIRCUIT_TRIP_STRIKES}, ${CIRCUIT_BACKOFF_MAX_EXPONENT})),
                     3600))
              ELSE NULL
            END,
