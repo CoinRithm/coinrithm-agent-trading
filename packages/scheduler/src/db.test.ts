@@ -8,6 +8,7 @@ import {
   recordProviderStrike,
   clearProviderCircuit,
   CIRCUIT_TRIP_STRIKES,
+  CIRCUIT_BACKOFF_MAX_EXPONENT,
   migrateAgentsOffEolModels,
   migrateHouseAgentsOffGroq,
   rescheduleToCadence,
@@ -925,6 +926,41 @@ describe("provider circuits — reliability slice 1 (never disable on provider f
     expect(String(query.mock.calls[1][0])).toContain(
       "DELETE FROM agent_runtime.provider_circuits",
     );
+  });
+
+  it("bounds the backoff exponent in both strike upserts, so a long-failing route cannot overflow power()", async () => {
+    // Production, 2026-11-26: a route at 1,019 strikes plus a permanent failure
+    // (+3) evaluated 60 * power(2, 1019), which is out of double precision
+    // range, so the upsert failed about 400 times a day and probe_after never
+    // moved. The bound must sit inside power(), before the 3600 second cap.
+    expect(60 * 2 ** CIRCUIT_BACKOFF_MAX_EXPONENT).toBeGreaterThanOrEqual(3600);
+    const bounded = (delta: string) =>
+      `power(2, LEAST(agent_runtime.provider_circuits.strikes + ${delta} - ${CIRCUIT_TRIP_STRIKES}, ${CIRCUIT_BACKOFF_MAX_EXPONENT}))`;
+
+    const query = vi.fn().mockResolvedValue({ rows: [], rowCount: 1 });
+    const pool = {
+      connect: vi.fn().mockResolvedValue({ query, release: vi.fn() }),
+      query,
+    } as unknown as Pool;
+
+    await recordProviderStrike(pool, "nvidia", "m", "404", 3);
+    const direct = String(query.mock.calls[0][0]);
+    expect(direct).toContain(bounded("$4"));
+    expect(query.mock.calls[0][1]).toEqual(["nvidia", "m", "404", 3]);
+
+    query.mockClear();
+    await persistCycleResult(pool, 8, {
+      state: {},
+      cycle: { decision: "skip", decisionType: "skip" } as CycleRecord,
+      providerHold: { provider: "nvidia", model: "m", error: "404" },
+    });
+    const inCycle = query.mock.calls
+      .map((c) => String(c[0]))
+      .find(
+        (s) => s.includes("provider_circuits") && s.includes("ON CONFLICT"),
+      );
+    expect(inCycle, "in-cycle strike upsert must run").toBeTruthy();
+    expect(inCycle).toContain(bounded("1"));
   });
 });
 
